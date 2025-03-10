@@ -1,0 +1,11 @@
+qdrant-client
+openai-clip
+streamlit
+rawpy
+exifread
+transformers
+torch
+torchvision
+pillow
+accelerate
+bitsandbytes 
