@@ -1,0 +1,27 @@
+[15:26:05.104] Creating new model manager instance
+[15:26:05.105] Loading CLIP model on cuda...
+[15:26:05.105] Starting to load CLIP model on cuda...
+[15:26:05.106] CUDA device count: 1
+[15:26:05.106] Current CUDA device: 0
+[15:26:05.106] Loading CLIP model with device=cuda...
+[15:26:08.657] Model is loaded on: cuda:0
+[15:26:08.657] CLIP model loaded in 3.55 seconds on cuda
+[15:26:08.657] CLIP model loaded in 3.55 seconds
+[15:26:08.657] Loading BLIP model on cuda...
+[15:26:08.657] Starting to load BLIP model on cuda...
+[15:26:08.657] Loading BLIP processor from Salesforce/blip-image-captioning-large...
+[15:26:09.457] Loading BLIP model from Salesforce/blip-image-captioning-large...
+[15:26:09.457] CUDA device count: 1
+[15:26:09.457] Current CUDA device: 0
+[15:26:11.146] BLIP model is loaded on: cuda:0
+[15:26:11.146] BLIP model loaded successfully on cuda
+[15:26:11.146] BLIP model loaded in 2.49 seconds
+[15:26:11.146] [After model manager initialization] CUDA Memory - Allocated: 0.00 MB, Reserved: 0.00 MB, Peak: 0.00 MB
+[15:26:11.146] Creating new database manager instance
+[15:26:11.155] [Before rendering UI] CUDA Memory - Allocated: 0.00 MB, Reserved: 0.00 MB, Peak: 0.00 MB
+[15:26:11.160] [After rendering UI] CUDA Memory - Allocated: 0.00 MB, Reserved: 0.00 MB, Peak: 0.00 MB
+[15:26:23.683] Using existing model manager from session state
+[15:26:23.683] [After model manager initialization] CUDA Memory - Allocated: 0.00 MB, Reserved: 0.00 MB, Peak: 0.00 MB
+[15:26:23.683] Using existing database manager from session state
+[15:26:23.683] [Before rendering UI] CUDA Memory - Allocated: 0.00 MB, Reserved: 0.00 MB, Peak: 0.00 MB
+[15:26:23.692] [After rendering UI] CUDA Memory - Allocated: 0.00 MB, Reserved: 0.00 MB, Peak: 0.00 MB

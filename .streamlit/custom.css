@@ -1,0 +1,32 @@
+/* 
+ * File Path: /project_root/.streamlit/custom.css
+ * Purpose: Minimal CSS for dark mode and extendable sidebar.
+ * Latest Changes: 
+ *   - Simplified CSS to avoid encoding issues
+ *   - Kept only essential styling for sidebar and images
+ * Key Logic: Provides minimal styling for the Streamlit application.
+ * Reasoning: Returns to a cleaner, more consistent UI with better sidebar functionality for images.
+ */
+
+/* Basic sidebar enhancements for image display */
+.sidebar .sidebar-content {
+    background-color: rgba(38, 39, 48, 0.8);
+}
+
+/* Image container for better display in sidebar */
+.stImage {
+    max-width: 100%;
+    height: auto;
+    margin-bottom: 1rem;
+}
+
+/* Allow image expansion on hover */
+.stImage:hover {
+    cursor: pointer;
+}
+
+/* Improve expander styling for image metadata */
+.streamlit-expanderHeader {
+    background-color: rgba(255, 255, 255, 0.05);
+    border-radius: 4px;
+} 

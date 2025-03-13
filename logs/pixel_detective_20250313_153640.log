@@ -1,0 +1,94 @@
+[15:36:45.262] Creating new model manager instance
+[15:36:45.262] Loading CLIP model on cuda...
+[15:36:45.262] Starting to load CLIP model on cuda...
+[15:36:45.262] CUDA device count: 1
+[15:36:45.262] Current CUDA device: 0
+[15:36:45.270] Loading CLIP model with device=cuda...
+[15:36:48.728] Model is loaded on: cuda:0
+[15:36:48.728] CLIP model loaded in 3.47 seconds on cuda
+[15:36:48.728] CLIP model loaded in 3.47 seconds
+[15:36:48.728] Loading BLIP model on cuda...
+[15:36:48.728] Starting to load BLIP model on cuda...
+[15:36:48.728] Loading BLIP processor from Salesforce/blip-image-captioning-large...
+[15:36:50.377] Loading BLIP model from Salesforce/blip-image-captioning-large...
+[15:36:50.377] CUDA device count: 1
+[15:36:50.377] Current CUDA device: 0
+[15:36:51.987] BLIP model is loaded on: cuda:0
+[15:36:51.987] BLIP model loaded successfully on cuda
+[15:36:51.987] BLIP model loaded in 3.26 seconds
+[15:36:51.987] [After model manager initialization] CUDA Memory - Allocated: 0.00 MB, Reserved: 0.00 MB, Peak: 0.00 MB
+[15:36:51.987] Creating new database manager instance
+[15:36:51.987] [Before rendering UI] CUDA Memory - Allocated: 0.00 MB, Reserved: 0.00 MB, Peak: 0.00 MB
+[15:36:51.987] [After rendering UI] CUDA Memory - Allocated: 0.00 MB, Reserved: 0.00 MB, Peak: 0.00 MB
+[15:58:18.111] Creating new model manager instance
+[15:58:18.112] Loading CLIP model on cuda...
+[15:58:18.112] CLIP model loaded in 0.00 seconds
+[15:58:18.112] Loading BLIP model on cuda...
+[15:58:18.113] BLIP model loaded in 0.00 seconds
+[15:58:18.114] [After model manager initialization] CUDA Memory - Allocated: 0.00 MB, Reserved: 0.00 MB, Peak: 0.00 MB
+[15:58:18.114] Creating new database manager instance
+[15:58:18.116] [Before rendering UI] CUDA Memory - Allocated: 0.00 MB, Reserved: 0.00 MB, Peak: 0.00 MB
+[15:58:18.119] [After rendering UI] CUDA Memory - Allocated: 0.00 MB, Reserved: 0.00 MB, Peak: 0.00 MB
+[15:58:22.516] Creating new model manager instance
+[15:58:22.517] Loading CLIP model on cuda...
+[15:58:22.517] CLIP model loaded in 0.00 seconds
+[15:58:22.517] Loading BLIP model on cuda...
+[15:58:22.518] BLIP model loaded in 0.00 seconds
+[15:58:22.519] [After model manager initialization] CUDA Memory - Allocated: 0.00 MB, Reserved: 0.00 MB, Peak: 0.00 MB
+[15:58:22.520] Creating new database manager instance
+[15:58:22.522] [Before rendering UI] CUDA Memory - Allocated: 0.00 MB, Reserved: 0.00 MB, Peak: 0.00 MB
+[15:58:22.527] [After rendering UI] CUDA Memory - Allocated: 0.00 MB, Reserved: 0.00 MB, Peak: 0.00 MB
+[15:58:31.699] Creating new model manager instance
+[15:58:31.701] Loading CLIP model on cuda...
+[15:58:31.701] CLIP model loaded in 0.00 seconds
+[15:58:31.701] Loading BLIP model on cuda...
+[15:58:31.701] BLIP model loaded in 0.00 seconds
+[15:58:31.702] [After model manager initialization] CUDA Memory - Allocated: 0.00 MB, Reserved: 0.00 MB, Peak: 0.00 MB
+[15:58:31.703] Creating new database manager instance
+[15:58:31.704] [Before rendering UI] CUDA Memory - Allocated: 0.00 MB, Reserved: 0.00 MB, Peak: 0.00 MB
+[15:58:31.707] [After rendering UI] CUDA Memory - Allocated: 0.00 MB, Reserved: 0.00 MB, Peak: 0.00 MB
+[15:58:34.636] Creating new model manager instance
+[15:58:34.636] Loading CLIP model on cuda...
+[15:58:34.637] CLIP model loaded in 0.00 seconds
+[15:58:34.637] Loading BLIP model on cuda...
+[15:58:34.637] BLIP model loaded in 0.00 seconds
+[15:58:34.639] [After model manager initialization] CUDA Memory - Allocated: 0.00 MB, Reserved: 0.00 MB, Peak: 0.00 MB
+[15:58:34.640] Creating new database manager instance
+[15:58:34.643] [Before rendering UI] CUDA Memory - Allocated: 0.00 MB, Reserved: 0.00 MB, Peak: 0.00 MB
+[15:58:34.646] [After rendering UI] CUDA Memory - Allocated: 0.00 MB, Reserved: 0.00 MB, Peak: 0.00 MB
+[15:58:42.625] Creating new model manager instance
+[15:58:42.626] Loading CLIP model on cuda...
+[15:58:42.626] CLIP model loaded in 0.00 seconds
+[15:58:42.627] Loading BLIP model on cuda...
+[15:58:42.627] BLIP model loaded in 0.00 seconds
+[15:58:42.628] [After model manager initialization] CUDA Memory - Allocated: 0.00 MB, Reserved: 0.00 MB, Peak: 0.00 MB
+[15:58:42.628] Creating new database manager instance
+[15:58:42.630] [Before rendering UI] CUDA Memory - Allocated: 0.00 MB, Reserved: 0.00 MB, Peak: 0.00 MB
+[15:58:42.634] [After rendering UI] CUDA Memory - Allocated: 0.00 MB, Reserved: 0.00 MB, Peak: 0.00 MB
+[15:58:45.577] Creating new model manager instance
+[15:58:45.578] Loading CLIP model on cuda...
+[15:58:45.578] CLIP model loaded in 0.00 seconds
+[15:58:45.578] Loading BLIP model on cuda...
+[15:58:45.579] BLIP model loaded in 0.00 seconds
+[15:58:45.580] [After model manager initialization] CUDA Memory - Allocated: 0.00 MB, Reserved: 0.00 MB, Peak: 0.00 MB
+[15:58:45.580] Creating new database manager instance
+[15:58:45.581] [Before rendering UI] CUDA Memory - Allocated: 0.00 MB, Reserved: 0.00 MB, Peak: 0.00 MB
+[15:58:45.585] [After rendering UI] CUDA Memory - Allocated: 0.00 MB, Reserved: 0.00 MB, Peak: 0.00 MB
+[15:58:55.518] Creating new model manager instance
+[15:58:55.519] Loading CLIP model on cuda...
+[15:58:55.520] CLIP model loaded in 0.00 seconds
+[15:58:55.520] Loading BLIP model on cuda...
+[15:58:55.520] BLIP model loaded in 0.00 seconds
+[15:58:55.521] [After model manager initialization] CUDA Memory - Allocated: 0.00 MB, Reserved: 0.00 MB, Peak: 0.00 MB
+[15:58:55.521] Creating new database manager instance
+[15:58:55.523] [Before rendering UI] CUDA Memory - Allocated: 0.00 MB, Reserved: 0.00 MB, Peak: 0.00 MB
+[15:58:55.527] [After rendering UI] CUDA Memory - Allocated: 0.00 MB, Reserved: 0.00 MB, Peak: 0.00 MB
+[15:58:58.551] Creating new model manager instance
+[15:58:58.552] Loading CLIP model on cuda...
+[15:58:58.552] CLIP model loaded in 0.00 seconds
+[15:58:58.552] Loading BLIP model on cuda...
+[15:58:58.553] BLIP model loaded in 0.00 seconds
+[15:58:58.553] [After model manager initialization] CUDA Memory - Allocated: 0.00 MB, Reserved: 0.00 MB, Peak: 0.00 MB
+[15:58:58.554] Creating new database manager instance
+[15:58:58.557] [Before rendering UI] CUDA Memory - Allocated: 0.00 MB, Reserved: 0.00 MB, Peak: 0.00 MB
+[15:58:58.561] [After rendering UI] CUDA Memory - Allocated: 0.00 MB, Reserved: 0.00 MB, Peak: 0.00 MB

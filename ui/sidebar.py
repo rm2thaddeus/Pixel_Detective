@@ -10,7 +10,7 @@ from config import DEFAULT_IMAGES_PATH
 
 def render_sidebar():
     """
-    Render the sidebar components.
+    Render the sidebar components with support for extendable image display.
     
     Returns:
         dict: A dictionary with keys for 'image_folder' (current DB folder) and 'new_folder' (to be merged), if any.

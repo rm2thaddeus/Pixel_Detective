@@ -6,6 +6,8 @@ Fixed issues:
 - Replaced deprecated 'use_column_width' with 'use_container_width'
 - Restored metadata sidecar in search results
 - Enhanced display of captions and tags
+- Fixed metadata button causing tab reset
+- Changed metadata display to show below images instead of in an expander
 """
 import streamlit as st
 import torch
@@ -31,6 +33,10 @@ def render_text_search_tab():
     # Number of results selector
     num_results = st.slider("Number of results:", min_value=1, max_value=20, value=5)
     
+    # Initialize metadata_expanded in session state if it doesn't exist
+    if 'text_metadata_expanded' not in st.session_state:
+        st.session_state.text_metadata_expanded = {}
+    
     # Search button
     if st.button("🔍 Search Images"):
         if query:
@@ -48,66 +54,96 @@ def render_text_search_tab():
                     for i, result in enumerate(results):
                         score_percentage = result['score'] * 100
                         
-                        # Create columns for each result
-                        col1, col2 = st.columns([1, 2])
-                        
-                        with col1:
-                            try:
-                                st.image(result['path'], use_container_width=True)
-                            except Exception as e:
-                                st.error(f"Could not load image: {e}")
-                        
-                        with col2:
-                            st.markdown(f"**Match score:** {score_percentage:.1f}%")
+                        # Create a container for each result
+                        result_container = st.container()
+                        with result_container:
+                            # Create columns for each result
+                            col1, col2 = st.columns([1, 2])
                             
-                            # Display AI-generated description if available
-                            if 'ai_description' in result:
-                                st.markdown(f"**AI Description:** {result['ai_description']}")
-                            elif 'caption' in result:
-                                st.markdown(f"**Caption:** {result['caption']}")
+                            with col1:
+                                try:
+                                    st.image(result['path'], use_container_width=True)
+                                except Exception as e:
+                                    st.error(f"Could not load image: {e}")
                             
-                            # Display original caption if available
-                            if 'original_caption' in result:
-                                st.markdown(f"**Original Caption:** {result['original_caption']}")
+                            with col2:
+                                st.markdown(f"**Match score:** {score_percentage:.1f}%")
                                 
-                            # Display keywords/tags
-                            if 'Keywords' in result:
-                                if isinstance(result['Keywords'], list):
-                                    keywords = ", ".join(result['Keywords'])
-                                else:
-                                    keywords = result['Keywords']
-                                st.markdown(f"**Keywords:** {keywords}")
+                                # Display AI-generated description if available
+                                if 'ai_description' in result:
+                                    st.markdown(f"**AI Description:** {result['ai_description']}")
+                                elif 'caption' in result:
+                                    st.markdown(f"**Caption:** {result['caption']}")
+                                
+                                # Display original caption if available
+                                if 'original_caption' in result:
+                                    st.markdown(f"**Original Caption:** {result['original_caption']}")
+                                    
+                                # Display keywords/tags
+                                if 'Keywords' in result:
+                                    if isinstance(result['Keywords'], list):
+                                        keywords = ", ".join(result['Keywords'])
+                                    else:
+                                        keywords = result['Keywords']
+                                    st.markdown(f"**Keywords:** {keywords}")
+                                
+                                st.markdown(f"**Path:** `{result['path']}`")
+                                
+                                # Create a unique key for this result
+                                metadata_key = f"text_metadata_{i}_{result.get('index', i)}"
+                                
+                                # Add a "Show Metadata" button with a unique key
+                                if st.button("🔍 Show Metadata", key=f"metadata_btn_{i}", help="Display all metadata for this image"):
+                                    # Toggle the metadata expanded state
+                                    st.session_state.text_metadata_expanded[metadata_key] = not st.session_state.text_metadata_expanded.get(metadata_key, False)
+                                    # Force a rerun to update the UI without changing tabs
+                                    st.experimental_rerun()
                             
-                            st.markdown(f"**Path:** `{result['path']}`")
-                            
-                            # Add a "Show All Metadata" button
-                            if st.button(f"🔍 Show All Metadata", key=f"metadata_btn_{i}"):
+                            # Check if metadata should be displayed for this result
+                            if st.session_state.text_metadata_expanded.get(metadata_key, False):
                                 # Get all metadata for the image from the database
                                 if 'index' in result:
                                     metadata = st.session_state.images_data.iloc[result['index']].to_dict()
-                                    # Display metadata in an expandable section
-                                    with st.expander("Complete Metadata", expanded=True):
-                                        # Filter out very large fields and non-informative ones
-                                        exclude_keys = ['embeddings', 'path', 'filename']
-                                        filtered_metadata = {k: v for k, v in metadata.items() 
-                                                           if k not in exclude_keys and v is not None and str(v) != 'nan'}
-                                        
-                                        # Format the metadata in a clean table
-                                        st.write("### Image Metadata")
-                                        
-                                        for key, value in sorted(filtered_metadata.items()):
-                                            # Handle different types of values
-                                            if isinstance(value, list):
-                                                value_str = ", ".join(str(v) for v in value)
-                                            else:
-                                                value_str = str(value)
+                                    
+                                    # Display metadata in a clean format below the image and basic info
+                                    st.write("---")
+                                    st.write("### Complete Metadata")
+                                    
+                                    # Filter out very large fields and non-informative ones
+                                    exclude_keys = ['embeddings', 'path', 'filename']
+                                    filtered_metadata = {k: v for k, v in metadata.items() 
+                                                      if k not in exclude_keys and v is not None and str(v) != 'nan'}
+                                    
+                                    # Create a clean display
+                                    # Use 3 columns for better space utilization
+                                    metadata_cols = st.columns(3)
+                                    
+                                    # Sort metadata keys for consistent display
+                                    sorted_keys = sorted(filtered_metadata.keys())
+                                    
+                                    # Distribute metadata across columns
+                                    items_per_column = len(sorted_keys) // 3 + (1 if len(sorted_keys) % 3 > 0 else 0)
+                                    
+                                    for col_idx, col in enumerate(metadata_cols):
+                                        with col:
+                                            start_idx = col_idx * items_per_column
+                                            end_idx = min((col_idx + 1) * items_per_column, len(sorted_keys))
                                             
-                                            # Make the display more readable
-                                            if len(value_str) > 100:
-                                                value_str = value_str[:100] + "..."
-                                            
-                                            # Create a clean display
-                                            st.markdown(f"**{key}:** {value_str}")
+                                            for key in sorted_keys[start_idx:end_idx]:
+                                                value = filtered_metadata[key]
+                                                
+                                                # Handle different types of values
+                                                if isinstance(value, list):
+                                                    value_str = ", ".join(str(v) for v in value)
+                                                else:
+                                                    value_str = str(value)
+                                                
+                                                # Make the display more readable
+                                                if len(value_str) > 100:
+                                                    value_str = value_str[:100] + "..."
+                                                
+                                                # Display the key-value pair
+                                                st.markdown(f"**{key}:** {value_str}")
                         
                         st.divider()
                 else:
@@ -127,6 +163,10 @@ def render_image_upload_tab():
     
     # Number of results selector
     num_results = st.slider("Number of results:", min_value=1, max_value=20, value=5, key="image_search_slider")
+    
+    # Initialize metadata_expanded in session state if it doesn't exist
+    if 'image_metadata_expanded' not in st.session_state:
+        st.session_state.image_metadata_expanded = {}
     
     if uploaded_file is not None:
         # Display the uploaded image
@@ -153,66 +193,96 @@ def render_image_upload_tab():
                     for i, result in enumerate(results):
                         score_percentage = result['score'] * 100
                         
-                        # Create columns for each result
-                        col1, col2 = st.columns([1, 2])
-                        
-                        with col1:
-                            try:
-                                st.image(result['path'], use_container_width=True)
-                            except Exception as e:
-                                st.error(f"Could not load image: {e}")
-                        
-                        with col2:
-                            st.markdown(f"**Match score:** {score_percentage:.1f}%")
+                        # Create a container for each result
+                        result_container = st.container()
+                        with result_container:
+                            # Create columns for each result
+                            col1, col2 = st.columns([1, 2])
                             
-                            # Display AI-generated description if available
-                            if 'ai_description' in result:
-                                st.markdown(f"**AI Description:** {result['ai_description']}")
-                            elif 'caption' in result:
-                                st.markdown(f"**Caption:** {result['caption']}")
+                            with col1:
+                                try:
+                                    st.image(result['path'], use_container_width=True)
+                                except Exception as e:
+                                    st.error(f"Could not load image: {e}")
                             
-                            # Display original caption if available
-                            if 'original_caption' in result:
-                                st.markdown(f"**Original Caption:** {result['original_caption']}")
+                            with col2:
+                                st.markdown(f"**Match score:** {score_percentage:.1f}%")
                                 
-                            # Display keywords/tags
-                            if 'Keywords' in result:
-                                if isinstance(result['Keywords'], list):
-                                    keywords = ", ".join(result['Keywords'])
-                                else:
-                                    keywords = result['Keywords']
-                                st.markdown(f"**Keywords:** {keywords}")
+                                # Display AI-generated description if available
+                                if 'ai_description' in result:
+                                    st.markdown(f"**AI Description:** {result['ai_description']}")
+                                elif 'caption' in result:
+                                    st.markdown(f"**Caption:** {result['caption']}")
+                                
+                                # Display original caption if available
+                                if 'original_caption' in result:
+                                    st.markdown(f"**Original Caption:** {result['original_caption']}")
+                                    
+                                # Display keywords/tags
+                                if 'Keywords' in result:
+                                    if isinstance(result['Keywords'], list):
+                                        keywords = ", ".join(result['Keywords'])
+                                    else:
+                                        keywords = result['Keywords']
+                                    st.markdown(f"**Keywords:** {keywords}")
+                                
+                                st.markdown(f"**Path:** `{result['path']}`")
+                                
+                                # Create a unique key for this result
+                                metadata_key = f"image_metadata_{i}_{result.get('index', i)}"
+                                
+                                # Add a "Show Metadata" button with a unique key
+                                if st.button("🔍 Show Metadata", key=f"img_metadata_btn_{i}", help="Display all metadata for this image"):
+                                    # Toggle the metadata expanded state
+                                    st.session_state.image_metadata_expanded[metadata_key] = not st.session_state.image_metadata_expanded.get(metadata_key, False)
+                                    # Force a rerun to update the UI without changing tabs
+                                    st.experimental_rerun()
                             
-                            st.markdown(f"**Path:** `{result['path']}`")
-                            
-                            # Add a "Show All Metadata" button
-                            if st.button(f"🔍 Show All Metadata", key=f"metadata_btn_{i}"):
+                            # Check if metadata should be displayed for this result
+                            if st.session_state.image_metadata_expanded.get(metadata_key, False):
                                 # Get all metadata for the image from the database
                                 if 'index' in result:
                                     metadata = st.session_state.images_data.iloc[result['index']].to_dict()
-                                    # Display metadata in an expandable section
-                                    with st.expander("Complete Metadata", expanded=True):
-                                        # Filter out very large fields and non-informative ones
-                                        exclude_keys = ['embeddings', 'path', 'filename']
-                                        filtered_metadata = {k: v for k, v in metadata.items() 
-                                                           if k not in exclude_keys and v is not None and str(v) != 'nan'}
-                                        
-                                        # Format the metadata in a clean table
-                                        st.write("### Image Metadata")
-                                        
-                                        for key, value in sorted(filtered_metadata.items()):
-                                            # Handle different types of values
-                                            if isinstance(value, list):
-                                                value_str = ", ".join(str(v) for v in value)
-                                            else:
-                                                value_str = str(value)
+                                    
+                                    # Display metadata in a clean format below the image and basic info
+                                    st.write("---")
+                                    st.write("### Complete Metadata")
+                                    
+                                    # Filter out very large fields and non-informative ones
+                                    exclude_keys = ['embeddings', 'path', 'filename']
+                                    filtered_metadata = {k: v for k, v in metadata.items() 
+                                                      if k not in exclude_keys and v is not None and str(v) != 'nan'}
+                                    
+                                    # Create a clean display
+                                    # Use 3 columns for better space utilization
+                                    metadata_cols = st.columns(3)
+                                    
+                                    # Sort metadata keys for consistent display
+                                    sorted_keys = sorted(filtered_metadata.keys())
+                                    
+                                    # Distribute metadata across columns
+                                    items_per_column = len(sorted_keys) // 3 + (1 if len(sorted_keys) % 3 > 0 else 0)
+                                    
+                                    for col_idx, col in enumerate(metadata_cols):
+                                        with col:
+                                            start_idx = col_idx * items_per_column
+                                            end_idx = min((col_idx + 1) * items_per_column, len(sorted_keys))
                                             
-                                            # Make the display more readable
-                                            if len(value_str) > 100:
-                                                value_str = value_str[:100] + "..."
-                                            
-                                            # Create a clean display
-                                            st.markdown(f"**{key}:** {value_str}")
+                                            for key in sorted_keys[start_idx:end_idx]:
+                                                value = filtered_metadata[key]
+                                                
+                                                # Handle different types of values
+                                                if isinstance(value, list):
+                                                    value_str = ", ".join(str(v) for v in value)
+                                                else:
+                                                    value_str = str(value)
+                                                
+                                                # Make the display more readable
+                                                if len(value_str) > 100:
+                                                    value_str = value_str[:100] + "..."
+                                                
+                                                # Display the key-value pair
+                                                st.markdown(f"**{key}:** {value_str}")
                         
                         st.divider()
                 else:
@@ -254,54 +324,71 @@ def render_guessing_game_tab():
     
     # Show the selected image and game interface
     if st.session_state.get("game_image_shown", False):
-        # Display the random image
-        random_image = st.session_state.game_image
-        image_path = random_image['path']
-        
-        try:
-            st.image(image_path, caption="What do you think the AI sees in this image?", use_container_width=True)
-        except Exception as e:
-            st.error(f"Could not load image: {e}")
-            st.session_state.game_image_shown = False
-            return
-        
-        # Input for user's guess
-        user_guess = st.text_input("What do you think this image contains? Be specific:", key="game_guess")
-        
-        # Button to reveal what the AI sees
-        if st.button("👁️ Reveal What AI Sees"):
-            with st.spinner("Analyzing the image..."):
-                # Get the model manager from session state
-                model_manager = st.session_state.model_manager
-                
-                # Get image understanding if not already cached
-                if st.session_state.get("game_understanding") is None:
-                    understanding = model_manager.get_image_understanding(image_path)
-                    st.session_state.game_understanding = understanding
-                else:
-                    understanding = st.session_state.game_understanding
-                
-                # Display the AI's understanding
-                st.subheader("🤖 AI's Understanding:")
-                
-                # First show the BLIP caption if available
-                for concept, score in understanding:
-                    if concept == "BLIP Caption":
-                        st.markdown(f"**{concept}:** {score}")
-                        break
-                
-                # Then show the top concepts
-                st.markdown("**Top concepts identified:**")
-                for concept, score in understanding:
-                    if concept != "BLIP Caption":
-                        score_percentage = score * 100 if isinstance(score, float) else 0
-                        st.markdown(f"- **{concept}:** {score_percentage:.1f}%")
-        
-        # Button to start a new game
-        if st.button("🔄 New Image"):
-            st.session_state.game_image_shown = False
-            st.session_state.game_understanding = None
-            st.experimental_rerun()
+        # Create a container for the game content
+        game_container = st.container()
+        with game_container:
+            # Display the random image
+            random_image = st.session_state.game_image
+            image_path = random_image['path']
+            
+            try:
+                st.image(image_path, caption="What do you think the AI sees in this image?", use_container_width=True)
+            except Exception as e:
+                st.error(f"Could not load image: {e}")
+                st.session_state.game_image_shown = False
+                return
+            
+            # Input for user's guess
+            user_guess = st.text_input("What do you think this image contains? Be specific:", key="game_guess")
+            
+            # Button to reveal what the AI sees
+            if st.button("👁️ Reveal What AI Sees"):
+                with st.spinner("Analyzing the image..."):
+                    # Get the model manager from session state
+                    model_manager = st.session_state.model_manager
+                    
+                    # Get image understanding if not already cached
+                    if st.session_state.get("game_understanding") is None:
+                        understanding = model_manager.get_image_understanding(image_path)
+                        st.session_state.game_understanding = understanding
+                    else:
+                        understanding = st.session_state.game_understanding
+                    
+                    # Display the AI's understanding
+                    st.subheader("🤖 AI's Understanding:")
+                    
+                    # First show the BLIP caption if available
+                    for concept, score in understanding:
+                        if concept == "BLIP Caption":
+                            st.markdown(f"**{concept}:** {score}")
+                            break
+                    
+                    # Then show the top concepts in a more visually organized way
+                    st.markdown("**Top concepts identified:**")
+                    
+                    # Create 3 columns for better organization of concepts
+                    concept_cols = st.columns(3)
+                    
+                    # Filter out BLIP Caption which we've already displayed
+                    concepts = [item for item in understanding if item[0] != "BLIP Caption"]
+                    
+                    # Distribute concepts across columns
+                    items_per_column = len(concepts) // 3 + (1 if len(concepts) % 3 > 0 else 0)
+                    
+                    for col_idx, col in enumerate(concept_cols):
+                        with col:
+                            start_idx = col_idx * items_per_column
+                            end_idx = min((col_idx + 1) * items_per_column, len(concepts))
+                            
+                            for concept, score in concepts[start_idx:end_idx]:
+                                score_percentage = score * 100 if isinstance(score, float) else 0
+                                st.markdown(f"- **{concept}:** {score_percentage:.1f}%")
+            
+            # Button to start a new game
+            if st.button("🔄 New Image"):
+                st.session_state.game_image_shown = False
+                st.session_state.game_understanding = None
+                st.experimental_rerun()
 
 def search_similar_images(query_text, top_k=5):
     """
@@ -338,11 +425,32 @@ def search_similar_images(query_text, top_k=5):
         results = []
         for idx, score in zip(top_indices, top_scores):
             img_path = st.session_state.images_data.iloc[idx]['path']
-            results.append({
+            result = {
                 'path': img_path,
                 'score': float(score),
                 'index': int(idx)
-            })
+            }
+            
+            # Add additional metadata from the database if available
+            metadata = st.session_state.images_data.iloc[idx].to_dict()
+            
+            # Add caption if available
+            if 'caption' in metadata and metadata['caption'] is not None and str(metadata['caption']) != 'nan':
+                result['caption'] = metadata['caption']
+            
+            # Add keywords if available
+            if 'Keywords' in metadata and metadata['Keywords'] is not None and str(metadata['Keywords']) != 'nan':
+                result['Keywords'] = metadata['Keywords']
+            
+            # Add original caption if available
+            if 'original_caption' in metadata and metadata['original_caption'] is not None and str(metadata['original_caption']) != 'nan':
+                result['original_caption'] = metadata['original_caption']
+                
+            # Add AI description if available
+            if 'ai_description' in metadata and metadata['ai_description'] is not None and str(metadata['ai_description']) != 'nan':
+                result['ai_description'] = metadata['ai_description']
+            
+            results.append(result)
         
         return results
     except Exception as e:
@@ -387,11 +495,32 @@ def search_similar_images_by_image(uploaded_image, top_k=5):
         results = []
         for idx, score in zip(top_indices, top_scores):
             img_path = st.session_state.images_data.iloc[idx]['path']
-            results.append({
+            result = {
                 'path': img_path,
                 'score': float(score),
                 'index': int(idx)
-            })
+            }
+            
+            # Add additional metadata from the database if available
+            metadata = st.session_state.images_data.iloc[idx].to_dict()
+            
+            # Add caption if available
+            if 'caption' in metadata and metadata['caption'] is not None and str(metadata['caption']) != 'nan':
+                result['caption'] = metadata['caption']
+            
+            # Add keywords if available
+            if 'Keywords' in metadata and metadata['Keywords'] is not None and str(metadata['Keywords']) != 'nan':
+                result['Keywords'] = metadata['Keywords']
+            
+            # Add original caption if available
+            if 'original_caption' in metadata and metadata['original_caption'] is not None and str(metadata['original_caption']) != 'nan':
+                result['original_caption'] = metadata['original_caption']
+                
+            # Add AI description if available
+            if 'ai_description' in metadata and metadata['ai_description'] is not None and str(metadata['ai_description']) != 'nan':
+                result['ai_description'] = metadata['ai_description']
+            
+            results.append(result)
         
         return results
     except Exception as e:

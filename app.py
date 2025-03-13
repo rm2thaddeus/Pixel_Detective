@@ -5,6 +5,8 @@
 #   - Optimized model loading strategy to load models once at startup
 #   - Fixed asyncio and Streamlit context issues
 #   - Improved error handling and logging
+#   - Added tab state persistence to fix metadata tab issue
+#   - Reverted to minimal CSS for dark mode with extendable sidebar
 # ⚙️ Key Logic: Initializes the application, loads models, and sets up the Streamlit interface.
 # 🧠 Reasoning: Streamlit provides an easy-to-use interface for deploying machine learning models.
 
@@ -34,6 +36,22 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
+# Load minimal CSS for dark mode
+def load_custom_css():
+    """Load minimal CSS for dark mode styling and extendable sidebar."""
+    try:
+        css_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".streamlit", "custom.css")
+        if os.path.exists(css_file):
+            with open(css_file, "r") as f:
+                st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
+        else:
+            print(f"Custom CSS file not found at {css_file}")
+    except Exception as e:
+        print(f"Error loading custom CSS: {e}")
+
+# Load custom CSS
+load_custom_css()
 
 # Initialize asyncio event loop to avoid "no running event loop" error in Streamlit
 try:
@@ -111,6 +129,13 @@ def initialize_app():
         st.session_state.game_image_shown = False
     if 'image_understanding' not in st.session_state:
         st.session_state.image_understanding = None
+    # Initialize tab state variables
+    if 'active_tab' not in st.session_state:
+        st.session_state.active_tab = 0
+    if 'text_metadata_expanded' not in st.session_state:
+        st.session_state.text_metadata_expanded = {}
+    if 'image_metadata_expanded' not in st.session_state:
+        st.session_state.image_metadata_expanded = {}
 
 def on_shutdown():
     """Clean up resources when the app is shutting down."""

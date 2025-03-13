@@ -1,80 +1,119 @@
 # 📂 File Path: /project_root/ui/main_interface.py
 # 📌 Purpose: Renders the main user interface for the Pixel Detective application.
-# 🔄 Latest Changes: Created module to centralize UI rendering.
+# 🔄 Latest Changes: 
+#   - Created module to centralize UI rendering.
+#   - Added tab state persistence to fix tab reset issue.
+#   - Enhanced image loading with multiple fallback methods.
+#   - Added HTML fallback for image display.
+#   - Added minigame fallback when image cannot be displayed.
+#   - Reverted to default dark mode with extendable sidebar for images.
 # ⚙️ Key Logic: Provides functions to render the main interface and sidebar.
 # 🧠 Reasoning: Centralizes UI code for better organization and maintainability.
 
 import streamlit as st
 import os
+import base64
+from pathlib import Path
 from ui.tabs import render_text_search_tab, render_image_upload_tab, render_guessing_game_tab
+import sys
+
+# Add the root directory to the path to import minigame
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from minigame import BreakoutGame
+
+# Function to load image from various locations with fallbacks
+def get_image_path(image_name):
+    """
+    Try multiple methods to locate and load an image file.
+    Returns the path if found, None otherwise.
+    """
+    # Method 1: Check in assets directory (relative to this file)
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    assets_path = os.path.join(base_dir, "assets", image_name)
+    if os.path.exists(assets_path):
+        return assets_path
+    
+    # Method 2: Check in .streamlit/static directory
+    streamlit_static = os.path.join(base_dir, ".streamlit", "static", image_name)
+    if os.path.exists(streamlit_static):
+        return streamlit_static
+    
+    # Method 3: Check in current working directory
+    cwd_path = os.path.join(os.getcwd(), image_name)
+    if os.path.exists(cwd_path):
+        return cwd_path
+    
+    # Method 4: Check in current working directory's assets folder
+    cwd_assets = os.path.join(os.getcwd(), "assets", image_name)
+    if os.path.exists(cwd_assets):
+        return cwd_assets
+    
+    return None
+
+# Function to display an image using HTML as a fallback
+def display_image_html():
+    """Display a detective image using HTML directly."""
+    # Direct URL to the image
+    image_url = "https://i.imgur.com/3vvZbSh.png"
+    
+    # HTML to display the image with dark mode compatibility
+    html = f"""
+    <div style="text-align: center; margin-bottom: 20px;">
+        <img src="{image_url}" alt="Detective" style="max-width: 400px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.3);">
+        <p style="font-style: italic; margin-top: 10px; color: var(--text-color, #FAFAFA);">Ready to investigate your images!</p>
+    </div>
+    """
+    st.markdown(html, unsafe_allow_html=True)
+
+# Function to display a base64 encoded image
+def display_base64_image():
+    """Display a detective image using base64 encoding."""
+    try:
+        # Check if we have a base64 encoded image in a file
+        base64_file = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "detective_base64.txt")
+        if os.path.exists(base64_file) and os.path.getsize(base64_file) > 0:
+            with open(base64_file, "r") as f:
+                base64_data = f.read().strip()
+                if base64_data:
+                    st.markdown(f"""
+                    <div style="text-align: center; margin-bottom: 20px;">
+                        <img src="data:image/png;base64,{base64_data}" alt="Detective" style="max-width: 400px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.3);">
+                        <p style="font-style: italic; margin-top: 10px; color: var(--text-color, #FAFAFA);">Ready to investigate your images!</p>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    return True
+        return False
+    except Exception as e:
+        st.warning(f"Could not display base64 image: {e}")
+        return False
+
+# Function to display a waiting message
+def display_waiting_message():
+    """Display an animated waiting message."""
+    st.markdown("""
+    <div style="text-align: center; margin: 50px 0;">
+        <h2 style="color: var(--primary-color, #4F8BF9);">Building your image database...</h2>
+        <div style="font-size: 72px; margin: 30px 0;">🔍</div>
+        <p style="font-style: italic; color: var(--text-color, #FAFAFA);">
+            Our AI detective is analyzing your images.<br>
+            This might take a few moments.
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
 
 def render_main_interface():
     """
-    Render the complete application interface, including sidebar and main content.
+    Render the complete application interface, including extendable sidebar and main content.
     This is the main entry point for the UI rendering.
     """
     # Render the sidebar
-    with st.sidebar:
-        render_sidebar()
+    from ui.sidebar import render_sidebar
+    sidebar_config = render_sidebar()
     
     # Render the main content
     render_main_content()
-
-def render_sidebar():
-    """
-    Render the sidebar with controls for building and loading the database.
-    """
-    st.title("🕵️‍♂️ Command Center")
     
-    # Input for image folder
-    primary_folder = st.text_input("📁 Image Folder Path", value=os.path.expanduser("~/Pictures"))
-    
-    # Button to build database
-    if st.button("🧠 Launch the Brain Builder!"):
-        if os.path.exists(primary_folder):
-            with st.spinner("🔍 Scanning for images..."):
-                db_manager = st.session_state.db_manager
-                image_files = db_manager.get_image_list(primary_folder)
-                
-                if image_files:
-                    st.session_state.image_files = image_files
-                    st.session_state.total_images = len(image_files)
-                    st.info(f"Found {len(image_files)} images. Building database...")
-                    
-                    # Build the database
-                    db_manager.build_database(primary_folder, image_files)
-                    st.success("Database built and saved successfully!")
-                else:
-                    st.error("No images found in the specified folder.")
-        else:
-            st.error("Folder does not exist!")
-    
-    # Option to load existing database
-    if st.button("📂 Load Existing Database"):
-        if os.path.exists(primary_folder):
-            with st.spinner("🔍 Loading database..."):
-                db_manager = st.session_state.db_manager
-                if db_manager.database_exists(primary_folder):
-                    db_manager.load_database(primary_folder)
-                    st.success("Database loaded successfully!")
-                else:
-                    st.error("No database found in the specified folder.")
-        else:
-            st.error("Folder does not exist!")
-    
-    # Add a section for merging additional folders
-    if st.session_state.get("database_built", False):
-        st.subheader("📊 Add More Images")
-        new_folder = st.text_input("📁 Additional Image Folder", value="")
-        
-        if st.button("🔀 Merge New Images"):
-            if os.path.exists(new_folder):
-                with st.spinner("🕵️‍♂️ Processing new images..."):
-                    # Merge the new folder
-                    from database.vector_db import append_images_to_database
-                    append_images_to_database(primary_folder, new_folder)
-            else:
-                st.error("New folder does not exist!")
+    return sidebar_config
 
 def render_main_content():
     """
@@ -95,20 +134,85 @@ def render_main_content():
         *Your images will be analyzed by our AI assistant to create a searchable database.*
         """)
         
-        # Show a detective image
-        st.image("https://i.imgur.com/3vvZbSh.png", caption="Ready to investigate your images!")
-    else:
-        # Database is built, show the tabs for searching
-        tab1, tab2, tab3 = st.tabs(["Text Search", "Image Search", "AI Guessing Game"])
+        # Try multiple methods to display the detective image
+        image_displayed = False
         
-        with tab1:
-            # Text search tab
-            render_text_search_tab()
+        # Method 1: Try to load the detective image using our helper function
+        detective_image_path = get_image_path("detective.png")
+        
+        if detective_image_path:
+            try:
+                st.image(detective_image_path, caption="Ready to investigate your images!")
+                image_displayed = True
+            except Exception as e:
+                st.session_state.image_displayed = False
+                st.warning(f"Could not display detective image from file: {e}")
+        
+        # Method 2: Try using base64 encoded image
+        if not image_displayed:
+            image_displayed = display_base64_image()
+        
+        # Method 3: If the previous methods failed, try using HTML
+        if not image_displayed:
+            try:
+                display_image_html()
+                image_displayed = True
+            except Exception as e:
+                st.warning(f"Could not display detective image using HTML: {e}")
+                # Fallback to a simple emoji
+                st.markdown("# 🕵️‍♂️")
+                st.caption("Ready to investigate your images!")
+                image_displayed = False
+        
+        # Method 4: If all image display methods failed, show the minigame or waiting message
+        if not image_displayed:
+            st.markdown("### While we prepare your database, enjoy this mini-game!")
             
-        with tab2:
-            # Image upload tab
-            render_image_upload_tab()
+            # Create a container for the game
+            game_container = st.container()
             
-        with tab3:
-            # Guessing game tab
-            render_guessing_game_tab() 
+            # Initialize the game if it doesn't exist in session state
+            if 'breakout_game' not in st.session_state:
+                st.session_state.breakout_game = BreakoutGame(game_container)
+            
+            # Render the game
+            st.session_state.breakout_game.render()
+            
+            # Alternative: Show a waiting message
+            if st.button("Show Waiting Message Instead"):
+                display_waiting_message()
+    else:
+        # Initialize active tab in session state if it doesn't exist
+        if 'active_tab' not in st.session_state:
+            st.session_state.active_tab = 0
+        
+        # Define tab names
+        tab_names = ["Text Search", "Image Search", "AI Guessing Game"]
+        
+        # Create tabs with the active tab selected
+        tabs = st.tabs(tab_names)
+        
+        # Handle tab selection via radio buttons (hidden but functional)
+        # This is a workaround to detect tab changes
+        selected_tab = st.radio("Select Tab", tab_names, index=st.session_state.active_tab, label_visibility="collapsed", key="tab_selector")
+        
+        # Update the active tab in session state only if user explicitly changes tabs
+        # This prevents tab reset when interacting with UI elements within tabs
+        if selected_tab != tab_names[st.session_state.active_tab]:
+            st.session_state.active_tab = tab_names.index(selected_tab)
+            # Clear any expanded metadata states when switching tabs to prevent UI conflicts
+            if st.session_state.active_tab == 0:
+                st.session_state.image_metadata_expanded = {}
+            elif st.session_state.active_tab == 1:
+                st.session_state.text_metadata_expanded = {}
+        
+        # Render the appropriate tab content
+        if st.session_state.active_tab == 0:
+            with tabs[0]:
+                render_text_search_tab()
+        elif st.session_state.active_tab == 1:
+            with tabs[1]:
+                render_image_upload_tab()
+        else:
+            with tabs[2]:
+                render_guessing_game_tab() 
