@@ -1,0 +1,18 @@
+[server]
+# Prevent Streamlit from automatically rerunning the script when file changes are detected
+runOnSave = false
+
+# Disable file watcher entirely
+fileWatcherType = "none"
+
+# Limit the number of threads Streamlit uses
+maxUploadSize = 200
+
+[runner]
+# Reduce memory usage by limiting the number of forks
+magicEnabled = false
+installTracer = false
+
+[logger]
+# Reduce log level to minimize console output
+level = "warning" 

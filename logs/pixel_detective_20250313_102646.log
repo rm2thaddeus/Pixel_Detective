@@ -1,0 +1,360 @@
+[10:26:51.848] Creating new model manager instance
+[10:26:51.848] Loading CLIP model on cuda...
+[10:26:51.848] Starting to load CLIP model on cuda...
+[10:26:51.851] CUDA device count: 1
+[10:26:51.851] Current CUDA device: 0
+[10:26:51.851] Loading CLIP model with device=cuda...
+[10:26:55.428] Model is loaded on: cuda:0
+[10:26:55.428] CLIP model loaded in 3.58 seconds on cuda
+[10:26:55.428] CLIP model loaded in 3.58 seconds
+[10:26:55.428] Loading BLIP model on cuda...
+[10:26:55.428] Starting to load BLIP model on cuda...
+[10:26:55.428] Loading BLIP processor from Salesforce/blip-image-captioning-large...
+[10:26:56.128] Loading BLIP model from Salesforce/blip-image-captioning-large...
+[10:26:56.128] CUDA device count: 1
+[10:26:56.128] Current CUDA device: 0
+[10:26:57.783] BLIP model is loaded on: cuda:0
+[10:26:57.783] BLIP model loaded successfully on cuda
+[10:26:57.783] BLIP model loaded in 2.36 seconds
+[10:26:57.783] [After model manager initialization] CUDA Memory - Allocated: 0.00 MB, Reserved: 0.00 MB, Peak: 0.00 MB
+[10:26:57.783] Creating new database manager instance
+[10:26:57.783] [Before rendering UI] CUDA Memory - Allocated: 0.00 MB, Reserved: 0.00 MB, Peak: 0.00 MB
+[10:26:57.796] [After rendering UI] CUDA Memory - Allocated: 0.00 MB, Reserved: 0.00 MB, Peak: 0.00 MB
+[10:27:20.662] Using existing model manager from session state
+[10:27:20.662] [After model manager initialization] CUDA Memory - Allocated: 0.00 MB, Reserved: 0.00 MB, Peak: 0.00 MB
+[10:27:20.662] Using existing database manager from session state
+[10:27:20.662] [Before rendering UI] CUDA Memory - Allocated: 0.00 MB, Reserved: 0.00 MB, Peak: 0.00 MB
+[10:27:20.670] [After rendering UI] CUDA Memory - Allocated: 0.00 MB, Reserved: 0.00 MB, Peak: 0.00 MB
+[10:27:20.788] Using existing model manager from session state
+[10:27:20.788] [After model manager initialization] CUDA Memory - Allocated: 0.00 MB, Reserved: 0.00 MB, Peak: 0.00 MB
+[10:27:20.788] Using existing database manager from session state
+[10:27:20.793] [Before rendering UI] CUDA Memory - Allocated: 0.00 MB, Reserved: 0.00 MB, Peak: 0.00 MB
+[10:27:20.793] Scanning folder: C:\Users\aitor\OneDrive\Escritorio\Vector_Database_Lightroom\images
+[10:27:20.793] Found 97 files with extension *.jpg
+[10:27:20.793] Found 0 files with extension *.jpeg
+[10:27:20.801] Found 0 files with extension *.png
+[10:27:20.803] Found 0 files with extension *.bmp
+[10:27:20.804] Found 0 files with extension *.gif
+[10:27:20.805] Total unique images found: 97
+[10:27:21.400] Image processed in 0.60 seconds
+[10:27:21.408] Using BLIP model from session state
+[10:27:22.316] Caption generated in 0.91 seconds: an image with tags : learning photography ; napoli ; pompeii ; self reflection ; street photography.
+[10:27:22.615] Image processed in 0.29 seconds
+[10:27:22.633] Using BLIP model from session state
+[10:27:23.581] Caption generated in 0.95 seconds: an image with tags : rome ; self reflection ; street photography.
+[10:27:23.839] Image processed in 0.25 seconds
+[10:27:23.848] Using BLIP model from session state
+[10:27:24.663] Caption generated in 0.81 seconds: an image with tags : rome ; self reflection ; street photography ; urban photo hunts.
+[10:27:24.963] Image processed in 0.30 seconds
+[10:27:24.971] Using BLIP model from session state
+[10:27:25.912] Caption generated in 0.93 seconds: an image with tags : marseille ; self reflection ; street photography. reflection
+[10:27:26.228] Image processed in 0.31 seconds
+[10:27:26.237] Using BLIP model from session state
+[10:27:27.146] Caption generated in 0.91 seconds: an image with tags : around dowtown ; rome ; self reflection ; street photography.
+[10:27:27.309] Image processed in 0.16 seconds
+[10:27:27.314] Using BLIP model from session state
+[10:27:27.998] Caption generated in 0.68 seconds: an image with tags : memories ; museums ; self reflection ; street photography ; trento.
+[10:27:28.182] Image processed in 0.18 seconds
+[10:27:28.184] Using BLIP model from session state
+[10:27:28.853] Caption generated in 0.67 seconds: an image with tags : accademia del gin ; food places ; memories ; self reflection ; trento.
+[10:27:29.156] Image processed in 0.30 seconds
+[10:27:29.165] Using BLIP model from session state
+[10:27:30.046] Caption generated in 0.88 seconds: an image with tags : memories ; self reflection ; street photography ; trento.
+[10:27:30.346] Image processed in 0.29 seconds
+[10:27:30.355] Using BLIP model from session state
+[10:27:31.285] Caption generated in 0.93 seconds: an image with tags : memories ; self reflection ; street photography ; trento.
+[10:27:31.640] Image processed in 0.35 seconds
+[10:27:31.653] Using BLIP model from session state
+[10:27:32.602] Caption generated in 0.95 seconds: an image with tags : discovering italy ; self reflection ; street photography ; verona.
+[10:27:32.950] Image processed in 0.34 seconds
+[10:27:32.965] Using BLIP model from session state
+[10:27:33.929] Caption generated in 0.96 seconds: an image with tags : memories ; moscow ; russia ; self reflection ; street photography ; with dasha.
+[10:27:34.253] Image processed in 0.32 seconds
+[10:27:34.261] Using BLIP model from session state
+[10:27:35.219] Caption generated in 0.96 seconds: an image with tags : discovering rome ; rome ; self reflection ; street photography.
+[10:27:35.560] Image processed in 0.33 seconds
+[10:27:35.578] Using BLIP model from session state
+[10:27:36.609] Caption generated in 1.03 seconds: an image with tags : concerts and spectacles ; memories ; russia ; self reflection ; siberia ; street photography ; with dasha.
+[10:27:36.976] Image processed in 0.36 seconds
+[10:27:36.992] Using BLIP model from session state
+[10:27:43.410] Caption generated in 6.42 seconds: an image with tags : self reflection. selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie
+[10:27:43.801] Image processed in 0.38 seconds
+[10:27:43.810] Using BLIP model from session state
+[10:27:44.858] Caption generated in 1.05 seconds: an image with tags : dad visit ; discovering italy ; napoli ; self reflection ; street photography ; with dad.
+[10:27:45.125] Image processed in 0.26 seconds
+[10:27:45.132] Using BLIP model from session state
+[10:27:46.007] Caption generated in 0.88 seconds: an image with tags : self reflection ; with dasha.
+[10:27:46.307] Image processed in 0.29 seconds
+[10:27:46.316] Using BLIP model from session state
+[10:27:51.544] Caption generated in 5.23 seconds: an image with tags : self reflection. selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie
+[10:27:51.841] Image processed in 0.28 seconds
+[10:27:51.841] Using BLIP model from session state
+[10:27:52.876] Caption generated in 1.04 seconds: an image with tags : burano ; discovering italy ; end of lockdown ; scenes in street ; self reflection ; street photography ; venice ; with dasha.
+[10:27:53.126] Image processed in 0.25 seconds
+[10:27:53.145] Using BLIP model from session state
+[10:27:54.048] Caption generated in 0.90 seconds: an image with tags : discovering italy ; end of lockdown ; self reflection ; street photography ; venice ; with dasha.
+[10:27:54.327] Image processed in 0.27 seconds
+[10:27:54.327] Using BLIP model from session state
+[10:27:55.237] Caption generated in 0.91 seconds: an image with tags : around dowtown ; rome ; self reflection ; street photography.
+[10:27:55.585] Image processed in 0.33 seconds
+[10:27:55.586] Using BLIP model from session state
+[10:27:56.570] Caption generated in 0.98 seconds: an image with tags : memories ; private ; rome ; self reflection.
+[10:27:56.846] Image processed in 0.26 seconds
+[10:27:56.855] Using BLIP model from session state
+[10:27:57.706] Caption generated in 0.85 seconds: an image with tags : making mael ; memories ; milano ; street photography.
+[10:27:57.944] Image processed in 0.23 seconds
+[10:27:57.953] Using BLIP model from session state
+[10:27:58.759] Caption generated in 0.81 seconds: an image with tags : self reflection ; strasbourg ; street photography.
+[10:27:59.034] Image processed in 0.27 seconds
+[10:27:59.042] Using BLIP model from session state
+[10:28:05.250] Caption generated in 6.21 seconds: an image with tags : self reflection. selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie
+[10:28:05.586] Image processed in 0.33 seconds
+[10:28:05.599] Using BLIP model from session state
+[10:28:06.650] Caption generated in 1.05 seconds: an image with tags : las vi con mi hijo ; self reflection ; strasbourg.
+[10:28:06.931] Image processed in 0.28 seconds
+[10:28:06.947] Using BLIP model from session state
+[10:28:07.796] Caption generated in 0.85 seconds: an image with tags : las vi con mi hijo ; self reflection ; strasbourg ; street photography.
+[10:28:08.046] Image processed in 0.25 seconds
+[10:28:08.062] Using BLIP model from session state
+[10:28:08.884] Caption generated in 0.82 seconds: an image with tags : las vi con mi hijo ; strasbourg ; street photography.
+[10:28:09.168] Image processed in 0.28 seconds
+[10:28:09.168] Using BLIP model from session state
+[10:28:10.004] Caption generated in 0.84 seconds: an image with tags : eurotrip ; self reflection ; spain ; street photography.
+[10:28:10.310] Image processed in 0.29 seconds
+[10:28:10.321] Using BLIP model from session state
+[10:28:11.155] Caption generated in 0.83 seconds: an image with tags : strasbourg ; street photography.
+[10:28:11.422] Image processed in 0.25 seconds
+[10:28:11.438] Using BLIP model from session state
+[10:28:13.166] Caption generated in 1.73 seconds: an image with tags : self reflection. selfie of a man and a woman and a baby
+[10:28:13.484] Image processed in 0.32 seconds
+[10:28:13.495] Using BLIP model from session state
+[10:28:14.583] Caption generated in 1.09 seconds: an image with tags : self reflection ; strasbourg. selfie
+[10:28:14.839] Image processed in 0.26 seconds
+[10:28:14.854] Using BLIP model from session state
+[10:28:15.846] Caption generated in 0.99 seconds: an image with tags : un jour au parc. a baby
+[10:28:16.116] Image processed in 0.27 seconds
+[10:28:16.116] Using BLIP model from session state
+[10:28:17.178] Caption generated in 1.06 seconds: an image with tags : caracas ; venezuela ; with dad.ly holding a baby
+[10:28:17.446] Image processed in 0.25 seconds
+[10:28:17.455] Using BLIP model from session state
+[10:28:18.221] Caption generated in 0.77 seconds: an image with tags : home ; primeros dias ; self reflection.
+[10:28:18.497] Image processed in 0.28 seconds
+[10:28:18.497] Using BLIP model from session state
+[10:28:19.378] Caption generated in 0.88 seconds: an image with tags : cocorote ; family ; venezuela. colombia
+[10:28:19.658] Image processed in 0.26 seconds
+[10:28:19.658] Using BLIP model from session state
+[10:28:20.559] Caption generated in 0.90 seconds: an image with tags : cocorote ; family ; venezuela. colombia
+[10:28:20.811] Image processed in 0.25 seconds
+[10:28:20.826] Using BLIP model from session state
+[10:28:22.266] Caption generated in 1.44 seconds: an image with tags : morrocoy ; venezuela. portuguese proved by a baby in a hat
+[10:28:22.557] Image processed in 0.27 seconds
+[10:28:22.572] Using BLIP model from session state
+[10:28:28.628] Caption generated in 6.06 seconds: an image with tags : self reflection. selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie
+[10:28:28.946] Image processed in 0.32 seconds
+[10:28:28.958] Using BLIP model from session state
+[10:28:35.096] Caption generated in 6.14 seconds: an image with tags : self reflection. selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie
+[10:28:35.426] Image processed in 0.31 seconds
+[10:28:35.426] Using BLIP model from session state
+[10:28:41.322] Caption generated in 5.90 seconds: an image with tags : self reflection. selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie
+[10:28:41.629] Image processed in 0.31 seconds
+[10:28:41.629] Using BLIP model from session state
+[10:28:42.655] Caption generated in 1.03 seconds: an image with tags : home ; light and shadow.
+[10:28:42.902] Image processed in 0.25 seconds
+[10:28:42.918] Using BLIP model from session state
+[10:28:43.774] Caption generated in 0.86 seconds: an image with tags : home ; light and shadow.
+[10:28:44.072] Image processed in 0.30 seconds
+[10:28:44.072] Using BLIP model from session state
+[10:28:45.850] Caption generated in 1.78 seconds: there is a baby wearing a knitted hat and scarf
+[10:28:46.139] Image processed in 0.27 seconds
+[10:28:46.139] Using BLIP model from session state
+[10:28:47.855] Caption generated in 1.72 seconds: there is a woman holding a baby under an umbrella
+[10:28:48.145] Image processed in 0.27 seconds
+[10:28:48.145] Using BLIP model from session state
+[10:28:48.981] Caption generated in 0.82 seconds: an image with tags : home ; primeros dias ; self reflection.
+[10:28:49.265] Image processed in 0.27 seconds
+[10:28:49.274] Using BLIP model from session state
+[10:28:50.919] Caption generated in 1.64 seconds: there is a man holding a baby in his arms
+[10:28:51.217] Image processed in 0.30 seconds
+[10:28:51.234] Using BLIP model from session state
+[10:28:52.563] Caption generated in 1.33 seconds: an image with tags : home ; strasbourg.s a baby and a woman
+[10:28:52.845] Image processed in 0.28 seconds
+[10:28:52.845] Using BLIP model from session state
+[10:28:53.735] Caption generated in 0.89 seconds: an image with tags : night photography ; strasbourg.
+[10:28:54.040] Image processed in 0.31 seconds
+[10:28:54.048] Using BLIP model from session state
+[10:28:54.998] Caption generated in 0.95 seconds: an image with tags : mael. night photography ; portraits.s
+[10:28:55.223] Image processed in 0.22 seconds
+[10:28:55.223] Using BLIP model from session state
+[10:28:56.541] Caption generated in 1.32 seconds: an image with tags : strasbourg. home. baby with messy paint on his face
+[10:28:56.830] Image processed in 0.27 seconds
+[10:28:56.845] Using BLIP model from session state
+[10:28:57.717] Caption generated in 0.87 seconds: an image with tags : strasbourg ; un jour au parc.
+[10:28:58.096] Image processed in 0.28 seconds
+[10:28:58.096] Using BLIP model from session state
+[10:28:58.969] Caption generated in 0.86 seconds: an image with tags : self reflection ; strasbourg. home.
+[10:28:59.245] Image processed in 0.28 seconds
+[10:28:59.260] Using BLIP model from session state
+[10:29:00.473] Caption generated in 1.21 seconds: an image with tags : strasbourg. home. baby crawling on the floor
+[10:29:00.779] Image processed in 0.29 seconds
+[10:29:00.779] Using BLIP model from session state
+[10:29:01.656] Caption generated in 0.88 seconds: an image with tags : home ; primeros dias.
+[10:29:01.916] Image processed in 0.24 seconds
+[10:29:01.934] Using BLIP model from session state
+[10:29:02.996] Caption generated in 1.06 seconds: an image with tags : primeros dias.s a baby
+[10:29:03.258] Image processed in 0.26 seconds
+[10:29:03.273] Using BLIP model from session state
+[10:29:09.238] Caption generated in 5.96 seconds: an image with tags : self reflection. selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie selfie
+[10:29:09.531] Image processed in 0.28 seconds
+[10:29:09.531] Using BLIP model from session state
+[10:29:10.664] Caption generated in 1.13 seconds: an image with tags : primeros dias ; strasbourg. and a photographer
+[10:29:10.945] Image processed in 0.26 seconds
+[10:29:10.945] Using BLIP model from session state
+[10:29:11.869] Caption generated in 0.92 seconds: an image with tags : primeros dias ; strasbourg.s
+[10:29:12.182] Image processed in 0.31 seconds
+[10:29:12.198] Using BLIP model from session state
+[10:29:13.255] Caption generated in 1.06 seconds: an image with tags : strasbourg ; street photography. street photography
+[10:29:13.694] Image processed in 0.44 seconds
+[10:29:13.713] Using BLIP model from session state
+[10:29:15.641] Caption generated in 1.93 seconds: there is a man sitting in a chair holding a baby
+[10:29:16.099] Image processed in 0.44 seconds
+[10:29:16.119] Using BLIP model from session state
+[10:29:18.551] Caption generated in 2.43 seconds: arafed baby being held by a man in a black and white photo
+[10:29:19.028] Image processed in 0.46 seconds
+[10:29:19.028] Using BLIP model from session state
+[10:29:21.088] Caption generated in 2.06 seconds: someone is putting a baby ' s hand on a towel
+[10:29:21.544] Image processed in 0.46 seconds
+[10:29:21.559] Using BLIP model from session state
+[10:29:23.610] Caption generated in 2.05 seconds: someone is holding a hand with a small finger on it
+[10:29:24.026] Image processed in 0.40 seconds
+[10:29:24.043] Using BLIP model from session state
+[10:29:26.257] Caption generated in 2.21 seconds: arafed baby in a knitted hat is laying on a blanket
+[10:29:26.712] Image processed in 0.44 seconds
+[10:29:26.735] Using BLIP model from session state
+[10:29:29.061] Caption generated in 2.32 seconds: there are two hands holding a baby ' s foot while another holds it
+[10:29:29.513] Image processed in 0.45 seconds
+[10:29:29.536] Using BLIP model from session state
+[10:29:31.530] Caption generated in 1.99 seconds: someone holding a baby ' s foot with their hands
+[10:29:31.948] Image processed in 0.42 seconds
+[10:29:31.952] Using BLIP model from session state
+[10:29:34.012] Caption generated in 2.06 seconds: there is a baby that is wearing a hat and a scarf
+[10:29:34.399] Image processed in 0.37 seconds
+[10:29:34.420] Using BLIP model from session state
+[10:29:36.455] Caption generated in 2.04 seconds: arafed baby laying on a bed with his hand out
+[10:29:36.800] Image processed in 0.35 seconds
+[10:29:36.816] Using BLIP model from session state
+[10:29:38.953] Caption generated in 2.14 seconds: there is a woman laying in a hospital bed with a blanket
+[10:29:39.342] Image processed in 0.39 seconds
+[10:29:39.364] Using BLIP model from session state
+[10:29:41.296] Caption generated in 1.93 seconds: someone is holding a baby in their arms and touching it
+[10:29:41.664] Image processed in 0.37 seconds
+[10:29:41.664] Using BLIP model from session state
+[10:29:43.856] Caption generated in 2.19 seconds: arafed baby laying on a man ' s chest with a hat on
+[10:29:44.202] Image processed in 0.35 seconds
+[10:29:44.220] Using BLIP model from session state
+[10:29:46.372] Caption generated in 2.15 seconds: arafed woman holding a baby in her arms while laying on a bed
+[10:29:46.751] Image processed in 0.36 seconds
+[10:29:46.776] Using BLIP model from session state
+[10:29:48.705] Caption generated in 1.93 seconds: pregnant woman laying in bed with her baby in her arms
+[10:29:49.083] Image processed in 0.38 seconds
+[10:29:49.098] Using BLIP model from session state
+[10:29:50.940] Caption generated in 1.84 seconds: someone is feeding a baby with a bottle of milk
+[10:29:51.313] Image processed in 0.37 seconds
+[10:29:51.328] Using BLIP model from session state
+[10:29:53.523] Caption generated in 2.19 seconds: a close up of a woman breasting a baby in a hospital bed
+[10:29:53.889] Image processed in 0.37 seconds
+[10:29:53.913] Using BLIP model from session state
+[10:29:55.943] Caption generated in 2.03 seconds: pregnant woman laying in bed with breast in hand and breasting
+[10:29:56.308] Image processed in 0.37 seconds
+[10:29:56.330] Using BLIP model from session state
+[10:29:58.372] Caption generated in 2.04 seconds: there is a baby that is laying down with a hat on
+[10:29:58.754] Image processed in 0.38 seconds
+[10:29:58.777] Using BLIP model from session state
+[10:30:00.965] Caption generated in 2.19 seconds: arafed baby in a white hat is being held by a person
+[10:30:01.322] Image processed in 0.36 seconds
+[10:30:01.338] Using BLIP model from session state
+[10:30:03.360] Caption generated in 2.02 seconds: arafed baby in a white hat laying on a bed
+[10:30:03.740] Image processed in 0.38 seconds
+[10:30:03.743] Using BLIP model from session state
+[10:30:05.928] Caption generated in 2.19 seconds: arafed baby in a white hat is being held by a woman
+[10:30:06.297] Image processed in 0.37 seconds
+[10:30:06.313] Using BLIP model from session state
+[10:30:08.294] Caption generated in 1.98 seconds: there is a woman holding a baby in a hospital bed
+[10:30:08.679] Image processed in 0.38 seconds
+[10:30:08.699] Using BLIP model from session state
+[10:30:10.816] Caption generated in 2.12 seconds: araffe baby in a white hat being held by a woman
+[10:30:11.210] Image processed in 0.39 seconds
+[10:30:11.223] Using BLIP model from session state
+[10:30:13.465] Caption generated in 2.24 seconds: arafed baby sleeping on a woman ' s stomach in a hospital bed
+[10:30:13.846] Image processed in 0.36 seconds
+[10:30:13.862] Using BLIP model from session state
+[10:30:15.784] Caption generated in 1.92 seconds: there is a man sitting in a chair holding a baby
+[10:30:16.180] Image processed in 0.40 seconds
+[10:30:16.202] Using BLIP model from session state
+[10:30:18.445] Caption generated in 2.24 seconds: arafed baby being held by a man in a black and white photo
+[10:30:18.805] Image processed in 0.36 seconds
+[10:30:18.805] Using BLIP model from session state
+[10:30:20.811] Caption generated in 2.01 seconds: there is a man washing a baby in a sink with soap
+[10:30:21.175] Image processed in 0.35 seconds
+[10:30:21.190] Using BLIP model from session state
+[10:30:23.292] Caption generated in 2.10 seconds: there is a woman washing a baby in a sink with a brush
+[10:30:23.672] Image processed in 0.36 seconds
+[10:30:23.687] Using BLIP model from session state
+[10:30:25.638] Caption generated in 1.95 seconds: someone is putting a baby ' s hand on a towel
+[10:30:26.011] Image processed in 0.37 seconds
+[10:30:26.011] Using BLIP model from session state
+[10:30:28.087] Caption generated in 2.08 seconds: there are two hands holding a baby ' s foot while another holds it
+[10:30:28.458] Image processed in 0.35 seconds
+[10:30:28.480] Using BLIP model from session state
+[10:30:30.326] Caption generated in 1.85 seconds: someone holding a baby ' s foot with their hands
+[10:30:30.718] Image processed in 0.38 seconds
+[10:30:30.718] Using BLIP model from session state
+[10:30:32.653] Caption generated in 1.94 seconds: someone is holding a hand with a small finger on it
+[10:30:33.036] Image processed in 0.37 seconds
+[10:30:33.054] Using BLIP model from session state
+[10:30:34.985] Caption generated in 1.93 seconds: there is a baby that is laying down in a bed
+[10:30:35.350] Image processed in 0.36 seconds
+[10:30:35.371] Using BLIP model from session state
+[10:30:37.334] Caption generated in 1.96 seconds: there is a baby laying on a bed with a blanket
+[10:30:37.712] Image processed in 0.37 seconds
+[10:30:37.733] Using BLIP model from session state
+[10:30:39.788] Caption generated in 2.06 seconds: arafed baby laying on a bed with his hand out
+[10:30:40.200] Image processed in 0.41 seconds
+[10:30:40.200] Using BLIP model from session state
+[10:30:42.413] Caption generated in 2.21 seconds: arafed baby in a knitted hat is laying on a blanket
+[10:30:42.784] Image processed in 0.35 seconds
+[10:30:42.800] Using BLIP model from session state
+[10:30:44.668] Caption generated in 1.87 seconds: there is a man holding a baby in his arms
+[10:30:45.037] Image processed in 0.37 seconds
+[10:30:45.055] Using BLIP model from session state
+[10:30:47.213] Caption generated in 2.16 seconds: arafed baby being held by a man in a black and white photo
+[10:30:47.241] [After rendering UI] CUDA Memory - Allocated: 0.00 MB, Reserved: 0.00 MB, Peak: 0.00 MB
+[10:31:12.114] Using existing model manager from session state
+[10:31:12.114] [After model manager initialization] CUDA Memory - Allocated: 0.00 MB, Reserved: 0.00 MB, Peak: 0.00 MB
+[10:31:12.114] Using existing database manager from session state
+[10:31:12.120] [Before rendering UI] CUDA Memory - Allocated: 0.00 MB, Reserved: 0.00 MB, Peak: 0.00 MB
+[10:31:12.130] [After rendering UI] CUDA Memory - Allocated: 0.00 MB, Reserved: 0.00 MB, Peak: 0.00 MB
+[10:31:16.733] Using existing model manager from session state
+[10:31:16.733] [After model manager initialization] CUDA Memory - Allocated: 0.00 MB, Reserved: 0.00 MB, Peak: 0.00 MB
+[10:31:16.733] Using existing database manager from session state
+[10:31:16.733] [Before rendering UI] CUDA Memory - Allocated: 0.00 MB, Reserved: 0.00 MB, Peak: 0.00 MB
+[10:31:18.350] [After rendering UI] CUDA Memory - Allocated: 0.00 MB, Reserved: 0.00 MB, Peak: 0.00 MB
+[10:32:19.662] Application shutting down, cleaning up resources...
+[10:32:19.754] Final GPU memory state - Allocated: 0.00 MB, Reserved: 0.00 MB
+[10:32:19.754] CUDA resources cleaned up successfully
+[10:32:19.754] Application shutdown complete
+[10:32:19.754] Application shutting down, cleaning up resources...
+[10:32:19.833] Final GPU memory state - Allocated: 0.00 MB, Reserved: 0.00 MB
+[10:32:19.833] CUDA resources cleaned up successfully
+[10:32:19.833] Application shutdown complete
+[10:32:19.833] Application shutting down, cleaning up resources...
+[10:32:19.911] Final GPU memory state - Allocated: 0.00 MB, Reserved: 0.00 MB
+[10:32:19.911] CUDA resources cleaned up successfully
+[10:32:19.911] Application shutdown complete
+[10:32:19.911] Application shutting down, cleaning up resources...
+[10:32:19.989] Final GPU memory state - Allocated: 0.00 MB, Reserved: 0.00 MB
+[10:32:19.989] CUDA resources cleaned up successfully
+[10:32:19.989] Application shutdown complete
+[10:32:19.989] Application shutting down, cleaning up resources...
+[10:32:20.067] Final GPU memory state - Allocated: 0.00 MB, Reserved: 0.00 MB
+[10:32:20.067] CUDA resources cleaned up successfully
+[10:32:20.067] Application shutdown complete

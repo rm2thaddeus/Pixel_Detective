@@ -1,0 +1,27 @@
+[11:08:58.564] Creating new model manager instance
+[11:08:58.564] Loading CLIP model on cuda...
+[11:08:58.565] Starting to load CLIP model on cuda...
+[11:08:58.565] CUDA device count: 1
+[11:08:58.565] Current CUDA device: 0
+[11:08:58.565] Loading CLIP model with device=cuda...
+[11:09:02.068] Model is loaded on: cuda:0
+[11:09:02.069] CLIP model loaded in 3.50 seconds on cuda
+[11:09:02.069] CLIP model loaded in 3.51 seconds
+[11:09:02.069] Loading BLIP model on cuda...
+[11:09:02.069] Starting to load BLIP model on cuda...
+[11:09:02.069] Loading BLIP processor from Salesforce/blip-image-captioning-large...
+[11:09:02.809] Loading BLIP model from Salesforce/blip-image-captioning-large...
+[11:09:02.809] CUDA device count: 1
+[11:09:02.809] Current CUDA device: 0
+[11:09:04.616] BLIP model is loaded on: cuda:0
+[11:09:04.617] BLIP model loaded successfully on cuda
+[11:09:04.617] BLIP model loaded in 2.55 seconds
+[11:09:04.619] [After model manager initialization] CUDA Memory - Allocated: 0.00 MB, Reserved: 0.00 MB, Peak: 0.00 MB
+[11:09:04.620] Creating new database manager instance
+[11:09:04.627] [Before rendering UI] CUDA Memory - Allocated: 0.00 MB, Reserved: 0.00 MB, Peak: 0.00 MB
+[11:09:04.638] [After rendering UI] CUDA Memory - Allocated: 0.00 MB, Reserved: 0.00 MB, Peak: 0.00 MB
+[11:09:04.638] Application shutting down, cleaning up resources...
+[11:09:04.638] Keeping models loaded as KEEP_MODELS_LOADED is True
+[11:09:04.715] Final GPU memory state - Allocated: 0.00 MB, Reserved: 0.00 MB
+[11:09:04.715] CUDA resources cleaned up successfully
+[11:09:04.722] Application shutdown complete

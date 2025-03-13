@@ -389,7 +389,7 @@ def extract_metadata(image_path):
         print(f"Error reading file {image_path}: {e}")
     
     # Remove unwanted fields
-    fields_to_remove = ['Keywords', 'xmp']
+    fields_to_remove = ['xmp']  # Keep 'Keywords'
     for field in list(metadata.keys()):
         if field in fields_to_remove and (not metadata[field] or metadata[field] == []):
             del metadata[field]

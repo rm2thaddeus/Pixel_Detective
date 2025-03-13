@@ -1,0 +1,113 @@
+[10:13:26.057] Loading CLIP model on cuda...
+[10:13:26.057] Starting to load CLIP model on cuda...
+[10:13:26.057] CUDA device count: 1
+[10:13:26.057] Current CUDA device: 0
+[10:13:26.057] Loading CLIP model with device=cuda...
+[10:13:29.670] Model is loaded on: cuda:0
+[10:13:29.676] CLIP model loaded in 3.62 seconds on cuda
+[10:13:29.676] CLIP model loaded in 3.62 seconds
+[10:13:29.676] Loading BLIP model on cuda...
+[10:13:29.676] Starting to load BLIP model on cuda...
+[10:13:29.676] Loading BLIP processor from Salesforce/blip-image-captioning-large...
+[10:13:30.411] Loading BLIP model from Salesforce/blip-image-captioning-large...
+[10:13:30.411] CUDA device count: 1
+[10:13:30.411] Current CUDA device: 0
+[10:13:32.251] BLIP model is loaded on: cuda:0
+[10:13:32.251] BLIP model loaded successfully on cuda
+[10:13:32.251] BLIP model loaded in 2.57 seconds
+[10:13:32.260] Application shutting down, cleaning up resources...
+[10:13:32.370] Final GPU memory state - Allocated: 0.00 MB, Reserved: 0.00 MB
+[10:13:32.371] CUDA resources cleaned up successfully
+[10:13:32.371] Application shutdown complete
+[10:13:44.415] Loading CLIP model on cuda...
+[10:13:44.415] CLIP model loaded in 0.00 seconds
+[10:13:44.415] Loading BLIP model on cuda...
+[10:13:44.415] BLIP model loaded in 0.00 seconds
+[10:13:44.421] Application shutting down, cleaning up resources...
+[10:13:44.532] Final GPU memory state - Allocated: 0.00 MB, Reserved: 0.00 MB
+[10:13:44.533] CUDA resources cleaned up successfully
+[10:13:44.533] Application shutdown complete
+[10:13:44.641] Loading CLIP model on cuda...
+[10:13:44.642] CLIP model loaded in 0.00 seconds
+[10:13:44.642] Loading BLIP model on cuda...
+[10:13:44.643] BLIP model loaded in 0.00 seconds
+[10:13:44.647] Scanning folder: C:\Users\aitor\OneDrive\Escritorio\Vibe Coding\Library Test
+[10:13:44.648] Found 7 files with extension *.jpg
+[10:13:44.648] Found 0 files with extension *.jpeg
+[10:13:44.649] Found 0 files with extension *.png
+[10:13:44.650] Found 0 files with extension *.bmp
+[10:13:44.650] Found 0 files with extension *.gif
+[10:13:44.651] Total unique images found: 7
+[10:13:45.904] Image processed in 1.25 seconds
+[10:13:45.920] Using BLIP model from session state
+[10:13:47.826] Caption generated in 1.91 seconds: an image with tags : home ; strasbourg.s a baby and a woman
+[10:13:48.125] Image processed in 0.29 seconds
+[10:13:48.134] Using BLIP model from session state
+[10:13:49.008] Caption generated in 0.87 seconds: an image with tags : night photography ; strasbourg.
+[10:13:49.307] Image processed in 0.29 seconds
+[10:13:49.316] Using BLIP model from session state
+[10:13:50.248] Caption generated in 0.93 seconds: an image with tags : mael. night photography ; portraits.s
+[10:13:50.473] Image processed in 0.22 seconds
+[10:13:50.481] Using BLIP model from session state
+[10:13:51.822] Caption generated in 1.34 seconds: an image with tags : strasbourg. home. baby with messy paint on his face
+[10:13:52.121] Image processed in 0.29 seconds
+[10:13:52.129] Using BLIP model from session state
+[10:13:53.021] Caption generated in 0.89 seconds: an image with tags : strasbourg ; un jour au parc.
+[10:13:53.311] Image processed in 0.28 seconds
+[10:13:53.320] Using BLIP model from session state
+[10:13:54.187] Caption generated in 0.87 seconds: an image with tags : self reflection ; strasbourg. home.
+[10:13:54.444] Image processed in 0.25 seconds
+[10:13:54.459] Using BLIP model from session state
+[10:13:55.709] Caption generated in 1.25 seconds: an image with tags : strasbourg. home. baby crawling on the floor
+[10:13:55.741] Application shutting down, cleaning up resources...
+[10:13:55.826] Final GPU memory state - Allocated: 0.00 MB, Reserved: 0.00 MB
+[10:13:55.826] CUDA resources cleaned up successfully
+[10:13:55.826] Application shutdown complete
+[10:14:04.412] Loading CLIP model on cuda...
+[10:14:04.412] CLIP model loaded in 0.00 seconds
+[10:14:04.416] Loading BLIP model on cuda...
+[10:14:04.416] BLIP model loaded in 0.00 seconds
+[10:14:04.425] Application shutting down, cleaning up resources...
+[10:14:04.530] Final GPU memory state - Allocated: 0.00 MB, Reserved: 0.00 MB
+[10:14:04.530] CUDA resources cleaned up successfully
+[10:14:04.531] Application shutdown complete
+[10:14:09.746] Loading CLIP model on cuda...
+[10:14:09.746] CLIP model loaded in 0.00 seconds
+[10:14:09.752] Loading BLIP model on cuda...
+[10:14:09.752] BLIP model loaded in 0.00 seconds
+[10:14:09.759] Application shutting down, cleaning up resources...
+[10:14:09.860] Final GPU memory state - Allocated: 0.00 MB, Reserved: 0.00 MB
+[10:14:09.860] CUDA resources cleaned up successfully
+[10:14:09.860] Application shutdown complete
+[10:14:16.726] Loading CLIP model on cuda...
+[10:14:16.727] CLIP model loaded in 0.00 seconds
+[10:14:16.727] Loading BLIP model on cuda...
+[10:14:16.728] BLIP model loaded in 0.00 seconds
+[10:14:17.228] Application shutting down, cleaning up resources...
+[10:14:17.311] Final GPU memory state - Allocated: 0.00 MB, Reserved: 0.00 MB
+[10:14:17.319] CUDA resources cleaned up successfully
+[10:14:17.320] Application shutdown complete
+[10:15:34.988] Application shutting down, cleaning up resources...
+[10:15:35.087] Final GPU memory state - Allocated: 0.00 MB, Reserved: 0.00 MB
+[10:15:35.087] CUDA resources cleaned up successfully
+[10:15:35.087] Application shutdown complete
+[10:15:35.087] Application shutting down, cleaning up resources...
+[10:15:35.168] Final GPU memory state - Allocated: 0.00 MB, Reserved: 0.00 MB
+[10:15:35.168] CUDA resources cleaned up successfully
+[10:15:35.168] Application shutdown complete
+[10:15:35.168] Application shutting down, cleaning up resources...
+[10:15:35.252] Final GPU memory state - Allocated: 0.00 MB, Reserved: 0.00 MB
+[10:15:35.253] CUDA resources cleaned up successfully
+[10:15:35.253] Application shutdown complete
+[10:15:35.253] Application shutting down, cleaning up resources...
+[10:15:35.336] Final GPU memory state - Allocated: 0.00 MB, Reserved: 0.00 MB
+[10:15:35.336] CUDA resources cleaned up successfully
+[10:15:35.337] Application shutdown complete
+[10:15:35.337] Application shutting down, cleaning up resources...
+[10:15:35.417] Final GPU memory state - Allocated: 0.00 MB, Reserved: 0.00 MB
+[10:15:35.418] CUDA resources cleaned up successfully
+[10:15:35.418] Application shutdown complete
+[10:15:35.418] Application shutting down, cleaning up resources...
+[10:15:35.497] Final GPU memory state - Allocated: 0.00 MB, Reserved: 0.00 MB
+[10:15:35.499] CUDA resources cleaned up successfully
+[10:15:35.499] Application shutdown complete

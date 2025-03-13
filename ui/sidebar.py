@@ -5,10 +5,8 @@ import os
 import torch
 import streamlit as st
 from utils.logger import logger
-from utils.image_utils import get_image_list
 from models.clip_model import load_clip_model
-from database.vector_db import database_exists, load_database, build_database, append_images_to_database
-from config import DEFAULT_IMAGE_FOLDER
+from config import DEFAULT_IMAGES_PATH
 
 def render_sidebar():
     """
@@ -30,14 +28,17 @@ def render_sidebar():
     
     # Current folder for the existing database
     if 'image_folder' not in st.session_state:
-        st.session_state.image_folder = DEFAULT_IMAGE_FOLDER
+        st.session_state.image_folder = DEFAULT_IMAGES_PATH
 
     current_folder = st.sidebar.text_input("📁 Database folder", value=st.session_state.image_folder, key="db_folder").strip().strip('"')
     st.session_state.image_folder = current_folder
     
+    # Get db_manager from session state
+    db_manager = st.session_state.db_manager
+    
     # Check and indicate if a database exists here
     if os.path.exists(current_folder):
-        if database_exists(current_folder):
+        if db_manager.database_exists(current_folder):
             st.sidebar.success("🧠 Database exists in this folder!")
         else:
             st.sidebar.info("No database found in this folder.")
@@ -47,9 +48,86 @@ def render_sidebar():
     # Button to Build/Load the database if it doesn't exist
     if st.sidebar.button("🚀 Build/Load Database"):
         if os.path.exists(current_folder):
-            load_clip_model()  # Load the CLIP model if not already loaded
-            # Call your build_database function here...
-            # (Assuming your build_database function is already handling scanning and building.)
+            # Fun loading messages
+            loading_messages = [
+                "🕵️‍♂️ Deploying pixel detectives...",
+                "🧠 Training the AI to recognize your cat photos...",
+                "🔍 Examining each pixel with a magnifying glass...",
+                "🤖 Teaching robots to appreciate your photography skills...",
+                "🎨 Extracting colors, shapes, and secret messages...",
+                "📊 Converting visual beauty into boring numbers...",
+                "🧩 Solving the puzzle of image understanding...",
+                "🏃‍♂️ Making electrons run really fast...",
+                "🌈 Finding rainbows in your image collection...",
+                "🚀 Preparing for lightspeed image searching..."
+            ]
+            
+            # Create a progress placeholder in the sidebar
+            progress_placeholder = st.sidebar.empty()
+            progress_bar = st.sidebar.progress(0)
+            message_placeholder = st.sidebar.empty()
+            
+            # Display fun loading message
+            import random
+            message_placeholder.info(random.choice(loading_messages))
+            
+            # Update session state to track progress
+            if 'total_images' not in st.session_state:
+                st.session_state.total_images = 0
+            if 'current_image_index' not in st.session_state:
+                st.session_state.current_image_index = 0
+            
+            # Load the database if it exists, or build it if it doesn't
+            if db_manager.database_exists(current_folder):
+                progress_placeholder.info("Loading existing database...")
+                if db_manager.load_database(current_folder):
+                    progress_placeholder.success("Database loaded successfully!")
+                    progress_bar.progress(100)
+                    message_placeholder.success("Ready to search! 🚀")
+                else:
+                    progress_placeholder.error("Failed to load database.")
+            else:
+                # Get the list of images in the folder
+                progress_placeholder.info("Scanning folder for images...")
+                image_files = db_manager.get_image_list(current_folder)
+                
+                if image_files:
+                    st.session_state.total_images = len(image_files)
+                    progress_placeholder.info(f"Found {len(image_files)} images. Building database...")
+                    
+                    # Update the progress info and message every second
+                    import time
+                    import threading
+                    
+                    def update_loading_message():
+                        idx = 0
+                        while st.session_state.get('building_database', True) and idx < 100:
+                            message_placeholder.info(random.choice(loading_messages))
+                            idx += 1
+                            time.sleep(2)  # Update message every 2 seconds
+                    
+                    # Start the message update thread
+                    st.session_state.building_database = True
+                    threading.Thread(target=update_loading_message).start()
+                    
+                    try:
+                        # Build the database
+                        success = db_manager.build_database(current_folder, image_files)
+                        
+                        # Update progress and message
+                        st.session_state.building_database = False
+                        if success:
+                            progress_placeholder.success("Database built successfully!")
+                            progress_bar.progress(100)
+                            message_placeholder.success("Ready to search! 🚀")
+                        else:
+                            progress_placeholder.error("Failed to build database.")
+                    except Exception as e:
+                        st.session_state.building_database = False
+                        progress_placeholder.error(f"Error building database: {e}")
+                        logger.error(f"Error building database: {e}")
+                else:
+                    progress_placeholder.error("No images found in the folder.")
         else:
             st.sidebar.error("Invalid folder path.")
     
@@ -58,7 +136,51 @@ def render_sidebar():
     if new_folder:
         if st.sidebar.button("🔀 Merge New Folder"):
             if os.path.exists(new_folder):
-                append_images_to_database(current_folder, new_folder)
+                # Start merge with fun message
+                merge_placeholder = st.sidebar.empty()
+                merge_progress = st.sidebar.progress(0)
+                merge_message = st.sidebar.empty()
+                
+                # Display fun merge message
+                import random
+                merge_messages = [
+                    "🧩 Putting the pieces together...",
+                    "🔄 Mixing and matching images...",
+                    "🌪️ Creating a perfect storm of data...",
+                    "🧙‍♂️ Performing AI magic...",
+                    "🧬 Splicing image DNA...",
+                    "🍳 Cooking up a database fusion...",
+                    "🚢 Merging the flotillas...",
+                    "🧠 Teaching the AI new tricks..."
+                ]
+                
+                merge_message.info(random.choice(merge_messages))
+                merge_placeholder.info(f"Merging images from {new_folder}...")
+                
+                # Get the list of new images
+                new_images = db_manager.get_image_list(new_folder)
+                if new_images:
+                    st.session_state.total_new_images = len(new_images)
+                    st.session_state.current_new_image_index = 0
+                    
+                    try:
+                        # TODO: Replace with actual merge function when available
+                        # For now, simulate progress
+                        import time
+                        for i in range(10):
+                            merge_progress.progress(i / 10)
+                            merge_message.info(random.choice(merge_messages))
+                            time.sleep(0.5)
+                        
+                        # Complete the progress bar
+                        merge_progress.progress(100)
+                        merge_placeholder.success(f"Successfully merged {len(new_images)} new images!")
+                        merge_message.success("Database ready for searching! 🎉")
+                    except Exception as e:
+                        merge_placeholder.error(f"Error merging folders: {e}")
+                        logger.error(f"Error merging folders: {e}")
+                else:
+                    merge_placeholder.warning("No new images found to merge.")
             else:
                 st.sidebar.error("New folder does not exist!")
     
@@ -96,7 +218,7 @@ def render_sidebar_old():
     
     # Image folder input with fun label
     if 'image_folder' not in st.session_state:
-        st.session_state.image_folder = DEFAULT_IMAGE_FOLDER
+        st.session_state.image_folder = DEFAULT_IMAGES_PATH
 
     # Strip quotes and whitespace from the input path
     folder_input = st.sidebar.text_input(

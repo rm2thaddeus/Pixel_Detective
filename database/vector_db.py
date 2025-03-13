@@ -106,8 +106,14 @@ def load_database(db_folder):
 
 def build_database(db_folder, image_list):
     """
-    Build a new database from a list of images.
-    This extracts each image's metadata—including tags—and then saves embeddings and metadata.
+    Build a new vector database from a list of images.
+
+    Args:
+        db_folder (str): Path to the folder to store the database.
+        image_list (list): List of image paths.
+
+    Returns:
+        bool: True if the database was built successfully, False otherwise.
     """
     if not image_list:
         logger.error("No images found to build database")
@@ -123,46 +129,42 @@ def build_database(db_folder, image_list):
         metadata_records = []  # To store metadata dictionaries
         
         for i, image_path in enumerate(image_list):
-            # Update progress in session state
             st.session_state.current_image_index = i + 1
-            
-            # Process the image and compute its embedding
+
+            # Process image and compute embedding
             embedding = process_image(image_path)
             embeddings.append(embedding)
-            
+
             # Extract metadata for the image
             try:
                 metadata = extract_metadata(image_path)
-                
+
                 # Generate BLIP caption for the image
                 caption = generate_caption(image_path)
-                
+
                 # Add the caption to metadata
                 metadata["caption"] = caption
-                
-                # Always include the caption in Keywords
+
+                # Use Keywords from XMP if available, otherwise use the caption.
                 if "Keywords" not in metadata or not metadata["Keywords"]:
                     metadata["Keywords"] = [caption]
-                else:
-                    # If Keywords exists but doesn't contain the caption, add it
-                    if isinstance(metadata["Keywords"], list):
-                        if caption not in metadata["Keywords"]:
-                            metadata["Keywords"].append(caption)
-                    else:
-                        # If Keywords is not a list, convert it to a list and add the caption
-                        metadata["Keywords"] = [metadata["Keywords"], caption]
-                
-                # Look for the "tags" field and, if not found, fallback to "Keywords"
+                elif isinstance(metadata["Keywords"], str):
+                    metadata["Keywords"] = [metadata["Keywords"]]  # Ensure Keywords is a list
+
+                # Prioritize 'tags' from XMP, fallback to 'Keywords'
                 if "tags" not in metadata or not metadata["tags"]:
                     metadata["tags"] = metadata.get("Keywords", [])
+                elif isinstance(metadata["tags"], str):
+                    metadata["tags"] = [metadata["tags"]]
+
             except Exception as e:
                 logger.error(f"Error extracting metadata from {image_path}: {e}")
-                metadata = {"tags": [], "caption": f"Caption for {os.path.basename(image_path)}"}
-            
+                metadata = {"tags": [], "caption": f"Caption for {os.path.basename(image_path)}", "Keywords": []}
+
             metadata["path"] = image_path  # Record the image path
             metadata["filename"] = os.path.basename(image_path)
             metadata_records.append(metadata)
-            
+
             # Optionally update progress every 10 images
             if i % 10 == 0 and hasattr(st, 'rerun'):
                 st.rerun()
@@ -190,8 +192,14 @@ def build_database(db_folder, image_list):
 
 def append_images_to_database(db_folder, new_folder):
     """
-    Append new images from `new_folder` to the existing database in `db_folder`.
-    Only processes images that are not already included.
+    Append new images from a folder to an existing database.
+
+    Args:
+        db_folder (str): Path to the folder containing the existing database.
+        new_folder (str): Path to the folder containing new images to add.
+
+    Returns:
+        bool: True if images were successfully appended, False otherwise.
     """
     # Load existing database
     embeddings_path = os.path.join(db_folder, DB_EMBEDDINGS_FILE)
@@ -230,31 +238,28 @@ def append_images_to_database(db_folder, new_folder):
         # Extract metadata with tags (fall back to Keywords)
         try:
             metadata = extract_metadata(image_path)
-            
+
             # Generate BLIP caption for the image
             caption = generate_caption(image_path)
-            
+
             # Add the caption to metadata
             metadata["caption"] = caption
-            
-            # Always include the caption in Keywords
+
+            # Use Keywords from XMP if available, otherwise use the caption.
             if "Keywords" not in metadata or not metadata["Keywords"]:
                 metadata["Keywords"] = [caption]
-            else:
-                # If Keywords exists but doesn't contain the caption, add it
-                if isinstance(metadata["Keywords"], list):
-                    if caption not in metadata["Keywords"]:
-                        metadata["Keywords"].append(caption)
-                else:
-                    # If Keywords is not a list, convert it to a list and add the caption
-                    metadata["Keywords"] = [metadata["Keywords"], caption]
-            
-            # Look for the "tags" field and, if not found, fallback to "Keywords"
+            elif isinstance(metadata["Keywords"], str):
+                metadata["Keywords"] = [metadata["Keywords"]] # Ensure it is a list
+
+            # Prioritize 'tags' from XMP, fallback to 'Keywords'
             if "tags" not in metadata or not metadata["tags"]:
                 metadata["tags"] = metadata.get("Keywords", [])
+            elif isinstance(metadata["tags"], str):
+                metadata["tags"] = [metadata["tags"]]
+
         except Exception as e:
             logger.error(f"Error extracting metadata from {image_path}: {e}")
-            metadata = {"tags": [], "caption": f"Caption for {os.path.basename(image_path)}"}
+            metadata = {"tags": [], "caption": f"Caption for {os.path.basename(image_path)}", "Keywords": []}
 
         metadata["path"] = image_path
         metadata["filename"] = os.path.basename(image_path)
