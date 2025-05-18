@@ -20,6 +20,7 @@ import gc
 import atexit
 import argparse
 import rawpy
+import csv
 
 # Add the parent directory to sys.path so Python can find the project modules
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -298,9 +299,34 @@ def main():
         with open("results_summary.txt", "w", encoding="utf-8") as f:
             f.write(summary)
         logger.info("Results summary written to results_summary.txt")
-        # Print the summary file contents to the console for audit
         print("\n===== results_summary.txt =====\n")
         with open('results_summary.txt', 'r', encoding='utf-8') as f:
+            print(f.read())
+
+        # --- DETAILED CSV OUTPUT ---
+        detailed_csv = 'results_detailed_summary.csv'
+        all_fields = set()
+        metadata_list = []
+        for path in image_paths:
+            metadata = extract_metadata(path)
+            caption = captions_dict.get(path, "<NO CAPTION>")
+            emb = embeddings_dict.get(path)
+            emb_status = "OK" if emb is not None else "FAILED"
+            metadata = metadata.copy() if metadata else {}
+            metadata['filename'] = os.path.basename(path)
+            metadata['caption'] = caption
+            metadata['embedding_status'] = emb_status
+            metadata_list.append(metadata)
+            all_fields.update(metadata.keys())
+        all_fields = list(all_fields)
+        # Write CSV
+        with open(detailed_csv, 'w', encoding='utf-8', newline='') as csvfile:
+            writer = csv.DictWriter(csvfile, fieldnames=all_fields)
+            writer.writeheader()
+            for row in metadata_list:
+                writer.writerow(row)
+        print(f"\n===== {detailed_csv} =====\n")
+        with open(detailed_csv, 'r', encoding='utf-8') as f:
             print(f.read())
 
     # Optional: Demonstrate a text search using CLIP for query encoding
