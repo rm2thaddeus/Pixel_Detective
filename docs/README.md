@@ -55,3 +55,16 @@ torchvision==0.22.0+cu118
 torchaudio==2.7.0+cu118
 # ...
 ```
+
+## 🚀 Usage Example (Non-Interactive Script)
+
+To run the MVP batch processing script non-interactively, use command-line arguments:
+
+```
+python scripts/mvp_app.py --folder "C:\Users\aitor\OneDrive\Escritorio\test images" --batch-size 16 --max-workers 4 --query "a cat"
+```
+
+- `--folder` (required): Path to the image folder
+- `--batch-size` (optional): Batch size for CLIP embeddings (default: 16)
+- `--max-workers` (optional): Number of parallel workers for BLIP captions (default: 4)
+- `--query` (optional): Text query for image search (if omitted, search is skipped)
