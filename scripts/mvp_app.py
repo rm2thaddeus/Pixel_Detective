@@ -19,6 +19,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import gc
 import atexit
 import argparse
+import rawpy
 
 # Add the parent directory to sys.path so Python can find the project modules
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -31,16 +32,32 @@ from utils.cuda_utils import check_gpu_memory, log_cuda_memory_usage
 from models.clip_model import load_clip_model, unload_clip_model, setup_device
 from models.blip_model import load_blip_model, unload_blip_model, generate_caption, setup_blip_device
 from vector_db import QdrantDB
+from metadata_extractor import extract_metadata
 
 
 def get_image_list(folder: str):
     """Return a sorted list of image file paths in the folder."""
-    image_extensions = ['*.jpg', '*.jpeg', '*.png', '*.bmp', '*.gif']
+    image_extensions = ['*.jpg', '*.jpeg', '*.png', '*.bmp', '*.gif', '*.dng']
     image_files = []
     for ext in image_extensions:
         image_files.extend(glob.glob(os.path.join(folder, ext)))
     unique_files = sorted(list(set(image_files)))
     return unique_files
+
+
+def load_image_with_rawpy_or_pil(path):
+    """Load an image using rawpy for DNG/RAW files, or PIL for others. Returns a PIL.Image in RGB mode."""
+    ext = os.path.splitext(path)[1].lower()
+    if ext == '.dng':
+        try:
+            with rawpy.imread(path) as raw:
+                rgb = raw.postprocess()
+            return Image.fromarray(rgb)
+        except Exception as e:
+            logger.error(f"Error loading DNG file {path} with rawpy: {e}", exc_info=True)
+            raise
+    else:
+        return Image.open(path).convert("RGB")
 
 
 def process_clip_embeddings(image_paths, batch_size=16, device=None):
@@ -66,7 +83,7 @@ def process_clip_embeddings(image_paths, batch_size=16, device=None):
         
         for path in batch_paths:
             try:
-                image = Image.open(path).convert("RGB")
+                image = load_image_with_rawpy_or_pil(path)
                 image_tensor = preprocess(image)
                 batch_images.append(image_tensor)
             except Exception as e:
@@ -119,7 +136,12 @@ def process_blip_captions(image_paths, max_workers=4, device=None):
 
     def get_caption(path):
         try:
-            caption = generate_caption(path)
+            ext = os.path.splitext(path)[1].lower()
+            if ext == '.dng':
+                image = load_image_with_rawpy_or_pil(path)
+                caption = generate_caption(image)
+            else:
+                caption = generate_caption(path)
             return path, caption
         except Exception as e:
             logger.error(f"Error generating caption for {path}: {e}", exc_info=True)
@@ -183,6 +205,7 @@ def main():
     parser.add_argument('--batch-size', type=int, default=16, help='Batch size for CLIP embeddings')
     parser.add_argument('--max-workers', type=int, default=4, help='Number of parallel workers for BLIP captions')
     parser.add_argument('--query', type=str, default=None, help='Text query for image search (optional)')
+    parser.add_argument('--save-summary', action='store_true', help='If set, print and save a summary of results to results_summary.txt')
     args = parser.parse_args()
 
     clip_device = setup_device()
@@ -196,6 +219,7 @@ def main():
     batch_size = args.batch_size
     max_workers = args.max_workers
     query = args.query
+    save_summary = args.save_summary
 
     if not os.path.isdir(folder):
         logger.error(f"Provided folder does not exist: {folder}")
@@ -225,10 +249,26 @@ def main():
     added_count = 0
     for path in image_paths:
         try:
-            metadata = {
-                "caption": captions_dict.get(path, ""),
-                "keywords": [captions_dict.get(path, "")]
-            }
+            # Extract all available metadata
+            metadata = extract_metadata(path)
+            # Add BLIP caption
+            caption = captions_dict.get(path, "")
+            metadata["caption"] = caption
+            # Ensure Keywords field exists and includes the caption
+            if "Keywords" not in metadata or not metadata["Keywords"]:
+                metadata["Keywords"] = [caption] if caption else []
+            elif isinstance(metadata["Keywords"], str):
+                metadata["Keywords"] = [metadata["Keywords"]]
+            if caption and caption not in metadata["Keywords"]:
+                metadata["Keywords"].append(caption)
+            # Ensure tags field exists and is a list (prefer tags, fallback to Keywords)
+            if "tags" not in metadata or not metadata["tags"]:
+                metadata["tags"] = metadata.get("Keywords", [])
+            elif isinstance(metadata["tags"], str):
+                metadata["tags"] = [metadata["tags"]]
+            # Remove duplicates in tags and Keywords
+            metadata["Keywords"] = list(dict.fromkeys(metadata["Keywords"]))
+            metadata["tags"] = list(dict.fromkeys(metadata["tags"]))
             db.add_image(path, embeddings_dict.get(path), metadata)
             added_count += 1
             if added_count % 100 == 0:
@@ -241,6 +281,27 @@ def main():
     total_time = time.time() - start_time
     logger.info(f"Processing complete in {total_time:.2f} seconds.")
     logger.info(f"Summary: CLIP: {clip_duration:.2f}s, BLIP: {blip_duration:.2f}s, DB: {db_duration:.2f}s")
+
+    # --- SUMMARY OUTPUT ---
+    if save_summary:
+        summary_lines = []
+        summary_lines.append(f"Processed {len(image_paths)} images in {total_time:.2f} seconds.")
+        summary_lines.append(f"CLIP: {clip_duration:.2f}s, BLIP: {blip_duration:.2f}s, DB: {db_duration:.2f}s\n")
+        summary_lines.append("Image Results:")
+        for path in image_paths:
+            caption = captions_dict.get(path, "<NO CAPTION>")
+            emb = embeddings_dict.get(path)
+            emb_status = "OK" if emb is not None else "FAILED"
+            summary_lines.append(f"- {os.path.basename(path)}: Caption: {caption[:60]}... | Embedding: {emb_status}")
+        summary = "\n".join(summary_lines)
+        print("\n=== SUMMARY ===\n" + summary)
+        with open("results_summary.txt", "w", encoding="utf-8") as f:
+            f.write(summary)
+        logger.info("Results summary written to results_summary.txt")
+        # Print the summary file contents to the console for audit
+        print("\n===== results_summary.txt =====\n")
+        with open('results_summary.txt', 'r', encoding='utf-8') as f:
+            print(f.read())
 
     # Optional: Demonstrate a text search using CLIP for query encoding
     if query:
