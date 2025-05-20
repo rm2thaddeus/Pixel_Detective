@@ -10,6 +10,31 @@ from PIL import Image
 import json
 from datetime import datetime
 
+def _sanitize_for_json(obj):
+    """Recursively convert all values in a dict to JSON-serializable types."""
+    import fractions
+    import PIL.TiffImagePlugin
+    if isinstance(obj, dict):
+        return {k: _sanitize_for_json(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [_sanitize_for_json(v) for v in obj]
+    elif isinstance(obj, tuple):
+        # Convert tuple to float if possible, else to list
+        try:
+            if len(obj) == 2 and all(isinstance(x, (int, float)) for x in obj):
+                return float(obj[0]) / float(obj[1]) if obj[1] != 0 else 0.0
+            return list(obj)
+        except Exception:
+            return str(obj)
+    elif isinstance(obj, (fractions.Fraction,)):
+        return float(obj)
+    elif hasattr(PIL.TiffImagePlugin, 'IFDRational') and isinstance(obj, PIL.TiffImagePlugin.IFDRational):
+        return float(obj)
+    elif isinstance(obj, (int, float, str, bool)) or obj is None:
+        return obj
+    else:
+        return str(obj)
+
 def extract_metadata(image_path):
     """Extract metadata from an image file, focusing on XMP data."""
     metadata = {}
@@ -308,14 +333,15 @@ def extract_metadata(image_path):
                                 if tag:
                                     tags.append(tag)
                 
-                # Deduplicate tags
+                # Deduplicate tags and remove redundant subject field
                 if tags:
                     unique_tags = []
                     for tag in tags:
                         if tag not in unique_tags:
                             unique_tags.append(tag)
                     metadata['tags'] = unique_tags
-                    metadata['subject'] = unique_tags
+                    # Remove subject field to avoid duplicate tags
+                    metadata.pop('subject', None)
                 
                 # Map any temporary fields to their proper names
                 field_name_map = {
@@ -397,7 +423,7 @@ def extract_metadata(image_path):
         if isinstance(metadata[field], list):
             metadata[field] = "; ".join(str(item) for item in metadata[field])
     
-    return metadata
+    return _sanitize_for_json(metadata)
 
 def extract_exif(img):
     """Extract EXIF metadata from PIL Image object"""
