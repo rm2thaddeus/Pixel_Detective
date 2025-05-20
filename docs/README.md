@@ -8,6 +8,7 @@ Pixel Detective is an advanced image search application that uses AI to analyze,
 - **Automatic Image Captioning**: Generate high-quality captions for all your images using BLIP
 - **Semantic Understanding**: Extract meaningful concepts and tags from your images using CLIP
 - **Metadata Extraction**: Extract and index comprehensive metadata from various image formats
+- **RAW/DNG Support**: Full support for DNG (RAW) images. DNG files are processed for both CLIP embeddings and BLIP captions using rawpy and PIL interoperability.
 - **GPU Acceleration**: Optimized to run efficiently on consumer GPUs (6GB VRAM minimum recommended)
 - **Interactive UI**: User-friendly Streamlit interface with dark mode and extendable sidebar for images
 
@@ -68,3 +69,12 @@ python scripts/mvp_app.py --folder "C:\Users\aitor\OneDrive\Escritorio\test imag
 - `--batch-size` (optional): Batch size for CLIP embeddings (default: 16)
 - `--max-workers` (optional): Number of parallel workers for BLIP captions (default: 4)
 - `--query` (optional): Text query for image search (if omitted, search is skipped)
+
+After processing, a summary of all images, their captions, and embedding status is printed to the console and saved to `results_summary.txt` in the project root.
+
+To print and save a summary of all images, their captions, and embedding status to `results_summary.txt`, use the optional `--save-summary` flag. This is intended for debugging and is off by default.
+
+Example:
+```
+python scripts/mvp_app.py --folder "C:\path\to\images" --save-summary
+```

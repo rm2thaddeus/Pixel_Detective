@@ -30,10 +30,16 @@ ENV/
 .vscode/
 *.swp
 *.swo
-.cursor/
 
 # Project specific
 Library Test/
 temp_uploaded.jpg
 *.npy
-*.csv 
+*.csv
+
+# Logs and cache
+logs/
+cache/
+
+# Streamlit config
+.streamlit/ 

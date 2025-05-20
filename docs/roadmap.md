@@ -83,4 +83,8 @@ This roadmap outlines planned optimizations, features, and enhancements for the 
 - Support additional image formats: TIFF, RAW (via `rawpy`).
 - UI theming, accessibility, and mobile-responsive design.
 - Localization and translation support for multilingual queries.
-- Modular plugin system for custom algorithms and data sources. 
+- Modular plugin system for custom algorithms and data sources.
+
+### [x] DNG (RAW) image support
+  - Process DNG files for both CLIP and BLIP using rawpy and PIL
+  - Output a results summary file after each batch run (optional, controlled by --save-summary flag) 

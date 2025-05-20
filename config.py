@@ -45,4 +45,4 @@ BATCH_SIZE = 16  # Increased from 1 to process more images in parallel
 KEEP_MODELS_LOADED = True  # New setting to maintain models in memory
 
 # Supported image extensions
-IMAGE_EXTENSIONS = ['*.jpg', '*.jpeg', '*.png', '*.bmp', '*.gif'] 
+IMAGE_EXTENSIONS = ['*.jpg', '*.jpeg', '*.png', '*.bmp', '*.gif', '*.dng'] 

@@ -64,4 +64,10 @@ This document describes the high-level architecture of the Pixel Detective appli
 
 - The app is designed to run on consumer GPUs (6GB VRAM minimum) but falls back to CPU.
 - Batch processing and 8-bit quantization help reduce memory footprint for large collections.
-- Qdrant provides scalable vector storage for growing image datasets. 
+- Qdrant provides scalable vector storage for growing image datasets.
+
+## RAW/DNG Image Support
+Pixel Detective now supports DNG (RAW) images. When a DNG file is encountered, it is loaded using rawpy and converted to a standard RGB image before being processed by the CLIP and BLIP models. This ensures seamless integration of RAW files into the embedding and captioning pipeline.
+
+## Results Summary Output (Optional)
+The batch processing script can optionally print and save a summary of all processed images, their captions, and embedding status to `results_summary.txt` by using the `--save-summary` flag. This is intended for debugging and is off by default. 

@@ -54,12 +54,11 @@ def setup_device(force_cpu=False):
         logger.info("CUDA is not available, using CPU")
         return torch.device("cpu")
 
-def load_clip_model(model_name=CLIP_MODEL_NAME, device=None):
+def load_clip_model(device=None):
     """
     Load the CLIP model.
     
     Args:
-        model_name (str): The name of the CLIP model to load
         device (torch.device): The device to load the model on
         
     Returns:
@@ -88,7 +87,7 @@ def load_clip_model(model_name=CLIP_MODEL_NAME, device=None):
         
         # Load the model
         logger.info(f"Loading CLIP model with device={device}...")
-        model, preprocess = clip.load(model_name, device=device)
+        model, preprocess = clip.load(CLIP_MODEL_NAME, device=device)
         model = model.to(device)
         
         # Log device the model is on

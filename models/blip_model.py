@@ -132,12 +132,12 @@ def _get_caption_prompt(metadata):
     else:
         return DEFAULT_PROMPT
 
-def generate_caption(image_path, metadata=None):
+def generate_caption(image_or_path, metadata=None):
     """
     Generate a caption for an image using BLIP.
 
     Args:
-        image_path: Path to the image file.
+        image_or_path: Path to the image file or a PIL.Image.Image object.
         metadata: Optional metadata (not used for caption generation).
 
     Returns:
@@ -150,9 +150,12 @@ def generate_caption(image_path, metadata=None):
 
     prompt = ""  # No prompt engineering based on metadata
     try:
-        image = Image.open(image_path).convert("RGB")
+        if isinstance(image_or_path, Image.Image):
+            image = image_or_path.convert("RGB")
+        else:
+            image = Image.open(image_or_path).convert("RGB")
     except Exception as e:
-        logger.error(f"Error opening image {image_path}: {e}")
+        logger.error(f"Error opening image {image_or_path}: {e}")
         return "Error opening image"
 
     # Process the image with the processor

@@ -19,7 +19,7 @@ import sys
 
 # Add the root directory to the path to import minigame
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from minigame import BreakoutGame
+from scripts.minigame import BreakoutGame
 
 # Function to load image from various locations with fallbacks
 def get_image_path(image_name):
