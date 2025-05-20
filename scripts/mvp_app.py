@@ -32,7 +32,7 @@ from utils.cuda_utils import check_gpu_memory, log_cuda_memory_usage
 # Import models from the project
 from models.clip_model import load_clip_model, unload_clip_model, setup_device
 from models.blip_model import load_blip_model, unload_blip_model, generate_caption, setup_blip_device
-from vector_db import QdrantDB
+from database.qdrant_connector import QdrantDB
 from metadata_extractor import extract_metadata
 
 
@@ -245,37 +245,59 @@ def main():
     logger.info(f"BLIP caption generation completed in {blip_duration:.2f} seconds.")
 
     logger.info("=== Starting Stage 3: Vector Database Updates ===")
-    db = QdrantDB(collection_name="image_collection")
-    logger.info(f"Adding {len(image_paths)} images to vector database...")
-    added_count = 0
+    # Initialize QdrantDB with in_memory=False by default, or add CLI arg to control this
+    db = QdrantDB(collection_name="pixel_detective_mvp") # Using a distinct collection name
+    logger.info(f"Adding {len(image_paths)} images to vector database '{db.collection_name}'...")
+    
+    points_to_add_paths = []
+    points_to_add_embeddings = []
+    points_to_add_metadata = []
+
     for path in image_paths:
-        try:
-            # Extract all available metadata
-            metadata = extract_metadata(path)
-            # Add BLIP caption
-            caption = captions_dict.get(path, "")
-            metadata["caption"] = caption
-            # Ensure Keywords field exists and includes the caption
-            if "Keywords" not in metadata or not metadata["Keywords"]:
-                metadata["Keywords"] = [caption] if caption else []
-            elif isinstance(metadata["Keywords"], str):
-                metadata["Keywords"] = [metadata["Keywords"]]
-            if caption and caption not in metadata["Keywords"]:
-                metadata["Keywords"].append(caption)
-            # Ensure tags field exists and is a list (prefer tags, fallback to Keywords)
-            if "tags" not in metadata or not metadata["tags"]:
-                metadata["tags"] = metadata.get("Keywords", [])
-            elif isinstance(metadata["tags"], str):
-                metadata["tags"] = [metadata["tags"]]
-            # Remove duplicates in tags and Keywords
-            metadata["Keywords"] = list(dict.fromkeys(metadata["Keywords"]))
+        embedding = embeddings_dict.get(path)
+        if embedding is None:
+            logger.warning(f"Skipping image {path} for database addition due to missing embedding.")
+            continue
+
+        metadata = extract_metadata(path) # Extract fresh metadata
+        caption = captions_dict.get(path, "")
+        metadata["caption"] = caption
+        
+        # Ensure Keywords field exists and includes the caption
+        if "Keywords" not in metadata or not metadata["Keywords"]:
+            metadata["Keywords"] = [caption] if caption else []
+        elif isinstance(metadata["Keywords"], str):
+            metadata["Keywords"] = [metadata["Keywords"]]
+        if caption and caption not in metadata["Keywords"]:
+            metadata["Keywords"].append(caption)
+        
+        # Ensure tags field exists and is a list (prefer tags, fallback to Keywords)
+        if "tags" not in metadata or not metadata["tags"]:
+            metadata["tags"] = metadata.get("Keywords", [])
+        elif isinstance(metadata["tags"], str):
+            metadata["tags"] = [metadata["tags"]]
+        
+        # Remove duplicates in tags and Keywords
+        if isinstance(metadata.get("Keywords"), list):
+             metadata["Keywords"] = list(dict.fromkeys(metadata["Keywords"]))
+        if isinstance(metadata.get("tags"), list):
             metadata["tags"] = list(dict.fromkeys(metadata["tags"]))
-            db.add_image(path, embeddings_dict.get(path), metadata)
-            added_count += 1
-            if added_count % 100 == 0:
-                logger.info(f"Added {added_count}/{len(image_paths)} images to database")
-        except Exception as e:
-            logger.error(f"Error adding image {path} to database: {e}", exc_info=True)
+
+        points_to_add_paths.append(path)
+        points_to_add_embeddings.append(embedding)
+        points_to_add_metadata.append(metadata)
+
+    if points_to_add_paths:
+        success_count, failure_count = db.add_images_batch(
+            image_paths=points_to_add_paths, 
+            embeddings=points_to_add_embeddings, 
+            metadata_list=points_to_add_metadata,
+            batch_size=args.batch_size # Reuse CLI batch_size for Qdrant batching
+        )
+        logger.info(f"Database batch addition: {success_count} succeeded, {failure_count} failed.")
+    else:
+        logger.info("No valid images with embeddings to add to the database.")
+
     db_time = time.time()
     db_duration = db_time - blip_time
     logger.info(f"Database updated in {db_duration:.2f} seconds.")

@@ -8,15 +8,15 @@ This roadmap outlines planned optimizations, features, and enhancements for the 
 
 0. **Environment Setup**
    - Create and document a Python virtual environment (`.venv`) for dependency management and reproducibility.
-   - **Upgrade to CUDA-enabled PyTorch (2.7.0+cu118) and document GPU troubleshooting in README.**
+   - **[COMPLETED] Upgrade to CUDA-enabled PyTorch (2.7.0+cu118) and document GPU troubleshooting in README.**
 
 1. **Optimize Image Processing Pipeline**
    - Parallelize metadata extraction in `metadata_extractor.py` using thread pools or asyncio.
-   - Batch process images in `pipeline.py` to reduce I/O overhead.
+   - **[PARTIALLY COMPLETED] Batch process images for CLIP embeddings (implemented in `models/clip_model.py` and used by `scripts/mvp_app.py`). BLIP batching TBD.**
 
 2. **Implement Caching & Checkpointing**
    - Cache extracted metadata and embeddings locally to avoid redundant work on subsequent runs.
-   - Add checkpoint files in `scripts/pipeline.py` to resume interrupted indexing.
+   - Add checkpoint files in `scripts/mvp_app.py` to resume interrupted indexing (relevant for the CLI tool).
 
 3. **Improve UI Feedback**
    - Integrate `st.progress` bars and status messages in `app.py` and `ui` components.
@@ -31,12 +31,12 @@ This roadmap outlines planned optimizations, features, and enhancements for the 
 ## Medium-term (3–6 Weeks)
 
 1. **Refactor Vector Database Operations**
-   - Switch to asynchronous Qdrant client in `vector_db.py` for non-blocking upserts and queries.
-   - Support bulk upsert and batch query APIs.
+   - Switch to asynchronous Qdrant client in `database/qdrant_connector.py` for non-blocking upserts and queries.
+   - **[COMPLETED] Support bulk upsert (`add_images_batch` in `database/qdrant_connector.py`). Batch query APIs TBD.**
 
 2. **Incremental & Resumable Builds**
-   - Store ingestion state in the vector DB or in sidecar files to allow incremental updates.
-   - Add CLI flags in `scripts/pipeline.py` for full vs. incremental indexing.
+   - Store ingestion state in the vector DB or in sidecar files to allow incremental updates (relevant for `scripts/mvp_app.py` and potentially `database/db_manager.py`).
+   - Add CLI flags in `scripts/mvp_app.py` for full vs. incremental indexing.
 
 3. **8-bit Quantization & Memory Tuning**
    - Expose `bitsandbytes` quantization options in the UI and config.
@@ -80,7 +80,7 @@ This roadmap outlines planned optimizations, features, and enhancements for the 
 
 - Interactive image annotation and manual caption correction.
 - Fine-tune CLIP/BLIP on custom domain datasets.
-- Support additional image formats: TIFF, RAW (via `rawpy`).
+- **[COMPLETED] Support additional image formats: DNG (via `rawpy` in `models/clip_model.py` and `scripts/mvp_app.py`). TIFF TBD.**
 - UI theming, accessibility, and mobile-responsive design.
 - Localization and translation support for multilingual queries.
 - Modular plugin system for custom algorithms and data sources.

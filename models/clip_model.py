@@ -10,6 +10,8 @@ import streamlit as st
 from utils.logger import logger
 from config import CLIP_MODEL_NAME, GPU_MEMORY_EFFICIENT
 import numpy as np
+import rawpy
+import os
 
 # Global variables to store model and preprocessor
 _clip_model = None
@@ -161,7 +163,18 @@ def process_image(image_path):
         start_time = time.time()
         
         # Open and preprocess the image
-        image = Image.open(image_path).convert("RGB")
+        ext = os.path.splitext(image_path)[1].lower()
+        if ext == '.dng':
+            try:
+                with rawpy.imread(image_path) as raw:
+                    rgb = raw.postprocess()
+                image = Image.fromarray(rgb).convert("RGB")
+            except Exception as raw_e:
+                logger.error(f"Error loading DNG file {image_path} with rawpy: {raw_e}", exc_info=True)
+                raise
+        else:
+            image = Image.open(image_path).convert("RGB")
+
         image_input = preprocess(image).unsqueeze(0).to(device)
         
         # Generate the embedding
@@ -244,19 +257,24 @@ def get_image_understanding(image_path, top_k=10):
         logger.error(f"Error getting image understanding: {e}")
         return []
 
-def process_batch(image_paths, batch_size=16):
+def process_batch(image_paths, batch_size_override=None):
     """
     Process a batch of images to generate embeddings using CLIP.
     
     Args:
-        image_paths (list): List of paths to image files
-        batch_size (int): Size of mini-batches to process at once
-        
+        image_paths (list): List of paths to image files.
+        batch_size_override (int, optional): Override the default batch size from config. 
+                                        Set to 1 for single image processing if needed by caller.
+
     Returns:
-        numpy.ndarray: Array of image embeddings
+        list: List of image embeddings (numpy.ndarray).
+              Returns an empty list if an error occurs or no images are processed.
     """
     global _clip_model, _clip_preprocess
-    
+
+    if not image_paths:
+        return []
+
     if _clip_model is None or _clip_preprocess is None:
         model, preprocess = load_clip_model()
     else:
@@ -264,45 +282,70 @@ def process_batch(image_paths, batch_size=16):
     
     device = next(model.parameters()).device
     
+    # Determine batch size (from config or override)
+    # Assuming BATCH_SIZE is available in config, otherwise use a default or pass explicitly
+    # For this example, let's use a default if not found in config, or use override.
     try:
-        start_time = time.time()
-        all_embeddings = []
+        from config import BATCH_SIZE as DEFAULT_BATCH_SIZE
+    except ImportError:
+        DEFAULT_BATCH_SIZE = 16 # Fallback default
+
+    batch_size = batch_size_override if batch_size_override is not None else DEFAULT_BATCH_SIZE
+
+    all_embeddings = []
+    num_images = len(image_paths)
+    
+    logger.info(f"Starting CLIP batch embedding generation for {num_images} images with batch size {batch_size}")
+
+    for i in range(0, num_images, batch_size):
+        current_batch_paths = image_paths[i:i+batch_size]
+        batch_images_tensors = []
+        processed_paths_in_batch = [] # Keep track of successfully processed images for this batch
+
+        for path in current_batch_paths:
+            try:
+                ext = os.path.splitext(path)[1].lower()
+                if ext == '.dng':
+                    try:
+                        with rawpy.imread(path) as raw:
+                            rgb = raw.postprocess()
+                        image = Image.fromarray(rgb).convert("RGB")
+                    except Exception as raw_e:
+                        logger.error(f"Error loading DNG file {path} with rawpy for batch: {raw_e}")
+                        continue # Skip this image
+                else:
+                    image = Image.open(path).convert("RGB")
+                
+                image_tensor = preprocess(image)
+                batch_images_tensors.append(image_tensor)
+                processed_paths_in_batch.append(path)
+            except Exception as e:
+                logger.error(f"Error processing image {path} for batch: {e}")
         
-        # Process in mini-batches to avoid OOM errors
-        for i in range(0, len(image_paths), batch_size):
-            mini_batch = image_paths[i:i+batch_size]
-            images = []
+        if not batch_images_tensors:
+            logger.warning(f"Batch starting at index {i} had no valid images to tensorize, skipping")
+            continue
             
-            # Preprocess each image
-            for img_path in mini_batch:
-                try:
-                    image = Image.open(img_path).convert("RGB")
-                    processed = _clip_preprocess(image)
-                    images.append(processed)
-                except Exception as e:
-                    logger.error(f"Error preprocessing image {img_path}: {e}")
-                    # Use a black image as fallback
-                    images.append(torch.zeros_like(_clip_preprocess(Image.new('RGB', (224, 224), (0, 0, 0)))))
-            
-            # Stack all processed images into a batch tensor
-            batch_tensor = torch.stack(images).to(device)
-            
-            # Generate embeddings
+        try:
+            batch_tensor_stacked = torch.stack(batch_images_tensors).to(device)
             with torch.no_grad():
-                batch_features = model.encode_image(batch_tensor)
-                batch_features /= batch_features.norm(dim=-1, keepdim=True)
+                image_features = model.encode_image(batch_tensor_stacked)
+                image_features = image_features / image_features.norm(dim=-1, keepdim=True)
             
-            # Convert to numpy and add to results
-            batch_embeddings = batch_features.cpu().numpy()
-            all_embeddings.append(batch_embeddings)
-        
-        # Concatenate all mini-batch results
-        embeddings = np.concatenate(all_embeddings, axis=0)
-        
-        end_time = time.time()
-        logger.info(f"Batch of {len(image_paths)} images processed in {end_time - start_time:.2f} seconds")
-        
-        return embeddings
-    except Exception as e:
-        logger.error(f"Error processing image batch: {e}")
-        raise 
+            batch_embeddings = image_features.cpu().numpy()
+            all_embeddings.extend(batch_embeddings) # Appends each row of batch_embeddings as a separate item
+            
+            logger.info(f"Processed batch {i//batch_size + 1}/{(num_images-1)//batch_size + 1} ({len(batch_embeddings)} images)")
+
+            if GPU_MEMORY_EFFICIENT and torch.cuda.is_available():
+                # Minimal cleanup for batch processing, full unload is separate
+                del batch_tensor_stacked, image_features, batch_embeddings
+                torch.cuda.empty_cache()
+
+        except Exception as e:
+            logger.error(f"Error during CLIP model batch inference at index {i}: {e}")
+            # Add None or zero vectors for failed images in this batch if count needs to match input
+            # For simplicity here, we just log and continue. `all_embeddings` will have fewer items.
+
+    logger.info(f"Finished CLIP batch processing. Generated {len(all_embeddings)} embeddings for {num_images} requested images.")
+    return all_embeddings 
