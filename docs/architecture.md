@@ -307,3 +307,8 @@ This list will be updated as features are completed or new needs arise.
 
 **2024-06-12**
 - Latent Space Explorer now supports DBSCAN clustering overlays. After UMAP projection, clusters are detected and visualized with color, and outliers are shown in gray. The DBSCAN `eps` parameter is adjustable in the UI for interactive exploration. Debug output has been removed for a cleaner user experience.
+
+**2024-06-13**
+- Implemented and debugged hybrid (vector + metadata) search with Qdrant.
+- Added modular query parser and robust fallback logic for user-friendly search.
+- Improved debug logging for search diagnostics.

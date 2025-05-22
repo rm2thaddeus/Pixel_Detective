@@ -16,6 +16,7 @@ from models.blip_model import generate_caption
 from config import DB_EMBEDDINGS_FILE, DB_METADATA_FILE, GPU_MEMORY_EFFICIENT
 import concurrent.futures
 import streamlit as st
+from utils.query_parser import parse_query, build_qdrant_filter
 
 logger = logging.getLogger(__name__)
 
@@ -183,42 +184,71 @@ class DatabaseManager:
     
     def search_similar_images(self, query_text, top_k=5):
         """
-        Search for images similar to the query text.
-        
+        Search for images similar to the query text, using hybrid (vector + metadata) search in Qdrant.
         Args:
             query_text: The text query to search for
             top_k: Number of top results to return
-            
         Returns:
             list: List of dictionaries containing search results
         """
         import streamlit as st
         import clip
-        
+        import torch
+        from utils.query_parser import parse_query, build_qdrant_filter
+
         try:
+            # Parse query for metadata and remaining text
+            metadata, remaining_text = parse_query(query_text)
+            qdrant_filter = build_qdrant_filter(metadata)
+            logger.info(f"[SEARCH DEBUG] Query: '{query_text}' | Parsed metadata: {metadata} | Remaining text: '{remaining_text}' | Qdrant filter: {qdrant_filter}")
+
             # Get CLIP model
             model, preprocess = self.model_manager.load_clip_model()
             device = self.model_manager.device
-            
-            # Tokenize and encode the text query
+
+            # Tokenize and encode the remaining text
             with torch.no_grad():
-                text = clip.tokenize([query_text]).to(device)
+                text = clip.tokenize([remaining_text if remaining_text else query_text]).to(device)
                 text_features = model.encode_text(text)
                 text_features /= text_features.norm(dim=-1, keepdim=True)
-            
+
             # Convert to numpy array
-            text_features_np = text_features.cpu().numpy()
-            
-            # Compute similarity scores
+            text_features_np = text_features.cpu().numpy().flatten()
+
+            # Use Qdrant hybrid search if available
+            qdrant_db = st.session_state.get('qdrant_db')
+            if qdrant_db is not None:
+                filter_to_use = qdrant_filter if qdrant_filter and qdrant_filter.get('must') else None
+                results = qdrant_db.hybrid_search(text_features_np, filter_to_use, limit=top_k)
+                logger.info(f"[SEARCH DEBUG] Qdrant returned {len(results)} results (filter applied: {bool(filter_to_use)})")
+                # If filter was applied and no results, fallback to vector-only search
+                if filter_to_use and not results:
+                    logger.info("[SEARCH DEBUG] No results with filter, retrying with vector-only search (no filter)...")
+                    results = qdrant_db.hybrid_search(text_features_np, None, limit=top_k)
+                    logger.info(f"[SEARCH DEBUG] Qdrant returned {len(results)} results (no filter)")
+                # Format results
+                formatted = []
+                for path, score in results:
+                    # Try to get metadata from images_data if available
+                    meta = {}
+                    images_data = st.session_state.get('images_data')
+                    if images_data is not None and 'path' in images_data.columns:
+                        row = images_data[images_data['path'] == path]
+                        if not row.empty:
+                            meta = row.iloc[0].to_dict()
+                    formatted.append({
+                        'path': path,
+                        'score': score,
+                        **meta
+                    })
+                return formatted
+
+            # Fallback: in-memory vector search (legacy)
+            logger.info("[SEARCH DEBUG] Qdrant not available, using in-memory vector search.")
             similarities = np.dot(st.session_state.embeddings, text_features_np.T).squeeze()
-            
-            # Create a list of (index, score) tuples for all images
             scored_indices = [(i, float(score)) for i, score in enumerate(similarities)]
-            
-            # Sort by score and get top-k
             scored_indices.sort(key=lambda x: x[1], reverse=True)
             top_scored_indices = scored_indices[:top_k]
-            
             results = []
             for idx, score in top_scored_indices:
                 img_path = st.session_state.images_data.iloc[idx]['path']
@@ -227,8 +257,6 @@ class DatabaseManager:
                     'score': score,
                     'index': int(idx)
                 }
-                
-                # Add metadata fields to results
                 metadata = st.session_state.images_data.iloc[idx]
                 if 'caption' in metadata:
                     result['caption'] = metadata['caption']
@@ -236,18 +264,11 @@ class DatabaseManager:
                     result['tags'] = metadata['tags']
                 if 'Keywords' in metadata:
                     result['keywords'] = metadata['Keywords']
-                    
                 results.append(result)
-            
-            # Clean up GPU memory if needed
-            if GPU_MEMORY_EFFICIENT:
-                del text, text_features
-                torch.cuda.empty_cache()
-                gc.collect()
-            
+            logger.info(f"[SEARCH DEBUG] In-memory search returned {len(results)} results.")
             return results
         except Exception as e:
-            logger.error(f"Error searching by text: {e}")
+            logger.error(f"Error searching by text (hybrid): {e}")
             return []
     
     def search_by_image(self, image_path, top_k=5):

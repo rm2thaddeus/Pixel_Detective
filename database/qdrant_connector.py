@@ -1,5 +1,5 @@
 from qdrant_client import QdrantClient, models
-from qdrant_client.http.models import PointStruct, UpdateStatus
+from qdrant_client.http.models import PointStruct, UpdateStatus, Filter, FieldCondition, MatchValue
 import uuid
 import os
 import numpy as np # For type hinting and numpy array checks
@@ -232,3 +232,46 @@ class QdrantDB:
         except Exception as e:
             print(f"Error deleting image {image_path} from Qdrant: {e}")
             return False 
+
+    def hybrid_search(self, query_vector, metadata_filter=None, limit=5):
+        """
+        Hybrid search: vector similarity + metadata filter.
+        Args:
+            query_vector: The embedding vector for the query.
+            metadata_filter: Qdrant filter dict (or None).
+            limit: Number of results to return.
+        Returns:
+            List of (path, score) tuples.
+        """
+        vector = self._prepare_vector(query_vector)
+        if vector is None:
+            print("Invalid query vector dimension.")
+            return []
+
+        # Convert dict filter to Qdrant models.Filters if needed
+        filter_obj = None
+        if metadata_filter:
+            # Convert our dict to Qdrant Filter object
+            must = []
+            for cond in metadata_filter.get("must", []):
+                must.append(FieldCondition(key=cond["key"], match=MatchValue(value=cond["match"]["value"])))
+            filter_obj = Filter(must=must)
+
+        try:
+            search_result = self.client.search(
+                collection_name=self.collection_name,
+                query_vector=vector,
+                limit=limit,
+                with_payload=True,
+                query_filter=filter_obj
+            )
+            results = []
+            for hit in search_result:
+                if hit.payload and 'path' in hit.payload:
+                    results.append((hit.payload['path'], hit.score))
+                else:
+                    results.append((hit.id, hit.score))
+            return results
+        except Exception as e:
+            print(f"Error in hybrid search Qdrant: {e}")
+            return [] 
