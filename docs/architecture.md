@@ -63,8 +63,9 @@ This document describes the high-level architecture of the Pixel Detective appli
 ### C. Latent Space Explorer (`ui/latent_space.py`)
 1. Fetch embeddings and metadata via `DatabaseManager.get_latent_space_data()`.
 2. Compute and cache 2D UMAP projection of embedding vectors for responsive rerenders.
-3. Render a minimal, robust Plotly scatter plot (using plotly.graph_objects) for all points. No lasso/selection or interactive selection is currently enabled, as previous attempts led to invisible points and UI bugs.
-4. Extensive UI debugging was required: Plotly/Streamlit can silently fail to render points if marker/color/selection properties are misused. The current approach prioritizes reliability and clarity.
+3. Render a minimal, robust Plotly scatter plot (using plotly.graph_objects) for all points.
+4. **DBSCAN clustering overlay:** After UMAP projection, DBSCAN is run on the 2D coordinates. Points are colored by cluster label, with outliers (noise, label -1) shown in gray. A sidebar slider allows interactive tuning of the DBSCAN `eps` (cluster radius) parameter. This enables visual exploration of clusters and outliers in the embedding space.
+5. Extensive UI debugging was required: Plotly/Streamlit can silently fail to render points if marker/color/selection properties are misused. The current approach prioritizes reliability and clarity.
 
 ## 4. Batch Processing & Results
 
@@ -230,6 +231,7 @@ Enable fast, beautiful, and insightful exploration of the embedding space.
 - [x] Implement sampling or pagination for large datasets to prevent UI freezing.
 - [x] Improve plot aesthetics: custom color scales, thumbnail-on-hover, zoom/pan, and clear legends.
 - [x] Eliminate UI flashing by using `st.experimental_memo` or session-based caching of computed projections.
+- [x] **Add DBSCAN clustering overlays to highlight structure in the latent space.**
 - [ ] (Optional) Add embedding density or clustering overlays (e.g., DBSCAN or K-Means) to highlight structure.
 
 ---
@@ -295,3 +297,10 @@ This list will be updated as features are completed or new needs arise.
 
 **Update (2024-06-12):**
 - Content-addressable embedding cache and background job offloading are now fully integrated in both CLI and Streamlit pipelines. The Streamlit UI shows live progress, and all embedding computations are cache-aware for efficiency.
+
+---
+
+# Changelog
+
+**2024-06-12**
+- Latent Space Explorer now supports DBSCAN clustering overlays. After UMAP projection, clusters are detected and visualized with color, and outliers are shown in gray. The DBSCAN `eps` parameter is adjustable in the UI for interactive exploration. Debug output has been removed for a cleaner user experience.
