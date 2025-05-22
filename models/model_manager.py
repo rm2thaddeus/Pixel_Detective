@@ -10,6 +10,8 @@ import logging
 from models.clip_model import load_clip_model, unload_clip_model, process_image
 from models.blip_model import load_blip_model, unload_blip_model, generate_caption
 from config import KEEP_MODELS_LOADED
+from utils.embedding_cache import get_cache
+from utils.duplicate_detector import compute_sha256
 
 logger = logging.getLogger(__name__)
 
@@ -118,9 +120,16 @@ class ModelManager:
         """
         # Ensure CLIP model is loaded
         self.load_clip_model()
-        
+        # Use cache
+        cache = get_cache()
+        file_hash = compute_sha256(image_path)
+        cached = cache.get(file_hash)
+        if cached is not None:
+            return cached
         # Process the image
-        return process_image(image_path)
+        embedding = process_image(image_path)
+        cache.set(file_hash, embedding)
+        return embedding
     
     def generate_caption(self, image_path, metadata=None):
         """

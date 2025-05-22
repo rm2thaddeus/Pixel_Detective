@@ -94,28 +94,24 @@ def render_sidebar():
                 if image_files:
                     st.session_state.total_images = len(image_files)
                     progress_placeholder.info(f"Found {len(image_files)} images. Building database...")
-                    
-                    # Update the progress info and message every second
                     import time
                     import threading
-                    
-                    def update_loading_message():
-                        idx = 0
-                        while st.session_state.get('building_database', True) and idx < 100:
-                            message_placeholder.info(random.choice(loading_messages))
-                            idx += 1
-                            time.sleep(2)  # Update message every 2 seconds
-                    
-                    # Start the message update thread
+                    def update_progress_bar():
+                        while st.session_state.get('building_database', True):
+                            current = st.session_state.get('current_image_index', 0)
+                            total = st.session_state.get('total_images', 1)
+                            progress = int((current / total) * 100) if total > 0 else 0
+                            progress_bar.progress(progress)
+                            progress_placeholder.info(f"Processed {current} / {total} images...")
+                            time.sleep(0.5)
                     st.session_state.building_database = True
-                    threading.Thread(target=update_loading_message).start()
-                    
+                    progress_thread = threading.Thread(target=update_progress_bar)
+                    progress_thread.start()
                     try:
-                        # Build the database
+                        # Build the database (now offloaded and cache-aware)
                         success = db_manager.build_database(current_folder, image_files)
-                        
-                        # Update progress and message
                         st.session_state.building_database = False
+                        progress_thread.join()
                         if success:
                             progress_placeholder.success("Database built successfully!")
                             progress_bar.progress(100)
@@ -124,6 +120,7 @@ def render_sidebar():
                             progress_placeholder.error("Failed to build database.")
                     except Exception as e:
                         st.session_state.building_database = False
+                        progress_thread.join()
                         progress_placeholder.error(f"Error building database: {e}")
                         logger.error(f"Error building database: {e}")
                 else:

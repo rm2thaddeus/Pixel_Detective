@@ -14,6 +14,8 @@ import gc
 from metadata_extractor import extract_metadata
 from models.blip_model import generate_caption
 from config import DB_EMBEDDINGS_FILE, DB_METADATA_FILE, GPU_MEMORY_EFFICIENT
+import concurrent.futures
+import streamlit as st
 
 logger = logging.getLogger(__name__)
 
@@ -58,59 +60,50 @@ class DatabaseManager:
     def build_database(self, db_folder, image_list):
         """
         Builds a vector database from a list of images.
-
         Args:
             db_folder (str): The folder where the database files will be stored.
             image_list (list): A list of paths to the image files.
-
         Returns:
             bool: True if the database was built successfully, False otherwise.
         """
         embeddings = []
         metadata_records = []
-
-        for i, image_path in enumerate(image_list):
-            # Process image and compute embedding
+        total_images = len(image_list)
+        st.session_state['current_image_index'] = 0
+        st.session_state['total_images'] = total_images
+        def process_one(image_path):
             embedding = self.model_manager.process_image(image_path)
-            embeddings.append(embedding)
-
-            # Extract metadata for the image
             metadata = extract_metadata(image_path)
-
-            # Generate BLIP caption
             caption = generate_caption(image_path)
             metadata["caption"] = caption
-
-            # Use Keywords from XMP if available, otherwise use the caption.
             if "Keywords" not in metadata or not metadata["Keywords"]:
                 metadata["Keywords"] = [caption]
             elif isinstance(metadata["Keywords"], str):
-                metadata["Keywords"] = [metadata["Keywords"]] # Ensure it is a list
-
-            # Prioritize 'tags' from XMP, fallback to 'Keywords'
+                metadata["Keywords"] = [metadata["Keywords"]]
             if "tags" not in metadata or not metadata["tags"]:
                 metadata["tags"] = metadata.get("Keywords", [])
             elif isinstance(metadata["tags"], str):
                 metadata["tags"] = [metadata["tags"]]
-
-            metadata["path"] = image_path  # Record the image path
-            metadata_records.append(metadata)
-
-        # Save embeddings as a numpy array
+            metadata["path"] = image_path
+            return embedding, metadata
+        with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+            futures = {executor.submit(process_one, path): path for path in image_list}
+            for i, future in enumerate(concurrent.futures.as_completed(futures)):
+                try:
+                    embedding, metadata = future.result()
+                    embeddings.append(embedding)
+                    metadata_records.append(metadata)
+                except Exception as e:
+                    logger.error(f"Error processing {futures[future]}: {e}")
+                st.session_state['current_image_index'] = i + 1
         embeddings_path = os.path.join(db_folder, DB_EMBEDDINGS_FILE)
         np.save(embeddings_path, np.array(embeddings))
-        
-        # Convert metadata records to a DataFrame and save as CSV
         metadata_df = pd.DataFrame(metadata_records)
         metadata_path = os.path.join(db_folder, DB_METADATA_FILE)
         metadata_df.to_csv(metadata_path, index=False)
-        
-        # Update session state with loaded data
-        import streamlit as st
         st.session_state.embeddings = np.array(embeddings)
         st.session_state.images_data = metadata_df
         st.session_state.database_built = True
-        
         return True
     
     def database_exists(self, folder_path):

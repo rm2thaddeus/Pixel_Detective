@@ -15,6 +15,9 @@
 - Enhanced `models/clip_model.py` with:
     - Integrated DNG/RAW file handling directly in `process_image`.
     - Completed `process_batch` function for efficient batch embedding generation.
+- Early duplicate detection: Added `scripts/find_duplicates.py` CLI tool and `utils/duplicate_detector.py` for pre-pipeline duplicate and near-duplicate detection using SHA-256 and perceptual hashing (phash), with EXIF extraction and CSV/console reporting.
+- Content-addressable embedding cache: Added `utils/embedding_cache.py` (SQLite-based) and integrated cache checks into CLI MVP (`scripts/mvp_app.py`) to prevent redundant embedding computation.
+- Background job offloading: Integrated `concurrent.futures` for parallel BLIP captioning in CLI MVP and Streamlit pipelines, improving responsiveness and throughput.
 
 ### Changed
 - Upgraded to CUDA-enabled PyTorch (torch==2.7.0+cu118, torchvision==0.22.0+cu118, torchaudio==2.7.0+cu118) for GPU acceleration.
@@ -25,6 +28,9 @@
     - Use `database.qdrant_connector.QdrantDB` for all database operations.
     - Utilize the new `add_images_batch` method for improved performance.
     - Use a distinct Qdrant collection name `pixel_detective_mvp`.
+    - Integrate embedding cache and duplicate detection logic.
+    - Use parallel background jobs for BLIP captioning.
+- Streamlit app (`app.py`): Improved model management, error handling, and background job offloading for a more responsive UI. Embedding cache is now checked before computation.
 
 ### Fixed
 - Resolved disk space issues by purging pip cache (`pip cache purge`).

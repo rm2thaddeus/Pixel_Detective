@@ -2,6 +2,10 @@
 # If you run out of disk space, clear your pip cache with: pip cache purge
 # Install torch/torchvision/torchaudio with CUDA support as described in the README
 
+# sqlite3 and pickle are part of the Python standard library, but for clarity:
+# sqlite3 (standard library)
+# pickle (standard library)
+
 accelerate==1.5.1
 altair==5.5.0
 annotated-types==0.7.0

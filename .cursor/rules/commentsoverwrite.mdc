@@ -1,0 +1,38 @@
+---
+description: Avoiding overwritting comments
+globs: 
+alwaysApply: false
+---
+# Cursor AI Project Rules  
+
+These project-specific rules ensure that all generated code is **well-documented, structured, and prevents repeated mistakes.**  
+
+---
+
+## Comment Handling Guidelines  
+
+- **Preserve all existing comments**  
+   - Never delete or overwrite existing comments.  
+   - Only **append or modify** them to add new insights.  
+
+- **Enhance documentation over time**  
+   - If a file is modified, update its comments to reflect **why** and **how** changes were made.  
+   - Document **new dependencies, optimizations, and potential pitfalls.**  
+
+- **Explicit troubleshooting notes**  
+   - When a bug is encountered **more than once**, insert a **clear warning comment** explaining:  
+     - **The nature of the issue**  
+     - **Why it happens**  
+     - **How to fix or avoid it**  
+
+---
+
+## Troubleshooting & Debugging Best Practices  
+
+### Recurring Bugs Prevention  
+- If a bug is **fixed multiple times**, insert a **comment in the affected file** to prevent future reoccurrence.  
+- Example format:  
+
+```python
+# WARNING: This function previously caused an off-by-one error due to X.
+# Ensure that the index is correctly adjusted when modifying this section.

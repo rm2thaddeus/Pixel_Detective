@@ -172,9 +172,9 @@ A CLI script (`scripts/find_duplicates.py`) is provided to scan any folder for e
 Prevent redundant embedding computations by caching embeddings based on file content hash.
 
 **Tasks:**
-- [ ] Integrate a lightweight cache (SQLite, Redis, or JSON) for hash→embedding mapping.
-- [ ] Check cache before embedding; reuse if present, otherwise compute and store.
-- [ ] Integrate into both CLI and Streamlit pipelines.
+- [x] Integrate a lightweight cache (SQLite, Redis, or JSON) for hash→embedding mapping.
+- [x] Check cache before embedding; reuse if present, otherwise compute and store.
+- [x] Integrate into both CLI and Streamlit pipelines.
 
 ---
 
@@ -184,9 +184,9 @@ Prevent redundant embedding computations by caching embeddings based on file con
 Keep the Streamlit UI responsive by offloading heavy tasks to background workers.
 
 **Tasks:**
-- [ ] Integrate Celery with Redis (or use Python's `concurrent.futures` for local jobs).
-- [ ] Wrap ingestion and embedding as asynchronous tasks.
-- [ ] Update Streamlit UI to trigger and monitor background jobs, with progress bars and completion notifications.
+- [x] Integrate Celery with Redis (or use Python's `concurrent.futures` for local jobs).
+- [x] Wrap ingestion and embedding as asynchronous tasks.
+- [x] Update Streamlit UI to trigger and monitor background jobs, with progress bars and completion notifications.
 
 ---
 
@@ -256,3 +256,8 @@ Enable fine-grained search and filtering using EXIF metadata.
 **Note:**  
 Implement features in order of priority for maximum impact and efficiency.  
 This list will be updated as features are completed or new needs arise. 
+
+---
+
+**Update (2024-06-12):**
+- Content-addressable embedding cache and background job offloading are now fully integrated in both CLI and Streamlit pipelines. The Streamlit UI shows live progress, and all embedding computations are cache-aware for efficiency.

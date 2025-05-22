@@ -28,6 +28,8 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 # Import project utils
 from utils.logger import logger
 from utils.cuda_utils import check_gpu_memory, log_cuda_memory_usage
+from utils.embedding_cache import EmbeddingCache
+from utils.duplicate_detector import compute_sha256
 
 # Import models from the project
 from models.clip_model import load_clip_model, unload_clip_model, setup_device
@@ -61,10 +63,11 @@ def load_image_with_rawpy_or_pil(path):
         return Image.open(path).convert("RGB")
 
 
-def process_clip_embeddings(image_paths, batch_size=16, device=None):
+def process_clip_embeddings(image_paths, batch_size=16, device=None, embedding_cache=None):
     """
     Process images in batches using the CLIP model to compute embeddings.
     Returns a dictionary mapping each image path to its embedding (numpy array).
+    Uses embedding_cache if provided.
     """
     logger.info("Loading CLIP model...")
     log_cuda_memory_usage("Before CLIP model loading")
@@ -81,38 +84,42 @@ def process_clip_embeddings(image_paths, batch_size=16, device=None):
     for start in range(0, num_images, batch_size):
         batch_paths = image_paths[start:start+batch_size]
         batch_images = []
-        
-        for path in batch_paths:
-            try:
-                image = load_image_with_rawpy_or_pil(path)
-                image_tensor = preprocess(image)
-                batch_images.append(image_tensor)
-            except Exception as e:
-                logger.error(f"Error processing image {path}: {e}", exc_info=True)
-        
+        batch_indices = []
+        batch_hashes = []
+        # Check cache for each image
+        for i, path in enumerate(batch_paths):
+            file_hash = compute_sha256(path)
+            cached = embedding_cache.get(file_hash) if embedding_cache else None
+            if cached is not None:
+                embeddings_dict[path] = cached
+            else:
+                try:
+                    image = load_image_with_rawpy_or_pil(path)
+                    image_tensor = preprocess(image)
+                    batch_images.append(image_tensor)
+                    batch_indices.append(i)
+                    batch_hashes.append(file_hash)
+                except Exception as e:
+                    logger.error(f"Error processing image {path}: {e}", exc_info=True)
         if not batch_images:
             logger.warning(f"Batch starting at index {start} had no valid images, skipping")
             continue
-            
         try:
             batch_tensor = torch.stack(batch_images).to(device)
             with torch.no_grad():
                 image_features = model.encode_image(batch_tensor)
                 image_features = image_features / image_features.norm(dim=-1, keepdim=True)
-            
             embeddings = image_features.cpu().numpy()
-            for i, path in enumerate(batch_paths):
-                embeddings_dict[path] = embeddings[i]
-                
+            for idx, emb, file_hash in zip(batch_indices, embeddings, batch_hashes):
+                path = batch_paths[idx]
+                embeddings_dict[path] = emb
+                if embedding_cache:
+                    embedding_cache.set(file_hash, emb)
             logger.info(f"Processed {min(start+batch_size, num_images)} / {num_images} images with CLIP")
-            
-            # Periodically log memory usage
             if start % (batch_size * 10) == 0:
                 log_cuda_memory_usage(f"CLIP processing progress: {min(start+batch_size, num_images)}/{num_images}")
-                
         except Exception as e:
             logger.error(f"Error during batch processing at index {start}: {e}", exc_info=True)
-    
     logger.info("Unloading CLIP model...")
     unload_clip_model()
     torch.cuda.empty_cache()
@@ -207,7 +214,23 @@ def main():
     parser.add_argument('--max-workers', type=int, default=4, help='Number of parallel workers for BLIP captions')
     parser.add_argument('--query', type=str, default=None, help='Text query for image search (optional)')
     parser.add_argument('--save-summary', action='store_true', help='If set, print and save a summary of results to results_summary.txt')
+    parser.add_argument('--clear-embedding-cache', action='store_true', help='Clear the embedding cache before running')
+    parser.add_argument('--inspect-embedding-cache', action='store_true', help='Inspect the embedding cache and exit')
     args = parser.parse_args()
+
+    embedding_cache = EmbeddingCache()
+    if args.clear_embedding_cache:
+        embedding_cache.clear()
+        print("Embedding cache cleared.")
+    if args.inspect_embedding_cache:
+        hashes = embedding_cache.inspect(20)
+        if hashes:
+            print(f"First {len(hashes)} hashes in embedding cache:")
+            for h in hashes:
+                print(h)
+        else:
+            print("Embedding cache is empty.")
+        return
 
     clip_device = setup_device()
     blip_device = setup_blip_device()
@@ -233,7 +256,7 @@ def main():
 
     start_time = time.time()
     logger.info("=== Starting Stage 1: CLIP Embedding Generation ===")
-    embeddings_dict = process_clip_embeddings(image_paths, batch_size=batch_size, device=clip_device)
+    embeddings_dict = process_clip_embeddings(image_paths, batch_size=batch_size, device=clip_device, embedding_cache=embedding_cache)
     clip_time = time.time()
     clip_duration = clip_time - start_time
     logger.info(f"CLIP processing completed in {clip_duration:.2f} seconds.")
