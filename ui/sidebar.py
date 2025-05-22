@@ -7,6 +7,7 @@ import streamlit as st
 from utils.logger import logger
 from models.clip_model import load_clip_model
 from config import DEFAULT_IMAGES_PATH
+from database.qdrant_connector import QdrantDB
 
 def render_sidebar():
     """
@@ -84,6 +85,8 @@ def render_sidebar():
                     progress_placeholder.success("Database loaded successfully!")
                     progress_bar.progress(100)
                     message_placeholder.success("Ready to search! 🚀")
+                    # Initialize QdrantDB after loading DB
+                    st.session_state.qdrant_db = QdrantDB(collection_name="image_collection")
                 else:
                     progress_placeholder.error("Failed to load database.")
             else:
@@ -101,6 +104,8 @@ def render_sidebar():
                             progress_placeholder.success("Database built successfully!")
                             progress_bar.progress(100)
                             message_placeholder.success("Ready to search! 🚀")
+                            # Initialize QdrantDB after building DB
+                            st.session_state.qdrant_db = QdrantDB(collection_name="image_collection")
                         else:
                             progress_placeholder.error("Failed to build database.")
                     except Exception as e:

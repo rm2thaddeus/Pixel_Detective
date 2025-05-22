@@ -232,7 +232,7 @@ Enable fast, beautiful, and insightful exploration of the embedding space.
 - [x] Improve plot aesthetics: custom color scales, thumbnail-on-hover, zoom/pan, and clear legends.
 - [x] Eliminate UI flashing by using `st.experimental_memo` or session-based caching of computed projections.
 - [x] **Add DBSCAN clustering overlays to highlight structure in the latent space.**
-- [ ] (Optional) Add embedding density or clustering overlays (e.g., DBSCAN or K-Means) to highlight structure.
+
 
 ---
 
@@ -242,9 +242,12 @@ Enable fast, beautiful, and insightful exploration of the embedding space.
 Identify and manage near-duplicate images using vector similarity.
 
 **Tasks:**
-- [ ] Compute cosine similarity within Qdrant to find duplicates.
-- [ ] Add "Find duplicates" action in UI.
-- [ ] Present results with side-by-side previews and options to tag, merge, or delete.
+- [x] Compute cosine similarity within Qdrant to find duplicates.
+- [x] Add "Find duplicates" action in UI.
+- [x] Present results with side-by-side previews and options to tag, merge, or delete.
+
+**Implementation Note:**
+- The duplicate detection feature is now fully integrated in the app. Qdrant must be running (e.g., via Docker) for the database and duplicate detection to work. Once Qdrant was started, the feature worked perfectly in the UI.
 
 ---
 

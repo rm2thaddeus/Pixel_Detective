@@ -536,4 +536,39 @@ def search_similar_images_by_image(uploaded_image, top_k=5):
         return results
     except Exception as e:
         st.error(f"Error processing uploaded image: {e}")
-        return None 
+        return None
+
+def render_duplicates_tab():
+    """
+    Renders the Duplicate Detection tab UI.
+    """
+    st.header("🧑‍🤝‍🧑 Duplicate Detection (Post-Embedding)")
+    st.write("Find near-duplicate images using vector similarity in the embedding space.")
+
+    if not st.session_state.get("database_built", False):
+        st.warning("Please build or load a database first.")
+        return
+
+    if st.button("🔍 Find Duplicates"):  # Button to trigger detection
+        with st.spinner("Searching for duplicate images..."):
+            db_manager = st.session_state.db_manager
+            qdrant_db = st.session_state.qdrant_db
+            duplicates = db_manager.find_duplicate_images(qdrant_db)
+            st.session_state['duplicate_results'] = duplicates
+            st.success(f"Found {len(duplicates)} duplicate pairs above similarity 0.98.")
+
+    duplicates = st.session_state.get('duplicate_results', [])
+    if duplicates:
+        st.write(f"### Duplicate Pairs (showing up to 100):")
+        for i, dup in enumerate(duplicates[:100]):
+            col1, col2 = st.columns([1, 1])
+            with col1:
+                st.image(dup['image'], caption=f"Image 1", use_container_width=True)
+                st.caption(dup['image'])
+            with col2:
+                st.image(dup['duplicate'], caption=f"Image 2", use_container_width=True)
+                st.caption(dup['duplicate'])
+            st.markdown(f"**Cosine Similarity:** {dup['score']:.4f}")
+            st.divider()
+    elif 'duplicate_results' in st.session_state:
+        st.info("No duplicate pairs found above the threshold.") 

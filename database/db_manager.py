@@ -320,4 +320,38 @@ class DatabaseManager:
             return results
         except Exception as e:
             logger.error(f"Error searching by image: {e}")
-            return [] 
+            return []
+    
+    def find_duplicate_images(self, qdrant_db, similarity_threshold=0.98, top_k=5):
+        """
+        Find near-duplicate images using vector similarity search in Qdrant.
+        Args:
+            qdrant_db: An instance of QdrantDB.
+            similarity_threshold: Cosine similarity threshold for duplicates.
+            top_k: Number of nearest neighbors to check for each image.
+        Returns:
+            List of dicts: [{ 'image': path1, 'duplicate': path2, 'score': similarity }, ...]
+        """
+        import streamlit as st
+        embeddings = st.session_state.get('embeddings')
+        images_data = st.session_state.get('images_data')
+        if embeddings is None or images_data is None:
+            return []
+        path_to_idx = {row['path']: idx for idx, row in images_data.iterrows()}
+        seen_pairs = set()
+        duplicates = []
+        for idx, row in images_data.iterrows():
+            image_path = row['path']
+            embedding = embeddings[idx]
+            results = qdrant_db.search_by_vector(embedding, limit=top_k+1)  # +1 to include self
+            for candidate_path, score in results:
+                if candidate_path == image_path:
+                    continue  # skip self
+                if score < similarity_threshold:
+                    continue
+                pair = tuple(sorted([image_path, candidate_path]))
+                if pair in seen_pairs:
+                    continue
+                seen_pairs.add(pair)
+                duplicates.append({'image': image_path, 'duplicate': candidate_path, 'score': score})
+        return duplicates 

@@ -14,7 +14,7 @@ import streamlit as st
 import os
 import base64
 from pathlib import Path
-from ui.tabs import render_text_search_tab, render_image_upload_tab, render_guessing_game_tab
+from ui.tabs import render_text_search_tab, render_image_upload_tab, render_guessing_game_tab, render_duplicates_tab
 from ui.latent_space import render_latent_space_tab
 import sys
 
@@ -184,7 +184,7 @@ def render_main_content():
                 display_waiting_message()
     else:
         # Define tab names and render content directly via st.tabs
-        tab_names = ["Text Search", "Image Search", "AI Guessing Game", "Latent Space"]
+        tab_names = ["Text Search", "Image Search", "AI Guessing Game", "Latent Space", "Duplicates"]
         tabs = st.tabs(tab_names)
         with tabs[0]:
             render_text_search_tab()
@@ -193,4 +193,6 @@ def render_main_content():
         with tabs[2]:
             render_guessing_game_tab()
         with tabs[3]:
-            render_latent_space_tab() 
+            render_latent_space_tab()
+        with tabs[4]:
+            render_duplicates_tab() 
