@@ -62,10 +62,9 @@ This document describes the high-level architecture of the Pixel Detective appli
 
 ### C. Latent Space Explorer (`ui/latent_space.py`)
 1. Fetch embeddings and metadata via `DatabaseManager.get_latent_space_data()`.
-2. Select metadata field for coloring and adjust UMAP hyperparameters (`n_neighbors`, `min_dist`) via sidebar controls.
-3. Compute and cache 2D UMAP projection of embedding vectors for responsive rerenders.
-4. Render an interactive Plotly scatter with custom color scales and hover details for all metadata fields.
-5. Support click or lasso selection to display multiple image thumbnails directly in the UI.
+2. Compute and cache 2D UMAP projection of embedding vectors for responsive rerenders.
+3. Render a minimal, robust Plotly scatter plot (using plotly.graph_objects) for all points. No lasso/selection or interactive selection is currently enabled, as previous attempts led to invisible points and UI bugs.
+4. Extensive UI debugging was required: Plotly/Streamlit can silently fail to render points if marker/color/selection properties are misused. The current approach prioritizes reliability and clarity.
 
 ## 4. Batch Processing & Results
 

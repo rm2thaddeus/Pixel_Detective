@@ -11,6 +11,7 @@ Pixel Detective is an advanced image search application that uses AI to analyze,
 - **RAW/DNG Support**: Full support for DNG (RAW) images. DNG files are processed for both CLIP embeddings and BLIP captions using rawpy and PIL interoperability.
 - **GPU Acceleration**: Optimized to run efficiently on consumer GPUs (6GB VRAM minimum recommended)
 - **Interactive UI**: User-friendly Streamlit interface with dark mode and extendable sidebar for images
+- **Latent Space Explorer**: Visualize image embeddings in 2D using UMAP and a robust, minimal scatter plot. The current implementation uses a single, reliable plotly.graph_objects scatter plot for maximum reliability. Previous attempts at lasso/selection and advanced coloring led to invisible points and UI bugs due to subtle Plotly/Streamlit interactions. If you encounter invisible points, start with a minimal plot and add features incrementally.
 
 ## 🧠 AI Models
 

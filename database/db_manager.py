@@ -104,6 +104,12 @@ class DatabaseManager:
         st.session_state.embeddings = np.array(embeddings)
         st.session_state.images_data = metadata_df
         st.session_state.database_built = True
+        # Sanity check for embeddings
+        emb = st.session_state.embeddings
+        if not (isinstance(emb, np.ndarray) and emb.ndim == 2 and np.issubdtype(emb.dtype, np.floating)):
+            logger.error(f"Embeddings array is invalid! Type: {type(emb)}, Shape: {getattr(emb, 'shape', None)}, Dtype: {getattr(emb, 'dtype', None)}")
+            st.session_state.embeddings = np.array([], dtype=np.float32).reshape(0, 0)
+            st.error("Embeddings are invalid or corrupted. Please rebuild the database.")
         return True
     
     def database_exists(self, folder_path):
@@ -139,6 +145,12 @@ class DatabaseManager:
                 st.session_state.embeddings = np.load(embeddings_path)
                 st.session_state.images_data = pd.read_csv(metadata_path)
                 st.session_state.database_built = True
+                # Sanity check for embeddings
+                emb = st.session_state.embeddings
+                if not (isinstance(emb, np.ndarray) and emb.ndim == 2 and np.issubdtype(emb.dtype, np.floating)):
+                    logger.error(f"Embeddings array is invalid! Type: {type(emb)}, Shape: {getattr(emb, 'shape', None)}, Dtype: {getattr(emb, 'dtype', None)}")
+                    st.session_state.embeddings = np.array([], dtype=np.float32).reshape(0, 0)
+                    st.error("Embeddings are invalid or corrupted. Please rebuild the database.")
                 return True
             except pd.errors.EmptyDataError:
                 logger.error(f"Metadata file {metadata_path} is empty or invalid, deleting corrupted database files and rebuilding.")
@@ -162,7 +174,11 @@ class DatabaseManager:
         import streamlit as st
         embeddings = st.session_state.get('embeddings')
         df = st.session_state.get('images_data').copy()
-        df['vector'] = [vec.tolist() if hasattr(vec, 'tolist') else list(vec) for vec in embeddings]
+        # Ensure embeddings is a 2D numpy array and matches df length
+        if isinstance(embeddings, np.ndarray) and embeddings.ndim == 2 and len(df) == len(embeddings):
+            df['vector'] = list(embeddings)
+        else:
+            df['vector'] = [[] for _ in range(len(df))]
         return df
     
     def search_similar_images(self, query_text, top_k=5):

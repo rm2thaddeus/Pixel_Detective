@@ -32,6 +32,11 @@
     - Use parallel background jobs for BLIP captioning.
 - Streamlit app (`app.py`): Improved model management, error handling, and background job offloading for a more responsive UI. Embedding cache is now checked before computation.
 - Streamlit app: Added Latent Space Explorer tab with UMAP+Plotly visualization and sidebar controls for metadata coloring and UMAP hyperparameters.
+- Latent Space Explorer: Replaced the lasso/selection-enabled Plotly scatter plot with a robust, minimal scatter plot using plotly.graph_objects. This resolves issues with invisible points and color/selection conflicts. Extensive UI debugging was required due to Plotly/Streamlit quirks, including:
+    - Points not rendering despite valid data (caused by color/selection property conflicts and over-customization).
+    - The need to use only one color assignment method (either in px.scatter or update_traces, not both).
+    - Removal of all lasso/selection logic for maximum reliability.
+    - Final solution uses a single, explicit go.Scatter plot for clarity and robustness.
 
 ### Fixed
 - Resolved disk space issues by purging pip cache (`pip cache purge`).
@@ -48,4 +53,5 @@
 
 ### Notes
 - If you see `torch.cuda.is_available() == False`, check your NVIDIA drivers, CUDA toolkit, and ensure you installed the correct PyTorch version for your CUDA version.
-- If you run out of disk space during installation, clear your pip cache with `pip cache purge`. 
+- If you run out of disk space during installation, clear your pip cache with `pip cache purge`.
+- Implementing this feature was unexpectedly challenging due to subtle Plotly/Streamlit UI interactions. Developers should be aware that even with valid data, UI rendering can silently fail if marker/color/selection properties are misused. Always start with a minimal plot and add features incrementally. 
