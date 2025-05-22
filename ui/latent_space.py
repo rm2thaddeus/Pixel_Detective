@@ -85,8 +85,16 @@ def render_latent_space_tab():
         font_color='white',
     )
 
-    # Enable click + lasso selection (renders the interactive chart)
-    selected = plotly_events(fig, click_event=True, select_event=True, key="latent_space")
+    # Render the Plotly chart and enable click + lasso selection
+    st.plotly_chart(fig, use_container_width=True)
+    selected = plotly_events(
+        fig,
+        click_event=True,
+        select_event=True,
+        override_height=600,
+        override_width=800,
+        key="latent_space"
+    )
 
     # Display selected images
     if selected:
