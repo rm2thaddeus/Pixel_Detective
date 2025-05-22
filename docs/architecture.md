@@ -28,11 +28,14 @@ This document describes the high-level architecture of the Pixel Detective appli
   - `db_manager.py`: Higher-level DB management for the Streamlit app.
   - `vector_db.py`: (Legacy, used by Streamlit app; new code uses `qdrant_connector.py`.)
 - **ui/**
-  - `main_interface.py`, `sidebar.py`, `tabs.py`: Streamlit UI components.
+  - `main_interface.py`, `sidebar.py`, `tabs.py`: Streamlit UI components for search and games.
+  - `latent_space.py`: Latent Space Explorer tab for embedding visualization (UMAP & Plotly scatter) with cached projections, dynamic sampling, and interactive click/lasso selection.
 - **utils/**
   - `image_utils.py`: Image loading, resizing, preprocessing.
   - `logger.py**: Standardized logging.
   - `cuda_utils.py`: CUDA checks and memory usage logging.
+  - `incremental_indexer.py`: File system watcher and incremental indexing logic.
+  - `embedding_cache.py`: Cache for embedding computations.
 - **scripts/**
   - `mvp_app.py`: CLI MVP for batch processing.
   - `diagnose_cuda.py`: GPU diagnostics.
@@ -56,6 +59,13 @@ This document describes the high-level architecture of the Pixel Detective appli
    - Metadata extraction
 3. Batch upsert to Qdrant via `QdrantDB`.
 4. Optionally outputs a summary (`results_summary.txt`) and a detailed CSV.
+
+### C. Latent Space Explorer (`ui/latent_space.py`)
+1. Fetch embeddings and metadata via `DatabaseManager.get_latent_space_data()`.
+2. Select metadata field for coloring and adjust UMAP hyperparameters (`n_neighbors`, `min_dist`) via sidebar controls.
+3. Compute and cache 2D UMAP projection of embedding vectors for responsive rerenders.
+4. Render an interactive Plotly scatter with custom color scales and hover details for all metadata fields.
+5. Support click or lasso selection to display multiple image thumbnails directly in the UI.
 
 ## 4. Batch Processing & Results
 
@@ -109,7 +119,9 @@ project_root/
 ├── utils/
 │   ├── image_utils.py
 │   ├── logger.py
-│   └── cuda_utils.py
+│   ├── cuda_utils.py
+│   ├── incremental_indexer.py
+│   └── embedding_cache.py
 │
 ├── scripts/
 │   ├── mvp_app.py
@@ -166,7 +178,7 @@ A CLI script (`scripts/find_duplicates.py`) is provided to scan any folder for e
 
 ---
 
-## 2. Content‑Addressable Caching
+## 2. Content-Addressable Caching
 
 **Goal:**  
 Prevent redundant embedding computations by caching embeddings based on file content hash.
@@ -175,6 +187,9 @@ Prevent redundant embedding computations by caching embeddings based on file con
 - [x] Integrate a lightweight cache (SQLite, Redis, or JSON) for hash→embedding mapping.
 - [x] Check cache before embedding; reuse if present, otherwise compute and store.
 - [x] Integrate into both CLI and Streamlit pipelines.
+
+**Implementation Note:**
+- The SQLite-based cache (`utils/embedding_cache.py`) is configured with `check_same_thread=False` and uses a threading lock to allow safe concurrent access in both CLI and Streamlit.
 
 ---
 
@@ -188,6 +203,9 @@ Keep the Streamlit UI responsive by offloading heavy tasks to background workers
 - [x] Wrap ingestion and embedding as asynchronous tasks.
 - [x] Update Streamlit UI to trigger and monitor background jobs, with progress bars and completion notifications.
 
+**Implementation Note:**
+- UI progress indicators now use Streamlit's `st.spinner` for synchronous feedback instead of manual background-thread progress updates, preserving the session context.
+
 ---
 
 ## 4. Incremental Indexer
@@ -196,22 +214,24 @@ Keep the Streamlit UI responsive by offloading heavy tasks to background workers
 Automatically index new or changed files in Qdrant without full reprocessing.
 
 **Tasks:**
-- [ ] Add a file-system watcher (e.g., `watchdog`) to monitor target folders.
-- [ ] On file creation/modification, compute embeddings (with cache) and upsert to Qdrant.
-- [ ] Handle deletions by removing from Qdrant.
+- [x] Add a file-system watcher (e.g., `watchdog`) to monitor target folders (implemented in `utils/incremental_indexer.py`).
+- [x] On file creation/modification, compute embeddings (with cache), generate caption, and upsert to Qdrant.
+- [x] Handle deletions by removing from Qdrant using `delete_image` in `database/qdrant_connector.py`.
 
 ---
 
 ## 5. Latent Space Visualization
 
 **Goal:**  
-Enable interactive exploration of embedding space for debugging and discovery.
+Enable fast, beautiful, and insightful exploration of the embedding space.
 
 **Tasks:**
-- [ ] After batch embedding, fit UMAP/t-SNE (scikit-learn).
-- [ ] Generate a DataFrame with 2D coordinates and labels.
-- [ ] Display interactive scatterplot in Streamlit (Plotly or built-in chart).
-- [ ] Allow click-through to open associated images.
+- [x] Add Latent Space Explorer tab with UMAP+Plotly visualization and sidebar controls for metadata coloring and UMAP hyperparameters.
+- [x] Precompute and cache UMAP projections to minimize latency on tab switch and re-renders.
+- [x] Implement sampling or pagination for large datasets to prevent UI freezing.
+- [x] Improve plot aesthetics: custom color scales, thumbnail-on-hover, zoom/pan, and clear legends.
+- [x] Eliminate UI flashing by using `st.experimental_memo` or session-based caching of computed projections.
+- [ ] (Optional) Add embedding density or clustering overlays (e.g., DBSCAN or K-Means) to highlight structure.
 
 ---
 
@@ -239,17 +259,32 @@ Enable fine-grained search and filtering using EXIF metadata.
 
 ---
 
+## 8. UI Improvements & Performance Optimization
+
+**Goal:**
+Consolidate UI fixes and enhance app responsiveness and load times.
+
+**Tasks:**
+- [ ] Audit and fix remaining UI issues across all tabs (selection tools, metadata accuracy).
+- [ ] Optimize Streamlit rendering, reduce flashing and redundant computations.
+- [ ] Leverage session and data caching for all heavy operations (database load, UMAP).
+- [ ] Minify and lazy-load static assets (images, CSS).
+- [ ] Benchmark and profile app startup and interactive interactions.
+
+---
+
 ## Timeline & Priorities
 
 | Feature                     | Estimated Effort | Priority |
 |-----------------------------|------------------|----------|
 | Early Duplicate Detection   | 1–2 days         | Highest  |
-| Content‑Addressable Caching | 1–2 days         | High     |
+| Content-Addressable Caching | 1–2 days         | High     |
 | Background Job Offloading   | 2–3 days         | High     |
 | Incremental Indexer         | 1–2 days         | Medium   |
 | Latent Space Visualization  | 1–2 days         | Medium   |
 | Duplicate Detection (Post)  | 2 days           | Medium   |
 | Metadata-Based Filtering    | 1–2 days         | Low      |
+| UI Improvements & Performance Optimization | 2–3 days | Medium |
 
 ---
 

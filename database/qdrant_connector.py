@@ -212,3 +212,23 @@ class QdrantDB:
         except Exception as e:
             print(f"Error deleting collection '{self.collection_name}': {e}")
             return False 
+
+    def delete_image(self, image_path: str) -> bool:
+        """
+        Deletes a single image from the Qdrant database by its path.
+        """
+        # Compute the deterministic ID based on the image path
+        image_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, image_path))
+        try:
+            # Delete points matching this path in the payload
+            self.client.delete(
+                collection_name=self.collection_name,
+                points_selector=models.Filters(
+                    must=[models.FieldCondition(key="path", match=models.MatchValue(value=image_path))]
+                )
+            )
+            print(f"Deleted {image_path} (ID: {image_id}) from collection '{self.collection_name}'.")
+            return True
+        except Exception as e:
+            print(f"Error deleting image {image_path} from Qdrant: {e}")
+            return False 

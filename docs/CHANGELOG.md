@@ -31,10 +31,15 @@
     - Integrate embedding cache and duplicate detection logic.
     - Use parallel background jobs for BLIP captioning.
 - Streamlit app (`app.py`): Improved model management, error handling, and background job offloading for a more responsive UI. Embedding cache is now checked before computation.
+- Streamlit app: Added Latent Space Explorer tab with UMAP+Plotly visualization and sidebar controls for metadata coloring and UMAP hyperparameters.
 
 ### Fixed
 - Resolved disk space issues by purging pip cache (`pip cache purge`).
 - Ensured all scripts and the MVP pipeline now use the GPU if available.
+- Fixed thread-safety in `utils/embedding_cache.py` by setting `check_same_thread=False` and guarding DB access with a lock to support concurrent embeddings.
+- Replaced background-thread progress updates in the Streamlit UI with `st.spinner` spinners to avoid `NoSessionContext` errors during database builds and merges.
+- Enhanced `DatabaseManager.load_database` to catch empty or invalid metadata CSVs, delete corrupted database files, and force a rebuild on the next run.
+- Removed redundant radio-mode selector; simplified tab navigation in Streamlit UI.
 
 ### Removed
 - Deleted `scripts/pipeline.py` as its core functionalities (CLIP processing, image understanding) are now integrated into `models/clip_model.py` and `scripts/mvp_app.py`.

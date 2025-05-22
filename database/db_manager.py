@@ -135,12 +135,35 @@ class DatabaseManager:
         
         if os.path.exists(embeddings_path) and os.path.exists(metadata_path):
             import streamlit as st
-            st.session_state.embeddings = np.load(embeddings_path)
-            st.session_state.images_data = pd.read_csv(metadata_path)
-            st.session_state.database_built = True
-            return True
+            try:
+                st.session_state.embeddings = np.load(embeddings_path)
+                st.session_state.images_data = pd.read_csv(metadata_path)
+                st.session_state.database_built = True
+                return True
+            except pd.errors.EmptyDataError:
+                logger.error(f"Metadata file {metadata_path} is empty or invalid, deleting corrupted database files and rebuilding.")
+                # Remove corrupted database files to force rebuild
+                try:
+                    os.remove(embeddings_path)
+                    os.remove(metadata_path)
+                except Exception as er:
+                    logger.error(f"Error deleting corrupted database files: {er}")
+                return False
+            except Exception as e:
+                logger.error(f"Error loading database from {db_folder}: {e}")
+                return False
         
         return False
+    
+    def get_latent_space_data(self):
+        """
+        Fetch embeddings and metadata for latent space visualization.
+        """
+        import streamlit as st
+        embeddings = st.session_state.get('embeddings')
+        df = st.session_state.get('images_data').copy()
+        df['vector'] = [vec.tolist() if hasattr(vec, 'tolist') else list(vec) for vec in embeddings]
+        return df
     
     def search_similar_images(self, query_text, top_k=5):
         """

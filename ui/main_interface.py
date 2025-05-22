@@ -15,6 +15,7 @@ import os
 import base64
 from pathlib import Path
 from ui.tabs import render_text_search_tab, render_image_upload_tab, render_guessing_game_tab
+from ui.latent_space import render_latent_space_tab
 import sys
 
 # Add the root directory to the path to import minigame
@@ -182,37 +183,14 @@ def render_main_content():
             if st.button("Show Waiting Message Instead"):
                 display_waiting_message()
     else:
-        # Initialize active tab in session state if it doesn't exist
-        if 'active_tab' not in st.session_state:
-            st.session_state.active_tab = 0
-        
-        # Define tab names
-        tab_names = ["Text Search", "Image Search", "AI Guessing Game"]
-        
-        # Create tabs with the active tab selected
+        # Define tab names and render content directly via st.tabs
+        tab_names = ["Text Search", "Image Search", "AI Guessing Game", "Latent Space"]
         tabs = st.tabs(tab_names)
-        
-        # Handle tab selection via radio buttons (hidden but functional)
-        # This is a workaround to detect tab changes
-        selected_tab = st.radio("Select Tab", tab_names, index=st.session_state.active_tab, label_visibility="collapsed", key="tab_selector")
-        
-        # Update the active tab in session state only if user explicitly changes tabs
-        # This prevents tab reset when interacting with UI elements within tabs
-        if selected_tab != tab_names[st.session_state.active_tab]:
-            st.session_state.active_tab = tab_names.index(selected_tab)
-            # Clear any expanded metadata states when switching tabs to prevent UI conflicts
-            if st.session_state.active_tab == 0:
-                st.session_state.image_metadata_expanded = {}
-            elif st.session_state.active_tab == 1:
-                st.session_state.text_metadata_expanded = {}
-        
-        # Render the appropriate tab content
-        if st.session_state.active_tab == 0:
-            with tabs[0]:
-                render_text_search_tab()
-        elif st.session_state.active_tab == 1:
-            with tabs[1]:
-                render_image_upload_tab()
-        else:
-            with tabs[2]:
-                render_guessing_game_tab() 
+        with tabs[0]:
+            render_text_search_tab()
+        with tabs[1]:
+            render_image_upload_tab()
+        with tabs[2]:
+            render_guessing_game_tab()
+        with tabs[3]:
+            render_latent_space_tab() 

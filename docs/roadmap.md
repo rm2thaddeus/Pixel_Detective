@@ -26,6 +26,12 @@ This roadmap outlines planned optimizations, features, and enhancements for the 
    - Defer CLIP/BLIP model loading in `ModelManager` until first usage.
    - Expose a toggle in `config.py` to control eager vs. lazy loading.
 
+5. **Optimize Latent Space Explorer**
+   - [COMPLETED] Precompute and cache UMAP projections to reduce load times and eliminate flashing when switching tabs.
+   - [COMPLETED] Implement sampling or incremental loading for large datasets to ensure UI responsiveness.
+   - [COMPLETED] Enhance Plotly scatter aesthetics (custom color scales, thumbnail hover previews, zoom & pan controls) for a richer exploration experience.
+   - [COMPLETED] Remove any redundant UI elements and simplify controls.
+
 ---
 
 ## Medium-term (3–6 Weeks)

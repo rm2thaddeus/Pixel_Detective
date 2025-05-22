@@ -94,24 +94,9 @@ def render_sidebar():
                 if image_files:
                     st.session_state.total_images = len(image_files)
                     progress_placeholder.info(f"Found {len(image_files)} images. Building database...")
-                    import time
-                    import threading
-                    def update_progress_bar():
-                        while st.session_state.get('building_database', True):
-                            current = st.session_state.get('current_image_index', 0)
-                            total = st.session_state.get('total_images', 1)
-                            progress = int((current / total) * 100) if total > 0 else 0
-                            progress_bar.progress(progress)
-                            progress_placeholder.info(f"Processed {current} / {total} images...")
-                            time.sleep(0.5)
-                    st.session_state.building_database = True
-                    progress_thread = threading.Thread(target=update_progress_bar)
-                    progress_thread.start()
                     try:
-                        # Build the database (now offloaded and cache-aware)
-                        success = db_manager.build_database(current_folder, image_files)
-                        st.session_state.building_database = False
-                        progress_thread.join()
+                        with st.spinner("Building database..."):
+                            success = db_manager.build_database(current_folder, image_files)
                         if success:
                             progress_placeholder.success("Database built successfully!")
                             progress_bar.progress(100)
@@ -119,8 +104,6 @@ def render_sidebar():
                         else:
                             progress_placeholder.error("Failed to build database.")
                     except Exception as e:
-                        st.session_state.building_database = False
-                        progress_thread.join()
                         progress_placeholder.error(f"Error building database: {e}")
                         logger.error(f"Error building database: {e}")
                 else:
@@ -159,20 +142,19 @@ def render_sidebar():
                 if new_images:
                     st.session_state.total_new_images = len(new_images)
                     st.session_state.current_new_image_index = 0
-                    
+
                     try:
-                        # TODO: Replace with actual merge function when available
-                        # For now, simulate progress
-                        import time
-                        for i in range(10):
-                            merge_progress.progress(i / 10)
-                            merge_message.info(random.choice(merge_messages))
-                            time.sleep(0.5)
-                        
-                        # Complete the progress bar
-                        merge_progress.progress(100)
-                        merge_placeholder.success(f"Successfully merged {len(new_images)} new images!")
-                        merge_message.success("Database ready for searching! 🎉")
+                        # Merge new images using existing build_database (caching will skip already processed images)
+                        merge_placeholder.info(f"Merging {len(new_images)} new images into database...")
+                        with st.spinner(f"Merging {len(new_images)} images..."):
+                            combined_images = db_manager.get_image_list(current_folder) + new_images
+                            success = db_manager.build_database(current_folder, combined_images)
+                        if success:
+                            merge_progress.progress(100)
+                            merge_placeholder.success(f"Successfully merged {len(new_images)} new images!")
+                            merge_message.success("Database ready for searching! 🎉")
+                        else:
+                            merge_placeholder.error("Error merging new images.")
                     except Exception as e:
                         merge_placeholder.error(f"Error merging folders: {e}")
                         logger.error(f"Error merging folders: {e}")
@@ -182,17 +164,34 @@ def render_sidebar():
                 st.sidebar.error("New folder does not exist!")
     
     # Show model information at the bottom of sidebar
-    if st.session_state.get('clip_model') is not None:
+    if 'model_manager' in st.session_state and st.session_state.model_manager.clip_model is not None:
         st.sidebar.success("✅ CLIP model is loaded and ready")
-        
-        # Check if model parameters are actually on GPU
-        for param in st.session_state.clip_model.parameters():
-            device_type = "GPU" if param.device.type == "cuda" else "CPU"
-            st.sidebar.info(f"Model is running on: {device_type}")
-            break
+        device = st.session_state.model_manager.device
+        device_type = "GPU" if device.type == "cuda" else "CPU"
+        st.sidebar.info(f"Model is running on: {device_type}")
     else:
-        st.sidebar.warning("CLIP model not loaded yet")
-    
+        st.sidebar.warning("CLIP model is not loaded yet")
+
+    # Enable incremental indexing
+    watch_enabled = st.sidebar.checkbox("📡 Enable Incremental Indexing", value=False, key="enable_watch")
+    if watch_enabled:
+        if 'indexer_observer' not in st.session_state:
+            from utils.embedding_cache import get_cache
+            from utils.incremental_indexer import start_incremental_indexer
+
+            db = st.session_state.db_manager
+            cache = get_cache()
+            folder = current_folder
+            model_mgr = st.session_state.model_manager
+            observer = start_incremental_indexer(folder, db, cache, model_mgr)
+            st.session_state.indexer_observer = observer
+            st.sidebar.success("Incremental indexer started.")
+    else:
+        if 'indexer_observer' in st.session_state:
+            st.session_state.indexer_observer.stop()
+            del st.session_state.indexer_observer
+            st.sidebar.info("Incremental indexer stopped.")
+
     return current_folder
 
 def render_sidebar_old():
@@ -263,15 +262,12 @@ def render_sidebar_old():
             st.sidebar.error(f"🤔 Hmm, can't find that folder. Did the computer gremlins take it?")
     
     # Show model information at the bottom of sidebar
-    if st.session_state.get('clip_model') is not None:
+    if 'model_manager' in st.session_state and st.session_state.model_manager.clip_model is not None:
         st.sidebar.success("✅ CLIP model is loaded and ready")
-        
-        # Check if model parameters are actually on GPU
-        for param in st.session_state.clip_model.parameters():
-            device_type = "GPU" if param.device.type == "cuda" else "CPU"
-            st.sidebar.info(f"Model is running on: {device_type}")
-            break
+        device = st.session_state.model_manager.device
+        device_type = "GPU" if device.type == "cuda" else "CPU"
+        st.sidebar.info(f"Model is running on: {device_type}")
     else:
-        st.sidebar.warning("CLIP model not loaded yet")
+        st.sidebar.warning("CLIP model is not loaded yet")
     
     return image_folder 

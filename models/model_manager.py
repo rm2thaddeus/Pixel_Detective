@@ -35,9 +35,15 @@ class ModelManager:
         self.blip_processor = None
         self.models_loaded = False
         
-        # Load models if CUDA is available
+        # Load CLIP immediately; attempt BLIP but don't crash on OOM
         if torch.cuda.is_available():
-            self.load_all_models()
+            # Load CLIP model up front
+            self.load_clip_model()
+            # Try to load BLIP model, but defer failure to runtime
+            try:
+                self.load_blip_model()
+            except Exception as init_ex:
+                logger.error(f"Error loading BLIP model at init: {init_ex}. It will be loaded on demand.")
             self.models_loaded = True
     
     def load_all_models(self):
@@ -180,3 +186,15 @@ class ModelManager:
             logger.error(f"Error generating BLIP caption: {e}")
         
         return understanding 
+
+    def embed_image(self, image_path: str):
+        """
+        Compute or retrieve from cache the embedding for an image.
+        """
+        return self.process_image(image_path)
+
+    def caption_image(self, image_path: str):
+        """
+        Generate a caption for an image.
+        """
+        return self.generate_caption(image_path) 

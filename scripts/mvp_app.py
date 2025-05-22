@@ -36,6 +36,8 @@ from models.clip_model import load_clip_model, unload_clip_model, setup_device
 from models.blip_model import load_blip_model, unload_blip_model, generate_caption, setup_blip_device
 from database.qdrant_connector import QdrantDB
 from metadata_extractor import extract_metadata
+from utils.incremental_indexer import start_incremental_indexer
+from models.model_manager import ModelManager
 
 
 def get_image_list(folder: str):
@@ -216,6 +218,7 @@ def main():
     parser.add_argument('--save-summary', action='store_true', help='If set, print and save a summary of results to results_summary.txt')
     parser.add_argument('--clear-embedding-cache', action='store_true', help='Clear the embedding cache before running')
     parser.add_argument('--inspect-embedding-cache', action='store_true', help='Inspect the embedding cache and exit')
+    parser.add_argument('--watch', action='store_true', help='Watch folder for changes and incrementally index')
     args = parser.parse_args()
 
     embedding_cache = EmbeddingCache()
@@ -401,6 +404,24 @@ def main():
             logger.error(f"Error during text search: {e}", exc_info=True)
     else:
         logger.info("No search query provided, skipping search")
+
+    # Start incremental indexing if requested
+    if args.watch:
+        # Initialize a model manager for incremental processing
+        model_mgr = ModelManager(device=clip_device)
+        observer = start_incremental_indexer(
+            folder=folder,
+            db=db,
+            cache=embedding_cache,
+            model_mgr=model_mgr
+        )
+        print(f"Watching {folder} for changes. Press Ctrl+C to exit.")
+        try:
+            observer.join()
+        except KeyboardInterrupt:
+            observer.stop()
+            observer.join()
+            print("Incremental indexer stopped.")
 
 
 # Register shutdown function

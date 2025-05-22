@@ -20,6 +20,13 @@ import random
 from models.clip_model import load_clip_model, get_image_understanding
 import tempfile
 
+# Callbacks to toggle metadata expansion without resetting tabs
+def _toggle_text_metadata(metadata_key):
+    st.session_state.text_metadata_expanded[metadata_key] = not st.session_state.text_metadata_expanded.get(metadata_key, False)
+
+def _toggle_image_metadata(metadata_key):
+    st.session_state.image_metadata_expanded[metadata_key] = not st.session_state.image_metadata_expanded.get(metadata_key, False)
+
 def render_text_search_tab():
     """
     Renders the text search tab UI.
@@ -93,11 +100,13 @@ def render_text_search_tab():
                                 metadata_key = f"text_metadata_{i}_{result.get('index', i)}"
                                 
                                 # Add a "Show Metadata" button with a unique key
-                                if st.button("🔍 Show Metadata", key=f"metadata_btn_{i}", help="Display all metadata for this image"):
-                                    # Toggle the metadata expanded state
-                                    st.session_state.text_metadata_expanded[metadata_key] = not st.session_state.text_metadata_expanded.get(metadata_key, False)
-                                    # Force a rerun to update the UI without changing tabs
-                                    st.experimental_rerun()
+                                st.button(
+                                    "🔍 Show Metadata",
+                                    key=f"metadata_btn_{i}",
+                                    help="Display all metadata for this image",
+                                    on_click=_toggle_text_metadata,
+                                    args=(metadata_key,)
+                                )
                             
                             # Check if metadata should be displayed for this result
                             if st.session_state.text_metadata_expanded.get(metadata_key, False):
@@ -232,11 +241,13 @@ def render_image_upload_tab():
                                 metadata_key = f"image_metadata_{i}_{result.get('index', i)}"
                                 
                                 # Add a "Show Metadata" button with a unique key
-                                if st.button("🔍 Show Metadata", key=f"img_metadata_btn_{i}", help="Display all metadata for this image"):
-                                    # Toggle the metadata expanded state
-                                    st.session_state.image_metadata_expanded[metadata_key] = not st.session_state.image_metadata_expanded.get(metadata_key, False)
-                                    # Force a rerun to update the UI without changing tabs
-                                    st.experimental_rerun()
+                                st.button(
+                                    "🔍 Show Metadata",
+                                    key=f"img_metadata_btn_{i}",
+                                    help="Display all metadata for this image",
+                                    on_click=_toggle_image_metadata,
+                                    args=(metadata_key,)
+                                )
                             
                             # Check if metadata should be displayed for this result
                             if st.session_state.image_metadata_expanded.get(metadata_key, False):

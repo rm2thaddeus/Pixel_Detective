@@ -73,7 +73,15 @@ def load_blip_model(model_name=BLIP_MODEL_NAME, device=None):
             logger.info(f"CUDA device count: {torch.cuda.device_count()}")
             logger.info(f"Current CUDA device: {torch.cuda.current_device()}")
         
-        model = BlipForConditionalGeneration.from_pretrained(model_name).to(device)
+        # Attempt to load model on desired device, fallback to CPU on OOM
+        try:
+            logger.info(f"Loading BLIP model on {device}...")
+            model = BlipForConditionalGeneration.from_pretrained(model_name).to(device)
+        except RuntimeError as oom_error:
+            logger.error(f"CUDA out of memory when loading BLIP on {device}: {oom_error}")
+            logger.warning("Falling back to CPU for BLIP model.")
+            device = torch.device("cpu")
+            model = BlipForConditionalGeneration.from_pretrained(model_name).to(device)
         
         # Verify model is on the correct device
         model_device = next(model.parameters()).device

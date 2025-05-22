@@ -3,37 +3,43 @@ import pickle
 import sys
 import os
 from utils.duplicate_detector import compute_sha256
+import threading
 
 class EmbeddingCache:
     def __init__(self, db_path="embedding_cache.sqlite"):
         self.db_path = db_path
-        self.conn = sqlite3.connect(db_path)
+        self.conn = sqlite3.connect(db_path, check_same_thread=False)
+        self.lock = threading.Lock()
         self.conn.execute(
             "CREATE TABLE IF NOT EXISTS cache (hash TEXT PRIMARY KEY, embedding BLOB)"
         )
 
     def get(self, hash_):
-        cur = self.conn.execute("SELECT embedding FROM cache WHERE hash=?", (hash_,))
-        row = cur.fetchone()
+        with self.lock:
+            cur = self.conn.execute("SELECT embedding FROM cache WHERE hash=?", (hash_,))
+            row = cur.fetchone()
         if row:
             return pickle.loads(row[0])
         return None
 
     def set(self, hash_, embedding):
         emb_blob = pickle.dumps(embedding)
-        self.conn.execute(
-            "INSERT OR REPLACE INTO cache (hash, embedding) VALUES (?, ?)",
-            (hash_, emb_blob),
-        )
-        self.conn.commit()
+        with self.lock:
+            self.conn.execute(
+                "INSERT OR REPLACE INTO cache (hash, embedding) VALUES (?, ?)",
+                (hash_, emb_blob),
+            )
+            self.conn.commit()
 
     def clear(self):
-        self.conn.execute("DELETE FROM cache")
-        self.conn.commit()
+        with self.lock:
+            self.conn.execute("DELETE FROM cache")
+            self.conn.commit()
 
     def inspect(self, limit=10):
-        cur = self.conn.execute("SELECT hash FROM cache LIMIT ?", (limit,))
-        return [row[0] for row in cur.fetchall()]
+        with self.lock:
+            cur = self.conn.execute("SELECT hash FROM cache LIMIT ?", (limit,))
+            return [row[0] for row in cur.fetchall()]
 
 _cache_instance = None
 
