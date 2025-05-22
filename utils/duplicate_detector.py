@@ -2,7 +2,7 @@ import os
 import hashlib
 from collections import defaultdict
 from typing import Dict, List, Tuple
-from metadata_extractor import extract_metadata
+from utils.metadata_extractor import extract_metadata
 import imagehash
 from PIL import Image
 

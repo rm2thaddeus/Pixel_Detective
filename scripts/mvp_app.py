@@ -35,7 +35,7 @@ from utils.duplicate_detector import compute_sha256
 from models.clip_model import load_clip_model, unload_clip_model, setup_device
 from models.blip_model import load_blip_model, unload_blip_model, generate_caption, setup_blip_device
 from database.qdrant_connector import QdrantDB
-from metadata_extractor import extract_metadata
+from utils.metadata_extractor import extract_metadata
 from utils.incremental_indexer import start_incremental_indexer
 from models.model_manager import ModelManager
 

@@ -67,6 +67,7 @@ def render_latent_space_tab():
     st.write("Any nulls in vector:", df['vector'].isnull().any())
     st.write("Vector type:", type(df['vector'].iloc[0]) if not df.empty else "No data")
 
+    # Remove debug st.write() calls
     # Minimal: no sampling, no sidebar info, just plot all points
     df_display = df.copy()
 
@@ -77,6 +78,9 @@ def render_latent_space_tab():
     # Add a slider for marker size
     marker_size = st.slider("Point size", min_value=3, max_value=30, value=10, step=1)
 
+    # Add a slider for DBSCAN eps parameter
+    dbscan_eps = st.sidebar.slider("DBSCAN eps (cluster radius)", min_value=0.1, max_value=5.0, value=0.7, step=0.1)
+
     # UMAP projection
     if 'x' in df_display.columns and 'y' in df_display.columns and df_display['x'].notnull().all() and df_display['y'].notnull().all():
         df_display['umap_x'] = df_display['x']
@@ -85,39 +89,39 @@ def render_latent_space_tab():
         try:
             vectors_display = df_display['vector'].tolist()
             coords = compute_umap(vectors_display, n_neighbors_val, min_dist_val)
-            st.write("UMAP coords shape:", coords.shape)
-            st.write("First UMAP coord:", coords[0] if coords.shape[0] > 0 else "No data")
             df_display['umap_x'] = coords[:, 0].astype(float)
             df_display['umap_y'] = coords[:, 1].astype(float)
-            st.write("UMAP x range:", df_display['umap_x'].min(), df_display['umap_x'].max())
-            st.write("UMAP y range:", df_display['umap_y'].min(), df_display['umap_y'].max())
-            st.write("df_display dtypes:", df_display.dtypes)
         except Exception as e:
             logger.error(f"UMAP computation failed: {e}")
             st.warning("No data available for latent space visualization.")
             return
 
-    # Color by: pick first available metadata field (not vector/path/x/y)
-    exclude_fields = ['vector', 'path', 'x', 'y', 'umap_x', 'umap_y']
-    color_fields = [c for c in df_display.columns if c not in exclude_fields]
-    color_by = color_fields[0] if color_fields else None
-    color_data_for_plot = None
-    if color_by:
-        if pd.api.types.is_numeric_dtype(df_display[color_by]):
-            color_data_for_plot = df_display[color_by]
-        else:
-            color_data_for_plot = df_display[color_by].astype(str).fillna("NaN")
-        if color_data_for_plot.nunique() == 1 and (color_data_for_plot.iloc[0] == "NaN" or pd.isna(color_data_for_plot.iloc[0])):
-            logger.warning(f"Chosen color field '{color_by}' has no valid data; disabling color.")
-            color_data_for_plot = None
+    # --- DBSCAN clustering ---
+    try:
+        from sklearn.cluster import DBSCAN
+        import numpy as np
+        X = df_display[['umap_x', 'umap_y']].values
+        db = DBSCAN(eps=dbscan_eps, min_samples=3).fit(X)
+        df_display['cluster'] = db.labels_
+        n_clusters = len(set(db.labels_)) - (1 if -1 in db.labels_ else 0)
+        st.write(f"DBSCAN found {n_clusters} clusters (label -1 = noise)")
+    except Exception as e:
+        logger.error(f"DBSCAN clustering failed: {e}")
+        df_display['cluster'] = 0
+        n_clusters = 1
+
+    # Color by cluster
+    color_by = 'cluster'
+    color_data_for_plot = df_display['cluster']
+    # Outliers (label -1) will be colored gray
+    cluster_colors = px.colors.qualitative.Plotly + ["#888888"]  # Add gray for noise
+    color_map = {c: cluster_colors[i % len(cluster_colors)] for i, c in enumerate(sorted(df_display['cluster'].unique()))}
+    color_map[-1] = "#888888"  # gray for noise
+    marker_colors = df_display['cluster'].map(color_map)
 
     hover_name = 'filename' if 'filename' in df_display.columns else None
 
-    # Print DataFrame and dtypes for debugging
-    st.write("Plotting DataFrame (full):", df_display)
-    st.write("dtypes:", df_display.dtypes)
-
-    # Minimal scatter plot: plot umap_x vs umap_y, fixed color, fixed size
+    # Minimal scatter plot: plot umap_x vs umap_y, colored by cluster
     fig = go.Figure(
         data=go.Scatter(
             x=df_display['umap_x'],
@@ -125,7 +129,7 @@ def render_latent_space_tab():
             mode='markers',
             marker=dict(
                 size=marker_size,
-                color='yellow',
+                color=marker_colors,
                 opacity=1,
                 symbol='circle'
             ),

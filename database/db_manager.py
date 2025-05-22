@@ -11,7 +11,7 @@ import logging
 import glob
 import torch
 import gc
-from metadata_extractor import extract_metadata
+from utils.metadata_extractor import extract_metadata
 from models.blip_model import generate_caption
 from config import DB_EMBEDDINGS_FILE, DB_METADATA_FILE, GPU_MEMORY_EFFICIENT
 import concurrent.futures

@@ -5,6 +5,7 @@ from utils.duplicate_detector import compute_sha256
 from utils.embedding_cache import EmbeddingCache
 from models.model_manager import ModelManager
 from database.qdrant_connector import QdrantDB
+from utils.metadata_extractor import extract_metadata
 
 
 class IncrementalIndexerHandler(FileSystemEventHandler):
