@@ -72,6 +72,7 @@ def render_latent_space_tab():
         title="UMAP Projection of Image Embeddings",
         width=800,
         height=600,
+        template='plotly_dark',
         color_continuous_scale='Viridis' if is_numeric else None,
         color_discrete_sequence=px.colors.qualitative.D3 if not is_numeric else None,
     )
@@ -79,6 +80,9 @@ def render_latent_space_tab():
     fig.update_layout(
         legend_title_text=color_by,
         dragmode='lasso',
+        paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor='rgba(0,0,0,0)',
+        font_color='white',
     )
 
     # Enable click + lasso selection (renders the interactive chart)
