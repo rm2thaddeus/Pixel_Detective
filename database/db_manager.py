@@ -17,6 +17,7 @@ from config import DB_EMBEDDINGS_FILE, DB_METADATA_FILE, GPU_MEMORY_EFFICIENT
 import concurrent.futures
 import streamlit as st
 from utils.query_parser import parse_query, build_qdrant_filter, build_qdrant_filter_object
+from utils.lazy_session_state import get_or_init_simple
 
 logger = logging.getLogger(__name__)
 
@@ -70,12 +71,15 @@ class DatabaseManager:
         embeddings = []
         metadata_records = []
         total_images = len(image_list)
-        st.session_state['current_image_index'] = 0
-        st.session_state['total_images'] = total_images
+        
+        # 🚀 LAZY LOADING: Use lazy session state instead of bulk initialization
+        get_or_init_simple('current_image_index', 0)
+        get_or_init_simple('total_images', total_images)
+        
         def process_one(image_path):
             embedding = self.model_manager.process_image(image_path)
             metadata = extract_metadata(image_path)
-            caption = generate_caption(image_path)
+            caption = self.model_manager.generate_caption(image_path)
             metadata["caption"] = caption
             if "Keywords" not in metadata or not metadata["Keywords"]:
                 metadata["Keywords"] = [caption]
@@ -96,7 +100,8 @@ class DatabaseManager:
                     metadata_records.append(metadata)
                 except Exception as e:
                     logger.error(f"Error processing {futures[future]}: {e}")
-                st.session_state['current_image_index'] = i + 1
+                # 🚀 LAZY LOADING: Update progress using lazy session state
+                st.session_state.current_image_index = i + 1
         embeddings_path = os.path.join(db_folder, DB_EMBEDDINGS_FILE)
         np.save(embeddings_path, np.array(embeddings))
         metadata_df = pd.DataFrame(metadata_records)
@@ -204,7 +209,7 @@ class DatabaseManager:
             logger.info(f"[SEARCH DEBUG] Query: '{query_text}' | Parsed metadata: {metadata} | Remaining text: '{remaining_text}'")
 
             # Get CLIP model and encode query
-            model, preprocess = self.model_manager.load_clip_model()
+            model, preprocess = self.model_manager.get_clip_model_for_search()
             device = self.model_manager.device
 
             with torch.no_grad():
@@ -318,7 +323,7 @@ class DatabaseManager:
         
         try:
             # Get CLIP model
-            model, preprocess = self.model_manager.load_clip_model()
+            model, preprocess = self.model_manager.get_clip_model_for_search()
             device = self.model_manager.device
             
             # Open and preprocess the image
