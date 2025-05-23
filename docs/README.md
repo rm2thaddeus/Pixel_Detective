@@ -49,6 +49,13 @@ python -c "import torch; print(torch.__version__); print(torch.version.cuda); pr
 - If you see `torch.cuda.is_available() == False`, check your NVIDIA drivers and CUDA installation, and ensure you installed the correct PyTorch version for your CUDA toolkit.
 - If you run out of disk space, clear your pip cache with `pip cache purge`.
 
+**Qdrant Vector Database Required for Metadata-Based Filtering and Hybrid Search:**
+- For advanced search features (metadata-based filtering, hybrid vector+metadata search), you must have the Qdrant vector database running locally or remotely. The easiest way is via Docker:
+```
+docker run -p 6333:6333 qdrant/qdrant
+```
+- If Qdrant is not running, these features will not work and you may see errors or missing results in the UI.
+
 The following packages are required to run this application (see `docs/current_requirements.txt` for full list):
 
 ```

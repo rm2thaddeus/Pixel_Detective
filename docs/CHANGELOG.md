@@ -37,6 +37,7 @@
     - The need to use only one color assignment method (either in px.scatter or update_traces, not both).
     - Removal of all lasso/selection logic for maximum reliability.
     - Final solution uses a single, explicit go.Scatter plot for clarity and robustness.
+- Metadata-based filtering and hybrid (vector + metadata) search now require Qdrant to be running (e.g., via Docker). This was clarified after recent testing and is now documented in the README and changelog notes.
 
 ### Fixed
 - Resolved disk space issues by purging pip cache (`pip cache purge`).
@@ -54,4 +55,5 @@
 ### Notes
 - If you see `torch.cuda.is_available() == False`, check your NVIDIA drivers, CUDA toolkit, and ensure you installed the correct PyTorch version for your CUDA version.
 - If you run out of disk space during installation, clear your pip cache with `pip cache purge`.
-- Implementing this feature was unexpectedly challenging due to subtle Plotly/Streamlit UI interactions. Developers should be aware that even with valid data, UI rendering can silently fail if marker/color/selection properties are misused. Always start with a minimal plot and add features incrementally. 
+- Implementing this feature was unexpectedly challenging due to subtle Plotly/Streamlit UI interactions. Developers should be aware that even with valid data, UI rendering can silently fail if marker/color/selection properties are misused. Always start with a minimal plot and add features incrementally.
+- Metadata-based filtering and hybrid search require Qdrant to be running. If you encounter errors or missing results, ensure the Qdrant vector database is started (e.g., with Docker: `docker run -p 6333:6333 qdrant/qdrant`). 
