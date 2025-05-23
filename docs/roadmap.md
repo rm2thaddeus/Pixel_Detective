@@ -1,96 +1,200 @@
 # Project Roadmap
 
-This roadmap outlines planned optimizations, features, and enhancements for the Pixel Detective application, organized by timeline.
+This roadmap outlines the development priorities for Pixel Detective, organized by sprint cycles and focusing on measurable improvements.
 
 ---
 
-## Short-term (Next 1–2 Weeks)
+## 🚀 **Current Sprint: UI Improvements & Performance Optimization**
+*Priority: Critical (Pre-Main Branch Merge)*
 
-0. **Environment Setup**
-   - Create and document a Python virtual environment (`.venv`) for dependency management and reproducibility.
-   - **[COMPLETED] Upgrade to CUDA-enabled PyTorch (2.7.0+cu118) and document GPU troubleshooting in README.**
-
-1. **Optimize Image Processing Pipeline**
-   - Parallelize metadata extraction in `metadata_extractor.py` using thread pools or asyncio.
-   - **[PARTIALLY COMPLETED] Batch process images for CLIP embeddings (implemented in `models/clip_model.py` and used by `scripts/mvp_app.py`). BLIP batching TBD.**
-
-2. **Implement Caching & Checkpointing**
-   - Cache extracted metadata and embeddings locally to avoid redundant work on subsequent runs.
-   - Add checkpoint files in `scripts/mvp_app.py` to resume interrupted indexing (relevant for the CLI tool).
-
-3. **Improve UI Feedback**
-   - Integrate `st.progress` bars and status messages in `app.py` and `ui` components.
-   - Display per-folder or per-batch progress during database building.
-
-4. **Lazy Model Loading**
-   - Defer CLIP/BLIP model loading in `ModelManager` until first usage.
-   - Expose a toggle in `config.py` to control eager vs. lazy loading.
-
-5. **Optimize Latent Space Explorer**
-   - [COMPLETED] Precompute and cache UMAP projections to reduce load times and eliminate flashing when switching tabs.
-   - [COMPLETED] Implement sampling or incremental loading for large datasets to ensure UI responsiveness.
-   - [COMPLETED] Enhance Plotly scatter aesthetics (custom color scales, thumbnail hover previews, zoom & pan controls) for a richer exploration experience.
-   - [COMPLETED] Remove any redundant UI elements and simplify controls.
+### **Sprint Goals**
+- Optimize Streamlit application performance and responsiveness
+- Achieve feature parity between CLI and UI applications
+- Implement unified architecture patterns
+- Establish performance monitoring infrastructure
 
 ---
 
-## Medium-term (3–6 Weeks)
+### **Week 1: Core Performance & Streamlit Optimization**
 
-1. **Refactor Vector Database Operations**
-   - Switch to asynchronous Qdrant client in `database/qdrant_connector.py` for non-blocking upserts and queries.
-   - **[COMPLETED] Support bulk upsert (`add_images_batch` in `database/qdrant_connector.py`). Batch query APIs TBD.**
+#### **1.1 Streamlit Rendering & Memory Optimization**
+**Problem:** Current bottlenecks in UI responsiveness and memory usage
+- [ ] **Lazy Loading Implementation**
+  - Load UI components only when accessed
+  - Defer heavy operations until user interaction
+  - Implement tab-based model loading strategy
+- [ ] **Component Caching**
+  - Cache heavy UI components with `@st.cache_data`
+  - Implement smart session state cleanup
+  - Optimize image thumbnail generation and display
+- [ ] **Memory Management**
+  - Smart CUDA memory allocation per tab
+  - Automatic cleanup of unused embeddings/metadata
+  - Session state size optimization and monitoring
 
-2. **Incremental & Resumable Builds**
-   - Store ingestion state in the vector DB or in sidecar files to allow incremental updates (relevant for `scripts/mvp_app.py` and potentially `database/db_manager.py`).
-   - Add CLI flags in `scripts/mvp_app.py` for full vs. incremental indexing.
+#### **1.2 Database & Search Performance**
+**Problem:** Suboptimal database operations and query performance  
+- [ ] **Query Optimization**
+  - Implement search result caching
+  - Optimize Qdrant connection pooling
+  - Add background database operations
+- [ ] **Search Response Time**
+  - Target < 2 seconds for typical queries
+  - Implement progressive result loading
+  - Add search suggestions and auto-complete
 
-3. **8-bit Quantization & Memory Tuning**
-   - Expose `bitsandbytes` quantization options in the UI and config.
-   - Provide per-model memory usage reports via `utils/cuda_utils.py`.
-
-4. **Containerization & Deployment**
-   - Create a Dockerfile for app + dependencies.
-   - Publish container image to Docker Hub or GitHub Container Registry.
-   - Add Helm chart or Docker Compose for local and cloud deployment.
-
-5. **CI/CD & Automated Testing**
-   - Write unit tests for core modules (`models/`, `database/`, `utils/`).
-   - Add GitHub Actions workflows for linting, testing, and building the Docker image.
-
----
-
-## Long-term (1–3 Months)
-
-1. **Multi-User & Collaboration**
-   - Integrate authentication (OAuth or API keys).
-   - Add per-user image collections and shared projects.
-
-2. **Cloud-Hosted Vector Database**
-   - Support hosting Qdrant on a managed cloud service.
-   - Implement secure connection and environment-based configuration.
-
-3. **Scalable Storage & Caching**
-   - Integrate S3/GCS for large image storage.
-   - Use Redis or similar for caching immediate query results.
-
-4. **Real-Time Collaboration**
-   - WebSocket-based update streams for collaborative searching and tagging.
-
-5. **Performance Benchmarking & Optimization**
-   - Establish baseline benchmarks for ingestion and query latencies.
-   - Profile hotspots in Python code and optimize critical paths (C/C++ extensions or offloading).
+#### **1.3 Model Loading Strategy**
+**Problem:** Inefficient model management between UI tabs
+- [ ] **Smart Model Management**
+  - Load models only when tab becomes active
+  - Implement model sharing between components
+  - Add model warm-up strategies for better UX
 
 ---
 
-## Backlog & Icebox
+### **Week 1-2: CLI Feature Parity & Code Unification**
 
-- Interactive image annotation and manual caption correction.
-- Fine-tune CLIP/BLIP on custom domain datasets.
-- **[COMPLETED] Support additional image formats: DNG (via `rawpy` in `models/clip_model.py` and `scripts/mvp_app.py`). TIFF TBD.**
-- UI theming, accessibility, and mobile-responsive design.
-- Localization and translation support for multilingual queries.
-- Modular plugin system for custom algorithms and data sources.
+#### **2.1 CLI Hybrid Search Integration**
+**Problem:** CLI missing advanced search capabilities from Streamlit app
+- [ ] **Port Hybrid Search to CLI**
+  - Integrate query parser (`utils/query_parser.py`) into mvp_app.py
+  - Add RRF fusion search functionality
+  - Implement metadata-based filtering with CLI flags
+- [ ] **Interactive Search Mode**
+  - Add `--interactive-search` flag for real-time queries
+  - Support multiple query formats (semantic + metadata)
+  - Implement search result export (CSV, JSON)
+- [ ] **Advanced CLI Options**
+  ```bash
+  # New CLI capabilities to implement:
+  --metadata-filter "camera:canon iso:100"
+  --hybrid-search "sunset photos from 2023"  
+  --export-results results.json
+  --search-mode interactive
+  ```
 
-### [x] DNG (RAW) image support
-  - Process DNG files for both CLIP and BLIP using rawpy and PIL
-  - Output a results summary file after each batch run (optional, controlled by --save-summary flag) 
+#### **2.2 Unified Architecture Components**
+**Problem:** Code duplication and inconsistent patterns between CLI and UI
+- [ ] **Shared ModelManager**
+  - Refactor mvp_app.py to use ModelManager class
+  - Implement consistent CUDA memory management
+  - Add shared configuration system
+- [ ] **Common Database Layer**
+  - Standardize search functionality across CLI and UI
+  - Unify metadata handling and result processing
+  - Implement shared caching strategies
+
+---
+
+### **Week 2: Performance Monitoring & Polish**
+
+#### **3.1 Performance Infrastructure**
+**Problem:** No performance metrics or monitoring capabilities
+- [ ] **Metrics Collection System**
+  - Track startup time, search response, memory usage
+  - Implement automated performance benchmarking
+  - Add Streamlit performance profiler integration
+- [ ] **Benchmarking Suite**
+  - Establish baseline performance metrics
+  - Create automated regression testing
+  - Document performance targets and SLAs
+
+#### **3.2 User Experience Polish**
+**Problem:** Missing polish for production readiness
+- [ ] **Loading States & Error Handling**
+  - Implement comprehensive loading indicators
+  - Add graceful error recovery mechanisms
+  - Improve user feedback during heavy operations
+- [ ] **Visual Performance**
+  - Optimize CSS and static asset loading
+  - Implement progressive image loading
+  - Add keyboard shortcuts for power users
+
+---
+
+## 🎯 **Success Criteria**
+
+### **Performance Targets**
+- [ ] **Startup Time**: < 10 seconds for complete model loading
+- [ ] **Search Response**: < 2 seconds for typical queries  
+- [ ] **Memory Efficiency**: Stable session state, no memory leaks
+- [ ] **UI Responsiveness**: No blocking operations > 1 second
+
+### **Feature Completeness**  
+- [ ] **CLI Parity**: Full hybrid search support in mvp_app.py
+- [ ] **Code Reuse**: Shared components eliminate duplication
+- [ ] **Architecture**: Consistent patterns across CLI and UI
+
+### **Quality Gates**
+- [ ] **Performance Benchmarks**: All targets met consistently
+- [ ] **Memory Profile**: No leaks detected in 30-minute sessions
+- [ ] **User Testing**: Smooth experience across all major workflows
+
+---
+
+## 📅 **Future Sprints (Post-Main Merge)**
+
+### **Sprint 2: Advanced Features & Cloud Deployment**
+*Timeline: 3-4 weeks*
+
+#### **Multi-User & Collaboration**
+- [ ] Authentication integration (OAuth/API keys)
+- [ ] Per-user image collections and shared projects
+- [ ] Real-time collaborative search and tagging
+
+#### **Cloud Infrastructure**
+- [ ] Containerization with Docker
+- [ ] Cloud-hosted Qdrant deployment
+- [ ] S3/GCS integration for large image storage
+- [ ] Redis caching for query results
+
+### **Sprint 3: Advanced AI & Scalability**
+*Timeline: 4-6 weeks*
+
+#### **Model Enhancements**
+- [ ] Fine-tune CLIP/BLIP on custom datasets
+- [ ] 8-bit quantization for memory efficiency
+- [ ] Custom domain model training
+
+#### **Performance & Scale**
+- [ ] Asynchronous Qdrant operations
+- [ ] Horizontal scaling architecture
+- [ ] Advanced caching strategies (Redis, CDN)
+
+---
+
+## 🏆 **Long-term Vision (3+ Months)**
+
+### **Enterprise Features**
+- Interactive image annotation and correction workflows
+- Advanced analytics and usage insights  
+- Plugin system for custom algorithms
+- Mobile and tablet responsive design
+
+### **AI Advancement**
+- Multi-modal search (text + image + audio)
+- Real-time image understanding
+- Automated tagging and categorization
+- Cross-lingual search capabilities
+
+---
+
+## 📊 **Completed Features ✅**
+
+### **Core Search System** *(Recently Completed)*
+- [x] **Hybrid Search Implementation**: RRF fusion with Qdrant Query API
+- [x] **Metadata Filtering**: 80+ EXIF/XMP fields with smart parsing
+- [x] **Query Intelligence**: Semantic + metadata combined search
+- [x] **Database Migration**: Upload script for existing embeddings
+
+### **Foundation Features** *(Previously Completed)*
+- [x] **Early Duplicate Detection**: SHA-256 and perceptual hashing
+- [x] **Content-Addressable Caching**: SQLite-based embedding cache
+- [x] **Background Job Offloading**: Concurrent futures integration
+- [x] **Incremental Indexer**: File system watcher with auto-updates
+- [x] **Latent Space Visualization**: UMAP + DBSCAN clustering
+- [x] **RAW/DNG Support**: Native support for professional formats
+
+---
+
+**Note:** This roadmap prioritizes immediate performance gains and architecture improvements to ensure a stable, production-ready application before expanding into advanced features. 

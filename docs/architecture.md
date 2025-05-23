@@ -183,189 +183,104 @@ project_root/
 - The CLI MVP is the preferred tool for initial database creation and bulk ingestion.
 - The Streamlit app is ideal for interactive exploration, search, and demonstration.
 
-# Pixel Detective – To-Do List
+---
 
-This document tracks planned enhancements and optimizations for the Pixel Detective project. Each item is actionable and prioritized for efficient, high-impact development.
+# Next Sprint: UI Improvements & Performance Optimization
+
+With the core hybrid search system now implemented, the next development sprint focuses on enhancing user experience and optimizing application performance before merging to main branch.
+
+## 🎯 Architecture Focus Areas
+
+### **1. Streamlit Application Performance**
+
+**Current State:**
+- ✅ Model persistence in session state
+- ✅ CUDA memory management 
+- ✅ Custom CSS and UI components
+- ❌ Potential rendering bottlenecks
+- ❌ Suboptimal model loading strategy
+- ❌ Database operations not optimized
+
+**Target Improvements:**
+- **Lazy Loading Strategy**: Implement on-demand component and model loading
+- **Rendering Optimization**: Cache heavy UI components, eliminate redundant re-renders
+- **Memory Management**: Smart cleanup of session state, optimized CUDA usage
+- **Database Performance**: Query caching, connection optimization
+
+### **2. CLI Application Feature Parity**
+
+**Current State:**
+- ✅ Basic batch processing (CLIP + BLIP)
+- ✅ Qdrant database integration
+- ✅ Embedding cache and duplicate detection
+- ❌ Missing hybrid search capabilities
+- ❌ No metadata-based filtering
+- ❌ Limited query functionality
+
+**Target Improvements:**
+- **Hybrid Search Integration**: Port query parser and RRF fusion to CLI
+- **Interactive Search Mode**: Real-time query processing
+- **Advanced Filtering**: Metadata-based search with CLI flags
+- **Result Export**: Multiple output formats for search results
+
+### **3. Unified Model Management**
+
+**Current Architecture Gap:**
+- Different model loading strategies between app.py and mvp_app.py
+- Inconsistent memory management patterns
+- No shared configuration for optimization settings
+
+**Target Architecture:**
+- **Shared ModelManager**: Common model management across CLI and UI
+- **Configuration Unification**: Centralized performance settings
+- **Memory Optimization**: Consistent CUDA management patterns
+
+### **4. Performance Monitoring & Optimization**
+
+**Missing Infrastructure:**
+- No performance metrics collection
+- Limited profiling capabilities
+- No automated benchmarking
+
+**Target Implementation:**
+- **Metrics Collection**: Startup time, search response, memory usage
+- **Profiling Tools**: Integration with Streamlit profiler, memory tracking
+- **Benchmarking Suite**: Automated performance regression testing
 
 ---
 
-## 1. Early Duplicate Detection (Pre-Pipeline)
+## 🔄 Integration Strategy
 
-**Goal:**  
-Detect and handle duplicate images before running embedding/captioning to save compute and storage.
+### **Phase 1: Core Performance (Week 1)**
+1. **Streamlit Optimization**: Lazy loading, caching, rendering improvements
+2. **Model Management**: Smart loading/unloading strategies
+3. **Memory Optimization**: Session cleanup, CUDA efficiency
 
-**Tasks:**
-- [x] Implement content hash (e.g., SHA-256) computation for all files in the input folder.
-- [x] Build a hash→file mapping to identify exact duplicates.
-- [x] Optionally, extract key EXIF fields (DateTimeOriginal, CameraSerialNumber, etc.) for additional duplicate/near-duplicate detection.
-- [x] Present duplicates to the user for review or automatically select which to keep.
-- [x] (Optional) Implement perceptual hashing for near-duplicate detection (e.g., RAW+JPEG pairs).
+### **Phase 2: Feature Parity (Week 1-2)**
+1. **CLI Enhancement**: Add hybrid search and metadata filtering
+2. **Unified Codebase**: Shared components between CLI and UI
+3. **Configuration Management**: Centralized settings
 
-**Implementation Note:**
-A CLI script (`scripts/find_duplicates.py`) is provided to scan any folder for exact and near-duplicate images. It supports:
-- SHA-256 content hashing for exact duplicates
-- Perceptual hashing (phash) for near-duplicates, with configurable threshold
-- Optional EXIF extraction for review
-- Console and CSV reporting
+### **Phase 3: Polish & Monitoring (Week 2)**
+1. **Performance Monitoring**: Metrics, profiling, benchmarking
+2. **User Experience**: Loading states, error handling, responsiveness
+3. **Documentation**: Performance guides, optimization tips
 
 ---
 
-## 2. Content-Addressable Caching
+## 📊 Success Metrics
 
-**Goal:**  
-Prevent redundant embedding computations by caching embeddings based on file content hash.
+### **Performance Targets:**
+- **Startup Time**: < 10 seconds for model loading
+- **Search Response**: < 2 seconds for typical queries
+- **Memory Usage**: Stable session state, no memory leaks
+- **UI Responsiveness**: No blocking operations > 1 second
 
-**Tasks:**
-- [x] Integrate a lightweight cache (SQLite, Redis, or JSON) for hash→embedding mapping.
-- [x] Check cache before embedding; reuse if present, otherwise compute and store.
-- [x] Integrate into both CLI and Streamlit pipelines.
-
-**Implementation Note:**
-- The SQLite-based cache (`utils/embedding_cache.py`) is configured with `check_same_thread=False` and uses a threading lock to allow safe concurrent access in both CLI and Streamlit.
-
----
-
-## 3. Background Job Offloading
-
-**Goal:**  
-Keep the Streamlit UI responsive by offloading heavy tasks to background workers.
-
-**Tasks:**
-- [x] Integrate Celery with Redis (or use Python's `concurrent.futures` for local jobs).
-- [x] Wrap ingestion and embedding as asynchronous tasks.
-- [x] Update Streamlit UI to trigger and monitor background jobs, with progress bars and completion notifications.
-
-**Implementation Note:**
-- UI progress indicators now use Streamlit's `st.spinner` for synchronous feedback instead of manual background-thread progress updates, preserving the session context.
+### **Feature Completeness:**
+- **CLI Parity**: Full hybrid search support in mvp_app.py
+- **Code Reuse**: Shared components between CLI and UI
+- **User Experience**: Consistent behavior across interfaces
 
 ---
 
-## 4. Incremental Indexer
-
-**Goal:**  
-Automatically index new or changed files in Qdrant without full reprocessing.
-
-**Tasks:**
-- [x] Add a file-system watcher (e.g., `watchdog`) to monitor target folders (implemented in `utils/incremental_indexer.py`).
-- [x] On file creation/modification, compute embeddings (with cache), generate caption, and upsert to Qdrant.
-- [x] Handle deletions by removing from Qdrant using `delete_image` in `database/qdrant_connector.py`.
-
----
-
-## 5. Latent Space Visualization
-
-**Goal:**  
-Enable fast, beautiful, and insightful exploration of the embedding space.
-
-**Tasks:**
-- [x] Add Latent Space Explorer tab with UMAP+Plotly visualization and sidebar controls for metadata coloring and UMAP hyperparameters.
-- [x] Precompute and cache UMAP projections to minimize latency on tab switch and re-renders.
-- [x] Implement sampling or pagination for large datasets to prevent UI freezing.
-- [x] Improve plot aesthetics: custom color scales, thumbnail-on-hover, zoom/pan, and clear legends.
-- [x] Eliminate UI flashing by using `st.experimental_memo` or session-based caching of computed projections.
-- [x] **Add DBSCAN clustering overlays to highlight structure in the latent space.**
-
-
----
-
-## 6. Duplicate Detection (Post-Embedding)
-
-**Goal:**  
-Identify and manage near-duplicate images using vector similarity.
-
-**Tasks:**
-- [x] Compute cosine similarity within Qdrant to find duplicates.
-- [x] Add "Find duplicates" action in UI.
-- [x] Present results with side-by-side previews and options to tag, merge, or delete.
-
-**Implementation Note:**
-- The duplicate detection feature is now fully integrated in the app. Qdrant must be running (e.g., via Docker) for the database and duplicate detection to work. Once Qdrant was started, the feature worked perfectly in the UI.
-
----
-
-## 7. Metadata-Based Filtering ✅
-
-**Goal:**  
-Enable fine-grained search and filtering using EXIF metadata.
-
-**Tasks:**
-- [x] Extract and store EXIF metadata alongside embeddings in Qdrant.
-- [x] Extend query logic to combine vector similarity with metadata constraints.
-- [x] Implement comprehensive hybrid search system with Qdrant Query API.
-
-**Implementation Completed:**
-- **Comprehensive Metadata Extraction**: Extract and index 80+ metadata fields from EXIF/XMP data including:
-  - Camera settings (aperture, ISO, focal length, shutter speed, etc.)
-  - Geographic information (GPS coordinates, location names)
-  - Temporal data (dates taken, modified, digitized with automatic year extraction)
-  - Technical details (color temperature, white balance, flash settings, lens info)
-  - Custom tags, keywords, and subject classifications
-- **Advanced Query Parser** (`utils/query_parser.py`):
-  - Generic key:value parsing (e.g., `camera:canon`, `iso:100`, `aperture:2.8`)
-  - Field aliases mapping (e.g., `aperture_value` → `aperture`, `Keywords` → `keywords`)
-  - Case-insensitive matching for all string comparisons
-  - Automatic normalization of field names and values to lowercase
-- **Hybrid Search Implementation** (`database/db_manager.py`, `database/qdrant_connector.py`):
-  - Qdrant Query API integration with RRF (Reciprocal Rank Fusion)
-  - SHOULD-based filter logic instead of restrictive MUST constraints
-  - Soft constraint filtering that boosts relevance rather than blocking results
-  - Progressive enhancement: vector search provides baseline, metadata refines ranking
-- **Data Migration Tools**:
-  - Created `scripts/upload_to_qdrant.py` for migrating existing embeddings and metadata
-  - Supports batch uploading with data validation and integrity checks
-- **Search Principles**:
-  - Users always see relevant results even when metadata filters don't perfectly match
-  - Natural language queries work alongside technical specifications
-  - Flexible query parsing supports both semantic and metadata-based search
-
----
-
-## 8. UI Improvements & Performance Optimization
-
-**Goal:**
-Consolidate UI fixes and enhance app responsiveness and load times.
-
-**Tasks:**
-- [ ] Audit and fix remaining UI issues across all tabs (selection tools, metadata accuracy).
-- [ ] Optimize Streamlit rendering, reduce flashing and redundant computations.
-- [ ] Leverage session and data caching for all heavy operations (database load, UMAP).
-- [ ] Minify and lazy-load static assets (images, CSS).
-- [ ] Benchmark and profile app startup and interactive interactions.
-
----
-
-## Timeline & Priorities
-
-| Feature                     | Estimated Effort | Priority |
-|-----------------------------|------------------|----------|
-| Early Duplicate Detection   | 1–2 days         | Highest  |
-| Content-Addressable Caching | 1–2 days         | High     |
-| Background Job Offloading   | 2–3 days         | High     |
-| Incremental Indexer         | 1–2 days         | Medium   |
-| Latent Space Visualization  | 1–2 days         | Medium   |
-| Duplicate Detection (Post)  | 2 days           | Medium   |
-| Metadata-Based Filtering    | 1–2 days         | Low      |
-| UI Improvements & Performance Optimization | 2–3 days | Medium |
-
----
-
-**Note:**  
-Implement features in order of priority for maximum impact and efficiency.  
-This list will be updated as features are completed or new needs arise. 
-
----
-
-**Update (2024-06-12):**
-- Content-addressable embedding cache and background job offloading are now fully integrated in both CLI and Streamlit pipelines. The Streamlit UI shows live progress, and all embedding computations are cache-aware for efficiency.
-
----
-
-# Changelog
-
-**2024-06-12**
-- Latent Space Explorer now supports DBSCAN clustering overlays. After UMAP projection, clusters are detected and visualized with color, and outliers are shown in gray. The DBSCAN `eps` parameter is adjustable in the UI for interactive exploration. Debug output has been removed for a cleaner user experience.
-
-**2024-06-13**
-- Implemented and debugged hybrid (vector + metadata) search with Qdrant.
-- Added modular query parser and robust fallback logic for user-friendly search.
-- Improved debug logging for search diagnostics.
+**Note:** This sprint prepares the application for production deployment and main branch merge. All optimizations will be documented and benchmarked to ensure measurable improvements.

@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### Planned - Next Sprint: UI Improvements & Performance Optimization
+- **Streamlit Performance Optimization**: Lazy loading, component caching, memory management
+- **CLI Feature Parity**: Port hybrid search and metadata filtering to mvp_app.py  
+- **Unified Architecture**: Shared ModelManager and database components between CLI and UI
+- **Performance Monitoring**: Metrics collection, benchmarking suite, profiling tools
+- **User Experience Polish**: Loading states, error handling, visual optimizations
+
 ### Added
 - Created this changelog to track environment and documentation changes.
 - Full support for DNG (RAW) images: DNG files are now processed for both CLIP embeddings and BLIP captions using rawpy and PIL interoperability.
@@ -19,11 +26,32 @@
 - Content-addressable embedding cache: Added `utils/embedding_cache.py` (SQLite-based) and integrated cache checks into CLI MVP (`scripts/mvp_app.py`) to prevent redundant embedding computation.
 - Background job offloading: Integrated `concurrent.futures` for parallel BLIP captioning in CLI MVP and Streamlit pipelines, improving responsiveness and throughput.
 - **Hybrid Search Implementation**: Complete rewrite of search functionality using Qdrant's Query API
-  - Implemented proper RRF (Reciprocal Rank Fusion) for combining vector and metadata search results
-  - Added comprehensive metadata field mapping between extracted EXIF/XMP data and query parser
-  - Created `scripts/upload_to_qdrant.py` for migrating existing embeddings and metadata to Qdrant
-  - Enhanced query parser with field aliases (e.g., `aperture_value` → `aperture`, `Keywords` → `keywords`)
-  - Added support for generic key:value parsing (e.g., `camera:canon`, `iso:100`) in search queries
+  - **Core Architecture**: Implemented proper RRF (Reciprocal Rank Fusion) for combining vector and metadata search results
+  - **Comprehensive Metadata Support**: Extract and index 80+ metadata fields from EXIF/XMP data:
+    - Camera settings (aperture, ISO, focal length, shutter speed, exposure program, white balance, flash settings)
+    - Geographic information (GPS coordinates, location names, city, country)
+    - Temporal data (dates taken, modified, digitized with automatic year extraction)
+    - Technical details (color temperature, contrast, saturation, lens info, camera serial numbers)
+    - Content classification (tags, keywords, subject, caption integration)
+  - **Advanced Query Parser** (`utils/query_parser.py`):
+    - Generic key:value parsing for any metadata field (e.g., `camera:canon`, `iso:100`, `aperture:2.8`)
+    - Field aliases mapping for user-friendly queries (`aperture_value` → `aperture`, `Keywords` → `keywords`)
+    - Case-insensitive matching for all string comparisons with automatic normalization
+    - Smart text extraction that separates semantic queries from metadata constraints
+  - **Intelligent Search Logic**: 
+    - SHOULD-based filter logic instead of restrictive MUST constraints for better recall
+    - Soft constraint filtering that boosts relevance rather than blocking results
+    - Progressive enhancement where vector search provides baseline, metadata refines ranking
+    - Users always see results even when metadata filters don't perfectly match
+  - **Data Migration & Population**:
+    - Created `scripts/upload_to_qdrant.py` for migrating existing embeddings and metadata to Qdrant
+    - Supports batch uploading with data validation, cleaning, and integrity checks
+    - Maintains data consistency between embeddings and metadata records
+  - **Query Examples Supported**:
+    - Natural language: `"happy family photos"`, `"sunset landscape"`
+    - Technical specs: `"iso:100 aperture:2.8"`, `"camera:canon lens:50mm"`
+    - Combined queries: `"strasbourg 2023 family"`, `"sunset photos taken with Canon"`
+    - Flexible matching: Partial matches still return relevant results
 
 ### Changed
 - Upgraded to CUDA-enabled PyTorch (torch==2.7.0+cu118, torchvision==0.22.0+cu118, torchaudio==2.7.0+cu118) for GPU acceleration.
@@ -57,6 +85,16 @@
   - Supports migration from existing `.npy` embeddings and `.csv` metadata files
   - Handles data validation, cleaning, and batch uploading to Qdrant
   - Maintains data integrity between embeddings and metadata records
+- **Search Architecture Overhaul**: Complete redesign of search system for production use
+  - **Database Integration**: Seamless Qdrant integration with proper collection management
+  - **Query Processing Pipeline**: Multi-stage processing from raw query to ranked results
+  - **Metadata Normalization**: Consistent field naming and value processing across all data sources
+  - **Performance Optimization**: Efficient batch operations and connection management
+  - **Error Handling**: Robust fallback mechanisms and user-friendly error messages
+- **Documentation & Migration**: Comprehensive documentation of new search capabilities
+  - Updated architecture documentation with detailed hybrid search system description
+  - Created migration guides for existing data and embedding collections
+  - Added example queries and use cases for different search scenarios
 
 ### Fixed
 - Resolved disk space issues by purging pip cache (`pip cache purge`).
@@ -66,10 +104,25 @@
 - Enhanced `DatabaseManager.load_database` to catch empty or invalid metadata CSVs, delete corrupted database files, and force a rebuild on the next run.
 - Removed redundant radio-mode selector; simplified tab navigation in Streamlit UI.
 - **Search Returning Zero Results**: Root cause was empty Qdrant collection - now properly populated
+  - Diagnosed issue: Database contained no vector data despite UI indicating functionality
+  - Solution: Created upload script to migrate existing embeddings and populated test collection
+  - Result: Search now consistently returns relevant results across all query types
 - **Over-restrictive Filtering**: Replaced MUST-based filters with SHOULD-based for better recall
+  - Problem: AND-based metadata filters blocked results when any constraint wasn't met
+  - Solution: Implemented SHOULD (OR) logic allowing partial matches to boost rather than block
+  - Impact: Users now always see relevant images even with imperfect metadata matches
 - **Metadata Field Mismatches**: Added comprehensive field mapping and aliases for extracted data
+  - Issue: Query parser fields didn't align with actual EXIF/XMP extraction output
+  - Fix: Created bidirectional mapping between extraction fields and user-friendly query terms
+  - Enhancement: Support for 80+ metadata fields with automatic normalization
 - **Case Sensitivity Issues**: All metadata comparisons now use case-insensitive matching
+  - Problem: Queries like "Canon" vs "canon" produced different results
+  - Solution: Automatic lowercase normalization for all field names and values
+  - Benefit: Consistent search behavior regardless of user input capitalization
 - **Query API Integration**: Proper implementation of Qdrant's unified Query API with RRF fusion
+  - Challenge: Previous implementation used basic vector search without metadata integration
+  - Resolution: Migrated to Qdrant's Query API enabling true hybrid search with result fusion
+  - Outcome: Optimal ranking combining semantic similarity with metadata relevance
 
 ### Removed
 - Deleted `scripts/pipeline.py`

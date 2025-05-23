@@ -113,3 +113,28 @@ Example:
 ```
 python scripts/mvp_app.py --folder "C:\path\to\images" --save-summary
 ```
+
+---
+
+## 🚧 Development Status
+
+**Current Sprint: UI Improvements & Performance Optimization**
+
+We're currently focused on optimizing the application for production deployment with emphasis on:
+- **Performance**: Streamlit rendering optimization, memory management, search response times
+- **Feature Parity**: Bringing advanced hybrid search capabilities to the CLI application  
+- **Architecture**: Unifying code patterns and model management between CLI and UI
+- **User Experience**: Polish, error handling, and responsiveness improvements
+
+**Recently Completed ✅**
+- **Hybrid Search System**: Advanced RRF fusion with Qdrant Query API
+- **Metadata Intelligence**: 80+ EXIF/XMP fields with smart query parsing
+- **Search Flexibility**: SHOULD-based logic ensuring users always find relevant results
+
+**Coming Next 🔄**
+- CLI hybrid search integration
+- Streamlit performance optimizations
+- Comprehensive performance monitoring
+- Production-ready polish and error handling
+
+For detailed development plans, see [`docs/roadmap.md`](docs/roadmap.md) and [`docs/architecture.md`](docs/architecture.md).
