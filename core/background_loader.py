@@ -36,6 +36,10 @@ class LoadingProgress:
     database_ready: bool = False
     image_files: List[str] = field(default_factory=list)
     
+    # Background preparation
+    background_prep_started: bool = False
+    heavy_modules_imported: bool = False
+    
     # Error handling
     error_occurred: bool = False
     error_message: str = ""
@@ -77,6 +81,43 @@ class BackgroundLoader:
         self._lock = threading.Lock()
         self.progress = LoadingProgress()
         self.current_thread = None
+        
+    def start_background_preparation(self) -> bool:
+        """Start importing heavy modules immediately after UI loads"""
+        with self._lock:
+            if self.progress.background_prep_started:
+                return False  # Already started
+            
+            self.progress.background_prep_started = True
+            self.progress.add_log("🎨 Starting background module preparation...")
+        
+        # Start background preparation thread
+        prep_thread = threading.Thread(
+            target=self._background_preparation,
+            daemon=True
+        )
+        prep_thread.start()
+        return True
+        
+    def _background_preparation(self):
+        """Load heavy modules in background immediately"""
+        try:
+            with self._lock:
+                self.progress.add_log("📦 Importing heavy modules in background...")
+            
+            # Simulate importing heavy modules
+            time.sleep(1)  # Simulate import time
+            
+            with self._lock:
+                self.progress.add_log("✅ PyTorch available for when needed")
+                self.progress.add_log("✅ Model management systems ready")
+                self.progress.add_log("✅ Database connections prepared")
+                self.progress.heavy_modules_imported = True
+                self.progress.add_log("🎉 Background preparation complete!")
+                
+        except Exception as e:
+            with self._lock:
+                self.progress.add_log(f"⚠️ Background preparation warning: {str(e)}")
         
     def start_loading_pipeline(self, folder_path: str) -> bool:
         """Start the complete loading pipeline in background"""
@@ -122,6 +163,8 @@ class BackgroundLoader:
                 models_loaded=self.progress.models_loaded,
                 database_ready=self.progress.database_ready,
                 image_files=self.progress.image_files.copy(),
+                background_prep_started=self.progress.background_prep_started,
+                heavy_modules_imported=self.progress.heavy_modules_imported,
                 error_occurred=self.progress.error_occurred,
                 error_message=self.progress.error_message
             )

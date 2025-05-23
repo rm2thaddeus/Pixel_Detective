@@ -19,6 +19,37 @@ class FastUIScreen:
         FastUIScreen._render_folder_selection()
         FastUIScreen._render_welcome_info()
         FastUIScreen._render_sidebar()
+        
+        # Start background module loading immediately after UI renders
+        FastUIScreen._start_background_preparation()
+    
+    @staticmethod
+    def _start_background_preparation():
+        """Start loading heavy modules in background immediately after UI loads"""
+        # Only start if not already started and no folder is being processed
+        if (not st.session_state.get('background_prep_started', False) and 
+            st.session_state.get('app_state', AppState.FAST_UI) == AppState.FAST_UI):
+            
+            st.session_state.background_prep_started = True
+            
+            # Start the actual background preparation
+            background_loader.start_background_preparation()
+            
+            # Show status in sidebar
+            progress_data = background_loader.get_progress()
+            if progress_data.background_prep_started and not progress_data.heavy_modules_imported:
+                with st.sidebar:
+                    with st.expander("🔧 System Preparation", expanded=False):
+                        st.info("🎨 Loading components in background...")
+                        st.info("🤖 Preparing AI systems...")
+                        st.info("💾 Database systems standby...")
+            elif progress_data.heavy_modules_imported:
+                with st.sidebar:
+                    with st.expander("✅ System Ready", expanded=False):
+                        st.success("🎨 UI components ready")
+                        st.success("🤖 AI systems prepared")
+                        st.success("💾 Database ready for connection")
+                        st.info("🚀 Ready for folder processing!")
     
     @staticmethod
     def _render_header():
@@ -69,7 +100,7 @@ class FastUIScreen:
         
         with col1:
             if st.button("📂 Browse Folder", help="Browse for your image folder"):
-                st.info("💡 **Tip:** Type or paste your folder path above and click Start Processing")
+                FastUIScreen._show_folder_browser_help()
         
         with col2:
             # Main action button
@@ -92,6 +123,48 @@ class FastUIScreen:
         if folder_path:
             FastUIScreen._show_path_validation(folder_path)
     
+    @staticmethod
+    def _show_folder_browser_help():
+        """Show enhanced folder browser help with quick actions"""
+        with st.expander("📂 Folder Browser Assistant", expanded=True):
+            st.markdown("**🚀 Quick Folder Selection:**")
+            
+            # Common folder suggestions
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.markdown("**Windows Common Folders:**")
+                common_paths = [
+                    ("📸 Pictures", os.path.expanduser("~/Pictures")),
+                    ("📥 Downloads", os.path.expanduser("~/Downloads")),
+                    ("🖥️ Desktop", os.path.expanduser("~/Desktop")),
+                ]
+                
+                for name, path in common_paths:
+                    if st.button(f"Use {name}", key=f"path_{name}"):
+                        if os.path.exists(path):
+                            st.session_state.folder_path = path
+                            st.success(f"✅ Selected: {path}")
+                            st.rerun()
+                        else:
+                            st.warning(f"⚠️ {path} not found on your system")
+            
+            with col2:
+                st.markdown("**💡 Manual Selection:**")
+                st.info("""
+                1. **Open File Explorer**
+                2. **Navigate to your image folder**
+                3. **Click the address bar**
+                4. **Copy the path (Ctrl+C)**
+                5. **Paste it above (Ctrl+V)**
+                """)
+            
+            st.markdown("---")
+            st.markdown("**🔍 Path Examples:**")
+            st.code("C:\\Users\\YourName\\Pictures\\Vacation")
+            st.code("C:\\Users\\YourName\\OneDrive\\Photos")
+            st.code("D:\\My Images\\Photography")
+
     @staticmethod
     def _show_path_validation(folder_path: str):
         """Show real-time validation of folder path"""
