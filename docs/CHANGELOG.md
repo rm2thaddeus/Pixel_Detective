@@ -8,6 +8,12 @@
 - **Unified Architecture**: Shared ModelManager and database components between CLI and UI
 - **Performance Monitoring**: Metrics collection, benchmarking suite, profiling tools
 - **User Experience Polish**: Loading states, error handling, visual optimizations
+- **Latent Space Explorer Overhaul**: Complete redesign of visualization tab
+  - **Plotly Implementation Issues**: Current scatter plot has rendering problems and poor interactivity
+  - **Performance Problems**: Slow rendering with large datasets, memory inefficiency
+  - **Missing Features**: No proper selection tools, limited metadata integration, poor clustering visualization
+  - **Target Improvements**: Fast, responsive scatter plots with proper selection, better clustering, metadata overlays
+  - **Alternative Solutions**: Consider switching to more performant visualization libraries (Bokeh, Altair)
 
 ### Added
 - Created this changelog to track environment and documentation changes.
@@ -57,72 +63,4 @@
 - Upgraded to CUDA-enabled PyTorch (torch==2.7.0+cu118, torchvision==0.22.0+cu118, torchaudio==2.7.0+cu118) for GPU acceleration.
 - Updated `docs/README.md` with new installation, verification, and troubleshooting instructions for CUDA-enabled PyTorch.
 - Merged `docs/current_requirements.txt` into `requirements.txt` and deleted the former.
-- Updated `docs/architecture.md` and `docs/roadmap.md` to reference the new environment setup and GPU troubleshooting.
-- Refactored `scripts/mvp_app.py` to:
-    - Use `database.qdrant_connector.QdrantDB` for all database operations.
-    - Utilize the new `add_images_batch` method for improved performance.
-    - Use a distinct Qdrant collection name `pixel_detective_mvp`.
-    - Integrate embedding cache and duplicate detection logic.
-    - Use parallel background jobs for BLIP captioning.
-- Streamlit app (`app.py`): Improved model management, error handling, and background job offloading for a more responsive UI. Embedding cache is now checked before computation.
-- Streamlit app: Added Latent Space Explorer tab with UMAP+Plotly visualization and sidebar controls for metadata coloring and UMAP hyperparameters.
-- Latent Space Explorer: Replaced the lasso/selection-enabled Plotly scatter plot with a robust, minimal scatter plot using plotly.graph_objects. This resolves issues with invisible points and color/selection conflicts. Extensive UI debugging was required due to Plotly/Streamlit quirks, including:
-    - Points not rendering despite valid data (caused by color/selection property conflicts and over-customization).
-    - The need to use only one color assignment method (either in px.scatter or update_traces, not both).
-    - Removal of all lasso/selection logic for maximum reliability.
-    - Final solution uses a single, explicit go.Scatter plot for clarity and robustness.
-- Metadata-based filtering and hybrid (vector + metadata) search now require Qdrant to be running (e.g., via Docker). This was clarified after recent testing and is now documented in the README and changelog notes.
-- **Search Logic Overhaul**: Replaced restrictive AND-based filters with flexible SHOULD-based logic
-  - Queries like "happy" now work as both semantic vector search AND potential metadata matches
-  - Filters are now soft constraints that boost relevance rather than hard restrictions
-  - Users always see results even when metadata filters don't match exactly
-- **Query Parser Improvements**:
-  - All metadata field names and values are normalized to lowercase for consistent matching
-  - Added automatic year extraction from date fields when year isn't explicitly present
-  - Expanded `METADATA_FIELDS` to include all possible extracted fields (80+ fields)
-  - Added case-insensitive matching for all string-based Qdrant filters
-- **Database Population**: Added script to upload existing embeddings and metadata to Qdrant collection
-  - Supports migration from existing `.npy` embeddings and `.csv` metadata files
-  - Handles data validation, cleaning, and batch uploading to Qdrant
-  - Maintains data integrity between embeddings and metadata records
-- **Search Architecture Overhaul**: Complete redesign of search system for production use
-  - **Database Integration**: Seamless Qdrant integration with proper collection management
-  - **Query Processing Pipeline**: Multi-stage processing from raw query to ranked results
-  - **Metadata Normalization**: Consistent field naming and value processing across all data sources
-  - **Performance Optimization**: Efficient batch operations and connection management
-  - **Error Handling**: Robust fallback mechanisms and user-friendly error messages
-- **Documentation & Migration**: Comprehensive documentation of new search capabilities
-  - Updated architecture documentation with detailed hybrid search system description
-  - Created migration guides for existing data and embedding collections
-  - Added example queries and use cases for different search scenarios
-
-### Fixed
-- Resolved disk space issues by purging pip cache (`pip cache purge`).
-- Ensured all scripts and the MVP pipeline now use the GPU if available.
-- Fixed thread-safety in `utils/embedding_cache.py` by setting `check_same_thread=False` and guarding DB access with a lock to support concurrent embeddings.
-- Replaced background-thread progress updates in the Streamlit UI with `st.spinner` spinners to avoid `NoSessionContext` errors during database builds and merges.
-- Enhanced `DatabaseManager.load_database` to catch empty or invalid metadata CSVs, delete corrupted database files, and force a rebuild on the next run.
-- Removed redundant radio-mode selector; simplified tab navigation in Streamlit UI.
-- **Search Returning Zero Results**: Root cause was empty Qdrant collection - now properly populated
-  - Diagnosed issue: Database contained no vector data despite UI indicating functionality
-  - Solution: Created upload script to migrate existing embeddings and populated test collection
-  - Result: Search now consistently returns relevant results across all query types
-- **Over-restrictive Filtering**: Replaced MUST-based filters with SHOULD-based for better recall
-  - Problem: AND-based metadata filters blocked results when any constraint wasn't met
-  - Solution: Implemented SHOULD (OR) logic allowing partial matches to boost rather than block
-  - Impact: Users now always see relevant images even with imperfect metadata matches
-- **Metadata Field Mismatches**: Added comprehensive field mapping and aliases for extracted data
-  - Issue: Query parser fields didn't align with actual EXIF/XMP extraction output
-  - Fix: Created bidirectional mapping between extraction fields and user-friendly query terms
-  - Enhancement: Support for 80+ metadata fields with automatic normalization
-- **Case Sensitivity Issues**: All metadata comparisons now use case-insensitive matching
-  - Problem: Queries like "Canon" vs "canon" produced different results
-  - Solution: Automatic lowercase normalization for all field names and values
-  - Benefit: Consistent search behavior regardless of user input capitalization
-- **Query API Integration**: Proper implementation of Qdrant's unified Query API with RRF fusion
-  - Challenge: Previous implementation used basic vector search without metadata integration
-  - Resolution: Migrated to Qdrant's Query API enabling true hybrid search with result fusion
-  - Outcome: Optimal ranking combining semantic similarity with metadata relevance
-
-### Removed
-- Deleted `scripts/pipeline.py`
+- Updated `
