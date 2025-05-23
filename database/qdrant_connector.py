@@ -251,11 +251,31 @@ class QdrantDB:
         # Convert dict filter to Qdrant models.Filters if needed
         filter_obj = None
         if metadata_filter:
-            # Convert our dict to Qdrant Filter object
-            must = []
+            # Handle both old MUST format and new SHOULD format
+            should_conditions = []
+            must_conditions = []
+            
+            # Handle SHOULD conditions (new format)
+            for cond in metadata_filter.get("should", []):
+                should_conditions.append(FieldCondition(
+                    key=cond["key"], 
+                    match=MatchValue(value=cond["match"]["value"])
+                ))
+            
+            # Handle MUST conditions (old format - for compatibility)
             for cond in metadata_filter.get("must", []):
-                must.append(FieldCondition(key=cond["key"], match=MatchValue(value=cond["match"]["value"])))
-            filter_obj = Filter(must=must)
+                must_conditions.append(FieldCondition(
+                    key=cond["key"], 
+                    match=MatchValue(value=cond["match"]["value"])
+                ))
+            
+            # Create filter with appropriate conditions
+            if should_conditions and must_conditions:
+                filter_obj = Filter(should=should_conditions, must=must_conditions)
+            elif should_conditions:
+                filter_obj = Filter(should=should_conditions)
+            elif must_conditions:
+                filter_obj = Filter(must=must_conditions)
 
         try:
             search_result = self.client.search(
@@ -274,4 +294,62 @@ class QdrantDB:
             return results
         except Exception as e:
             print(f"Error in hybrid search Qdrant: {e}")
-            return [] 
+            return []
+
+    def query_hybrid_search(self, query_vector, metadata_filter=None, limit=5):
+        """
+        Proper hybrid search using Qdrant's Query API with RRF fusion.
+        Args:
+            query_vector: The embedding vector for the query.
+            metadata_filter: Qdrant Filter object (models.Filter) or None.
+            limit: Number of results to return.
+        Returns:
+            List of (path, score) tuples.
+        """
+        vector = self._prepare_vector(query_vector)
+        if vector is None:
+            print("Invalid query vector dimension.")
+            return []
+
+        try:
+            if metadata_filter:
+                # Hybrid search with metadata boosting using Query API
+                search_result = self.client.query_points(
+                    collection_name=self.collection_name,
+                    prefetch=[
+                        models.Prefetch(
+                            query=vector,
+                            limit=limit * 2,  # Get more vector candidates
+                        ),
+                        models.Prefetch(
+                            query=vector,
+                            query_filter=metadata_filter,
+                            limit=limit,  # Metadata-boosted candidates
+                        )
+                    ],
+                    query=models.FusionQuery(fusion=models.Fusion.RRF),
+                    limit=limit,
+                    with_payload=True
+                )
+                points = search_result.points
+            else:
+                # Pure vector search
+                points = self.client.search(
+                    collection_name=self.collection_name,
+                    query_vector=vector,
+                    limit=limit,
+                    with_payload=True
+                )
+            
+            results = []
+            for hit in points:
+                if hit.payload and 'path' in hit.payload:
+                    results.append((hit.payload['path'], hit.score))
+                else:
+                    results.append((hit.id, hit.score))
+            return results
+            
+        except Exception as e:
+            print(f"Error in query-based hybrid search: {e}")
+            # Fallback to regular search
+            return self.search_by_vector(query_vector, limit=limit) 

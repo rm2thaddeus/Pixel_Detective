@@ -16,7 +16,7 @@ from models.blip_model import generate_caption
 from config import DB_EMBEDDINGS_FILE, DB_METADATA_FILE, GPU_MEMORY_EFFICIENT
 import concurrent.futures
 import streamlit as st
-from utils.query_parser import parse_query, build_qdrant_filter
+from utils.query_parser import parse_query, build_qdrant_filter, build_qdrant_filter_object
 
 logger = logging.getLogger(__name__)
 
@@ -184,64 +184,92 @@ class DatabaseManager:
     
     def search_similar_images(self, query_text, top_k=5):
         """
-        Search for images similar to the query text, using hybrid (vector + metadata) search in Qdrant.
+        Search for images using hybrid search: vector similarity + metadata boosting.
+        
         Args:
-            query_text: The text query to search for
+            query_text: Text query that may contain metadata filters
             top_k: Number of top results to return
+            
         Returns:
             list: List of dictionaries containing search results
         """
         import streamlit as st
         import clip
         import torch
-        from utils.query_parser import parse_query, build_qdrant_filter
-
+        import numpy as np
+        
         try:
             # Parse query for metadata and remaining text
             metadata, remaining_text = parse_query(query_text)
-            qdrant_filter = build_qdrant_filter(metadata)
-            logger.info(f"[SEARCH DEBUG] Query: '{query_text}' | Parsed metadata: {metadata} | Remaining text: '{remaining_text}' | Qdrant filter: {qdrant_filter}")
+            logger.info(f"[SEARCH DEBUG] Query: '{query_text}' | Parsed metadata: {metadata} | Remaining text: '{remaining_text}'")
 
-            # Get CLIP model
+            # Get CLIP model and encode query
             model, preprocess = self.model_manager.load_clip_model()
             device = self.model_manager.device
 
-            # Tokenize and encode the remaining text
             with torch.no_grad():
                 text = clip.tokenize([remaining_text if remaining_text else query_text]).to(device)
                 text_features = model.encode_text(text)
                 text_features /= text_features.norm(dim=-1, keepdim=True)
 
-            # Convert to numpy array
             text_features_np = text_features.cpu().numpy().flatten()
 
-            # Use Qdrant hybrid search if available
+            # Use Qdrant hybrid search with Query API
             qdrant_db = st.session_state.get('qdrant_db')
             if qdrant_db is not None:
-                filter_to_use = qdrant_filter if qdrant_filter and qdrant_filter.get('must') else None
-                results = qdrant_db.hybrid_search(text_features_np, filter_to_use, limit=top_k)
-                logger.info(f"[SEARCH DEBUG] Qdrant returned {len(results)} results (filter applied: {bool(filter_to_use)})")
-                # If filter was applied and no results, fallback to vector-only search
-                if filter_to_use and not results:
-                    logger.info("[SEARCH DEBUG] No results with filter, retrying with vector-only search (no filter)...")
-                    results = qdrant_db.hybrid_search(text_features_np, None, limit=top_k)
-                    logger.info(f"[SEARCH DEBUG] Qdrant returned {len(results)} results (no filter)")
-                # Format results
-                formatted = []
-                for path, score in results:
-                    # Try to get metadata from images_data if available
-                    meta = {}
-                    images_data = st.session_state.get('images_data')
-                    if images_data is not None and 'path' in images_data.columns:
-                        row = images_data[images_data['path'] == path]
-                        if not row.empty:
-                            meta = row.iloc[0].to_dict()
-                    formatted.append({
-                        'path': path,
-                        'score': score,
-                        **meta
-                    })
-                return formatted
+                from utils.query_parser import build_qdrant_filter_object
+                
+                # Build filter for metadata boosting (not restriction)
+                filter_obj = build_qdrant_filter_object(metadata) if metadata else None
+                
+                logger.info(f"[SEARCH DEBUG] Using {'hybrid' if filter_obj else 'vector'} search with Qdrant Query API")
+                
+                # Use the new Query API-based hybrid search
+                try:
+                    results = qdrant_db.query_hybrid_search(
+                        query_vector=text_features_np,
+                        metadata_filter=filter_obj,
+                        limit=top_k
+                    )
+                    
+                    logger.info(f"[SEARCH DEBUG] Query API returned {len(results)} results")
+                    
+                    # Format results
+                    formatted_results = []
+                    for path, score in results:
+                        # Try to get metadata from images_data if available
+                        meta = {'path': path, 'score': score}
+                        images_data = st.session_state.get('images_data')
+                        if images_data is not None and 'path' in images_data.columns:
+                            row = images_data[images_data['path'] == path]
+                            if not row.empty:
+                                row_meta = row.iloc[0].to_dict()
+                                meta.update(row_meta)
+                        formatted_results.append(meta)
+                    
+                    return formatted_results
+                    
+                except Exception as e:
+                    logger.error(f"Error in Query API hybrid search: {e}")
+                    # Fallback to old hybrid search method
+                    qdrant_filter = build_qdrant_filter(metadata) if metadata else None
+                    filter_to_use = qdrant_filter if qdrant_filter and qdrant_filter.get('should') else None
+                    results = qdrant_db.hybrid_search(text_features_np, filter_to_use, limit=top_k)
+                    
+                    logger.info(f"[SEARCH DEBUG] Fallback search returned {len(results)} results")
+                    
+                    # Format results
+                    formatted = []
+                    for path, score in results:
+                        meta = {'path': path, 'score': score}
+                        images_data = st.session_state.get('images_data')
+                        if images_data is not None and 'path' in images_data.columns:
+                            row = images_data[images_data['path'] == path]
+                            if not row.empty:
+                                row_meta = row.iloc[0].to_dict()
+                                meta.update(row_meta)
+                        formatted.append(meta)
+                    return formatted
 
             # Fallback: in-memory vector search (legacy)
             logger.info("[SEARCH DEBUG] Qdrant not available, using in-memory vector search.")
@@ -249,6 +277,7 @@ class DatabaseManager:
             scored_indices = [(i, float(score)) for i, score in enumerate(similarities)]
             scored_indices.sort(key=lambda x: x[1], reverse=True)
             top_scored_indices = scored_indices[:top_k]
+            
             results = []
             for idx, score in top_scored_indices:
                 img_path = st.session_state.images_data.iloc[idx]['path']
@@ -257,16 +286,18 @@ class DatabaseManager:
                     'score': score,
                     'index': int(idx)
                 }
-                metadata = st.session_state.images_data.iloc[idx]
-                if 'caption' in metadata:
-                    result['caption'] = metadata['caption']
-                if 'tags' in metadata:
-                    result['tags'] = metadata['tags']
-                if 'Keywords' in metadata:
-                    result['keywords'] = metadata['Keywords']
+                metadata_row = st.session_state.images_data.iloc[idx]
+                if 'caption' in metadata_row:
+                    result['caption'] = metadata_row['caption']
+                if 'tags' in metadata_row:
+                    result['tags'] = metadata_row['tags']
+                if 'Keywords' in metadata_row:
+                    result['keywords'] = metadata_row['Keywords']
                 results.append(result)
+            
             logger.info(f"[SEARCH DEBUG] In-memory search returned {len(results)} results.")
             return results
+            
         except Exception as e:
             logger.error(f"Error searching by text (hybrid): {e}")
             return []

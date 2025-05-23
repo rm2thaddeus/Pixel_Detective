@@ -18,6 +18,12 @@
 - Early duplicate detection: Added `scripts/find_duplicates.py` CLI tool and `utils/duplicate_detector.py` for pre-pipeline duplicate and near-duplicate detection using SHA-256 and perceptual hashing (phash), with EXIF extraction and CSV/console reporting.
 - Content-addressable embedding cache: Added `utils/embedding_cache.py` (SQLite-based) and integrated cache checks into CLI MVP (`scripts/mvp_app.py`) to prevent redundant embedding computation.
 - Background job offloading: Integrated `concurrent.futures` for parallel BLIP captioning in CLI MVP and Streamlit pipelines, improving responsiveness and throughput.
+- **Hybrid Search Implementation**: Complete rewrite of search functionality using Qdrant's Query API
+  - Implemented proper RRF (Reciprocal Rank Fusion) for combining vector and metadata search results
+  - Added comprehensive metadata field mapping between extracted EXIF/XMP data and query parser
+  - Created `scripts/upload_to_qdrant.py` for migrating existing embeddings and metadata to Qdrant
+  - Enhanced query parser with field aliases (e.g., `aperture_value` → `aperture`, `Keywords` → `keywords`)
+  - Added support for generic key:value parsing (e.g., `camera:canon`, `iso:100`) in search queries
 
 ### Changed
 - Upgraded to CUDA-enabled PyTorch (torch==2.7.0+cu118, torchvision==0.22.0+cu118, torchaudio==2.7.0+cu118) for GPU acceleration.
@@ -38,6 +44,19 @@
     - Removal of all lasso/selection logic for maximum reliability.
     - Final solution uses a single, explicit go.Scatter plot for clarity and robustness.
 - Metadata-based filtering and hybrid (vector + metadata) search now require Qdrant to be running (e.g., via Docker). This was clarified after recent testing and is now documented in the README and changelog notes.
+- **Search Logic Overhaul**: Replaced restrictive AND-based filters with flexible SHOULD-based logic
+  - Queries like "happy" now work as both semantic vector search AND potential metadata matches
+  - Filters are now soft constraints that boost relevance rather than hard restrictions
+  - Users always see results even when metadata filters don't match exactly
+- **Query Parser Improvements**:
+  - All metadata field names and values are normalized to lowercase for consistent matching
+  - Added automatic year extraction from date fields when year isn't explicitly present
+  - Expanded `METADATA_FIELDS` to include all possible extracted fields (80+ fields)
+  - Added case-insensitive matching for all string-based Qdrant filters
+- **Database Population**: Added script to upload existing embeddings and metadata to Qdrant collection
+  - Supports migration from existing `.npy` embeddings and `.csv` metadata files
+  - Handles data validation, cleaning, and batch uploading to Qdrant
+  - Maintains data integrity between embeddings and metadata records
 
 ### Fixed
 - Resolved disk space issues by purging pip cache (`pip cache purge`).
@@ -46,14 +65,11 @@
 - Replaced background-thread progress updates in the Streamlit UI with `st.spinner` spinners to avoid `NoSessionContext` errors during database builds and merges.
 - Enhanced `DatabaseManager.load_database` to catch empty or invalid metadata CSVs, delete corrupted database files, and force a rebuild on the next run.
 - Removed redundant radio-mode selector; simplified tab navigation in Streamlit UI.
+- **Search Returning Zero Results**: Root cause was empty Qdrant collection - now properly populated
+- **Over-restrictive Filtering**: Replaced MUST-based filters with SHOULD-based for better recall
+- **Metadata Field Mismatches**: Added comprehensive field mapping and aliases for extracted data
+- **Case Sensitivity Issues**: All metadata comparisons now use case-insensitive matching
+- **Query API Integration**: Proper implementation of Qdrant's unified Query API with RRF fusion
 
 ### Removed
-- Deleted `scripts/pipeline.py` as its core functionalities (CLIP processing, image understanding) are now integrated into `models/clip_model.py` and `scripts/mvp_app.py`.
-- Deleted `scripts/embedding.py` as its DNG/RAW handling and embedding logic are now part of `models/clip_model.py`.
-- Deleted the old root `vector_db.py` (replaced by `database/qdrant_connector.py` and `database/db_manager.py` for the Streamlit app).
-
-### Notes
-- If you see `torch.cuda.is_available() == False`, check your NVIDIA drivers, CUDA toolkit, and ensure you installed the correct PyTorch version for your CUDA version.
-- If you run out of disk space during installation, clear your pip cache with `pip cache purge`.
-- Implementing this feature was unexpectedly challenging due to subtle Plotly/Streamlit UI interactions. Developers should be aware that even with valid data, UI rendering can silently fail if marker/color/selection properties are misused. Always start with a minimal plot and add features incrementally.
-- Metadata-based filtering and hybrid search require Qdrant to be running. If you encounter errors or missing results, ensure the Qdrant vector database is started (e.g., with Docker: `docker run -p 6333:6333 qdrant/qdrant`). 
+- Deleted `scripts/pipeline.py`

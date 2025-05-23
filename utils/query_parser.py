@@ -1,16 +1,25 @@
 import re
-from typing import Dict, Any, Tuple, List
+from typing import Dict, Any, Tuple, List, Optional
 
 # Metadata fields as extracted by metadata_extractor.py
 METADATA_FIELDS = [
-    'year', 'month', 'location', 'city', 'country', 'caption', 'date_taken', 'date_modified',
+    'year', 'month', 'location', 'city', 'country', 'caption', 'date_taken', 'date_modified', 'date_digitized',
     'camera_make', 'camera_model', 'camera_serial',
     'lens_model', 'lens_make', 'lens_info', 'lens_id', 'lens_serial',
     'aperture', 'focal_length', 'shutter_speed', 'iso',
     'exposure_program', 'white_balance', 'flash_fired',
     'tags', 'keywords', 'subject', 'file_extension', 'image_format', 'color_mode', 'resolution',
-    'width', 'height', 'aspect_ratio', 'filename', 'path', 'file_size_mb'
+    'width', 'height', 'aspect_ratio', 'filename', 'path', 'file_size_mb',
+    'color_temperature', 'contrast', 'saturation', 'sharpness', 'metering_mode', 'scene_type', 'exposure_bias'
 ]
+
+# Aliases for metadata fields (CSV/EXIF/XMP to query fields)
+FIELD_ALIASES = {
+    'aperture_value': 'aperture',
+    'Keywords': 'keywords',
+    'focal_length_35mm': 'focal_length',
+    # Add more as needed
+}
 
 # Simple regex patterns for demo purposes (can be extended)
 YEAR_PATTERN = re.compile(r'(19|20)\d{2}')
@@ -97,36 +106,116 @@ def parse_query(query: str) -> Tuple[Dict[str, Any], str]:
     # Example: extract tags (words after 'tag:' or '#')
     tag_matches = re.findall(r'(?:tag:|#)(\w+)', query_lower)
     if tag_matches:
-        metadata['tags'] = tag_matches
+        metadata['tags'] = [t.lower() for t in tag_matches]
         for tag in tag_matches:
             remaining = re.sub(f'(tag:|#){tag}', '', remaining, flags=re.IGNORECASE)
 
     # Example: extract keywords (words after 'keyword:' or 'kw:')
     keyword_matches = re.findall(r'(?:keyword:|kw:)(\w+)', query_lower)
     if keyword_matches:
-        metadata['keywords'] = keyword_matches
+        metadata['keywords'] = [k.lower() for k in keyword_matches]
         for kw in keyword_matches:
             remaining = re.sub(f'(keyword:|kw:){kw}', '', remaining, flags=re.IGNORECASE)
+
+    # Generic key:value or key=value parsing for all metadata fields and aliases
+    for field in METADATA_FIELDS + list(FIELD_ALIASES.keys()):
+        canonical_field = FIELD_ALIASES.get(field, field)
+        pattern = re.compile(rf'{field}\s*[:=]\s*([\w\-\.]+)', re.IGNORECASE)
+        matches = pattern.findall(query)
+        if matches:
+            matches = [m.lower() for m in matches]
+            if canonical_field in metadata:
+                if isinstance(metadata[canonical_field], list):
+                    metadata[canonical_field].extend(matches)
+                else:
+                    metadata[canonical_field] = [metadata[canonical_field]] + matches
+            else:
+                metadata[canonical_field] = matches if len(matches) > 1 else matches[0]
+            remaining = re.sub(pattern, '', remaining)
+
+    # Normalize all metadata field names and values to lowercase
+    metadata = {k.lower(): (v.lower() if isinstance(v, str) else [i.lower() for i in v] if isinstance(v, list) else v) for k, v in metadata.items()}
+
+    # If 'year' is requested but not present, try to extract from date_taken/date_digitized
+    if 'year' in metadata and not metadata['year']:
+        for date_field in ['date_taken', 'date_digitized']:
+            date_val = metadata.get(date_field)
+            if date_val:
+                year = str(date_val)[:4]
+                if year.isdigit():
+                    metadata['year'] = year
+                    break
 
     # Clean up remaining text
     remaining = ' '.join(remaining.split())
     return metadata, remaining
 
 
-def build_qdrant_filter(metadata: Dict[str, Any]) -> Dict[str, Any]:
+def build_qdrant_filter(metadata: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """
     Build a Qdrant-compatible filter from metadata dict.
+    Uses SHOULD (OR) logic to avoid over-constraining results.
     """
     if not metadata:
-        return {}
-    must = []
+        return None
+    
+    should_conditions = []
+    
     for key, value in metadata.items():
         if isinstance(value, list):
             for v in value:
-                must.append({"key": key, "match": {"value": v}})
+                should_conditions.append({
+                    "key": key, 
+                    "match": {"value": v, "case_insensitive": True}
+                })
         else:
-            must.append({"key": key, "match": {"value": value}})
-    return {"must": must}
+            should_conditions.append({
+                "key": key, 
+                "match": {"value": value, "case_insensitive": True}
+            })
+    
+    # Use SHOULD instead of MUST for softer constraints
+    if should_conditions:
+        return {"should": should_conditions}
+    
+    return None
+
+
+def build_qdrant_filter_object(metadata: Dict[str, Any]):
+    """
+    Build a Qdrant Filter object from metadata dict for use with Query API.
+    """
+    try:
+        from qdrant_client import models
+    except ImportError:
+        return None
+    
+    if not metadata:
+        return None
+    
+    should_conditions = []
+    
+    for key, value in metadata.items():
+        if isinstance(value, list):
+            for v in value:
+                should_conditions.append(
+                    models.FieldCondition(
+                        key=key, 
+                        match=models.MatchValue(value=v)
+                    )
+                )
+        else:
+            should_conditions.append(
+                models.FieldCondition(
+                    key=key, 
+                    match=models.MatchValue(value=value)
+                )
+            )
+    
+    if should_conditions:
+        return models.Filter(should=should_conditions)
+    
+    return None
 
 
 # Example usage (for testing)

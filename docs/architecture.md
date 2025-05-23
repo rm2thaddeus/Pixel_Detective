@@ -67,6 +67,38 @@ This document describes the high-level architecture of the Pixel Detective appli
 4. **DBSCAN clustering overlay:** After UMAP projection, DBSCAN is run on the 2D coordinates. Points are colored by cluster label, with outliers (noise, label -1) shown in gray. A sidebar slider allows interactive tuning of the DBSCAN `eps` (cluster radius) parameter. This enables visual exploration of clusters and outliers in the embedding space.
 5. Extensive UI debugging was required: Plotly/Streamlit can silently fail to render points if marker/color/selection properties are misused. The current approach prioritizes reliability and clarity.
 
+## 3.5. Hybrid Search System
+
+The Pixel Detective search system implements a sophisticated hybrid approach combining vector similarity with metadata filtering:
+
+### A. Query Processing (`utils/query_parser.py`)
+1. **Query Parsing**: Analyzes user input to extract:
+   - Metadata constraints (e.g., `camera:canon`, `iso:100`)
+   - Semantic query text for vector search
+   - Field aliases (e.g., `aperture_value` → `aperture`)
+2. **Normalization**: Converts all fields and values to lowercase for consistent matching
+3. **Filter Building**: Creates Qdrant-compatible filters using SHOULD (OR) logic instead of restrictive MUST (AND) logic
+
+### B. Search Execution (`database/db_manager.py`, `database/qdrant_connector.py`)
+1. **Vector Encoding**: Text queries are encoded using CLIP for semantic similarity
+2. **Hybrid Search**: Uses Qdrant's Query API with RRF (Reciprocal Rank Fusion):
+   - Primary vector search for semantic relevance
+   - Metadata boosting for exact matches
+   - Soft constraint filtering that enhances rather than restricts results
+3. **Result Fusion**: Combines vector similarity scores with metadata match scores
+
+### C. Metadata Field Mapping
+- **Comprehensive Coverage**: Supports 80+ metadata fields from EXIF/XMP extraction
+- **Field Aliases**: Maps extracted field names to user-friendly query terms
+- **Automatic Enrichment**: Extracts year from date fields, normalizes camera makes/models
+- **Case-Insensitive Matching**: All string comparisons use case-insensitive logic
+
+### D. Search Logic Principles
+- **Always Return Results**: Users always see relevant images, even with non-matching filters
+- **Boost, Don't Block**: Metadata filters boost relevance rather than create hard restrictions
+- **Flexible Queries**: Natural language works alongside technical specifications
+- **Progressive Enhancement**: Vector search provides baseline results, metadata refines ranking
+
 ## 4. Batch Processing & Results
 
 - **Batch size** is configurable for both CLIP and BLIP (CLI MVP).
@@ -251,15 +283,40 @@ Identify and manage near-duplicate images using vector similarity.
 
 ---
 
-## 7. Metadata-Based Filtering
+## 7. Metadata-Based Filtering ✅
 
 **Goal:**  
 Enable fine-grained search and filtering using EXIF metadata.
 
 **Tasks:**
-- [ ] Extract and store EXIF metadata alongside embeddings in Qdrant.
-- [ ] Extend Streamlit sidebar with filters (date, lens, location, etc.).
-- [ ] Update query logic to combine vector similarity with metadata constraints.
+- [x] Extract and store EXIF metadata alongside embeddings in Qdrant.
+- [x] Extend query logic to combine vector similarity with metadata constraints.
+- [x] Implement comprehensive hybrid search system with Qdrant Query API.
+
+**Implementation Completed:**
+- **Comprehensive Metadata Extraction**: Extract and index 80+ metadata fields from EXIF/XMP data including:
+  - Camera settings (aperture, ISO, focal length, shutter speed, etc.)
+  - Geographic information (GPS coordinates, location names)
+  - Temporal data (dates taken, modified, digitized with automatic year extraction)
+  - Technical details (color temperature, white balance, flash settings, lens info)
+  - Custom tags, keywords, and subject classifications
+- **Advanced Query Parser** (`utils/query_parser.py`):
+  - Generic key:value parsing (e.g., `camera:canon`, `iso:100`, `aperture:2.8`)
+  - Field aliases mapping (e.g., `aperture_value` → `aperture`, `Keywords` → `keywords`)
+  - Case-insensitive matching for all string comparisons
+  - Automatic normalization of field names and values to lowercase
+- **Hybrid Search Implementation** (`database/db_manager.py`, `database/qdrant_connector.py`):
+  - Qdrant Query API integration with RRF (Reciprocal Rank Fusion)
+  - SHOULD-based filter logic instead of restrictive MUST constraints
+  - Soft constraint filtering that boosts relevance rather than blocking results
+  - Progressive enhancement: vector search provides baseline, metadata refines ranking
+- **Data Migration Tools**:
+  - Created `scripts/upload_to_qdrant.py` for migrating existing embeddings and metadata
+  - Supports batch uploading with data validation and integrity checks
+- **Search Principles**:
+  - Users always see relevant results even when metadata filters don't perfectly match
+  - Natural language queries work alongside technical specifications
+  - Flexible query parsing supports both semantic and metadata-based search
 
 ---
 

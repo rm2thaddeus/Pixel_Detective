@@ -422,6 +422,12 @@ def extract_metadata(image_path):
         # Convert any remaining lists to semicolon-separated strings
         if isinstance(metadata[field], list):
             metadata[field] = "; ".join(str(item) for item in metadata[field])
+    # Normalize relevant string fields to lowercase
+    for field in ['camera_make', 'camera_model', 'lens_make', 'lens_model', 'tags', 'keywords']:
+        if field in metadata and isinstance(metadata[field], str):
+            metadata[field] = metadata[field].lower()
+        elif field in metadata and isinstance(metadata[field], list):
+            metadata[field] = [v.lower() for v in metadata[field]]
     
     return _sanitize_for_json(metadata)
 
