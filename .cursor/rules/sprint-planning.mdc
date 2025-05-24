@@ -1,0 +1,244 @@
+# Sprint Planning & PRD Generation Rule
+
+**Purpose:** Comprehensive sprint planning workflow using Mindmap and Context7 MCPs for Product Requirement Document (PRD) generation and sprint execution.
+
+## Sprint Planning Workflow
+
+### Phase 1: Sprint Discovery & Requirements Gathering
+
+#### 1.1 Initial Planning Session
+- **Objective**: Define sprint goals, gather requirements, and identify key deliverables
+- **MCP Strategy**: Use Context7 to research relevant technologies and patterns
+
+**Workflow Steps:**
+1. **Requirements Analysis**
+   - Use `mcp_context7_resolve-library-id` to identify relevant frameworks/libraries
+   - Use `mcp_context7_get-library-docs` to gather implementation patterns and best practices
+   - Document findings in `/docs/sprints/sprint-{number}/requirements.md`
+
+2. **Technology Research**
+   - Query Context7 for:
+     - Framework documentation (e.g., Streamlit, FastAPI, React)
+     - Database patterns (e.g., Supabase, PostgreSQL)
+     - Testing frameworks and deployment strategies
+   - Create technology assessment in `/docs/sprints/sprint-{number}/tech-stack.md`
+
+#### 1.2 Sprint Scope Definition
+- **Objective**: Define clear boundaries and deliverable specifications
+- **MCP Strategy**: Use GitHub MCP for issue creation and milestone management
+
+**Workflow Steps:**
+1. **Epic & Story Creation**
+   - Use `mcp_github_create_issue` to create sprint epic
+   - Break down into user stories with clear acceptance criteria
+   - Label issues with sprint identifier (e.g., `sprint-01`, `epic`, `story`)
+
+2. **Milestone Setup**
+   - Create GitHub milestone for sprint using GitHub MCP
+   - Set sprint duration and target completion date
+   - Assign initial issues to milestone
+
+### Phase 2: PRD Generation using Mindmap MCP
+
+#### 2.1 Mind Map Creation
+- **Objective**: Visualize sprint requirements, dependencies, and architecture
+- **MCP Strategy**: Use Mindmap MCP to create structured visual representations
+
+**PRD Mind Map Structure:**
+```
+Sprint [Number] - [Name]
+├── 🎯 Objectives
+│   ├── Business Goals
+│   ├── User Outcomes
+│   └── Technical Achievements
+├── 📋 Requirements
+│   ├── Functional Requirements
+│   ├── Non-Functional Requirements
+│   └── Constraints
+├── 🏗️ Architecture
+│   ├── Frontend Components
+│   ├── Backend Services
+│   ├── Database Schema
+│   └── External Integrations
+├── 🧪 Testing Strategy
+│   ├── Unit Tests
+│   ├── Integration Tests
+│   └── E2E Tests
+├── 🚀 Deployment
+│   ├── Environment Setup
+│   ├── CI/CD Pipeline
+│   └── Rollback Strategy
+└── 📊 Success Metrics
+    ├── Performance KPIs
+    ├── User Experience Metrics
+    └── Business Metrics
+```
+
+#### 2.2 PRD Document Generation
+- **Objective**: Convert mind map into comprehensive PRD document
+- **File Location**: `/docs/sprints/sprint-{number}/PRD.md`
+
+**PRD Template Structure:**
+```markdown
+# Sprint {Number} PRD: {Sprint Name}
+
+## Executive Summary
+- Sprint duration: {start-date} to {end-date}
+- Primary objectives: {bullet points from mind map}
+- Success criteria: {metrics from mind map}
+
+## Requirements Matrix
+| Requirement ID | Description | Priority | Acceptance Criteria | Dependencies |
+|----------------|-------------|----------|-------------------||--------------|
+| {Generated from mind map} |
+
+## Technical Architecture
+{Converted from mind map architecture section}
+
+## Implementation Timeline
+{Sprint breakdown with milestones}
+
+## Risk Assessment & Mitigation
+{Potential blockers and solutions}
+```
+
+### Phase 3: Sprint Execution Framework
+
+#### 3.1 Development Workflow
+- **Daily Standup Integration**: Reference PRD sections for status updates
+- **Task Management**: Link all GitHub issues to PRD sections
+- **Progress Tracking**: Update PRD with completion status
+
+#### 3.2 MCP-Driven Development Process
+
+**Code Implementation:**
+1. **Research Phase**:
+   - Use Context7 MCP for API documentation and implementation patterns
+   - Document findings in code comments and `/docs/development-notes.md`
+
+2. **Development Phase**:
+   - Use GitHub MCP for all code commits and branch management
+   - Follow conventional commit messages referencing PRD sections
+   - Example: `feat(auth): implement user login per PRD section 3.2.1`
+
+3. **Testing Phase**:
+   - Use Browser Tools MCP for frontend testing and debugging
+   - Use Docker MCP for containerized testing environments
+   - Use Supabase MCP for database testing and seeding
+
+4. **Review Phase**:
+   - Use GitHub MCP for PR creation and management
+   - Reference PRD requirements in PR descriptions
+   - Link completed PRD sections in PR comments
+
+### Phase 4: Sprint Review & Retrospective
+
+#### 4.1 PRD Completion Assessment
+- **Objective**: Evaluate sprint outcomes against PRD requirements
+- **Process**: 
+  1. Update PRD with final completion status
+  2. Document deviations and reasons
+  3. Assess success metrics achievement
+
+#### 4.2 Knowledge Transfer
+- **Documentation Updates**:
+  - Update main project documentation with sprint learnings
+  - Archive sprint artifacts in `/docs/sprints/sprint-{number}/archive/`
+  - Create lessons learned document for future sprints
+
+## Sprint Planning Commands & Templates
+
+### Quick Start Commands
+
+#### Create New Sprint Structure
+```bash
+# Create sprint directory structure
+mkdir -p docs/sprints/sprint-{number}/{planning,execution,review}
+
+# Initialize PRD template
+touch docs/sprints/sprint-{number}/PRD.md
+touch docs/sprints/sprint-{number}/requirements.md
+touch docs/sprints/sprint-{number}/tech-stack.md
+```
+
+#### Context7 Research Workflow
+```bash
+# Research framework documentation
+mcp_context7_resolve-library-id "streamlit"
+mcp_context7_get-library-docs "/streamlit/docs" --topic "components"
+
+# Research database patterns  
+mcp_context7_resolve-library-id "supabase"
+mcp_context7_get-library-docs "/supabase/docs" --topic "authentication"
+```
+
+#### GitHub Sprint Setup
+```bash
+# Create sprint milestone
+mcp_github_create_milestone "Sprint {number}: {name}" 
+
+# Create epic issue
+mcp_github_create_issue "Epic: {sprint-name}" --labels "epic,sprint-{number}"
+
+# Create user stories
+mcp_github_create_issue "Story: {feature}" --labels "story,sprint-{number}"
+```
+
+### Mind Map Templates
+
+#### Feature Mind Map Template
+```
+Feature: {Name}
+├── 📝 Requirements
+│   ├── User Stories
+│   ├── Acceptance Criteria
+│   └── Edge Cases
+├── 🎨 UI/UX Design
+│   ├── Wireframes
+│   ├── User Flow
+│   └── Design System
+├── ⚙️ Technical Implementation
+│   ├── Frontend Components
+│   ├── Backend APIs
+│   ├── Database Changes
+│   └── Third-party Integrations
+├── 🧪 Testing Approach
+│   ├── Unit Tests
+│   ├── Integration Tests
+│   └── User Acceptance Tests
+└── 🚀 Deployment Strategy
+    ├── Environment Setup
+    ├── Migration Scripts
+    └── Rollback Plan
+```
+
+## Integration with Existing MCP Rules
+
+### Cross-Reference with Current Rules
+- **GitHub MCP**: All sprint work must follow commit and PR standards from `use-mcp-servers.mdc`
+- **Debugging**: Use `debugging.mdc` rules for sprint issue resolution
+- **Feature Implementation**: Follow `feature-request.mdc` for feature development within sprint context
+- **Documentation**: Sprint documentation must follow project documentation standards
+
+### Enhanced MCP Server Utilization
+
+**Mindmap MCP Integration:**
+- Create visual representations of complex features before implementation
+- Use for architectural decision documentation
+- Generate sprint review presentations from mind maps
+
+**Context7 MCP Integration:**
+- Always research best practices before implementing new features
+- Document library usage patterns in PRD
+- Create implementation guides based on Context7 research
+
+---
+
+**Sprint Success Metrics:**
+- PRD completion percentage
+- User story delivery rate
+- Code quality metrics (via Browser Tools MCP audits)
+- Documentation completeness
+- Technical debt reduction
+
+*This rule establishes a comprehensive, MCP-driven sprint planning and execution framework that maximizes the value of Mindmap and Context7 MCPs for structured, research-driven development cycles.*
