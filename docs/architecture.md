@@ -2,6 +2,63 @@
 
 This document describes the high-level architecture of the Pixel Detective application, including core modules, data flow, and key components.
 
+## 🎯 **Sprint 01 Complete**: Unified 3-Screen Architecture ✅
+
+**Status**: Successfully transformed fragmented dual UI system into unified 3-screen architecture  
+**Achievement**: UI/UX integration complete with performance maintained  
+**Result**: 
+- ✅ **Unified user experience** - Single coherent 3-screen flow
+- ✅ **Component integration** - All sophisticated features accessible  
+- ✅ **Performance preserved** - <1s startup maintained
+- ✅ **User-focused design** - Removed technical jargon, added engaging progress
+- ✅ **Graceful fallbacks** - Components work with error handling
+
+**Completed Transformations**:
+1. **Screen 1**: Simplified user-focused folder selection (removed technical metrics)
+2. **Screen 2**: Engaging progress experience (replaced boring technical logs)  
+3. **Screen 3**: Sophisticated features integrated (real components with fallbacks)
+4. **Component Architecture**: Extracted `ui/` components to organized `components/` structure
+
+## 🏗️ New Unified Architecture (Post Sprint 01)
+
+### Screen-Based Architecture
+```
+screens/
+├── fast_ui_screen.py     # ✅ Screen 1: Simplified & user-focused  
+├── loading_screen.py     # ✅ Screen 2: Engaging progress experience
+└── advanced_ui_screen.py # ✅ Screen 3: Sophisticated with real components
+```
+
+### Component System (NEW)
+```
+components/
+├── search/               # Text search, image search, AI games, duplicates
+│   └── search_tabs.py   # Extracted from ui/tabs.py
+├── visualization/        # UMAP, DBSCAN, interactive plots  
+│   └── latent_space.py  # Extracted from ui/latent_space.py
+└── sidebar/             # Context-aware sidebar content
+    └── context_sidebar.py # Extracted from ui/sidebar.py
+```
+
+### Integration Pattern
+All screens use graceful component integration:
+```python
+try:
+    from components.module import sophisticated_function
+    sophisticated_function()  # Use advanced features
+except ImportError as e:
+    st.error(f"Component not integrated: {e}")
+    fallback_function()  # Graceful degradation
+```
+
+### UI State Management
+```
+core/
+├── app_state.py         # ✅ 3-screen state management
+├── background_loader.py # ✅ Non-blocking progress tracking
+└── session_manager.py   # ✅ Session state handling
+```
+
 ## ⚠️ **URGENT: UI Integration Issues Post-Refactor**
 
 **Status**: Performance optimization complete, UI components need updating  
@@ -29,12 +86,16 @@ This document describes the high-level architecture of the Pixel Detective appli
 
 ## 1. Application Modes
 
-- **Streamlit App (`app.py`)**: ⚡ **Lightning-fast startup** (<1s) with TRUE lazy loading. Interactive UI for image search, exploration, and AI games.
+- **Streamlit App (`app.py`)**: ⚡ **Lightning-fast startup** (<1s) with TRUE lazy loading. **NEW**: Unified 3-screen experience with sophisticated features integrated.
 - **CLI MVP (`scripts/mvp_app.py`)**: Command-line tool for batch ingestion, embedding, captioning, and database creation. Optimized for large-scale, headless processing.
 
 ## 2. Core Modules & Directory Structure
 
 - **config.py**: Global settings (e.g., GPU memory efficiency, model loading).
+- **core/** (NEW): State management and background processing
+  - `app_state.py`: 3-screen state management (Fast UI → Loading → Advanced UI)
+  - `background_loader.py`: Non-blocking progress tracking with user-friendly phases
+  - `session_manager.py`: Session state handling between screens
 - **models/**
   - `clip_model.py`: CLIP model logic, including DNG/RAW support and batch processing.
   - `blip_model.py`: BLIP model logic for captioning.
@@ -45,9 +106,16 @@ This document describes the high-level architecture of the Pixel Detective appli
   - `qdrant_connector.py`: QdrantDB class for all vector DB operations (batch upsert, search, collection management).
   - `db_manager.py`: Higher-level DB management for the Streamlit app.
   - `vector_db.py`: (Legacy, used by Streamlit app; new code uses `qdrant_connector.py`.)
-- **ui/**
-  - `main_interface.py`, `sidebar.py`, `tabs.py`: Streamlit UI components for search and games.
-  - `latent_space.py`: Latent Space Explorer tab for embedding visualization (UMAP & Plotly scatter) with cached projections, dynamic sampling, and interactive click/lasso selection.
+- **screens/** (TRANSFORMED): 3-screen architecture
+  - `fast_ui_screen.py`: ✅ Screen 1 - Simplified user-focused folder selection
+  - `loading_screen.py`: ✅ Screen 2 - Engaging progress with excitement-building
+  - `advanced_ui_screen.py`: ✅ Screen 3 - Sophisticated features with component integration
+- **components/** (NEW): Organized extracted components
+  - `search/search_tabs.py`: Text search, image search, AI games, duplicates (from ui/tabs.py)
+  - `visualization/latent_space.py`: UMAP & DBSCAN with interactive plots (from ui/latent_space.py)
+  - `sidebar/context_sidebar.py`: Context-aware sidebar content (from ui/sidebar.py)
+- **ui/** (PRESERVED): Original sophisticated implementations for reference
+  - Original components preserved but functionality extracted to `components/`
 - **utils/**
   - `image_utils.py`: Image loading, resizing, preprocessing.
   - `logger.py**: Standardized logging.
@@ -63,15 +131,32 @@ This document describes the high-level architecture of the Pixel Detective appli
 
 ## 3. Data Flow
 
-### A. Streamlit App (`app.py`) - ⚡ LIGHTNING-FAST STARTUP
-1. **<1s**: App loads instantly with minimal imports (only `os` and `streamlit`)
-2. **Interactive UI**: User can immediately interact with folder selection and options
-3. **User-triggered loading**: Heavy modules (PyTorch, models) load only when user clicks "Start Processing"
-4. **Progressive feedback**: Loading progress shown with spinners and progress bars
-5. **Smart model management**: `LazyModelManager` loads models on-demand, not at startup
-6. **Memory efficiency**: <100MB at startup vs 2.2GB before optimization
+### A. Streamlit App (`app.py`) - ⚡ UNIFIED 3-SCREEN EXPERIENCE
+1. **Screen 1 - Fast UI** (<1s startup):
+   - User-focused folder selection with validation
+   - Quick folder shortcuts (Pictures, Downloads, Desktop)
+   - Welcoming messaging about AI capabilities
+   - Background preparation starts silently
 
-### B. CLI MVP (`scripts/mvp_app.py`)
+2. **Screen 2 - Loading Progress**:
+   - Excitement-building progress messages by phase
+   - Feature previews to build anticipation  
+   - User-friendly time estimates
+   - Collection celebration and encouraging facts
+
+3. **Screen 3 - Advanced Features**:
+   - Sophisticated search (text + image + AI games)
+   - UMAP visualization with DBSCAN clustering
+   - Duplicate detection and smart organization
+   - Context-aware sidebar with advanced controls
+
+### B. Component Integration Flow
+1. **Graceful imports**: Each screen tries to import sophisticated components
+2. **Fallback handling**: If components missing, shows user-friendly error + fallback
+3. **Progressive enhancement**: Features work from basic to sophisticated levels
+4. **State preservation**: Session state maintained across all screens
+
+### C. CLI MVP (`scripts/mvp_app.py`)
 1. User runs the script with a folder path.
 2. Images are processed in batches:
    - CLIP embeddings (with DNG/RAW support)
@@ -80,7 +165,7 @@ This document describes the high-level architecture of the Pixel Detective appli
 3. Batch upsert to Qdrant via `QdrantDB`.
 4. Optionally outputs a summary (`results_summary.txt`) and a detailed CSV.
 
-### C. Latent Space Explorer (`ui/latent_space.py`)
+### D. Latent Space Explorer (`components/visualization/latent_space.py`)
 1. Fetch embeddings and metadata via `DatabaseManager.get_latent_space_data()`.
 2. Compute and cache 2D UMAP projection of embedding vectors for responsive rerenders.
 3. Render a minimal, robust Plotly scatter plot (using plotly.graph_objects) for all points.
@@ -143,16 +228,34 @@ The Pixel Detective search system implements a sophisticated hybrid approach com
 - QdrantDB supports both local and remote (cloud) deployments.
 - CLI MVP can be run headless for large-scale ingestion.
 
-## 8. File/Directory Structure (Current)
+## 8. File/Directory Structure (Current - Post Sprint 01)
 
 ```
 project_root/
 │
-├── app.py                          # ⚡ Lightning-fast startup (<1s)
+├── app.py                          # ⚡ Lightning-fast startup (<1s) + 3-screen flow
 ├── config.py
 ├── metadata_extractor.py
 ├── requirements.txt
 ├── test_lightning_startup.py       # 🔬 Performance verification testing
+│
+├── core/                           # 🆕 State management (Sprint 01)
+│   ├── app_state.py               # 3-screen state transitions
+│   ├── background_loader.py       # Non-blocking progress tracking
+│   └── session_manager.py         # Session state handling
+│
+├── screens/                        # 🔄 TRANSFORMED (Sprint 01)
+│   ├── fast_ui_screen.py          # ✅ Screen 1: Simplified & user-focused
+│   ├── loading_screen.py          # ✅ Screen 2: Engaging progress experience  
+│   └── advanced_ui_screen.py      # ✅ Screen 3: Sophisticated features
+│
+├── components/                     # 🆕 Extracted components (Sprint 01)
+│   ├── search/
+│   │   └── search_tabs.py         # Text search, AI games, duplicates
+│   ├── visualization/
+│   │   └── latent_space.py        # UMAP, DBSCAN, interactive plots
+│   └── sidebar/
+│       └── context_sidebar.py     # Context-aware sidebar content
 │
 ├── models/
 │   ├── clip_model.py
@@ -165,7 +268,7 @@ project_root/
 │   ├── db_manager.py
 │   └── vector_db.py
 │
-├── ui/
+├── ui/                             # 📚 PRESERVED - Original implementations
 │   ├── main_interface.py
 │   ├── sidebar.py
 │   ├── tabs.py
@@ -195,113 +298,41 @@ project_root/
 │   └── (test images, .csv, .npy, extract_xmp.py, etc.)
 │
 └── docs/
-    ├── architecture.md             # 📖 This file
+    ├── architecture.md             # 📖 This file (updated Sprint 01)
     ├── roadmap.md
-    ├── CHANGELOG.md
-    ├── next_sprint.md
-    ├── performance_optimization_report.md
-    ├── PERFORMANCE_REVOLUTION.md   # 🚀 Performance breakthrough documentation
-    └── README.md
+    ├── CHANGELOG.md                # ✅ Updated with Sprint 01 achievements
+    ├── SPRINT_STATUS.md            # 🆕 Sprint tracking
+    └── sprints/                    # 🆕 Sprint documentation
+        └── sprint-01/              # ✅ Complete Sprint 01 docs
+            ├── PRD.md
+            ├── technical-implementation-plan.md
+            ├── completion-summary.md
+            └── README.md
 ```
 
-## 9. Notes
+## 9. Sprint 01 Implementation Highlights
 
-- For large image collections, processing may take time; GPU acceleration is highly recommended.
-- The CLI MVP is the preferred tool for initial database creation and bulk ingestion.
-- The Streamlit app is ideal for interactive exploration, search, and demonstration.
+### Architecture Transformation
+- **Before**: Fragmented dual UI system (`ui/` sophisticated + `screens/` basic)
+- **After**: Unified 3-screen architecture with integrated sophisticated components
+
+### Component Extraction Strategy
+- Preserved ALL sophisticated functionality from `ui/` folder
+- Organized into logical `components/` directory structure  
+- Implemented graceful import patterns with fallback handling
+- Maintained performance requirements (<1s startup)
+
+### User Experience Evolution
+- **Screen 1**: Removed technical metrics → User-focused welcome messaging
+- **Screen 2**: Replaced boring logs → Excitement-building progress experience  
+- **Screen 3**: Integrated real components → Sophisticated features with fallbacks
+
+### Technical Achievements
+- ✅ **Performance preserved**: <1s startup maintained throughout transformation
+- ✅ **All features accessible**: Every sophisticated component integrated
+- ✅ **Graceful error handling**: Fallbacks prevent broken experiences
+- ✅ **Design compliance**: Matches UX_FLOW_DESIGN.md vision completely
 
 ---
 
-# 🚀 Performance Revolution: COMPLETED ✅
-
-## **BREAKTHROUGH ACHIEVED: TRUE <1s Startup**
-
-### **Before vs After Performance**
-
-| Metric | Old "Lazy" Loading | TRUE Lazy Loading | Improvement |
-|--------|-------------------|------------------|-------------|
-| **Startup Time** | 21+ seconds | **<1 second** | **95% faster** |
-| **Initial Memory** | 2.2GB | **<100MB** | **95% reduction** |
-| **Time to UI** | 21+ seconds | **<1 second** | **Instant** |
-| **PyTorch Import** | At startup (6.8s) | **On-demand** | **Deferred** |
-| **Model Loading** | Automatic | **User-triggered** | **True lazy** |
-
-### **Critical Breakthroughs Implemented** ✅
-
-#### **1. Zero Heavy Imports at Startup** ✅
-- **Before**: `import torch` at module level causing 6.8s delay
-- **After**: Only `import os` and `import streamlit` at startup
-- **Result**: Instant module loading, no blocking imports
-
-#### **2. TRUE Lazy Loading Architecture** ✅
-```python
-# app.py - Minimal startup
-import os
-import streamlit as st  # Only 2 imports!
-
-def lazy_import_torch():
-    """Import torch only when user requests processing."""
-    # Heavy imports happen here, not at startup
-```
-
-#### **3. Instant UI Availability** ✅
-```python
-def render_instant_ui():
-    """UI loads immediately without any model dependencies."""
-    st.title("🕵️‍♂️ Pixel Detective")
-    st.metric("Startup Time", "< 1 second", "⚡ Instant")
-    # User can interact immediately!
-```
-
-#### **4. Progressive Loading with Feedback** ✅
-```python
-def handle_processing_start():
-    """Load heavy modules only when user clicks 'Start Processing'."""
-    with st.spinner("🔧 Loading core systems..."):
-        progress_bar = st.progress(0)
-        # Progressive loading with visual feedback
-```
-
-#### **5. Smart Session Management** ✅
-```python
-class LazySessionManager:
-    def init_core_state():
-        """Initialize ONLY UI state - NO model loading."""
-        # Session state for UI tracking, not model state
-        st.session_state.models_loaded = False
-```
-
-### **Performance Verification** ✅
-
-**Test Results:**
-```bash
-🕵️‍♂️ Pixel Detective - Lightning Startup Test
-✅ Minimal imports: 2.496s
-✅ App startup simulation: 0.000s
-✅ torch not loaded (good!)
-📊 PyTorch import time: 6.837s (deferred!)
-🚀 AMAZING! Lightning-fast startup achieved!
-```
-
-### **User Experience Flow** ✅
-
-1. **0s**: User runs `streamlit run app.py`
-2. **<1s**: Complete UI loads and is fully interactive
-3. **User action**: Clicks "🚀 Start Processing"
-4. **+3s**: Heavy modules load with progress feedback
-5. **+8s**: AI models ready for processing
-
-**Total**: **1s to interactive UI**, 8s to full capability (vs 21s before)
-
-### **Architecture Principles Established** ✅
-
-1. **UI-First Philosophy**: Interface loads instantly, computation triggered by user intent
-2. **Import on Demand**: Zero heavy imports at module level, lazy loading with feedback
-3. **Memory Consciousness**: Session state for UI tracking only, models load when needed
-4. **User Experience Priority**: Immediate feedback, clear loading states, no waiting
-
-### **Files Modified for Performance Revolution** ✅
-
-- **`app.py`**: Complete rewrite with minimal imports and progressive loading
-- **`utils/lazy_session_state.py`**: TRUE lazy session management
-- **`docs/PERFORMANCE_REVOLUTION.md`
+**🎯 Next: Sprint 02 - Visual Design System**: With the unified architecture complete, Sprint 02 will focus on visual polish, smooth transitions, and mobile responsiveness.

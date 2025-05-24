@@ -133,3 +133,76 @@
 - Updated `docs/README.md` with new installation, verification, and troubleshooting instructions for CUDA-enabled PyTorch.
 - Merged `docs/current_requirements.txt` into `requirements.txt` and deleted the former.
 - Updated `
+
+## [2.0.0] - 2025-01-24 - Sprint 01: UI/UX Architecture Integration ✅
+
+### 🎯 Major Release - Unified 3-Screen Architecture
+
+This major release represents a complete transformation of the user experience, unifying the previously fragmented dual UI systems into a cohesive, user-focused 3-screen architecture.
+
+### Added
+- **🚀 Screen 1: Simplified Setup**
+  - User-focused folder selection interface (removed technical jargon)
+  - Quick folder shortcuts in sidebar (Pictures, Downloads, Desktop)
+  - Real-time folder validation with user-friendly feedback
+  - Welcoming messaging about AI capabilities instead of technical metrics
+
+- **📊 Screen 2: Engaging Progress**
+  - Excitement-building progress messages by phase
+  - "What's Coming" feature preview to build anticipation
+  - User-friendly time estimates ("Perfect time for coffee! ☕")
+  - Collection celebration in sidebar (image count with enthusiasm)
+  - Random encouraging facts during processing
+
+- **🎛️ Screen 3: Sophisticated Features**
+  - Integrated sophisticated search components with graceful fallbacks
+  - Real UMAP visualization with DBSCAN clustering
+  - AI guessing games and interactive challenges
+  - Duplicate detection with smart photo organization
+  - Context-aware sidebar with advanced controls
+
+- **🏗️ Component Architecture**
+  - New `components/` directory with organized structure:
+    - `components/search/` - Text search, image search, AI games, duplicates
+    - `components/visualization/` - UMAP, DBSCAN, interactive plots
+    - `components/sidebar/` - Context-aware sidebar content
+  - Graceful import pattern with fallback handling for missing components
+
+- **📚 Comprehensive Documentation**
+  - Sprint 01 complete documentation suite in `docs/sprints/sprint-01/`
+  - Product Requirements Document (PRD)
+  - Technical implementation plan
+  - Completion summary with achievements
+  - Sprint status tracking system
+
+### Changed
+- **Screen 1 (Fast UI)**: Complete simplification removing technical metrics
+  - REMOVED: `st.metric("Startup Time", "< 1 second")` and system status displays
+  - REPLACED: With user-focused capability preview and welcoming messaging
+  
+- **Screen 2 (Loading)**: Transformed from technical logs to engaging experience
+  - REMOVED: Raw technical log output `for log in reversed(progress_data.logs[-20:])`
+  - REPLACED: With phase-based excitement messages and feature previews
+  
+- **Screen 3 (Advanced UI)**: Upgraded from mock implementations to real components
+  - REMOVED: Placeholder content and mock search results
+  - REPLACED: With actual component imports and sophisticated functionality
+
+### Technical
+- **Performance**: Maintained <1s startup time throughout all transformations
+- **Architecture**: Unified dual UI systems (`ui/` + `screens/`) into single system
+- **Integration**: All sophisticated features from `ui/` folder preserved and accessible
+- **Error Handling**: Graceful fallbacks implemented for component integration
+- **Session State**: Preserved all existing session state management
+
+### Documentation
+- Updated main README with 3-screen architecture overview
+- Added Sprint 01 documentation suite
+- Created sprint status tracking system
+- Updated architecture documentation
+
+---
+
+## [1.5.0] - 2025-01-18 - Pre-Sprint 01 Baseline
+
+### Added

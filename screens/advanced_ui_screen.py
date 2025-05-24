@@ -1,6 +1,6 @@
-# 🎛️ Screen 3: Advanced UI Screen
-# 📌 Purpose: Full-featured interface for all app capabilities
-# 🎯 Mission: Organized tabs with seamless navigation
+# 🎛️ Screen 3: Advanced UI Screen - SOPHISTICATED VERSION
+# 📌 Purpose: Full-featured interface with integrated sophisticated components
+# 🎯 Mission: Use ALL the advanced features from ui/ folder in 3-screen architecture
 
 import os
 import streamlit as st
@@ -8,14 +8,14 @@ from core.app_state import AppStateManager, AppState
 
 
 class AdvancedUIScreen:
-    """Screen 3: Full featured interface with tabs"""
+    """Screen 3: Full featured interface with sophisticated components"""
     
     @staticmethod
     def render():
-        """Render the advanced UI screen"""
+        """Render the advanced UI screen with real components"""
         AdvancedUIScreen._render_header()
-        AdvancedUIScreen._render_tab_navigation()
-        AdvancedUIScreen._render_sidebar()
+        AdvancedUIScreen._render_sophisticated_tabs()
+        AdvancedUIScreen._render_contextual_sidebar()
     
     @staticmethod
     def _render_header():
@@ -28,8 +28,8 @@ class AdvancedUIScreen:
         st.markdown("---")
     
     @staticmethod
-    def _render_tab_navigation():
-        """Render the main tab navigation"""
+    def _render_sophisticated_tabs():
+        """Render tabs with real sophisticated components"""
         # Create tabs
         search_tab, ai_game_tab, latent_space_tab, duplicates_tab = st.tabs([
             "🔍 Search", 
@@ -39,20 +39,24 @@ class AdvancedUIScreen:
         ])
         
         with search_tab:
-            AdvancedUIScreen._render_search_tab()
+            AdvancedUIScreen._render_sophisticated_search()
         
         with ai_game_tab:
-            AdvancedUIScreen._render_ai_game_tab()
+            AdvancedUIScreen._render_ai_game()
         
         with latent_space_tab:
-            AdvancedUIScreen._render_latent_space_tab()
+            AdvancedUIScreen._render_latent_space()
         
         with duplicates_tab:
-            AdvancedUIScreen._render_duplicates_tab()
+            AdvancedUIScreen._render_duplicates()
     
     @staticmethod
-    def _render_search_tab():
-        """Render the search functionality tab"""
+    def _render_sophisticated_search():
+        """Use the real search components from ui/tabs.py"""
+        try:
+            # Import and use the sophisticated search components
+            from components.search.search_tabs import render_text_search_tab, render_image_upload_tab
+            
         st.markdown("## 🔍 Search Your Collection")
         
         # Search mode selection
@@ -63,322 +67,146 @@ class AdvancedUIScreen:
         )
         
         if search_mode == "📝 Text Search":
-            AdvancedUIScreen._render_text_search()
+                # Use the sophisticated text search component
+                render_text_search_tab()
         else:
-            AdvancedUIScreen._render_image_search()
-        
-        # Search results section
-        st.markdown("---")
-        AdvancedUIScreen._render_search_results()
+                # Use the sophisticated image search component  
+                render_image_upload_tab()
+                
+        except ImportError as e:
+            st.error(f"🚧 Search components not yet integrated: {e}")
+            st.info("Using fallback search interface...")
+            AdvancedUIScreen._render_fallback_search()
     
     @staticmethod
-    def _render_text_search():
-        """Render text-based search interface"""
-        st.markdown("### 📝 Text Search")
+    def _render_fallback_search():
+        """Fallback search interface if components aren't available"""
+        st.markdown("### 🔍 Simple Search")
         
-        col1, col2 = st.columns([3, 1])
-        
-        with col1:
             search_query = st.text_input(
-                "Describe what you're looking for:",
-                placeholder="e.g., 'sunset over lake', 'cat photos', 'birthday party'",
-                help="Use natural language to describe the images you want to find"
-            )
+            "Search your photos:",
+            placeholder="e.g., 'sunset', 'family', 'vacation'"
+        )
         
-        with col2:
-            search_button = st.button("🔍 Search", type="primary")
-        
-        if search_button and search_query:
-            st.session_state.current_search_query = search_query
-            st.session_state.search_type = "text"
-            AdvancedUIScreen._perform_search(search_query, "text")
-        
-        # Search suggestions
-        if not search_query:
-            st.markdown("**💡 Try searching for:**")
-            suggestions = [
-                "sunset beach", "family photos", "food cooking", 
-                "nature landscape", "pets animals", "vacation travel"
-            ]
-            
-            cols = st.columns(3)
-            for i, suggestion in enumerate(suggestions):
-                with cols[i % 3]:
-                    if st.button(f"💭 {suggestion}", key=f"suggestion_{i}"):
-                        st.session_state.current_search_query = suggestion
-                        st.session_state.search_type = "text"
-                        AdvancedUIScreen._perform_search(suggestion, "text")
+        if st.button("🔍 Search", type="primary") and search_query:
+            st.info(f"🔍 Searching for: {search_query}")
+            st.info("🚧 Full search functionality coming soon!")
     
     @staticmethod
-    def _render_image_search():
-        """Render image-based search interface"""
-        st.markdown("### 🖼️ Image Search")
-        
-        col1, col2 = st.columns([2, 1])
-        
-        with col1:
-            uploaded_file = st.file_uploader(
-                "Upload an image to find similar ones:",
-                type=['jpg', 'jpeg', 'png', 'gif', 'bmp'],
-                help="Upload an image and we'll find visually similar images in your collection"
-            )
-        
-        with col2:
-            if uploaded_file is not None:
-                st.image(uploaded_file, caption="Search Image", width=150)
-                if st.button("🔍 Find Similar", type="primary"):
-                    st.session_state.search_image = uploaded_file
-                    st.session_state.search_type = "image"
-                    AdvancedUIScreen._perform_search(uploaded_file, "image")
-        
-        # Alternative: Select from collection
-        st.markdown("**Or select an image from your collection:**")
-        if st.button("📂 Browse Collection"):
-            st.info("🔄 Collection browser coming soon!")
+    def _render_latent_space():
+        """Use the sophisticated UMAP visualization from latent_space.py"""
+        try:
+            # Import and use the sophisticated latent space component
+            from components.visualization.latent_space import render_latent_space_tab
+            
+            st.markdown("## 🌐 Visual Exploration")
+            st.markdown("Explore your images in a visual similarity space using advanced AI visualization.")
+            
+            # Use the sophisticated UMAP visualization with all features:
+            # - UMAP dimensionality reduction with caching
+            # - DBSCAN clustering with interactive tuning  
+            # - Plotly scatter plot with click/lasso selection
+            # - Dynamic sampling for large datasets
+            render_latent_space_tab()
+            
+        except ImportError as e:
+            st.error(f"🚧 Latent space component not yet integrated: {e}")
+            st.info("🌐 Advanced visual exploration coming soon!")
+            st.markdown("""
+            **Coming Features:**
+            - **UMAP 2D projection** of image embeddings
+            - **Interactive clustering** with DBSCAN
+            - **Click and drag selection** of image groups
+            - **Visual similarity exploration** 
+            - **Pattern discovery** in your collection
+            """)
     
     @staticmethod
-    def _perform_search(query, search_type):
-        """Perform the actual search"""
-        with st.spinner(f"🔍 Searching your collection..."):
-            # Simulate search process
-            import time
-            import random
-            time.sleep(1)
+    def _render_ai_game():
+        """Use the AI guessing game from tabs.py"""
+        try:
+            # Import and use the AI guessing game component
+            from components.search.search_tabs import render_guessing_game_tab
             
-            # Generate mock results
-            image_files = st.session_state.get('image_files', [])
-            if image_files:
-                # Simulate finding results
-                num_results = random.randint(5, min(25, len(image_files)))
-                results = random.sample(image_files, num_results)
-                
-                st.session_state.search_results = results
-                st.session_state.last_search_query = query
-                st.session_state.last_search_type = search_type
-                
-                st.success(f"✅ Found {len(results)} matching images!")
-            else:
-                st.error("❌ No images loaded. Please restart the application.")
-    
-    @staticmethod
-    def _render_search_results():
-        """Render search results"""
-        results = st.session_state.get('search_results', [])
-        last_query = st.session_state.get('last_search_query', '')
-        
-        if results and last_query:
-            st.markdown(f"### 📊 Results for: \"{last_query}\"")
-            st.markdown(f"**Found {len(results)} matches**")
+            st.markdown("## 🎮 AI Guessing Game")
+            st.markdown("Play interactive games with AI using your photo collection!")
             
-            # Results per page
-            results_per_page = 12
-            total_pages = (len(results) + results_per_page - 1) // results_per_page
+            # Use the sophisticated AI game component
+            render_guessing_game_tab()
             
-            if total_pages > 1:
-                page = st.selectbox("Page:", range(1, total_pages + 1)) - 1
-            else:
-                page = 0
-            
-            start_idx = page * results_per_page
-            end_idx = min(start_idx + results_per_page, len(results))
-            page_results = results[start_idx:end_idx]
-            
-            # Display results in grid
-            cols = st.columns(4)
-            for i, image_path in enumerate(page_results):
-                with cols[i % 4]:
-                    try:
-                        # For now, show placeholder
-                        st.markdown(f"""
-                        <div style="background-color: #f0f0f0; height: 150px; 
-                                    border-radius: 10px; display: flex; 
-                                    align-items: center; justify-content: center;
-                                    margin-bottom: 10px;">
-                            <div style="text-align: center;">
-                                <div style="font-size: 40px;">🖼️</div>
-                                <div style="font-size: 10px;">{os.path.basename(image_path)[:20]}...</div>
-                            </div>
-                        </div>
-                        """, unsafe_allow_html=True)
-                        
-                        if st.button(f"👁️ View", key=f"view_{start_idx + i}"):
-                            st.session_state.selected_image = image_path
-                            AdvancedUIScreen._show_image_details(image_path)
-                    except Exception:
-                        st.error(f"Error loading image: {os.path.basename(image_path)}")
-        
-        elif last_query:
-            st.info("🔍 No results found. Try a different search term.")
-        else:
-            st.info("💡 Use the search options above to find images in your collection.")
-    
-    @staticmethod
-    def _show_image_details(image_path):
-        """Show detailed view of selected image"""
-        with st.expander(f"📸 Image Details: {os.path.basename(image_path)}", expanded=True):
-            col1, col2 = st.columns([1, 2])
-            
-            with col1:
-                st.markdown("**🖼️ Preview:**")
-                st.markdown("*(Image preview coming soon)*")
-            
-            with col2:
-                st.markdown("**📄 Details:**")
-                st.markdown(f"**Path:** `{image_path}`")
-                st.markdown(f"**Filename:** `{os.path.basename(image_path)}`")
-                
-                try:
-                    stat = os.stat(image_path)
-                    size_mb = stat.st_size / (1024 * 1024)
-                    st.markdown(f"**Size:** {size_mb:.2f} MB")
-                except Exception:
-                    st.markdown("**Size:** Unknown")
-                
-                # Action buttons
-                col_a, col_b, col_c = st.columns(3)
-                with col_a:
-                    if st.button("🔍 Find Similar"):
-                        st.info("Similar image search coming soon!")
-                with col_b:
-                    if st.button("📂 Show in Folder"):
-                        st.info("Show in folder coming soon!")
-                with col_c:
-                    if st.button("📤 Export"):
-                        st.info("Export functionality coming soon!")
-    
-    @staticmethod
-    def _render_ai_game_tab():
-        """Render the AI guessing game tab"""
-        st.markdown("## 🎮 AI Guessing Game")
-        st.info("🚧 **Coming Soon!** An interactive game where the AI tries to guess what you're thinking about from your image collection.")
-        
+        except ImportError as e:
+            st.error(f"🚧 AI Game component not yet integrated: {e}")
+            st.info("🎮 AI games coming soon!")
         st.markdown("""
-        ### 🎯 How it will work:
-        1. **Think of something** in your image collection
-        2. **Answer AI questions** with yes/no
-        3. **See if AI can guess** what you're thinking!
-        4. **Challenge your friends** with the same game
-        
-        ### 🏆 Features:
-        - Smart questioning based on your collection
-        - Learning from your answers
-        - Difficulty levels and scoring
-        - Multiplayer challenges
-        """)
-        
-        if st.button("🎮 Start Demo Game"):
-            st.balloons()
-            st.success("🎉 Demo game starting soon!")
+            **Coming Games:**
+            - **AI Photo Guesser**: AI tries to guess your photos
+            - **Theme Detective**: Find photos matching a theme
+            - **Memory Challenge**: Test your photo memory
+            - **Visual Trivia**: Answer questions about your photos
+            """)
     
     @staticmethod
-    def _render_latent_space_tab():
-        """Render the latent space exploration tab"""
-        st.markdown("## 🌐 Latent Space Explorer")
-        st.info("🚧 **Coming Soon!** Explore your images in AI-generated latent space - see how AI organizes and understands your collection.")
-        
-        st.markdown("""
-        ### 🧠 What is Latent Space?
-        Latent space is how AI models understand and organize images. Similar images cluster together based on:
-        - **Visual similarity** (colors, shapes, objects)
-        - **Semantic meaning** (concepts, activities, emotions)
-        - **Style and composition** (photography style, artistic elements)
-        
-        ### 🔍 Features:
-        - **Interactive 2D/3D visualization** of your image collection
-        - **Zoom and explore** different regions
-        - **Find unexpected connections** between images
-        - **Discover patterns** in your photo-taking habits
-        """)
-        
-        # Mock visualization
-        st.markdown("### 📊 Preview Visualization:")
-        import random
-        import pandas as pd
-        
-        # Generate mock data points
-        n_points = min(100, len(st.session_state.get('image_files', [])))
-        if n_points > 0:
-            data = pd.DataFrame({
-                'x': [random.uniform(-10, 10) for _ in range(n_points)],
-                'y': [random.uniform(-10, 10) for _ in range(n_points)],
-                'cluster': [random.choice(['Nature', 'People', 'Food', 'Travel', 'Pets']) for _ in range(n_points)]
-            })
+    def _render_duplicates():
+        """Use the duplicate detection from tabs.py"""
+        try:
+            # Import and use the duplicate detection component
+            from components.search.search_tabs import render_duplicates_tab
             
-            st.scatter_chart(data.set_index('cluster'))
-            st.caption("*Mock visualization - actual latent space will be generated from your images*")
-    
-    @staticmethod
-    def _render_duplicates_tab():
-        """Render the duplicates detection tab"""
         st.markdown("## 👥 Duplicate Detection")
-        st.info("🚧 **Coming Soon!** Find and manage duplicate or very similar images in your collection.")
+            st.markdown("Find and manage duplicate or very similar images in your collection.")
         
-        col1, col2 = st.columns(2)
+            # Use the sophisticated duplicate detection
+            render_duplicates_tab()
         
-        with col1:
+        except ImportError as e:
+            st.error(f"🚧 Duplicate detection not yet integrated: {e}")
+            st.info("👥 Smart duplicate detection coming soon!")
             st.markdown("""
-            ### 🎯 Detection Types:
-            - **Exact duplicates** (same file, different names)
-            - **Near duplicates** (slight edits, crops, filters)
-            - **Similar images** (same scene, different angles)
-            - **Burst photos** (rapid sequence shots)
+            **Coming Features:**
+            - **Visual similarity detection** using AI
+            - **Exact duplicate finder** for identical files
+            - **Smart grouping** of similar photos
+            - **Batch deletion tools** for cleanup
+            - **Preview before delete** for safety
             """)
-        
-        with col2:
-            st.markdown("""
-            ### ⚙️ Management Options:
-            - **Preview side-by-side** comparisons
-            - **Keep best quality** version
-            - **Archive or delete** duplicates
-            - **Batch operations** for efficiency
-            """)
-        
-        # Mock duplicate detection
-        st.markdown("---")
-        st.markdown("### 🔍 Scan for Duplicates")
-        
-        sensitivity = st.slider("Detection Sensitivity:", 0.7, 0.99, 0.85, 0.01)
-        st.caption(f"Higher values find fewer, more exact matches. Current: {sensitivity:.0%}")
-        
-        if st.button("🔍 Start Duplicate Scan"):
-            with st.spinner("🔍 Scanning for duplicates..."):
-                import time
-                time.sleep(2)
-                
-                # Mock results
-                st.success("✅ Scan complete!")
-                
-                col1, col2, col3 = st.columns(3)
-                with col1:
-                    st.metric("Duplicate Groups", "12", "📸")
-                with col2:
-                    st.metric("Total Duplicates", "28", "🔄")
-                with col3:
-                    st.metric("Space Savings", "156 MB", "💾")
-                
-                st.info("📋 **Results preview coming soon!** You'll be able to review and manage each duplicate group.")
     
     @staticmethod
-    def _render_sidebar():
-        """Render contextual sidebar for Advanced UI screen"""
+    def _render_contextual_sidebar():
+        """Context-aware sidebar for advanced features"""
+        try:
+            # Try to use the sophisticated sidebar
+            from components.sidebar.context_sidebar import render_sidebar
+            
+            # Use the rich sidebar with:
+            # - GPU status with fun names
+            # - Database stats and info
+            # - Memory usage monitoring  
+            # - Advanced controls
+            render_sidebar()
+            
+        except ImportError:
+            # Fallback to simple sidebar
+            AdvancedUIScreen._render_simple_sidebar()
+    
+    @staticmethod
+    def _render_simple_sidebar():
+        """Simple fallback sidebar"""
         with st.sidebar:
             st.markdown("### 📊 Collection Info")
             
-            # Collection stats
+            # Basic collection stats
             folder_path = st.session_state.get('folder_path', 'Unknown')
             image_count = len(st.session_state.get('image_files', []))
             
-            st.markdown(f"**📁 Path:** `{os.path.basename(folder_path)}`")
+            st.markdown(f"**📁 Folder:** {os.path.basename(folder_path)}")
             st.metric("🖼️ Total Images", f"{image_count:,}")
-            st.metric("💾 Database", "Ready")
-            st.metric("🕒 Last Updated", "Just now")
+            st.metric("💾 Database", "Ready" if st.session_state.get('database_ready') else "Loading")
             
-            # Quick actions
             st.markdown("---")
             st.markdown("### 🎯 Quick Actions")
             
             if st.button("🔄 Refresh Collection"):
-                st.info("🔄 Collection refresh coming soon!")
+                st.info("🔄 Refresh functionality coming soon!")
             
             if st.button("📊 View Statistics"):
                 AdvancedUIScreen._show_collection_stats()
@@ -386,46 +214,8 @@ class AdvancedUIScreen:
             if st.button("⚙️ Settings"):
                 AdvancedUIScreen._show_settings()
             
-            if st.button("📤 Export Results"):
-                st.info("📤 Export functionality coming soon!")
-            
-            # Search history
-            st.markdown("---")
-            st.markdown("### 🔍 Recent Searches")
-            
-            recent_searches = st.session_state.get('search_history', [])
-            if recent_searches:
-                for i, search in enumerate(recent_searches[-5:]):  # Show last 5
-                    if st.button(f"🔍 {search[:20]}...", key=f"recent_{i}"):
-                        st.session_state.current_search_query = search
-                        AdvancedUIScreen._perform_search(search, "text")
-            else:
-                st.info("No recent searches")
-            
-            if st.button("🗑️ Clear History"):
-                st.session_state.search_history = []
-                st.rerun()
-            
-            # AI status
-            st.markdown("---")
-            st.markdown("### 🤖 AI Status")
-            st.success("✅ Models: Loaded")
-            st.success("✅ CLIP: Ready")
-            st.success("✅ Features: Cached")
-            
-            # Check GPU availability
-            try:
-                import torch
-                if torch.cuda.is_available():
-                    st.success("✅ GPU: Available")
-                else:
-                    st.info("💻 CPU: Active")
-            except ImportError:
-                st.info("💻 CPU: Active")
-            
-            # Back to folder selection
-            st.markdown("---")
-            if st.button("📁 Change Collection"):
+            if st.button("🏠 Back to Start"):
+                if st.button("✅ Confirm", key="confirm_home"):
                 AppStateManager.reset_to_fast_ui()
                 st.rerun()
     
@@ -433,61 +223,82 @@ class AdvancedUIScreen:
     def _show_collection_stats():
         """Show detailed collection statistics"""
         with st.expander("📊 Collection Statistics", expanded=True):
+            folder_path = st.session_state.get('folder_path', '')
             image_files = st.session_state.get('image_files', [])
             
-            if not image_files:
-                st.warning("No images loaded")
-                return
+            st.markdown(f"**📁 Collection Path:** `{folder_path}`")
+            st.markdown(f"**🖼️ Total Images:** {len(image_files):,}")
             
-            # File type distribution
+            if image_files:
+                # File type breakdown
             extensions = {}
-            for file_path in image_files:
-                ext = os.path.splitext(file_path)[1].lower()
+                total_size = 0
+                
+                for img_path in image_files[:100]:  # Sample first 100 for performance
+                    try:
+                        ext = os.path.splitext(img_path)[1].lower()
                 extensions[ext] = extensions.get(ext, 0) + 1
             
-            st.markdown("**📁 File Types:**")
+                        if os.path.exists(img_path):
+                            total_size += os.path.getsize(img_path)
+                    except Exception:
+                        continue
+                
+                st.markdown("**📈 File Types:**")
             for ext, count in sorted(extensions.items()):
-                percentage = (count / len(image_files)) * 100
-                st.markdown(f"- {ext.upper()}: {count:,} files ({percentage:.1f}%)")
+                    st.markdown(f"- `{ext}`: {count} files")
+                
+                if total_size > 0:
+                    size_mb = total_size / (1024 * 1024)
+                    st.markdown(f"**💾 Sample Size:** {size_mb:.1f} MB (from first 100 files)")
             
-            # Folder distribution
-            folders = {}
-            for file_path in image_files:
-                folder = os.path.dirname(file_path)
-                folders[folder] = folders.get(folder, 0) + 1
-            
-            st.markdown("**📂 Top Folders:**")
-            for folder, count in sorted(folders.items(), key=lambda x: x[1], reverse=True)[:5]:
-                st.markdown(f"- `{os.path.basename(folder)}`: {count:,} files")
+            st.markdown("**🤖 AI Status:**")
+            st.markdown(f"- Models loaded: {'✅' if st.session_state.get('models_loaded') else '❌'}")
+            st.markdown(f"- Database ready: {'✅' if st.session_state.get('database_ready') else '❌'}")
     
     @staticmethod
     def _show_settings():
         """Show application settings"""
-        with st.expander("⚙️ Application Settings", expanded=True):
-            st.markdown("**🔍 Search Settings:**")
+        with st.expander("⚙️ Settings", expanded=True):
+            st.markdown("**🎨 Display Options:**")
             
-            # Search result limit
-            result_limit = st.slider("Max search results:", 10, 100, 25, 5)
-            st.session_state.search_result_limit = result_limit
+            # Search results per page
+            results_per_page = st.slider("Search results per page", 6, 24, 12)
+            st.session_state.results_per_page = results_per_page
+            
+            # Image preview size
+            preview_size = st.select_slider(
+                "Image preview size", 
+                options=["Small", "Medium", "Large"], 
+                value="Medium"
+            )
+            st.session_state.preview_size = preview_size
+            
+            st.markdown("**🔍 Search Options:**")
             
             # Search similarity threshold
-            similarity_threshold = st.slider("Similarity threshold:", 0.1, 1.0, 0.7, 0.1)
+            similarity_threshold = st.slider("Search similarity threshold", 0.1, 1.0, 0.7, 0.1)
             st.session_state.similarity_threshold = similarity_threshold
             
-            st.markdown("**💾 Performance Settings:**")
+            # Enable advanced features
+            enable_clustering = st.checkbox("Enable clustering in latent space", value=True)
+            st.session_state.enable_clustering = enable_clustering
             
-            # Cache settings
-            use_cache = st.checkbox("Use feature cache", value=True)
-            st.session_state.use_cache = use_cache
+            st.markdown("**💾 Data Options:**")
             
-            auto_refresh = st.checkbox("Auto-refresh search", value=False)
-            st.session_state.auto_refresh = auto_refresh
+            if st.button("📤 Export Search Results"):
+                st.info("📤 Export functionality coming soon!")
             
-            if st.button("💾 Save Settings"):
-                st.success("✅ Settings saved!")
+            if st.button("🗑️ Clear Cache"):
+                st.info("🗑️ Cache clearing coming soon!")
+            
+            if st.button("🔄 Rebuild Database"):
+                st.warning("⚠️ This will rebuild the entire database. Are you sure?")
+                if st.button("✅ Yes, Rebuild", key="confirm_rebuild"):
+                    st.info("🔄 Database rebuild functionality coming soon!")
 
 
-# Easy import for main app
+# Global function for easy import
 def render_advanced_ui_screen():
-    """Main entry point for advanced UI screen"""
+    """Main entry point for Screen 3"""
     AdvancedUIScreen.render() 

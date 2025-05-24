@@ -1,6 +1,6 @@
-# 🚀 Screen 1: Fast UI Screen
-# 📌 Purpose: Instant launch with folder selection and smart triggers
-# 🎯 Mission: Get user started immediately with minimal loading
+# 🚀 Screen 1: Fast UI Screen - SIMPLIFIED VERSION
+# 📌 Purpose: Simple, welcoming folder selection focused on user task
+# 🎯 Mission: Get user started immediately without technical jargon
 
 import os
 import streamlit as st
@@ -9,85 +9,48 @@ from core.background_loader import background_loader
 
 
 class FastUIScreen:
-    """Screen 1: Instant UI with folder selection"""
+    """Screen 1: Simplified UI with user-focused folder selection"""
     
     @staticmethod
     def render():
-        """Render the fast UI screen"""
-        FastUIScreen._render_header()
-        FastUIScreen._render_system_metrics()
+        """Render the simplified fast UI screen"""
+        FastUIScreen._render_simple_header()
         FastUIScreen._render_folder_selection()
-        FastUIScreen._render_welcome_info()
-        FastUIScreen._render_sidebar()
+        FastUIScreen._render_simple_sidebar()
         
-        # Start background module loading immediately after UI renders
+        # Start background preparation when appropriate
         FastUIScreen._start_background_preparation()
     
     @staticmethod
-    def _start_background_preparation():
-        """Start loading heavy modules in background immediately after UI loads"""
-        # Only start if not already started and no folder is being processed
-        if (not st.session_state.get('background_prep_started', False) and 
-            st.session_state.get('app_state', AppState.FAST_UI) == AppState.FAST_UI):
-            
-            st.session_state.background_prep_started = True
-            
-            # Start the actual background preparation
-            background_loader.start_background_preparation()
-            
-            # Show status in sidebar
-            progress_data = background_loader.get_progress()
-            if progress_data.background_prep_started and not progress_data.heavy_modules_imported:
-                with st.sidebar:
-                    with st.expander("🔧 System Preparation", expanded=False):
-                        st.info("🎨 Loading components in background...")
-                        st.info("🤖 Preparing AI systems...")
-                        st.info("💾 Database systems standby...")
-            elif progress_data.heavy_modules_imported:
-                with st.sidebar:
-                    with st.expander("✅ System Ready", expanded=False):
-                        st.success("🎨 UI components ready")
-                        st.success("🤖 AI systems prepared")
-                        st.success("💾 Database ready for connection")
-                        st.info("🚀 Ready for folder processing!")
-    
-    @staticmethod
-    def _render_header():
-        """Render the main header"""
+    def _render_simple_header():
+        """Clean, welcoming header per UX design"""
         st.title("🕵️‍♂️ Pixel Detective")
         st.markdown("### Lightning-fast AI image search")
+        
+        # Welcoming message instead of technical metrics
+        st.markdown("""
+        Ready to search through your photos with AI? Just tell us where they are!
+        
+        🔍 **Search by description**: "sunset over lake"  
+        🖼️ **Find similar images**: Upload any photo  
+        🎮 **Play AI games**: Let AI guess your photos
+        """)
         st.markdown("---")
     
     @staticmethod
-    def _render_system_metrics():
-        """Show instant system status metrics"""
-        col1, col2, col3 = st.columns(3)
-        
-        with col1:
-            st.metric("Startup Time", "< 1 second", "⚡ Instant")
-        
-        with col2:
-            ui_status = "Ready" if st.session_state.get('ui_deps_loaded', False) else "Standby"
-            ui_delta = "🎨 Smart Loading"
-            st.metric("UI System", ui_status, ui_delta)
-        
-        with col3:
-            st.metric("AI Models", "On-demand", "🤖 Efficient")
-    
-    @staticmethod
     def _render_folder_selection():
-        """Render folder selection interface"""
+        """Simple folder selection focused on user task"""
         st.markdown("### 📁 Select Your Image Collection")
         
         # Get current folder path
         current_path = st.session_state.get('folder_path', '')
         
-        # Folder input with smart triggers
+        # Simple folder input
         folder_path = st.text_input(
             "Enter your image folder path:",
             value=current_path,
             placeholder="C:\\Users\\YourName\\Pictures",
-            help="Enter the path to your image collection",
+            help="Path to your image collection",
             key="folder_input"
         )
         
@@ -95,19 +58,14 @@ class FastUIScreen:
         if folder_path != current_path:
             st.session_state.folder_path = folder_path
         
-        # Action buttons
-        col1, col2, col3 = st.columns([1, 1, 1])
+        # Simplified action buttons
+        col1, col2 = st.columns([3, 1])
         
         with col1:
-            if st.button("📂 Browse Folder", help="Browse for your image folder"):
-                FastUIScreen._show_folder_browser_help()
-        
-        with col2:
             # Main action button
             can_start = folder_path and os.path.exists(folder_path)
-            button_text = "🚀 Start Processing" if can_start else "🚀 Start Processing"
             
-            if st.button(button_text, type="primary", disabled=not can_start):
+            if st.button("🚀 Start Processing", type="primary", disabled=not can_start):
                 if folder_path and os.path.exists(folder_path):
                     FastUIScreen._start_processing(folder_path)
                 elif folder_path:
@@ -115,59 +73,17 @@ class FastUIScreen:
                 else:
                     st.error("❌ Please enter a folder path.")
         
-        with col3:
-            if st.button("ℹ️ Help", help="Get help with folder selection"):
-                FastUIScreen._show_help()
+        with col2:
+            if st.button("💡 Help"):
+                FastUIScreen._show_simple_help()
         
-        # Show validation feedback
+        # Show friendly validation feedback
         if folder_path:
-            FastUIScreen._show_path_validation(folder_path)
+            FastUIScreen._show_simple_validation(folder_path)
     
     @staticmethod
-    def _show_folder_browser_help():
-        """Show enhanced folder browser help with quick actions"""
-        with st.expander("📂 Folder Browser Assistant", expanded=True):
-            st.markdown("**🚀 Quick Folder Selection:**")
-            
-            # Common folder suggestions
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                st.markdown("**Windows Common Folders:**")
-                common_paths = [
-                    ("📸 Pictures", os.path.expanduser("~/Pictures")),
-                    ("📥 Downloads", os.path.expanduser("~/Downloads")),
-                    ("🖥️ Desktop", os.path.expanduser("~/Desktop")),
-                ]
-                
-                for name, path in common_paths:
-                    if st.button(f"Use {name}", key=f"path_{name}"):
-                        if os.path.exists(path):
-                            st.session_state.folder_path = path
-                            st.success(f"✅ Selected: {path}")
-                            st.rerun()
-                        else:
-                            st.warning(f"⚠️ {path} not found on your system")
-            
-            with col2:
-                st.markdown("**💡 Manual Selection:**")
-                st.info("""
-                1. **Open File Explorer**
-                2. **Navigate to your image folder**
-                3. **Click the address bar**
-                4. **Copy the path (Ctrl+C)**
-                5. **Paste it above (Ctrl+V)**
-                """)
-            
-            st.markdown("---")
-            st.markdown("**🔍 Path Examples:**")
-            st.code("C:\\Users\\YourName\\Pictures\\Vacation")
-            st.code("C:\\Users\\YourName\\OneDrive\\Photos")
-            st.code("D:\\My Images\\Photography")
-
-    @staticmethod
-    def _show_path_validation(folder_path: str):
-        """Show real-time validation of folder path"""
+    def _show_simple_validation(folder_path: str):
+        """Show user-friendly validation of folder path"""
         if os.path.exists(folder_path):
             if os.path.isdir(folder_path):
                 # Quick preview of folder contents
@@ -177,15 +93,35 @@ class FastUIScreen:
                     image_count = sum(1 for f in files[:100] if any(f.lower().endswith(ext) for ext in image_extensions))
                     
                     if image_count > 0:
-                        st.success(f"✅ Valid folder! Found {image_count}+ images")
+                        st.success(f"✅ Great! Found {image_count}+ images in your collection")
                     else:
-                        st.warning("⚠️ Folder exists but no images found in first 100 files")
+                        st.warning("⚠️ This folder doesn't seem to have images")
                 except Exception:
-                    st.info("📁 Folder exists and is readable")
+                    st.info("📁 Folder found and accessible")
             else:
-                st.error("❌ Path exists but is not a folder")
+                st.error("❌ Please enter a folder path, not a file")
         else:
-            st.error("❌ Folder not found")
+            st.error("❌ Folder not found - please check the path")
+    
+    @staticmethod
+    def _show_simple_help():
+        """Show simple, user-friendly help"""
+        with st.expander("💡 How to find your image folder", expanded=True):
+            st.markdown("""
+            **Quick steps:**
+            
+            1. **Open File Explorer** (Windows) or **Finder** (Mac)
+            2. **Go to your Pictures folder** or wherever you keep photos
+            3. **Copy the path** from the address bar
+            4. **Paste it above** and click "Start Processing"
+            
+            **Common locations:**
+            - `C:\\Users\\YourName\\Pictures`
+            - `C:\\Users\\YourName\\OneDrive\\Photos`
+            - `D:\\Photos`
+            
+            **Tip:** The app will search all subfolders automatically!
+            """)
     
     @staticmethod
     def _start_processing(folder_path: str):
@@ -195,140 +131,66 @@ class FastUIScreen:
         
         # Start background loading
         if background_loader.start_loading_pipeline(folder_path):
-            st.success("🚀 Processing started! Switching to progress view...")
+            st.success("🚀 Starting your personal image assistant...")
             st.rerun()
         else:
             st.error("❌ Could not start processing. Please try again.")
     
     @staticmethod
-    def _show_help():
-        """Show help information"""
-        with st.expander("💡 Help: Selecting Your Image Folder", expanded=True):
-            st.markdown("""
-            **How to find your image folder path:**
+    def _start_background_preparation():
+        """Start loading heavy modules in background (minimal UI impact)"""
+        # Only start if not already started and no folder is being processed
+        if (not st.session_state.get('background_prep_started', False) and 
+            st.session_state.get('app_state', AppState.FAST_UI) == AppState.FAST_UI):
             
-            **Windows:**
-            - Open File Explorer
-            - Navigate to your pictures folder
-            - Click on the address bar and copy the path
-            - Example: `C:\\Users\\YourName\\Pictures`
+            st.session_state.background_prep_started = True
             
-            **Mac:**
-            - Open Finder
-            - Navigate to your pictures folder
-            - Right-click and select "Get Info"
-            - Copy the path from "Where"
-            - Example: `/Users/YourName/Pictures`
-            
-            **Tips:**
-            - The app will scan all subfolders automatically
-            - Supported formats: JPG, PNG, GIF, BMP, TIFF, WebP
-            - Larger collections take longer to process
-            """)
+            # Start the actual background preparation (silent)
+            background_loader.start_background_preparation()
     
     @staticmethod
-    def _render_welcome_info():
-        """Show welcome information and smart loading explanation"""
-        st.markdown("---")
-        st.markdown("### ✨ Smart Loading System")
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.markdown("""
-            **🚀 How it works:**
-            - ✅ App loads instantly (<1s)
-            - 📁 Select your image folder above
-            - 🎨 UI loads automatically when needed
-            - 🤖 AI loads only when processing
-            """)
-        
-        with col2:
-            st.markdown("""
-            **🧠 Smart & Efficient:**
-            - No waiting for unused features
-            - Load the right thing at the right time
-            - Fast response when you need it
-            - Zero bloat, maximum speed
-            """)
-        
-        # Dynamic status based on current state
-        if st.session_state.get('folder_path', ''):
-            if os.path.exists(st.session_state.folder_path):
-                st.info("🎯 **Ready to process!** Click 'Start Processing' to begin.")
-            else:
-                st.warning("⚠️ **Please check your folder path** - we couldn't find that location.")
-        else:
-            st.info("💡 **Start by entering your image folder path above** - the system will prepare as you work!")
-    
-    @staticmethod
-    def _render_sidebar():
-        """Render contextual sidebar for Fast UI screen"""
+    def _render_simple_sidebar():
+        """Simple, context-aware sidebar for Screen 1"""
         with st.sidebar:
-            st.markdown("### 🔧 System Status")
+            st.markdown("### 🎯 Quick Start")
             
-            # UI System status
-            if st.session_state.get('ui_deps_loaded', False):
-                st.success("✅ UI system ready!")
+            # Show system status in simple terms
+            if st.session_state.get('background_prep_started', False):
+                st.success("✅ System ready for processing")
             else:
-                st.info("⏸️ UI system on standby")
-            
-            # AI Models status
-            st.info("🤖 AI models: Load on demand")
-            
-            # Database status
-            st.info("💾 Database: Not connected")
-            
-            # Current status
-            if st.session_state.get('folder_path', '') and os.path.exists(st.session_state.folder_path):
-                st.metric("Status", "Ready to Process", "🚀 Click Start Processing")
-            else:
-                st.metric("Status", "Waiting", "📁 Select folder above")
+                st.info("⚡ Getting ready...")
             
             st.markdown("---")
-            st.markdown("### 💡 Next Steps")
-            st.markdown("""
-            1. **Enter folder path** above
-            2. **System prepares** automatically  
-            3. **Click Start Processing**
-            4. **Enjoy advanced features!**
-            """)
+            st.markdown("### 📂 Common Folders")
             
-            # Quick tips
+            # Quick folder suggestions
+            common_paths = [
+                ("📸 Pictures", os.path.expanduser("~/Pictures")),
+                ("📥 Downloads", os.path.expanduser("~/Downloads")),
+                ("🖥️ Desktop", os.path.expanduser("~/Desktop")),
+            ]
+            
+            for name, path in common_paths:
+                if st.button(f"{name}", key=f"quick_{name}"):
+                    if os.path.exists(path):
+                        st.session_state.folder_path = path
+                        st.success(f"✅ Selected {name}")
+                        st.rerun()
+                    else:
+                        st.warning(f"⚠️ {name} folder not found")
+            
             st.markdown("---")
-            st.markdown("### 🎯 Quick Tips")
+            st.markdown("### ✨ What's Coming")
             st.markdown("""
-            - **Large collections?** Processing takes longer but works better
-            - **Subfolders included** automatically
-            - **All formats supported** (JPG, PNG, etc.)
-            - **Cancel anytime** during processing
-            """)
-            
-            # System info
-            if st.button("🔍 System Info"):
-                FastUIScreen._show_system_info()
-    
-    @staticmethod
-    def _show_system_info():
-        """Show system information modal"""
-        with st.expander("🖥️ System Information", expanded=True):
-            import platform
-            import psutil
-            
-            st.markdown(f"""
-            **System:**
-            - OS: {platform.system()} {platform.release()}
-            - Python: {platform.python_version()}
-            - Memory: {psutil.virtual_memory().total // (1024**3)} GB
-            
-            **Pixel Detective:**
-            - Version: 1.0.0
-            - Mode: Smart Progressive Loading
-            - State: Fast UI Ready
+            After processing starts, you'll get:
+            - 🔍 Smart photo search
+            - 🎮 AI guessing games  
+            - 🌐 Visual exploration
+            - 👥 Duplicate detection
             """)
 
 
-# Easy import for main app
+# Global function for easy import
 def render_fast_ui_screen():
-    """Main entry point for fast UI screen"""
+    """Main entry point for Screen 1"""
     FastUIScreen.render() 

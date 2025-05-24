@@ -1,10 +1,35 @@
 # 📂 File Path: /project_root/.cursor/cursor_rules.md
 # 📌 Purpose: Project rules for the Pixel Detective application.
-# 🔄 Latest Changes: Created Cursor Project Rules for UI configuration.
-# ⚙️ Key Logic: Guidelines for maintaining the UI styling of the application.
-# 🧠 Reasoning: Ensures consistent styling and behavior across the codebase.
+# 🔄 Latest Changes: Added comprehensive MCP integration and sprint planning workflows.
+# ⚙️ Key Logic: Guidelines for maintaining the UI styling and development workflows.
+# 🧠 Reasoning: Ensures consistent styling, behavior, and sprint planning across the codebase.
 
 # Pixel Detective Project Rules
+
+## MCP Integration & Sprint Planning
+
+### MCP-Driven Development Workflow
+
+1. **Sprint Planning Integration**:
+   - Follow sprint planning workflow defined in `.cursor/rules/sprint-planning.mdc`
+   - Use Context7 MCP for technology research during sprint planning
+   - Use Mindmap MCP for visual requirement and architecture planning
+   - Generate PRDs using the integrated workflow before starting development
+
+2. **Technology Research Protocol**:
+   - Always use Context7 MCP to research implementation patterns before coding
+   - Document Context7 findings in `/docs/sprints/sprint-{number}/research/`
+   - Reference Context7 documentation in code comments and PRD sections
+
+3. **Visual Planning Requirements**:
+   - Use Mindmap MCP for complex feature architecture before implementation
+   - Create sprint overview and feature architecture mindmaps
+   - Convert mindmaps to structured documentation in PRDs
+
+4. **GitHub Integration Standards**:
+   - All sprint work must reference PRD sections in commit messages
+   - Use GitHub MCP for milestone and issue management during sprints
+   - Follow conventional commit messages with sprint/PRD references
 
 ## UI Configuration Rules
 
@@ -73,4 +98,40 @@
 
 3. **Cross-Browser Compatibility**:
    - Test UI changes in multiple browsers to ensure consistent behavior.
-   - Address any browser-specific CSS issues with appropriate fallbacks. 
+   - Address any browser-specific CSS issues with appropriate fallbacks.
+
+4. **MCP-Driven Testing**:
+   - Use Browser Tools MCP for automated audits after UI changes
+   - Capture screenshots using Browser Tools MCP for visual regression testing
+   - Run performance audits using Browser Tools MCP after significant changes
+
+## Sprint Integration Guidelines
+
+### When Starting New Features
+1. Check if feature is part of current sprint PRD
+2. Reference PRD section in feature branch names and commit messages
+3. Follow Context7 implementation patterns documented in sprint research
+4. Update PRD with implementation progress and any deviations
+
+### Daily Development Workflow
+1. Reference sprint planning rules from `.cursor/rules/sprint-planning.mdc`
+2. Use MCP server guidelines from `.cursor/rules/use-mcp-servers.mdc`
+3. Follow debugging protocols from `.cursor/rules/debugging.mdc`
+4. Adhere to feature implementation standards from `.cursor/rules/feature-request.mdc`
+
+### Sprint Documentation
+- Update sprint PRD with completion status
+- Document any architectural decisions using Mindmap MCP
+- Archive sprint artifacts in `/docs/sprints/sprint-{number}/`
+- Use GitHub MCP to update project milestones and close completed issues
+
+---
+
+**Related Rules:**
+- **Sprint Planning:** `.cursor/rules/sprint-planning.mdc`
+- **MCP Server Usage:** `.cursor/rules/use-mcp-servers.mdc`  
+- **Feature Development:** `.cursor/rules/feature-request.mdc`
+- **Debugging:** `.cursor/rules/debugging.mdc`
+- **Documentation:** `.cursor/rules/commentsoverwrite.mdc`
+
+*This rule set ensures consistent UI development integrated with comprehensive sprint planning and MCP-driven workflows.* 

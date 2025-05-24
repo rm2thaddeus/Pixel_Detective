@@ -1,0 +1,234 @@
+---
+description: sprint planning and execution
+globs: 
+alwaysApply: false
+---
+# Updated Sprint Planning Rules - Post Reorganization
+
+**Purpose:** Comprehensive sprint planning workflow using organized documentation structure and MCP server integration.
+
+---
+
+## 📋 **New Sprint Documentation Structure**
+
+Based on the reorganization completed, all sprint planning should follow this logical structure:
+
+### **Organized Documentation Hierarchy**
+```
+docs/sprints/
+├── sprint-{number}/           # Sprint-specific deliverables
+│   ├── README.md             # Sprint overview and status
+│   ├── PRD.md                # Product Requirements Document  
+│   ├── technical-implementation-plan.md  # Technical details
+│   ├── completion-summary.md  # Post-sprint results
+│   ├── QUICK_REFERENCE.md    # Fast lookup guide
+│   ├── PERFORMANCE_BREAKTHROUGH.md  # Major technical achievements
+│   └── transition-to-next-sprint.md  # Handoff planning
+├── planning/                  # Cross-sprint coordination  
+│   ├── SPRINT_STATUS.md      # Multi-sprint tracking
+│   ├── sprint-coordination.md # Transition protocols
+│   └── sprint-transition-notes.md # Planning coordination
+└── templates/                 # Reusable templates
+    ├── create-sprint.md      # Sprint setup guide
+    └── PRD-template.md       # PRD template
+```
+
+### **Project-Level vs Sprint-Level Documents**
+
+**✅ Keep in main `/docs/` (Project-Wide):**
+- `PROJECT_STATUS.md` - Overall project health dashboard
+- `README.md` - Project overview  
+- `roadmap.md` - Long-term development planning
+- `architecture.md` - Technical architecture
+- `CLI_ENTERPRISE_VISION.md` - Enterprise strategy
+
+**✅ Move to `/docs/sprints/` (Sprint-Specific):**
+- All sprint deliverables and documentation
+- Performance breakthrough reports
+- Sprint transition planning
+- Cross-sprint coordination tracking
+
+---
+
+## 🚀 **Updated Sprint Planning Workflow**
+
+### **Phase 1: Sprint Setup** (Updated Directory Creation)
+
+#### **1.1 Create Sprint Structure**
+```bash
+# Create new sprint directory  
+mkdir -p docs/sprints/sprint-{number}
+
+# Initialize with templates
+cp docs/sprints/templates/PRD-template.md docs/sprints/sprint-{number}/PRD.md
+
+# Create initial README from template
+# (Use Sprint 02 README.md as reference)
+```
+
+#### **1.2 Sprint Preparation Checklist**
+Based on new coordination structure:
+
+- [ ] **Previous Sprint Closure**
+  - [ ] All documents in `/docs/sprints/sprint-{prev}/` complete
+  - [ ] Transition document created (e.g., `transition-to-sprint-{next}.md`)
+  - [ ] Architecture stability verified
+  
+- [ ] **New Sprint Setup**  
+  - [ ] Sprint folder created: `/docs/sprints/sprint-{number}/`
+  - [ ] README.md created with sprint overview
+  - [ ] Prerequisites verified from previous sprint
+  - [ ] Success criteria defined
+
+- [ ] **Cross-Sprint Coordination**
+  - [ ] Update `/docs/sprints/planning/SPRINT_STATUS.md`
+  - [ ] Update `/docs/sprints/planning/sprint-coordination.md`
+  - [ ] Verify no architectural conflicts
+
+### **Phase 2: PRD Generation** (Enhanced with Logical Structure)
+
+#### **2.1 PRD Development Process**
+Follow the established pattern from Sprint 01 → Sprint 02:
+
+1. **Extract from Roadmap**: Use `/docs/roadmap.md` sprint sections as PRD foundation
+2. **Architecture Foundation**: Reference completed sprint deliverables  
+3. **Prerequisites Validation**: Verify dependencies from previous sprints
+4. **Success Criteria**: Build on established patterns
+
+#### **2.2 PRD Template Usage**
+Use `/docs/sprints/templates/PRD-template.md` but adapt based on sprint type:
+
+**For Foundation Sprints** (like Sprint 01):
+- Focus on architecture and integration
+- Emphasize component organization
+- Performance preservation requirements
+
+**For Enhancement Sprints** (like Sprint 02):  
+- Build on established foundation
+- Focus on polish and user experience
+- Visual design and interaction requirements
+
+**For Feature Sprints** (like Sprint 03+):
+- New functionality implementation
+- Advanced capabilities development
+- Enterprise and scalability features
+
+### **Phase 3: Sprint Execution** (Updated Documentation Standards)
+
+#### **3.1 Documentation During Sprint**
+**Daily Documentation Requirements:**
+- Update sprint README.md with progress
+- Log major decisions in sprint folder
+- Create technical implementation plans as needed
+
+**Weekly Documentation Requirements:**
+- Update `/docs/sprints/planning/SPRINT_STATUS.md`
+- Review and update PROJECT_STATUS.md links
+- Coordinate with cross-sprint planning
+
+#### **3.2 Sprint Deliverable Standards**
+
+**Required Sprint Documents** (Based on Sprint 01 Pattern):
+- [ ] **README.md** - Sprint overview, objectives, what was built
+- [ ] **PRD.md** - Requirements, success criteria, implementation plan  
+- [ ] **technical-implementation-plan.md** - Detailed technical approach
+- [ ] **completion-summary.md** - Results, achievements, lessons learned
+- [ ] **QUICK_REFERENCE.md** - Fast lookup guide for sprint outcomes
+
+**Optional Sprint Documents** (As Needed):
+- [ ] **PERFORMANCE_BREAKTHROUGH.md** - Major technical achievements
+- [ ] **transition-to-next-sprint.md** - Handoff planning and next steps
+
+### **Phase 4: Sprint Completion** (Updated Closure Process)
+
+#### **4.1 Sprint Documentation Closure**
+1. **Complete all required documents** in sprint folder
+2. **Update cross-sprint tracking** in `/docs/sprints/planning/`
+3. **Update project-level status** in `/docs/PROJECT_STATUS.md`
+4. **Create transition document** for next sprint
+5. **Verify documentation links** across all documents
+
+#### **4.2 Architecture Validation Protocol**
+- [ ] **System functionality verified** - All screens/features working
+- [ ] **Performance requirements met** - Benchmarks maintained
+- [ ] **Integration patterns established** - For next sprint foundation
+- [ ] **Documentation accuracy confirmed** - Matches implementation
+
+---
+
+## 🎯 **Sprint Planning Quality Standards**
+
+### **Documentation Quality Checklist**
+- [ ] **Logical Organization**: All sprint documents in appropriate folders
+- [ ] **Cross-Reference Accuracy**: All links between documents working
+- [ ] **Template Consistency**: Following established patterns
+- [ ] **Project Integration**: Sprint docs link to project-level docs
+- [ ] **Future Sprint Preparation**: Clear handoff for next sprint
+
+### **Architectural Continuity Standards**
+- [ ] **Foundation Preservation**: Previous sprint achievements maintained
+- [ ] **Progressive Enhancement**: New capabilities build on existing base
+- [ ] **Performance Consistency**: Core metrics preserved (e.g., <1s startup)
+- [ ] **Component Integration**: New components follow established patterns
+
+---
+
+## 📚 **Integration with Existing MCP Workflows**
+
+### **Updated MCP Integration Points**
+
+**GitHub MCP Usage:**
+- Create issues in sprint context: `labels: ["sprint-{number}", "epic/story"]`
+- Reference sprint documentation in commit messages
+- Use sprint folders for all project documentation commits
+
+**Context7 MCP Research:**
+- Document findings in sprint-specific folders
+- Reference research in sprint PRD documents
+- Create implementation guides within sprint context
+
+**Browser Tools MCP:**
+- Use for sprint-specific testing and validation
+- Document testing results in sprint completion summaries
+- Performance audits relevant to sprint objectives
+
+### **Cross-Sprint Coordination Rules**
+
+**Sprint Handoff Protocol:**
+1. Complete current sprint documentation
+2. Update `/docs/sprints/planning/sprint-coordination.md`
+3. Create transition document in current sprint folder  
+4. Prepare next sprint folder and initial documentation
+5. Verify architectural stability and dependencies
+
+**Documentation Maintenance:**
+- Weekly update of cross-sprint status tracking
+- Monthly review of project-level documentation
+- Quarterly archival assessment of completed sprints
+
+---
+
+## 🚀 **Benefits of New Structure**
+
+### **Improved Organization**
+- **Clear Separation**: Sprint-specific vs project-wide documentation
+- **Easy Navigation**: Logical folder structure with clear hierarchy
+- **Scalability**: Pattern established for unlimited future sprints
+- **Maintainability**: Each sprint self-contained with all deliverables
+
+### **Enhanced Planning**
+- **Template-Driven**: Consistent approach across all sprints
+- **Cross-Sprint Coordination**: Central planning hub for dependencies
+- **Architectural Continuity**: Clear progression from sprint to sprint
+- **Documentation Quality**: Established patterns ensure completeness
+
+### **Better Team Coordination**  
+- **Sprint Focus**: All sprint work organized in one location
+- **Historical Reference**: Easy access to past sprint deliverables
+- **Planning Coordination**: Central hub for multi-sprint planning
+- **Knowledge Transfer**: Complete documentation for onboarding
+
+---
+
+
+**🎯 Goal**: These updated rules ensure sprint planning follows the logical structure established during the reorganization, providing clear separation between sprint-specific and project-wide concerns while maintaining architectural continuity and documentation quality. 

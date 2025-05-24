@@ -1,6 +1,6 @@
-# 📊 Screen 2: Loading Screen
-# 📌 Purpose: Keep user engaged during background processing
-# 🎯 Mission: Show detailed progress and build excitement
+# 📊 Screen 2: Loading Screen - ENGAGING VERSION
+# 📌 Purpose: Keep user engaged during background processing with excitement  
+# 🎯 Mission: Build anticipation and show progress in user-friendly terms
 
 import os
 import time
@@ -10,27 +10,26 @@ from core.background_loader import background_loader, LoadingPhase
 
 
 class LoadingScreen:
-    """Screen 2: Progress tracking and live logs"""
+    """Screen 2: Engaging progress tracking that builds excitement"""
     
     @staticmethod
     def render():
-        """Render the loading screen"""
+        """Render the engaging loading screen"""
         # Get current progress from background loader
         progress_data = background_loader.get_progress()
         
-        LoadingScreen._render_header()
-        LoadingScreen._render_progress_section(progress_data)
-        LoadingScreen._render_live_logs(progress_data)
-        LoadingScreen._render_controls()
-        LoadingScreen._render_footer(progress_data)
-        LoadingScreen._render_sidebar(progress_data)
+        LoadingScreen._render_exciting_header()
+        LoadingScreen._render_engaging_progress(progress_data)
+        LoadingScreen._render_coming_features()
+        LoadingScreen._render_simple_controls()
+        LoadingScreen._render_encouraging_sidebar(progress_data)
         
         # Handle completion or errors
         LoadingScreen._handle_completion_or_errors(progress_data)
         
-        # Auto-refresh every 2 seconds during loading
+        # Auto-refresh every 3 seconds (reduced frequency for better UX)
         if progress_data.is_loading:
-            time.sleep(1)  # Small delay to prevent excessive polling
+            time.sleep(2)  # Less frequent polling for smoother experience
             st.rerun()
     
     @staticmethod
@@ -51,286 +50,237 @@ class LoadingScreen:
             st.rerun()
     
     @staticmethod
-    def _render_header():
-        """Render the loading screen header"""
-        st.title("🔄 Building Your Image Database")
+    def _render_exciting_header():
+        """Render exciting header that builds anticipation"""
+        st.title("🔄 Building Your Personal Image Assistant")
         
         folder_path = st.session_state.get('folder_path', 'Unknown')
-        st.markdown(f"**Processing:** `{folder_path}`")
+        folder_name = os.path.basename(folder_path)
+        st.markdown(f"### Creating magic for your **{folder_name}** collection ✨")
         st.markdown("---")
     
     @staticmethod
-    def _render_progress_section(progress_data):
-        """Render the main progress section"""
-        st.markdown("### 📊 Overall Progress")
-        
-        # Progress bar with percentage
-        progress_bar = st.progress(progress_data.progress_percentage / 100)
-        st.markdown(f"**{progress_data.progress_percentage}%** - {progress_data.progress_message}")
-        
-        # Current phase indicator
-        LoadingScreen._render_phase_indicator(progress_data.current_phase)
-        
-        st.markdown("---")
-    
-    @staticmethod
-    def _render_phase_indicator(current_phase):
-        """Show current loading phase with visual indicators"""
-        # Phase mapping with icons and descriptions
-        phases = {
-            LoadingPhase.UI_DEPS: ("🎨", "Loading UI Components", "Preparing interface modules"),
-            LoadingPhase.FOLDER_SCAN: ("📁", "Scanning Image Folder", "Finding and cataloging images"),
-            LoadingPhase.MODEL_INIT: ("🤖", "Initializing AI Models", "Loading CLIP and text encoders"),
-            LoadingPhase.DB_BUILD: ("💾", "Building Database", "Processing images for search"),
-            LoadingPhase.READY: ("✅", "System Ready", "All systems operational")
+    def _render_engaging_progress(progress_data):
+        """Build excitement, not just show technical progress"""
+        # Excitement-building messages based on phase
+        excitement_phases = {
+            LoadingPhase.UI_DEPS: {
+                "title": "🎨 Preparing Your Interface",
+                "message": "Setting up your personalized workspace...",
+                "action": "Getting everything ready for you",
+                "next": "Next: Discovering your amazing photo collection"
+            },
+            LoadingPhase.FOLDER_SCAN: {
+                "title": "🔍 Discovering Your Photos",
+                "message": "Wow! Exploring your incredible image collection...",
+                "action": "Finding all your precious memories",
+                "next": "Next: Teaching AI to understand your style"
+            },
+            LoadingPhase.MODEL_INIT: {
+                "title": "🤖 AI Learning Phase", 
+                "message": "Our AI is learning to see the world through your lens...",
+                "action": "Loading super-smart vision capabilities",
+                "next": "Next: Building your intelligent search engine"
+            },
+            LoadingPhase.DB_BUILD: {
+                "title": "🧠 Creating Your Search Engine",
+                "message": "Building magical connections between your images and ideas...",
+                "action": "Making every photo instantly searchable",
+                "next": "Almost ready for the magic to begin!"
+            },
+            LoadingPhase.READY: {
+                "title": "🎉 Your Image Assistant is Ready!",
+                "message": "Everything is set up perfectly for you!",
+                "action": "Preparing to amaze you",
+                "next": "Let's explore your photos together!"
+            }
         }
         
-        st.markdown("#### 🔄 Current Phase")
+        current = excitement_phases.get(progress_data.current_phase, {
+            "title": "⚡ Working Magic...",
+            "message": "Something amazing is happening with your photos...",
+            "action": "Processing your collection",
+            "next": "Great things coming soon!"
+        })
         
-        # Create phase progress indicators
-        cols = st.columns(5)
+        # Main progress section with excitement
+        st.markdown(f"## {current['title']}")
+        st.markdown(f"**{current['message']}**")
         
-        for i, (phase, (icon, title, desc)) in enumerate(phases.items()):
-            with cols[i]:
-                if phase == current_phase:
-                    # Current phase - highlighted
-                    st.markdown(f"""
-                    <div style="text-align: center; padding: 10px; background-color: #1f77b4; border-radius: 10px; color: white;">
-                        <div style="font-size: 24px;">{icon}</div>
-                        <div style="font-size: 12px; font-weight: bold;">{title}</div>
-                    </div>
-                    """, unsafe_allow_html=True)
-                elif list(phases.keys()).index(phase) < list(phases.keys()).index(current_phase):
-                    # Completed phase
-                    st.markdown(f"""
-                    <div style="text-align: center; padding: 10px; background-color: #28a745; border-radius: 10px; color: white;">
-                        <div style="font-size: 24px;">✅</div>
-                        <div style="font-size: 12px;">{title}</div>
-                    </div>
-                    """, unsafe_allow_html=True)
-                else:
-                    # Future phase
-                    st.markdown(f"""
-                    <div style="text-align: center; padding: 10px; background-color: #6c757d; border-radius: 10px; color: white;">
-                        <div style="font-size: 24px;">{icon}</div>
-                        <div style="font-size: 12px;">{title}</div>
-                    </div>
-                    """, unsafe_allow_html=True)
+        # Visual progress bar with excitement
+        progress_bar = st.progress(progress_data.progress_percentage / 100)
         
-        # Show current phase description
-        if current_phase in phases:
-            icon, title, desc = phases[current_phase]
-            st.info(f"**{icon} {title}**: {desc}")
+        # Progress percentage with encouraging message
+        col1, col2 = st.columns([1, 2])
+        with col1:
+            st.metric("Progress", f"{progress_data.progress_percentage}%", "🚀 Moving fast!")
+        with col2:
+            st.info(f"🔄 {current['action']}")
+        
+        # Build anticipation for what's next
+        if current.get('next') and progress_data.progress_percentage < 100:
+            st.markdown(f"*{current['next']}*")
+        
+        # Show image count when available (exciting milestone)
+        if hasattr(progress_data, 'image_files') and len(progress_data.image_files) > 0:
+            image_count = len(progress_data.image_files)
+            st.success(f"🎉 **Discovered {image_count:,} images** in your collection!")
     
     @staticmethod
-    def _render_live_logs(progress_data):
-        """Render the live progress logs"""
-        st.markdown("### 📋 Live Progress Log")
-        
-        if not progress_data.logs:
-            st.info("No logs yet...")
-            return
-        
-        # Create scrollable log container
-        log_container = st.container()
-        
-        with log_container:
-            # Show logs in reverse order (newest first)
-            for log in reversed(progress_data.logs[-20:]):  # Show last 20 logs
-                if "✅" in log:
-                    st.success(log)
-                elif "❌" in log or "Error" in log:
-                    st.error(log)
-                elif "⚠️" in log or "Warning" in log:
-                    st.warning(log)
-                elif "🔄" in log or "⏳" in log:
-                    st.info(log)
-                else:
-                    st.text(log)
-    
-    @staticmethod
-    def _render_controls():
-        """Render user controls for the loading process"""
+    def _render_coming_features():
+        """Preview what's coming to build excitement"""
         st.markdown("---")
         
-        col1, col2, col3, col4 = st.columns(4)
+        with st.expander("🎯 The Amazing Features You'll Get", expanded=True):
+            st.markdown("""
+            ### 🔍 **Smart Search Magic**
+            - Type **"sunset over lake"** → AI finds them instantly ✨
+            - Upload **any image** → Find all similar ones automatically 🔮
+            - Search by **colors, objects, moods** → AI understands everything 🎨
+            
+            ### 🎮 **AI Guessing Games**  
+            - AI tries to **guess your photos** → Fun challenges await! 🎪
+            - Discover **hidden gems** in your collection 💎
+            - Interactive way to **explore memories** 🌟
+            
+            ### 🌐 **Visual Universe Explorer**
+            - See your photos **arranged by visual similarity** 🌌
+            - Discover **patterns and themes** you never noticed 🎭
+            - **Travel through your memories** visually 🚀
+            
+            ### 👥 **Smart Organization**
+            - Find **duplicate photos** automatically 🔄
+            - **Clean up your collection** effortlessly 🧹
+            - **Group similar memories** together 📚
+            """)
+    
+    @staticmethod
+    def _render_simple_controls():
+        """Simple, user-friendly controls"""
+        st.markdown("---")
+        
+        col1, col2, col3 = st.columns([2, 1, 1])
         
         with col1:
-            if st.button("⏸️ Pause", help="Pause the loading process"):
-                st.warning("⏸️ Pause functionality coming soon!")
+            st.markdown("**🚀 Hang tight - amazing things are happening!**")
         
         with col2:
-            if st.button("❌ Cancel", help="Cancel and return to folder selection"):
-                LoadingScreen._cancel_loading()
+            if st.button("⏸️ Take a Break", help="Pause the magic for now"):
+                st.info("⏸️ Pause feature coming soon!")
         
         with col3:
-            if st.button("📊 Details", help="Show detailed system information"):
-                LoadingScreen._show_details()
-        
-        with col4:
-            if st.button("🔄 Refresh", help="Refresh the progress display"):
-                st.rerun()
+            if st.button("❌ Start Over", help="Go back and choose different folder"):
+                LoadingScreen._go_back_to_start()
     
     @staticmethod
-    def _cancel_loading():
-        """Cancel the loading process"""
-        background_loader.cancel_loading()
-        st.warning("🛑 Cancelling loading process...")
-        
-        # Brief delay to let cancellation process, then return to fast UI
-        import time
-        time.sleep(1)
-        AppStateManager.reset_to_fast_ui()
-        st.rerun()
+    def _go_back_to_start():
+        """User-friendly way to return to folder selection"""
+        if st.button("🔄 Yes, Start Over", key="confirm_restart"):
+            background_loader.cancel_loading()
+            st.warning("🔄 Going back to folder selection...")
+            AppStateManager.reset_to_fast_ui()
+            st.rerun()
+        else:
+            st.warning("Click 'Yes, Start Over' to confirm")
     
     @staticmethod
-    def _show_details():
-        """Show detailed loading information"""
-        progress_data = background_loader.get_progress()
-        
-        with st.expander("📊 Detailed Loading Information", expanded=True):
-            # System info
-            st.markdown("**System Status:**")
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                st.metric("UI Dependencies", "✅ Loaded" if progress_data.ui_deps_loaded else "⏳ Loading")
-                st.metric("Models", "✅ Loaded" if progress_data.models_loaded else "⏳ Loading")
-            
-            with col2:
-                st.metric("Database", "✅ Ready" if progress_data.database_ready else "⏳ Building")
-                st.metric("Images Found", f"{len(progress_data.image_files):,}")
-            
-            # Timing info
-            if progress_data.start_time:
-                import time
-                elapsed = time.time() - progress_data.start_time
-                st.markdown(f"**Elapsed Time:** {elapsed:.1f} seconds")
-                
-                eta = progress_data.get_estimated_time_remaining()
-                st.markdown(f"**Estimated Remaining:** {eta}")
-    
-    @staticmethod
-    def _render_footer(progress_data):
-        """Render the loading screen footer"""
-        st.markdown("---")
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            eta = progress_data.get_estimated_time_remaining()
-            st.info(f"⏱️ **Estimated time remaining:** {eta}")
-        
-        with col2:
-            st.success("🎯 **After completion:** Advanced search, AI game, and more!")
-    
-    @staticmethod
-    def _render_sidebar(progress_data):
-        """Render contextual sidebar for Loading screen"""
+    def _render_encouraging_sidebar(progress_data):
+        """Encouraging sidebar that builds excitement"""
         with st.sidebar:
-            st.markdown("### 🔄 Processing Status")
+            st.markdown("### 🌟 Your Collection Stats")
             
-            # Folder info
+            # Show collection info in exciting way
             folder_path = st.session_state.get('folder_path', 'Unknown')
-            st.markdown(f"**📁 Folder:** `{folder_path}`")
+            folder_name = os.path.basename(folder_path)
+            st.markdown(f"**📁 Collection:** {folder_name}")
             
-            # Image count
+            # Image count with celebration
+            if hasattr(progress_data, 'image_files') and len(progress_data.image_files) > 0:
             image_count = len(progress_data.image_files)
-            if image_count > 0:
-                st.metric("🖼️ Images Found", f"{image_count:,}")
+                if image_count > 1000:
+                    celebration = "🤩 Massive collection!"
+                elif image_count > 500:
+                    celebration = "😍 Huge collection!"
+                elif image_count > 100:
+                    celebration = "🎉 Great collection!"
+                else:
+                    celebration = "✨ Nice collection!"
+                    
+                st.metric("🖼️ Photos Found", f"{image_count:,}", celebration)
             else:
-                st.info("🔍 Scanning for images...")
+                st.info("🔍 Discovering photos...")
             
-            # Progress summary
-            st.metric("📊 Progress", f"{progress_data.progress_percentage}%")
-            
-            # ETA
-            eta = progress_data.get_estimated_time_remaining()
-            st.metric("⏱️ ETA", eta)
+            # Progress in encouraging terms
+            progress_percent = progress_data.progress_percentage
+            if progress_percent > 80:
+                encouragement = "🎉 Almost there!"
+            elif progress_percent > 50:
+                encouragement = "🚀 Halfway done!"
+            elif progress_percent > 20:
+                encouragement = "⚡ Making progress!"
+            else:
+                encouragement = "🌟 Just started!"
+                
+            st.metric("📊 Progress", f"{progress_percent}%", encouragement)
             
             st.markdown("---")
             
-            # Current phase details
-            st.markdown("### 📊 Current Phase")
+            # What's happening now (user-friendly)
+            st.markdown("### 🔄 What's Happening")
             
-            phase_details = {
-                LoadingPhase.UI_DEPS: {
-                    "title": "🎨 Loading UI Components",
-                    "tasks": ["Interface modules", "Layout components", "Style systems"]
-                },
-                LoadingPhase.FOLDER_SCAN: {
-                    "title": "📁 Scanning Folder",
-                    "tasks": ["Finding images", "Checking formats", "Building file list"]
-                },
-                LoadingPhase.MODEL_INIT: {
-                    "title": "🤖 Loading AI Models",
-                    "tasks": ["CLIP Vision Model", "Text Encoder", "Feature Extractor"]
-                },
-                LoadingPhase.DB_BUILD: {
-                    "title": "💾 Building Database",
-                    "tasks": ["Processing images", "Extracting features", "Creating indices"]
-                },
-                LoadingPhase.READY: {
-                    "title": "✅ System Ready",
-                    "tasks": ["All systems operational"]
-                }
-            }
-            
-            if progress_data.current_phase in phase_details:
-                details = phase_details[progress_data.current_phase]
-                st.markdown(f"**{details['title']}**")
-                for task in details['tasks']:
-                    st.markdown(f"• {task}")
+            current_phase = progress_data.current_phase
+            if current_phase == LoadingPhase.FOLDER_SCAN:
+                st.info("🔍 **Exploring** your photo collection")
+                st.markdown("Finding all your amazing images...")
+            elif current_phase == LoadingPhase.MODEL_INIT:
+                st.info("🤖 **Teaching AI** about images")
+                st.markdown("Loading super-smart vision...")
+            elif current_phase == LoadingPhase.DB_BUILD:
+                st.info("🧠 **Building** your search engine")
+                st.markdown("Making magic connections...")
+            elif current_phase == LoadingPhase.READY:
+                st.success("🎉 **Ready** for exploration!")
+                st.markdown("Everything is perfect!")
+            else:
+                st.info("⚡ **Preparing** your workspace")
+                st.markdown("Getting everything ready...")
             
             st.markdown("---")
             
-            # Coming features
-            st.markdown("### 🎯 Coming Next")
-            st.markdown("""
-            **🔍 Text-based search**  
-            Find images using natural language
+            # Time estimation in friendly terms
+            eta = getattr(progress_data, 'estimated_time_remaining', 'Soon')
+            st.markdown("### ⏰ Time Estimate")
+            if isinstance(eta, str) and 'minute' in eta:
+                st.info(f"🕐 About {eta}")
+                st.markdown("Perfect time for a coffee! ☕")
+            elif isinstance(eta, str) and 'second' in eta:
+                st.info(f"⚡ Just {eta}")  
+                st.markdown("Almost instant! 🚀")
+            else:
+                st.info("⚡ Very soon!")
+                st.markdown("We're working at light speed! 💫")
             
-            **🖼️ Image similarity**  
-            Find similar images visually
-            
-            **🎮 AI guessing game**  
-            Interactive image challenges
-            
-            **🔗 Duplicate detection**  
-            Find and manage duplicates
-            """)
-            
-            # System resources
             st.markdown("---")
-            if st.button("💻 System Resources"):
-                LoadingScreen._show_system_resources()
-    
-    @staticmethod
-    def _show_system_resources():
-        """Show system resource usage"""
-        with st.expander("💻 System Resources", expanded=True):
-            try:
-                import psutil
-                
-                # Memory usage
-                memory = psutil.virtual_memory()
-                st.metric("Memory Usage", f"{memory.percent}%")
-                
-                # CPU usage
-                cpu = psutil.cpu_percent(interval=1)
-                st.metric("CPU Usage", f"{cpu}%")
-                
-                # Disk usage for current folder
-                folder_path = st.session_state.get('folder_path', '/')
-                if folder_path and os.path.exists(folder_path):
-                    disk = psutil.disk_usage(folder_path)
-                    st.metric("Disk Usage", f"{disk.percent}%")
-                
-            except Exception:
-                st.info("System resource monitoring not available")
+            
+            # Excitement builder
+            st.markdown("### 🎊 Fun Fact")
+            
+            # Random encouraging facts based on progress
+            import random
+            fun_facts = [
+                "🎨 Your photos contain thousands of colors and patterns!",
+                "🧠 AI will learn to see your unique photography style!",
+                "🔍 Soon you'll search photos faster than ever before!",
+                "✨ Every image will become instantly discoverable!",
+                "🎮 Fun games await in your photo collection!",
+                "🌟 Hidden connections between photos will be revealed!",
+                "🚀 You're about to experience the future of photo search!"
+            ]
+            
+            st.info(random.choice(fun_facts))
 
 
-# Easy import for main app
+# Global function for easy import
 def render_loading_screen():
-    """Main entry point for loading screen"""
+    """Main entry point for Screen 2"""
     LoadingScreen.render() 

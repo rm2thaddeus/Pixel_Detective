@@ -62,6 +62,15 @@ alwaysApply: false
   - List and monitor container status
 - **When to Use**: Containerized applications, microservices, development environment setup
 
+### 7. **Mindmap MCP (`mindmap`)**
+- **Primary Use**: Visual planning, architecture documentation, sprint planning
+- **Capabilities**:
+  - Create structured mind maps for complex features and requirements
+  - Generate visual representations of system architecture
+  - Support sprint planning and PRD (Product Requirement Document) generation
+  - Create project roadmaps and feature breakdowns
+- **When to Use**: Sprint planning, complex feature planning, architecture documentation, PRD generation
+
 ## Best Practices for MCP Interactions
 
 ### **Pre-Action Context Gathering**
@@ -103,18 +112,30 @@ alwaysApply: false
    - Capture screenshots for visual issues documentation
    - Run comprehensive audits after significant UI changes
 
+### **Sprint Planning & Documentation (Mindmap + Context7 MCPs)**
+7. **Research-Driven Development**
+   - Use Context7 MCP to research implementation patterns before starting new features
+   - Document technology assessments in sprint planning documents
+   - Create mindmaps for complex features before implementation
+
+8. **PRD Generation Workflow**
+   - Use Mindmap MCP to visualize sprint requirements and architecture
+   - Convert mindmaps to structured PRD documents in `/docs/sprints/`
+   - Reference Context7 research in PRD technical specifications
+   - Follow sprint planning rules from `sprint-planning.mdc`
+
 ### **Documentation & Standards**
-7. **MCP-Driven Documentation**
+9. **MCP-Driven Documentation**
    - Document any MCP-driven architectural or workflow changes in `/docs/CHANGELOG.md`
    - For major features or refactors, update relevant documentation in `/docs/`
    - Use Context7 MCP to ensure accurate library usage documentation
 
-8. **Safety and Review**
+10. **Safety and Review**
    - Never force-push to shared branches unless explicitly instructed
    - Create feature branches for experimental or breaking changes
    - Open pull requests for review of significant changes
 
-9. **Transparency**
+11. **Transparency**
    - Clearly state when changes are made by MCP in commit messages or PR descriptions
    - Include MCP server used in commit messages when relevant (e.g., `feat(github-mcp): add automated issue labeling`)
 
@@ -130,6 +151,9 @@ alwaysApply: false
 - **Container Operations**: Docker MCP + GitHub MCP
 - **Microservices Development**: Docker MCP + Supabase MCP + GitHub MCP
 - **Development Environment**: Docker MCP + Browser Tools MCP
+- **Sprint Planning**: Mindmap MCP + Context7 MCP + GitHub MCP
+- **Feature Architecture**: Mindmap MCP + Context7 MCP
+- **PRD Generation**: Mindmap MCP + Context7 MCP + GitHub MCP
 
 ## Error Handling & Recovery
 
@@ -137,8 +161,18 @@ alwaysApply: false
 - If edit applications result in incorrect diffs, use `reapply` immediately  
 - For persistent issues, explain problem and suggest manual intervention
 
+## Integration with Sprint Planning
+
+**Sprint-Specific MCP Workflows:**
+- **Planning Phase**: Use Context7 MCP for technology research + Mindmap MCP for requirements visualization
+- **Development Phase**: Follow standard GitHub MCP + Context7 MCP workflows with PRD references
+- **Review Phase**: Use Browser Tools MCP for testing + GitHub MCP for delivery documentation
+
+**Cross-Rule References:**
+- Sprint planning workflows detailed in `sprint-planning.mdc`
+- Feature development follows `feature-request.mdc` within sprint context
+- Debugging during sprints follows `debugging.mdc` protocols
+
 ---
 
-
-
-_This comprehensive rule ensures safe, efficient, and well-documented collaboration between human developers and all available MCP AI assistants in the Pixel Detective project._ 
+_This comprehensive rule ensures safe, efficient, and well-documented collaboration between human developers and all available MCP AI assistants in the Pixel Detective project, including full integration of sprint planning workflows._ 
