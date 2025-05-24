@@ -1,0 +1,132 @@
+---
+description: Comprehensive MCP server workflows and best practices
+globs: 
+alwaysApply: false
+---
+# MCP Interaction Rule for Pixel Detective
+
+**Repository:** [Pixel_Detective](mdc:https:/github.com/rm2thaddeus/Pixel_**Branches:**
+- main
+- development
+
+## Available MCP Servers & Capabilities
+
+### 1. **GitHub MCP (`mcp_github_*`)**
+- **Primary Use**: Version control, repository management, collaboration workflows
+- **Capabilities**:
+  - Search code, repositories, commits, issues, and PRs
+  - Read, create, update, or delete files
+  - Manage issues (create, list, comment, update) and pull requests (create, list, merge, update)
+  - Manage branches and tags
+- **When to Use**: All code commits, file operations, issue tracking, PR management
+
+### 2. **Supabase MCP (`mcp_supabase_*`)**
+- **Primary Use**: Database interactions, backend data management
+- **Capabilities**:
+  - Execute raw SQL queries
+  - Manage database schemas, tables, and data (CRUD operations)
+  - Seed databases and perform migrations/rollbacks
+- **When to Use**: Database schema changes, data seeding, backend data operations
+
+### 3. **Browser Tools MCP (`mcp_browser-tools_*`)**
+- **Primary Use**: Frontend debugging, web analysis, performance optimization
+- **Capabilities**:
+  - Capture console logs (standard and errors) and network logs
+  - Take screenshots for visual debugging
+  - Run comprehensive audits (accessibility, performance, SEO, best practices, Next.js)
+  - Wipe logs for clean debugging sessions
+- **When to Use**: Debugging frontend issues, performance analysis, accessibility compliance
+
+### 4. **Browser Control MCP (`mcp_browser-control-*`)**
+- **Primary Use**: Web navigation, content extraction, browser automation
+- **Capabilities**:
+  - Open/close tabs and manage browser sessions
+  - List open tabs and browser history
+  - Retrieve full web page content and extract links
+  - Find and highlight specific text within web pages
+- **When to Use**: Web scraping, content analysis, automated testing workflows
+
+### 5. **Context7 MCP (`mcp_context7_*`)**
+- **Primary Use**: Documentation lookup, API reference, library guidance
+- **Capabilities**:
+  - Resolve library/package names to documentation IDs
+  - Fetch up-to-date library documentation and API references
+- **When to Use**: When implementing new libraries, troubleshooting API usage, code examples
+
+## Best Practices for MCP Interactions
+
+### **Pre-Action Context Gathering**
+1. **Always establish context first**:
+   - Verify current working directory (`pwd`)
+   - Understand project structure (`tree -L 3 --gitignore | cat`)
+   - Use `grep_search` for exact symbol/keyword matches
+   - Use `codebase_search` for broader feature understanding
+
+### **GitHub MCP Workflows**
+2. **Branch Awareness**
+   - Always determine the current active git branch before committing or pushing changes
+   - Default to the active branch unless user specifies otherwise
+   - Main branches for this repository: `main`, `development`
+
+3. **Commit Messages**
+   - Use clear, descriptive commit messages following Conventional Commits style:
+     - `feat:` - New features
+     - `fix:` - Bug fixes  
+     - `docs:` - Documentation updates
+     - `refactor:` - Code restructuring
+     - `test:` - Test additions/updates
+     - `chore:` - Maintenance tasks
+
+4. **Batching Changes**
+   - Prefer batching related changes into a single commit when possible
+   - Avoid committing commented-out code or experimental scripts to main repository
+   - Use `mcp_github_push_files` for multiple file changes
+
+### **Database Operations (Supabase MCP)**
+5. **SQL Safety**
+   - Always backup or understand data impact before destructive operations
+   - Use transactions for multi-step database changes
+   - Test queries on development data first when possible
+
+### **Frontend Debugging (Browser MCPs)**
+6. **Clean Debugging Sessions**
+   - Use `mcp_browser-tools_wipeLogs` before starting new debugging sessions
+   - Capture screenshots for visual issues documentation
+   - Run comprehensive audits after significant UI changes
+
+### **Documentation & Standards**
+7. **MCP-Driven Documentation**
+   - Document any MCP-driven architectural or workflow changes in `/docs/CHANGELOG.md`
+   - For major features or refactors, update relevant documentation in `/docs/`
+   - Use Context7 MCP to ensure accurate library usage documentation
+
+8. **Safety and Review**
+   - Never force-push to shared branches unless explicitly instructed
+   - Create feature branches for experimental or breaking changes
+   - Open pull requests for review of significant changes
+
+9. **Transparency**
+   - Clearly state when changes are made by MCP in commit messages or PR descriptions
+   - Include MCP server used in commit messages when relevant (e.g., `feat(github-mcp): add automated issue labeling`)
+
+## MCP Server Selection Strategy
+
+**Task-Based Selection Guide:**
+- **Code Changes**: GitHub MCP
+- **Database Work**: Supabase MCP  
+- **Frontend Issues**: Browser Tools + Browser Control MCP
+- **Library Integration**: Context7 MCP + GitHub MCP
+- **Performance Issues**: Browser Tools MCP + GitHub MCP
+- **Documentation**: Context7 MCP + GitHub MCP
+
+## Error Handling & Recovery
+
+- If MCP tool call fails, analyze error and retry once with corrected parameters
+- If edit applications result in incorrect diffs, use `reapply` immediately  
+- For persistent issues, explain problem and suggest manual intervention
+
+---
+
+
+
+_This comprehensive rule ensures safe, efficient, and well-documented collaboration between human developers and all available MCP AI assistants in the Pixel Detective project._ 
