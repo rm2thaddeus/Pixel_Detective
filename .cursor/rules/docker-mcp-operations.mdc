@@ -1,0 +1,147 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+# Docker MCP Operations
+
+*Reference: Follow `@use-mcp-servers` for general MCP workflows and `@powershell-syntax` for terminal commands*
+
+## **Docker MCP Server Configuration**
+
+### **Claude Desktop Setup**
+Add to your Claude Desktop config file:
+- **Windows**: `%APPDATA%/Claude/claude_desktop_config.json`
+- **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+
+```json
+{
+  "mcpServers": {
+    "docker-mcp": {
+      "command": "uvx",
+      "args": ["docker-mcp"]
+    }
+  }
+}
+```
+
+## **Available Docker MCP Tools**
+
+### **1. Container Management**
+- **`create-container`**: Create standalone Docker containers
+- **`list-containers`**: List all Docker containers with status
+- **`get-logs`**: Retrieve logs from specific containers
+
+### **2. Docker Compose Operations**
+- **`deploy-compose`**: Deploy Docker Compose stacks
+- **Stack Management**: Manage multi-service applications
+
+## **Docker MCP Workflows**
+
+### **Container Creation Workflow**
+```json
+{
+  "image": "nginx:latest",
+  "name": "web-server",
+  "ports": {"80": "8080"},
+  "environment": {"ENV_VAR": "production"}
+}
+```
+
+### **Compose Stack Deployment**
+```json
+{
+  "project_name": "pixel-detective-stack",
+  "compose_yaml": "version: '3.8'\nservices:\n  app:\n    image: node:18\n    ports:\n      - '3000:3000'"
+}
+```
+
+### **Log Analysis Pattern**
+```json
+{
+  "container_name": "web-server"
+}
+```
+
+## **Best Practices for Docker MCP**
+
+### **Development Workflow**
+1. **Plan Architecture**: Define services, networks, and volumes needed
+2. **Start Small**: Begin with single containers before compose stacks
+3. **Monitor Logs**: Use `get-logs` for debugging and monitoring
+4. **Version Control**: Store compose files in repository with proper documentation
+
+### **Container Naming Conventions**
+- **Project Prefix**: `pixel-detective-web`, `pixel-detective-api`
+- **Environment Suffix**: `-dev`, `-staging`, `-prod`
+- **Service Description**: Clear, descriptive names
+
+### **Port Management**
+- **Development**: Use high ports (8000+) to avoid conflicts
+- **Documentation**: Always document port mappings in project docs
+- **Consistency**: Use same ports across environments when possible
+
+### **Environment Variables**
+- **Security**: Never commit sensitive environment variables
+- **Configuration**: Use `.env` files for development
+- **Documentation**: Document all required environment variables
+
+## **Integration with Other MCPs**
+
+### **Docker + GitHub MCP**
+- **Dockerfiles**: Version control all Docker configurations
+- **Compose Files**: Store in `/docker/` directory with proper documentation
+- **CI/CD**: Integrate Docker builds with GitHub Actions
+
+### **Docker + Supabase MCP**
+- **Database Containers**: Use Docker for local Supabase development
+- **Connection Management**: Configure container networking for database access
+- **Data Persistence**: Use volumes for database data
+
+### **Docker + Browser Tools MCP**
+- **Web Application Testing**: Use Browser Tools to test Dockerized web apps
+- **Performance Monitoring**: Monitor containerized applications
+- **Debugging**: Combine container logs with browser debugging
+
+## **Troubleshooting Docker MCP**
+
+### **Common Issues**
+1. **Docker Not Running**: Ensure Docker Desktop/Engine is started
+2. **Port Conflicts**: Check for existing services on target ports
+3. **Permission Issues**: Verify Docker daemon permissions
+4. **Network Issues**: Check Docker network configuration
+
+### **Debugging Commands**
+```powershell
+# Check Docker status
+docker ps -a
+
+# View container logs
+docker logs <container_name>
+
+# Inspect container details
+docker inspect <container_name>
+
+# Check Docker networks
+docker network ls
+```
+
+### **Emergency Recovery**
+- **Stop All Containers**: `docker stop $(docker ps -q)`
+- **Remove All Containers**: `docker rm $(docker ps -aq)`
+- **Clean System**: `docker system prune -a`
+
+## **Project Integration Checklist**
+
+- [ ] **Docker MCP Installed**: `uvx docker-mcp` completed
+- [ ] **Claude Desktop Configured**: Config file updated with Docker MCP
+- [ ] **Docker Running**: Docker Desktop/Engine is active
+- [ ] **Project Dockerfiles**: Created and version controlled
+- [ ] **Compose Files**: Defined for development and production
+- [ ] **Documentation**: Docker setup documented in project README
+- [ ] **Environment Files**: `.env` templates created
+- [ ] **Port Documentation**: Port mappings documented
+
+---
+
+*This rule ensures efficient Docker container and compose management through Docker MCP integration with other development tools.*

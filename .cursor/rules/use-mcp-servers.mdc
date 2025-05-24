@@ -53,6 +53,15 @@ alwaysApply: false
   - Fetch up-to-date library documentation and API references
 - **When to Use**: When implementing new libraries, troubleshooting API usage, code examples
 
+### 6. **Docker MCP (`docker-mcp`)**
+- **Primary Use**: Container management, Docker Compose operations, containerized development
+- **Capabilities**:
+  - Create and manage Docker containers
+  - Deploy and manage Docker Compose stacks
+  - Retrieve container logs for debugging
+  - List and monitor container status
+- **When to Use**: Containerized applications, microservices, development environment setup
+
 ## Best Practices for MCP Interactions
 
 ### **Pre-Action Context Gathering**
@@ -118,6 +127,9 @@ alwaysApply: false
 - **Library Integration**: Context7 MCP + GitHub MCP
 - **Performance Issues**: Browser Tools MCP + GitHub MCP
 - **Documentation**: Context7 MCP + GitHub MCP
+- **Container Operations**: Docker MCP + GitHub MCP
+- **Microservices Development**: Docker MCP + Supabase MCP + GitHub MCP
+- **Development Environment**: Docker MCP + Browser Tools MCP
 
 ## Error Handling & Recovery
 
