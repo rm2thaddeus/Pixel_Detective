@@ -1,7 +1,7 @@
-# 🚀 Screen 1: Fast UI Screen - SIMPLIFIED & FOCUSED
+# 🚀 Screen 1: Fast UI Screen - REDESIGNED FOR BETTER BALANCE
 # 📌 Purpose: Simple, welcoming folder selection focused on user task
 # 🎯 Mission: Get user started immediately - just point to images and go!
-# 🎨 Sprint 02: Clean, minimal design focused on the essential task
+# 🎨 Sprint 02: Balanced layout with prominent folder browser
 
 import os
 import streamlit as st
@@ -17,11 +17,11 @@ from styles.style_injector import (
 
 
 class FastUIScreen:
-    """Screen 1: Simplified UI focused purely on folder selection"""
+    """Screen 1: Redesigned UI with balanced folder selection"""
     
     @staticmethod
     def render():
-        """Render the simplified fast UI screen"""
+        """Render the redesigned fast UI screen"""
         # Inject our custom styles
         inject_pixel_detective_styles()
         
@@ -29,7 +29,7 @@ class FastUIScreen:
         st.markdown('<div class="pd-screen-enter">', unsafe_allow_html=True)
         
         FastUIScreen._render_welcome_header()
-        FastUIScreen._render_simple_folder_selection()
+        FastUIScreen._render_balanced_folder_selection()
         FastUIScreen._render_minimal_sidebar()
         
         # Close animation wrapper
@@ -56,51 +56,32 @@ class FastUIScreen:
         )
     
     @staticmethod
-    def _render_simple_folder_selection():
-        """Simplified folder selection focused on the essential task"""
-        # Main task section
-        st.markdown(
-            '''
-            <div class="pd-card pd-fade-in" style="margin: 2rem 0; text-align: center;">
-                <h2 style="color: var(--pd-primary); margin-bottom: 1rem;">📁 Select Your Image Folder</h2>
-                <p style="color: var(--pd-text-secondary); margin-bottom: 2rem;">
-                    Choose the folder containing your photos. I'll search all subfolders automatically.
-                </p>
-            </div>
-            ''',
-            unsafe_allow_html=True
-        )
-        
+    def _render_balanced_folder_selection():
+        """Redesigned folder selection with better balance and prominent browser"""
         # Get current folder path
         current_path = st.session_state.get('folder_path', '')
         
-        # Simplified folder input - more compact
-        col1, col2 = st.columns([4, 1])
+        # Compact input row - much smaller
+        st.markdown("**📂 Image folder path:**")
+        col1, col2, col3 = st.columns([6, 2, 2])
         
         with col1:
             folder_path = st.text_input(
-                "📂 Image folder path:",
+                "folder_path",
                 value=current_path,
-                placeholder="Select your Pictures folder or browse...",
+                placeholder="Type path or use browser below...",
                 help="Path to your image collection",
                 key="folder_input",
                 label_visibility="collapsed"
             )
         
         with col2:
-            if st.button("📂 Browse", help="Browse for folder", key="browse_btn", use_container_width=True):
-                FastUIScreen._open_system_file_dialog()
+            if st.button("🔍 Browse", help="Open folder browser", key="browse_btn", use_container_width=True):
+                st.session_state.show_folder_browser = True
+                st.rerun()
         
-        # Update session state when path changes
-        if folder_path != current_path:
-            st.session_state.folder_path = folder_path
-        
-        # Quick shortcuts row
-        st.markdown("**Quick shortcuts:**")
-        col1, col2, col3, col4 = st.columns(4)
-        
-        with col1:
-            if st.button("🏠 Pictures", key="quick_pictures", use_container_width=True):
+        with col3:
+            if st.button("🏠 Pictures", help="Use Pictures folder", key="quick_pictures", use_container_width=True):
                 pictures_path = os.path.expanduser("~/Pictures")
                 if os.path.exists(pictures_path):
                     st.session_state.folder_path = pictures_path
@@ -108,32 +89,12 @@ class FastUIScreen:
                 else:
                     st.warning("Pictures folder not found")
         
-        with col2:
-            if st.button("📥 Downloads", key="quick_downloads", use_container_width=True):
-                downloads_path = os.path.expanduser("~/Downloads")
-                if os.path.exists(downloads_path):
-                    st.session_state.folder_path = downloads_path
-                    st.rerun()
-                else:
-                    st.warning("Downloads folder not found")
+        # Update session state when path changes
+        if folder_path != current_path:
+            st.session_state.folder_path = folder_path
         
-        with col3:
-            if st.button("🖥️ Desktop", key="quick_desktop", use_container_width=True):
-                desktop_path = os.path.expanduser("~/Desktop")
-                if os.path.exists(desktop_path):
-                    st.session_state.folder_path = desktop_path
-                    st.rerun()
-                else:
-                    st.warning("Desktop folder not found")
-        
-        with col4:
-            if st.button("☁️ OneDrive", key="quick_onedrive", use_container_width=True):
-                onedrive_path = os.path.expanduser("~/OneDrive/Pictures")
-                if os.path.exists(onedrive_path):
-                    st.session_state.folder_path = onedrive_path
-                    st.rerun()
-                else:
-                    st.warning("OneDrive Pictures not found")
+        # Prominent folder browser - takes up most of the space
+        FastUIScreen._render_prominent_folder_browser()
         
         # Show validation and start button
         if folder_path:
@@ -141,12 +102,12 @@ class FastUIScreen:
         else:
             st.markdown(
                 '''
-                <div class="pd-alert pd-alert-info" style="margin: 2rem 0; text-align: center;">
+                <div class="pd-alert pd-alert-info" style="margin: 1rem 0; text-align: center;">
                     <div style="font-size: 1.2rem;">👆</div>
                     <div>
-                        <strong>Choose a folder above to get started</strong>
+                        <strong>Browse folders below or type a path above</strong>
                         <div style="margin-top: 0.5rem; font-size: 0.875rem; opacity: 0.8;">
-                            Use the browse button or quick shortcuts
+                            Click any folder to explore or select it
                         </div>
                     </div>
                 </div>
@@ -155,63 +116,70 @@ class FastUIScreen:
             )
     
     @staticmethod
-    def _open_system_file_dialog():
-        """Open system file dialog for folder selection"""
-        st.markdown(
-            '''
-            <div class="pd-alert pd-alert-info">
-                <div style="font-size: 1.2rem;">💡</div>
-                <div>
-                    <strong>File Dialog Tip:</strong> Use the quick shortcuts above or type your folder path
-                    <div style="margin-top: 0.5rem; font-size: 0.875rem; opacity: 0.8;">
-                        Common locations: Pictures, Downloads, Desktop, or OneDrive
-                    </div>
-                </div>
-            </div>
-            ''',
-            unsafe_allow_html=True
-        )
+    def _render_prominent_folder_browser():
+        """Prominent folder browser that takes up most of the space"""
+        # Always show the folder browser - it's the main feature now
+        st.markdown("---")
+        st.markdown("### 📁 Folder Browser")
         
-        # Show simple folder browser
-        if st.button("🔍 Show Folder Browser", key="show_browser"):
-            st.session_state.show_folder_browser = True
-            st.rerun()
-        
-        # Simple folder browser if requested
-        if st.session_state.get('show_folder_browser', False):
-            FastUIScreen._show_simple_folder_browser()
-    
-    @staticmethod
-    def _show_simple_folder_browser():
-        """Show a simplified folder browser"""
-        st.markdown("### 📂 Simple Folder Browser")
-        
-        # Get current path
+        # Get current browse path
         if 'browse_path' not in st.session_state:
-            st.session_state.browse_path = os.path.expanduser("~/Pictures")
+            # Start with Pictures folder if it exists, otherwise home
+            pictures_path = os.path.expanduser("~/Pictures")
+            if os.path.exists(pictures_path):
+                st.session_state.browse_path = pictures_path
+            else:
+                st.session_state.browse_path = os.path.expanduser("~")
         
         current_path = st.session_state.browse_path
         
-        # Navigation
-        col1, col2, col3 = st.columns([2, 2, 1])
+        # Navigation bar
+        col1, col2, col3, col4 = st.columns([3, 1, 1, 1])
         
         with col1:
-            st.markdown(f"**Current:** `{os.path.basename(current_path) or current_path}`")
+            st.markdown(f"**📍 Current location:** `{current_path}`")
         
         with col2:
             parent = os.path.dirname(current_path)
             if parent != current_path:
-                if st.button("⬆️ Go Up", key="nav_up"):
+                if st.button("⬆️ Up", key="nav_up", use_container_width=True):
                     st.session_state.browse_path = parent
                     st.rerun()
+            else:
+                st.button("⬆️ Up", key="nav_up", disabled=True, use_container_width=True)
         
         with col3:
-            if st.button("✅ Use", key="use_current", type="primary"):
-                st.session_state.folder_path = current_path
-                st.session_state.show_folder_browser = False
+            if st.button("🏠 Home", key="nav_home", use_container_width=True):
+                st.session_state.browse_path = os.path.expanduser("~")
                 st.rerun()
         
-        # Show folders only
+        with col4:
+            if st.button("✅ Use Current", key="use_current", type="primary", use_container_width=True):
+                st.session_state.folder_path = current_path
+                st.rerun()
+        
+        # Quick shortcuts row
+        st.markdown("**🚀 Quick locations:**")
+        shortcuts = FastUIScreen._get_folder_shortcuts()
+        
+        if shortcuts:
+            # Display shortcuts in rows of 4
+            for i in range(0, len(shortcuts), 4):
+                cols = st.columns(4)
+                for j, col in enumerate(cols):
+                    if i + j < len(shortcuts):
+                        name, path = shortcuts[i + j]
+                        with col:
+                            if st.button(name, key=f"shortcut_{i+j}", use_container_width=True):
+                                if os.path.exists(path):
+                                    st.session_state.browse_path = path
+                                    st.rerun()
+                                else:
+                                    st.warning(f"{name} not found")
+        
+        # Main folder listing - Windows Explorer style
+        st.markdown("**📂 Folders in this location:**")
+        
         try:
             if os.path.exists(current_path):
                 folders = []
@@ -220,38 +188,99 @@ class FastUIScreen:
                     if os.path.isdir(item_path):
                         # Quick image count
                         try:
-                            files = os.listdir(item_path)[:20]  # Check first 20 files
+                            files = os.listdir(item_path)[:30]  # Check first 30 files
                             image_extensions = {'.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff', '.webp'}
                             image_count = sum(1 for f in files if any(f.lower().endswith(ext) for ext in image_extensions))
                             folders.append((item, item_path, image_count))
                         except:
                             folders.append((item, item_path, 0))
                 
-                # Show folders in a simple list
+                # Show folders in a grid - Windows Explorer style
                 if folders:
-                    for name, path, count in folders[:8]:  # Show max 8 folders
-                        col1, col2 = st.columns([3, 1])
-                        with col1:
-                            display_name = f"📁 {name}"
-                            if count > 0:
-                                display_name += f" ({count} images)"
-                            
-                            if st.button(display_name, key=f"folder_{name}", use_container_width=True):
-                                st.session_state.browse_path = path
-                                st.rerun()
+                    # Show folders in rows of 2 for better visibility
+                    for i in range(0, len(folders), 2):
+                        cols = st.columns(2)
                         
-                        with col2:
-                            if st.button("✅", key=f"select_{name}", help=f"Select {name}"):
-                                st.session_state.folder_path = path
-                                st.session_state.show_folder_browser = False
-                                st.rerun()
+                        for j, col in enumerate(cols):
+                            if i + j < len(folders):
+                                name, path, count = folders[i + j]
+                                
+                                with col:
+                                    # Create folder card with image count
+                                    if count > 0:
+                                        folder_info = f"📁 **{name}**\n🖼️ {count} images found"
+                                        button_type = "primary" if count > 5 else "secondary"
+                                    else:
+                                        folder_info = f"📁 **{name}**\n📄 No images detected"
+                                        button_type = "secondary"
+                                    
+                                    # Two buttons per folder: Browse and Select
+                                    subcol1, subcol2 = st.columns([3, 1])
+                                    
+                                    with subcol1:
+                                        if st.button(folder_info, key=f"browse_folder_{i+j}", use_container_width=True):
+                                            st.session_state.browse_path = path
+                                            st.rerun()
+                                    
+                                    with subcol2:
+                                        if st.button("✅", key=f"select_folder_{i+j}", help=f"Select {name}", use_container_width=True):
+                                            st.session_state.folder_path = path
+                                            st.rerun()
+                    
+                    # Show count info
+                    if len(folders) > 10:
+                        st.info(f"📁 Showing first 10 of {len(folders)} folders. Navigate to see more.")
                 
-                if st.button("❌ Close Browser", key="close_browser"):
-                    st.session_state.show_folder_browser = False
-                    st.rerun()
+                else:
+                    st.info("📁 No folders found in this location")
+            
+            else:
+                st.error("❌ Cannot access this location")
         
+        except PermissionError:
+            st.error("❌ Permission denied - cannot access this folder")
         except Exception as e:
-            st.error(f"Cannot access folder: {str(e)}")
+            st.error(f"❌ Error browsing folder: {str(e)}")
+    
+    @staticmethod
+    def _get_folder_shortcuts():
+        """Get list of useful folder shortcuts"""
+        shortcuts = []
+        home = os.path.expanduser("~")
+        
+        # Common folders that usually exist
+        common_folders = [
+            ("📸 Pictures", os.path.join(home, "Pictures")),
+            ("📥 Downloads", os.path.join(home, "Downloads")),
+            ("🖥️ Desktop", os.path.join(home, "Desktop")),
+            ("📁 Documents", os.path.join(home, "Documents")),
+        ]
+        
+        # Only add folders that exist
+        for name, path in common_folders:
+            if os.path.exists(path):
+                shortcuts.append((name, path))
+        
+        # Add OneDrive if it exists
+        onedrive_paths = [
+            ("☁️ OneDrive Pictures", os.path.join(home, "OneDrive", "Pictures")),
+            ("☁️ OneDrive Photos", os.path.join(home, "OneDrive", "Photos")),
+        ]
+        for name, path in onedrive_paths:
+            if os.path.exists(path):
+                shortcuts.append((name, path))
+                break  # Only add one OneDrive option
+        
+        # Add common photo locations
+        photo_locations = [
+            ("📷 Camera Roll", os.path.join(home, "Pictures", "Camera Roll")),
+            ("📱 Phone Photos", os.path.join(home, "Pictures", "Phone")),
+        ]
+        for name, path in photo_locations:
+            if os.path.exists(path):
+                shortcuts.append((name, path))
+        
+        return shortcuts
     
     @staticmethod
     def _show_validation_and_start(folder_path: str):
@@ -265,14 +294,15 @@ class FastUIScreen:
                 
                 if image_count > 0:
                     # Success - ready to start
+                    st.markdown("---")
                     st.markdown(
                         f'''
-                        <div class="pd-alert pd-alert-success pd-fade-in" style="margin: 2rem 0;">
+                        <div class="pd-alert pd-alert-success pd-fade-in" style="margin: 1rem 0;">
                             <div style="font-size: 1.2rem;">✅</div>
                             <div>
-                                <strong>Perfect!</strong> Found {image_count}+ images
+                                <strong>Perfect!</strong> Found {image_count}+ images in selected folder
                                 <div style="margin-top: 0.5rem; font-size: 0.875rem; opacity: 0.8;">
-                                    Ready to make them searchable
+                                    Ready to build your searchable image database
                                 </div>
                             </div>
                         </div>
@@ -281,11 +311,12 @@ class FastUIScreen:
                     )
                     
                     # Big start button
-                    if st.button("🚀 Start Building Your Image Search", type="primary", key="start_btn", use_container_width=True):
+                    if st.button("🚀 Start Building Your Image Search Engine", type="primary", key="start_btn", use_container_width=True):
                         FastUIScreen._start_processing(folder_path)
                 
                 else:
                     # No images found
+                    st.markdown("---")
                     st.markdown(
                         '''
                         <div class="pd-alert pd-alert-warning">
@@ -293,7 +324,7 @@ class FastUIScreen:
                             <div>
                                 <strong>No images found</strong> in this folder
                                 <div style="margin-top: 0.5rem; font-size: 0.875rem; opacity: 0.8;">
-                                    Try a different folder with .jpg, .png, or other image files
+                                    Try browsing to a folder with .jpg, .png, or other image files
                                 </div>
                             </div>
                         </div>
@@ -303,6 +334,7 @@ class FastUIScreen:
             
             except Exception:
                 # Can't read folder
+                st.markdown("---")
                 st.markdown(
                     '''
                     <div class="pd-alert pd-alert-warning">
@@ -310,7 +342,7 @@ class FastUIScreen:
                         <div>
                             <strong>Cannot access this folder</strong>
                             <div style="margin-top: 0.5rem; font-size: 0.875rem; opacity: 0.8;">
-                                Check permissions and try again
+                                Check permissions and try a different folder
                             </div>
                         </div>
                     </div>
@@ -320,6 +352,7 @@ class FastUIScreen:
         
         else:
             # Folder doesn't exist
+            st.markdown("---")
             st.markdown(
                 '''
                 <div class="pd-alert pd-alert-warning">
@@ -327,7 +360,7 @@ class FastUIScreen:
                     <div>
                         <strong>Folder not found</strong>
                         <div style="margin-top: 0.5rem; font-size: 0.875rem; opacity: 0.8;">
-                            Please check the path and try again
+                            Please check the path or browse to a valid folder
                         </div>
                     </div>
                 </div>
@@ -384,7 +417,7 @@ class FastUIScreen:
                 <div class="pd-card" style="text-align: center; margin-bottom: 1.5rem;">
                     <h3 style="color: var(--pd-primary); margin-bottom: 0.5rem;">🎯 Getting Started</h3>
                     <div style="font-size: 0.875rem; color: var(--pd-text-secondary);">
-                        Select your image folder to begin
+                        Browse and select your image folder
                     </div>
                 </div>
                 ''',
@@ -399,27 +432,43 @@ class FastUIScreen:
             
             st.markdown("---")
             
+            # Current selection info
+            current_path = st.session_state.get('folder_path', '')
+            if current_path:
+                st.markdown("**📁 Selected folder:**")
+                st.code(current_path)
+                
+                # Quick folder info
+                if os.path.exists(current_path):
+                    try:
+                        files = os.listdir(current_path)[:20]
+                        image_extensions = {'.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff', '.webp'}
+                        image_count = sum(1 for f in files if any(f.lower().endswith(ext) for ext in image_extensions))
+                        st.success(f"🖼️ {image_count}+ images found")
+                    except:
+                        st.warning("⚠️ Cannot read folder")
+            
+            st.markdown("---")
+            
             # Simple help
             with st.expander("💡 Need Help?"):
                 st.markdown(
                     '''
-                    **Quick steps:**
-                    1. Click "Browse" or use quick shortcuts
-                    2. Select your Photos/Pictures folder
-                    3. Click "Start Building"
+                    **How to use:**
+                    1. Browse folders using the main interface
+                    2. Click folders to explore them
+                    3. Click ✅ to select a folder
+                    4. Click "Start Building" when ready
                     
-                    **Common locations:**
-                    - Pictures folder (recommended)
-                    - Downloads folder
-                    - Desktop folder
-                    - OneDrive Photos
-                    
-                    The app will search all subfolders automatically!
+                    **Tips:**
+                    - Look for folders with image counts
+                    - Use quick shortcuts for common locations
+                    - The app searches all subfolders automatically
                     '''
                 )
 
 
 # Global function for easy import
 def render_fast_ui_screen():
-    """Main entry point for simplified Screen 1"""
+    """Main entry point for redesigned Screen 1"""
     FastUIScreen.render()
