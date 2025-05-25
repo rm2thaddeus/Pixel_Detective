@@ -76,8 +76,16 @@ class FastUIScreen:
             )
         
         with col2:
-            if st.button("🔍 Browse", help="Open folder browser", key="browse_btn", use_container_width=True):
-                st.session_state.show_folder_browser = True
+            if st.button("🔄 Reset", help="Reset browser to Pictures folder", key="browse_btn", use_container_width=True):
+                # Reset browser to Pictures folder
+                pictures_path = os.path.expanduser("~/Pictures")
+                if os.path.exists(pictures_path):
+                    st.session_state.browse_path = pictures_path
+                    st.success("📸 Navigated to Pictures folder")
+                else:
+                    # Fallback to home directory
+                    st.session_state.browse_path = os.path.expanduser("~")
+                    st.info("🏠 Navigated to Home folder")
                 st.rerun()
         
         with col3:
