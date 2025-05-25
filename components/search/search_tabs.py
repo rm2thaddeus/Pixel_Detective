@@ -37,17 +37,42 @@ def render_text_search_tab():
     st.header("🔍 Text Search")
     st.write("Search for images using text descriptions.")
     
-    # 🚀 LAZY LOADING: Initialize search state only when tab is accessed
-    LazySessionManager.init_search_state()
-    
-    # Text search input
-    query = st.text_input("Enter your search terms:", placeholder="e.g., sunset over mountains, cute dog, family picnic")
-    
-    # Number of results selector
-    num_results = st.slider("Number of results:", min_value=1, max_value=20, value=5)
-    
-    # 🚀 LAZY LOADING: Initialize metadata state only when needed
-    LazySessionManager.init_metadata_state()
+    # FIXED: Check if we're in a proper Streamlit context before accessing session state
+    try:
+        # Only access session state if we're in the main UI thread
+        if not hasattr(st, 'session_state'):
+            st.warning("Text search not available yet. Please complete the initial setup first.")
+            return
+            
+        # Check if database is ready before trying to access it
+        # More flexible check - look for any sign that database might be available
+        database_indicators = [
+            st.session_state.get('database_ready', False),
+            st.session_state.get('database_built', False),
+            st.session_state.get('images_data') is not None,
+            hasattr(st.session_state, 'database_manager')
+        ]
+        
+        if not any(database_indicators):
+            st.info("🔄 Database not ready yet. Please complete the image processing first.")
+            return
+            
+        # 🚀 LAZY LOADING: Initialize search state only when tab is accessed
+        LazySessionManager.init_search_state()
+        
+        # Text search input
+        query = st.text_input("Enter your search terms:", placeholder="e.g., sunset over mountains, cute dog, family picnic")
+        
+        # Number of results selector
+        num_results = st.slider("Number of results:", min_value=1, max_value=20, value=5)
+        
+        # 🚀 LAZY LOADING: Initialize metadata state only when needed
+        LazySessionManager.init_metadata_state()
+    except Exception as e:
+        from utils.logger import logger
+        logger.error(f"Error in text search tab: {e}")
+        st.warning("Text search temporarily unavailable. Please refresh the page.")
+        return
     
     # Search button
     if st.button("🔍 Search Images"):
@@ -109,11 +134,36 @@ def render_image_upload_tab():
     st.header("📸 Image Search")
     st.write("Upload an image to find similar images in your collection.")
     
-    # 🚀 LAZY LOADING: Initialize search state only when tab is accessed
-    LazySessionManager.init_search_state()
-    
-    # File uploader
-    uploaded_file = st.file_uploader("Choose an image...", type=['jpg', 'jpeg', 'png', 'bmp', 'gif'])
+    # FIXED: Check if we're in a proper Streamlit context before accessing session state
+    try:
+        # Only access session state if we're in the main UI thread
+        if not hasattr(st, 'session_state'):
+            st.warning("Image search not available yet. Please complete the initial setup first.")
+            return
+            
+        # Check if database is ready before trying to access it
+        # More flexible check - look for any sign that database might be available
+        database_indicators = [
+            st.session_state.get('database_ready', False),
+            st.session_state.get('database_built', False),
+            st.session_state.get('images_data') is not None,
+            hasattr(st.session_state, 'database_manager')
+        ]
+        
+        if not any(database_indicators):
+            st.info("🔄 Database not ready yet. Please complete the image processing first.")
+            return
+            
+        # 🚀 LAZY LOADING: Initialize search state only when tab is accessed
+        LazySessionManager.init_search_state()
+        
+        # File uploader
+        uploaded_file = st.file_uploader("Choose an image...", type=['jpg', 'jpeg', 'png', 'bmp', 'gif'])
+    except Exception as e:
+        from utils.logger import logger
+        logger.error(f"Error in image upload tab: {e}")
+        st.warning("Image search temporarily unavailable. Please refresh the page.")
+        return
     
     if uploaded_file is not None:
         # Display the uploaded image
@@ -321,4 +371,4 @@ def render_duplicates_tab():
             st.markdown(f"**Cosine Similarity:** {dup['score']:.4f}")
             st.divider()
     elif 'duplicate_results' in st.session_state:
-        st.info("No duplicate pairs found above the threshold.") 
+        st.info("No duplicate pairs found above the threshold.")
