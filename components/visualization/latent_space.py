@@ -41,16 +41,27 @@ def render_latent_space_tab():
     """
     st.header("🔮 Latent Space Explorer")
 
-    # 🚀 LAZY LOADING: Initialize search state only when tab is accessed
-    LazySessionManager.init_search_state()
-
+    # FIXED: Check if we're in a proper Streamlit context before accessing session state
     try:
-        # 🚀 LAZY LOADING: Get database manager only when needed
+        # Only access session state if we're in the main UI thread
+        if not hasattr(st, 'session_state'):
+            st.warning("Latent space visualization not available yet. Please complete the initial setup first.")
+            return
+            
+        # 🚀 LAZY LOADING: Initialize search state only when tab is accessed
+        LazySessionManager.init_search_state()
+
+        # Check if database is ready before trying to access it
+        if not st.session_state.get('database_ready', False):
+            st.info("🔄 Database not ready yet. Please complete the image processing first.")
+            return
+
+        # 🚀 LAZY LOADING: Get database manager only when needed and safe
         db_manager = LazySessionManager.ensure_database_manager()
         df = db_manager.get_latent_space_data()
     except Exception as e:
         logger.error(f"Error retrieving latent space data: {e}")
-        st.warning("No data available for latent space visualization.")
+        st.warning("No data available for latent space visualization. Please ensure the database is built first.")
         return
 
     if df is None or df.empty or 'vector' not in df.columns or df['vector'].isnull().any():
