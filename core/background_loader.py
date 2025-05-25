@@ -217,8 +217,8 @@ class BackgroundLoader:
             self.progress.update_progress(5, "🎨 Loading UI components...")
             self.progress.add_log("📦 Importing UI modules...")
         
-        # Simulate loading time
-        time.sleep(0.5)
+        # FIXED: Removed blocking time.sleep() - UI components load instantly
+        # Real UI components are already loaded when the app starts
         
         with self._lock:
             self.progress.add_log("✅ UI components loaded successfully")
@@ -276,34 +276,47 @@ class BackgroundLoader:
         return image_files
     
     def _load_models(self):
-        """Phase 3: Initialize AI models"""
+        """Phase 3: Initialize AI models - REAL LOADING"""
         with self._lock:
             self.progress.current_phase = LoadingPhase.MODEL_INIT
             self.progress.update_progress(35, "🤖 Initializing AI models...")
             self.progress.add_log("🧠 Loading AI models...")
         
-        # Simulate model loading steps
-        steps = [
-            (40, "📦 PyTorch loaded", 0.5),
-            (45, "📦 Model manager loaded", 0.5),
-            (50, "🤖 CLIP model initialized", 1.0),
-            (55, "📝 Text encoder ready", 0.8),
-            (60, "🎯 Feature extractor ready", 0.7)
-        ]
-        
-        for progress_val, message, sleep_time in steps:
-            if self._check_cancel(): return
-            time.sleep(sleep_time)
+        try:
+            # Actually initialize the model manager in session state
+            import streamlit as st
+            from utils.lazy_session_state import LazySessionManager
+            
+            # Update progress during real loading
             with self._lock:
-                self.progress.update_progress(progress_val, message)
-                self.progress.add_log(f"🔧 {message}")
+                self.progress.update_progress(40, "📦 Loading PyTorch...")
+                self.progress.add_log("📦 Importing PyTorch...")
+            
+            # Ensure model manager is loaded
+            model_manager = LazySessionManager.ensure_model_manager()
+            
+            with self._lock:
+                self.progress.update_progress(50, "🤖 CLIP model initialized")
+                self.progress.add_log("🔧 CLIP model initialized")
+                
+                self.progress.update_progress(55, "📝 Text encoder ready")
+                self.progress.add_log("🔧 Text encoder ready")
+                
+                self.progress.update_progress(60, "🎯 Feature extractor ready")
+                self.progress.add_log("🔧 Feature extractor ready")
+                
+                self.progress.models_loaded = True
+                self.progress.add_log("✅ All AI models loaded successfully")
         
-        with self._lock:
-            self.progress.models_loaded = True
-            self.progress.add_log("✅ All AI models loaded successfully")
+        except Exception as e:
+            with self._lock:
+                self.progress.error_occurred = True
+                self.progress.error_message = f"Model loading failed: {str(e)}"
+                self.progress.add_log(f"❌ Model loading error: {str(e)}")
+            raise
     
     def _build_database(self, image_files: List[str]):
-        """Phase 4: Build searchable database"""
+        """Phase 4: Build searchable database - REAL DATABASE OPERATIONS"""
         with self._lock:
             self.progress.current_phase = LoadingPhase.DB_BUILD
             self.progress.update_progress(65, "💾 Building searchable database...")
@@ -311,36 +324,78 @@ class BackgroundLoader:
             total_images = len(image_files)
             self.progress.add_log(f"💾 Processing {total_images} images for database...")
         
-        # Simulate database building with progress updates
-        batch_size = max(1, total_images // 20)
-        processed = 0
-        
-        for i in range(0, total_images, batch_size):
-            if self._check_cancel(): return
+        try:
+            # Actually initialize the database manager and build database
+            import streamlit as st
+            from utils.lazy_session_state import LazySessionManager
             
-            batch_end = min(i + batch_size, total_images)
-            processed = batch_end
+            # Ensure database manager is available
+            db_manager = LazySessionManager.ensure_database_manager()
             
-            # Simulate processing time
-            time.sleep(0.1)
-            
-            # Update progress
-            progress = 65 + (processed / max(total_images, 1)) * 25  # 65% to 90%
             with self._lock:
-                self.progress.update_progress(
-                    int(progress),
-                    f"💾 Processing images... ({processed}/{total_images})"
-                )
-                self.progress.add_log(f"⚙️ Processed {processed}/{total_images} images")
+                self.progress.update_progress(70, "🔧 Initializing database systems...")
+                self.progress.add_log("🔧 Database manager initialized")
+            
+            # Get the folder path from the first image file
+            if image_files:
+                # Use the folder containing the images as the database folder
+                folder_path = os.path.dirname(image_files[0])
+                # Find the common parent directory of all images
+                for image_file in image_files[1:]:
+                    folder_path = os.path.commonpath([folder_path, os.path.dirname(image_file)])
+                
+                with self._lock:
+                    self.progress.update_progress(75, "💾 Creating database structure...")
+                    self.progress.add_log(f"🏗️ Database folder: {folder_path}")
+                
+                # Check if database already exists
+                if db_manager.database_exists(folder_path):
+                    with self._lock:
+                        self.progress.update_progress(85, "📚 Loading existing database...")
+                        self.progress.add_log("📚 Found existing database, loading...")
+                    
+                    # Load existing database
+                    success = db_manager.load_database(folder_path)
+                    
+                    if success:
+                        with self._lock:
+                            self.progress.update_progress(95, "✅ Database loaded successfully")
+                            self.progress.add_log("✅ Existing database loaded successfully")
+                    else:
+                        raise Exception("Failed to load existing database")
+                        
+                else:
+                    with self._lock:
+                        self.progress.update_progress(80, "🏗️ Building new database...")
+                        self.progress.add_log("🏗️ Building new database from scratch...")
+                    
+                    # Build new database
+                    success = db_manager.build_database(folder_path, image_files)
+                    
+                    if success:
+                        with self._lock:
+                            self.progress.update_progress(95, "✅ Database built successfully")
+                            self.progress.add_log("✅ New database built successfully")
+                    else:
+                        raise Exception("Failed to build new database")
+                
+                # Store database info in session state
+                st.session_state.database_folder = folder_path
+                st.session_state.database_ready = True
+                
+            else:
+                raise Exception("No image files provided for database building")
+            
+            with self._lock:
+                self.progress.database_ready = True
+                self.progress.add_log("✅ Database ready for searches")
         
-        # Finalize database
-        time.sleep(0.5)
-        with self._lock:
-            self.progress.add_log("🔧 Optimizing database indices...")
-            self.progress.update_progress(90, "🔧 Optimizing database...")
-            self.progress.database_ready = True
-            self.progress.add_log("✅ Database built successfully")
-            self.progress.update_progress(95, "✅ Database ready")
+        except Exception as e:
+            with self._lock:
+                self.progress.error_occurred = True
+                self.progress.error_message = f"Database building failed: {str(e)}"
+                self.progress.add_log(f"❌ Database error: {str(e)}")
+            raise
     
     def _finalize_loading(self):
         """Phase 5: Finalize and transition to advanced UI"""
@@ -349,8 +404,8 @@ class BackgroundLoader:
             self.progress.update_progress(100, "🎉 Ready for advanced features!")
             self.progress.current_phase = LoadingPhase.READY
         
-        # Small delay to let user see the completion
-        time.sleep(0.5)
+        # FIXED: Removed blocking time.sleep() - let UI handle completion timing
+        # The loading screen will show completion message before transitioning
         
         with self._lock:
             self.progress.add_log("🚀 Welcome to Pixel Detective!")
