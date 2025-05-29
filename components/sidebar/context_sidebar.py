@@ -1,23 +1,28 @@
-"""
-Sidebar components for the Pixel Detective app with lazy loading optimizations.
-"""
+import streamlit as st
 import os
 import torch
-import streamlit as st
+import random
 from utils.logger import logger
 from utils.lazy_session_state import LazySessionManager
+<<<<<<< HEAD
 from config import DEFAULT_IMAGES_PATH
 from database.qdrant_connector import QdrantDB
 from components.task_orchestrator import submit, is_running
+=======
+from utils.qdrant_db import QdrantDB
+
+# Default path for images
+DEFAULT_IMAGES_PATH = os.path.expanduser("~/Pictures")
+>>>>>>> e999a0dbfc5b1dedbbf2bc17b574607da607c9fb
 
 def render_sidebar():
     """
-    Render the sidebar components with lazy loading and performance optimizations.
+    Render the sidebar components.
     
     Returns:
-        dict: A dictionary with keys for 'image_folder' (current DB folder) and 'new_folder' (to be merged), if any.
+        str: The selected image folder path.
     """
-    st.sidebar.header("✨ Command Center ✨")
+    st.sidebar.header("🔧 Database Manager")
     
     # Display colored device status with fun names
     if torch.cuda.is_available():
@@ -42,6 +47,7 @@ def render_sidebar():
         current_folder = st.sidebar.text_input("📁 Database folder", value=st.session_state.image_folder, key="db_folder").strip().strip('"')
         st.session_state.image_folder = current_folder
         
+<<<<<<< HEAD
         # Note: Removed the database_ready check as it was preventing database creation
         
         # 🚀 LAZY LOADING: Get db_manager only when needed and safe
@@ -51,6 +57,31 @@ def render_sidebar():
             st.sidebar.info("🔄 Database manager will initialize when you build/load a database.")
         
         # Check and indicate if a database exists here
+=======
+        # Check if database is ready before trying to access it
+        if not st.session_state.get('database_ready', False):
+            st.sidebar.info("🔄 Database not ready yet. Please complete the image processing first.")
+            return current_folder
+        
+        # 🚀 LAZY LOADING: Get db_manager only when needed and safe
+        db_manager = LazySessionManager.ensure_database_manager()
+        
+        # Check and indicate if a database exists here
+        if os.path.exists(current_folder):
+            if db_manager.database_exists(current_folder):
+                st.sidebar.success("🧠 Database exists in this folder!")
+            else:
+                st.sidebar.info("No database found in this folder.")
+        else:
+            st.sidebar.error("Folder does not exist!")
+    except Exception as e:
+        logger.error(f"Error in sidebar rendering: {e}")
+        st.sidebar.warning("Sidebar temporarily unavailable. Please refresh the page.")
+        return DEFAULT_IMAGES_PATH
+    
+    # Button to Build/Load the database if it doesn't exist
+    if st.sidebar.button("🚀 Build/Load Database"):
+>>>>>>> e999a0dbfc5b1dedbbf2bc17b574607da607c9fb
         if os.path.exists(current_folder):
             if db_manager:
                 try:
@@ -186,64 +217,26 @@ def render_sidebar_old():
         st.sidebar.markdown("<h3 style='color: orange;'>🐢 CPU Mode (Slow & Steady) 🐢</h3>", unsafe_allow_html=True)
         st.sidebar.markdown("<p>No Graphix Cardz detected. We'll do our best with brain power alone!</p>", unsafe_allow_html=True)
     
-    # Image folder input with fun label
+    # Current folder for the existing database
     if 'image_folder' not in st.session_state:
         st.session_state.image_folder = DEFAULT_IMAGES_PATH
 
-    # Strip quotes and whitespace from the input path
-    folder_input = st.sidebar.text_input(
-        "📁 Where are your amazing pics hiding?", 
-        value=st.session_state.image_folder, 
-        key="folder_path"
-    ).strip().strip('"')
-
-    # Update the folder path when the text input changes
-    if folder_input != st.session_state.image_folder:
-        st.session_state.image_folder = folder_input
-
-    image_folder = st.session_state.image_folder
+    current_folder = st.sidebar.text_input("📁 Database folder", value=st.session_state.image_folder, key="db_folder").strip().strip('"')
+    st.session_state.image_folder = current_folder
     
-    # Check if database exists with fun message
-    if os.path.exists(image_folder):
-        if database_exists(image_folder):
-            st.sidebar.success("🧠 Brain cells found! This folder already has a database!")
+    # 🚀 LAZY LOADING: Get db_manager only when needed
+    db_manager = LazySessionManager.ensure_database_manager()
+    
+    # Check and indicate if a database exists here
+    if os.path.exists(current_folder):
+        if db_manager.database_exists(current_folder):
+            st.sidebar.success("🧠 Database exists in this folder!")
         else:
-            st.sidebar.info("🔍 No database here yet. Let's make some magic happen!")
-    
-    # Button to build/load database with fun text
-    if st.sidebar.button("🚀 Launch the Brain Builder!"):
-        if os.path.exists(image_folder):
-            # Load CLIP model first
-            load_clip_model()
-            
-            # Check if database exists and load it, or build new one
-            if database_exists(image_folder):
-                st.sidebar.info("📚 Loading existing brain cells... stand by!")
-                load_database(image_folder)
-            else:
-                st.sidebar.info("🏗️ Building new neural pathways... this might take a bit!")
-                st.session_state.database_built = False
-                st.session_state.db_building_complete = False
-                st.session_state.current_image_index = 0
-                
-                # Get the list of images and build the database
-                image_list = get_image_list(image_folder)
-                if image_list:
-                    build_database(image_folder, image_list)
-                else:
-                    st.sidebar.error("No images found in the specified folder.")
-        else:
-            st.sidebar.error(f"🤔 Hmm, can't find that folder. Did the computer gremlins take it?")
-    
-    # Show model information at the bottom of sidebar
-    if 'model_manager' in st.session_state and st.session_state.model_manager.clip_model is not None:
-        st.sidebar.success("✅ CLIP model is loaded and ready")
-        device = st.session_state.model_manager.device
-        device_type = "GPU" if device.type == "cuda" else "CPU"
-        st.sidebar.info(f"Model is running on: {device_type}")
+            st.sidebar.info("No database found in this folder.")
     else:
-        st.sidebar.warning("CLIP model is not loaded yet")
+        st.sidebar.error("Folder does not exist!")
     
+<<<<<<< HEAD
     return image_folder 
 
 # Helper background functions
@@ -293,3 +286,6 @@ def _background_merge_folder(current_folder, new_folder):
     except Exception as e:
         logger.error(f"Task 'merge_db': Unexpected error for {new_folder}: {e}")
         st.error(f"Unexpected error: {e}") 
+=======
+    return current_folder
+>>>>>>> e999a0dbfc5b1dedbbf2bc17b574607da607c9fb

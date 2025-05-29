@@ -20,9 +20,12 @@ try:
     TKINTER_AVAILABLE = True
 except ImportError:
     TKINTER_AVAILABLE = False
+<<<<<<< HEAD
 
 # Import for background model preloading
 # from core.optimized_model_manager import get_optimized_model_manager, ModelType
+=======
+>>>>>>> e999a0dbfc5b1dedbbf2bc17b574607da607c9fb
 
 
 class FastUIScreen:
@@ -223,6 +226,7 @@ class FastUIScreen:
     
     @staticmethod
     def _start_processing(folder_path: str):
+<<<<<<< HEAD
         """Signal ScreenRenderer to start the processing pipeline"""
         st.session_state.folder_path = folder_path
         st.session_state.trigger_loading = True
@@ -323,10 +327,111 @@ class FastUIScreen:
                     if st.button("Test Background Prep Manually"):
                         FastUIScreen._start_background_preparation()
                         st.success("Manually triggered background prep.")
+=======
+        """Start the processing pipeline"""
+        # Show starting message
+        st.markdown(
+            '''
+            <div class="pd-alert pd-alert-success pd-celebrate">
+                <div style="font-size: 1.2rem;">🚀</div>
+                <div>
+                    <strong>Starting your image search engine...</strong>
+                    <div style="margin-top: 0.5rem; font-size: 0.875rem; opacity: 0.8;">
+                        This will take a moment - please keep this tab open
+                    </div>
+                </div>
+            </div>
+            ''',
+            unsafe_allow_html=True
+        )
+        
+        # Transition to loading
+        AppStateManager.transition_to_loading(folder_path)
+        
+        # Start background loading
+        if background_loader.start_loading_pipeline(folder_path):
+            import time
+            time.sleep(0.5)
+            st.rerun()
+        else:
+            st.error("❌ Could not start processing. Please try again.")
+    
+    @staticmethod
+    def _start_background_preparation():
+        """Start loading heavy modules in background"""
+        if (not st.session_state.get('background_prep_started', False) and 
+            st.session_state.get('app_state', AppState.FAST_UI) == AppState.FAST_UI):
+            
+            st.session_state.background_prep_started = True
+            background_loader.start_background_preparation()
+    
+    @staticmethod
+    def _render_minimal_sidebar():
+        """Minimal sidebar with only essential information"""
+        with st.sidebar:
+            # Simple status
+            st.markdown(
+                '''
+                <div class="pd-card" style="text-align: center; margin-bottom: 1.5rem;">
+                    <h3 style="color: var(--pd-primary); margin-bottom: 0.5rem;">🎯 Getting Started</h3>
+                    <div style="font-size: 0.875rem; color: var(--pd-text-secondary);">
+                        Select your image folder to begin
+                    </div>
+                </div>
+                ''',
+                unsafe_allow_html=True
+            )
+            
+            # System status
+            if st.session_state.get('background_prep_started', False):
+                create_status_indicator("success", "System ready", True)
+            else:
+                create_status_indicator("info", "Preparing...", True)
+            
+            st.markdown("---")
+            
+            # Current selection info
+            current_path = st.session_state.get('folder_path', '')
+            if current_path:
+                st.markdown("**📁 Selected folder:**")
+                st.code(current_path)
+                
+                # Quick folder info
+                if os.path.exists(current_path):
+                    try:
+                        files = os.listdir(current_path)[:20]
+                        image_extensions = {'.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff', '.webp'}
+                        image_count = sum(1 for f in files if any(f.lower().endswith(ext) for ext in image_extensions))
+                        st.success(f"🖼️ {image_count}+ images found")
+                    except:
+                        st.warning("⚠️ Cannot read folder")
+            
+            st.markdown("---")
+            
+            # Simple help
+            with st.expander("💡 Need Help?"):
+                st.markdown(
+                    '''
+                    **How to use:**
+                    1. Click "Browse" to select your image folder
+                    2. Or type the folder path manually
+                    3. Click "Start Building" when ready
+                    
+                    **Tips:**
+                    - The app works with .jpg, .png, .gif, and other image formats
+                    - It will search all subfolders automatically
+                    - Make sure you have read access to the folder
+                    '''
+                )
+>>>>>>> e999a0dbfc5b1dedbbf2bc17b574607da607c9fb
 
 
 # Global function for easy import
 def render_fast_ui_screen():
     """Main entry point for minimal Screen 1"""
+<<<<<<< HEAD
     # Ensure sys is imported for lazy_import helper
     FastUIScreen.render() 
+=======
+    FastUIScreen.render()
+>>>>>>> e999a0dbfc5b1dedbbf2bc17b574607da607c9fb

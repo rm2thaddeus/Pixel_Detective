@@ -430,6 +430,7 @@ def render_duplicates_tab():
                 st.caption(dup['duplicate'])
             st.markdown(f"**Cosine Similarity:** {dup['score']:.4f}")
             st.divider()
+<<<<<<< HEAD
         else:
         st.info("No duplicate pairs found above the threshold.") 
     elif task_status == "error":
@@ -438,3 +439,7 @@ def render_duplicates_tab():
     # If no button clicked yet, and no status, it's the initial state
     elif task_status is None and 'duplicate_results' not in st.session_state:
         st.info("Click 'Find Duplicates' to start the detection process.") 
+=======
+    elif 'duplicate_results' in st.session_state:
+        st.info("No duplicate pairs found above the threshold.")
+>>>>>>> e999a0dbfc5b1dedbbf2bc17b574607da607c9fb

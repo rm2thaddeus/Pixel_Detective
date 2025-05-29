@@ -49,6 +49,7 @@ def render_latent_space_tab():
             st.warning("Latent space visualization not available yet. Please complete the initial setup first.")
             return
             
+<<<<<<< HEAD
         # LAZY LOADING: Initialize search state only when tab is accessed
         LazySessionManager.init_search_state()
 
@@ -69,6 +70,19 @@ def render_latent_space_tab():
             logger.error(f"Error retrieving latent space data: {e}")
             st.warning("Error retrieving latent space data. Please ensure the database is built properly.")
             return
+=======
+        # 🚀 LAZY LOADING: Initialize search state only when tab is accessed
+        LazySessionManager.init_search_state()
+
+        # Check if database is ready before trying to access it
+        if not st.session_state.get('database_ready', False):
+            st.info("🔄 Database not ready yet. Please complete the image processing first.")
+            return
+
+        # 🚀 LAZY LOADING: Get database manager only when needed and safe
+        db_manager = LazySessionManager.ensure_database_manager()
+        df = db_manager.get_latent_space_data()
+>>>>>>> e999a0dbfc5b1dedbbf2bc17b574607da607c9fb
     except Exception as e:
         logger.error(f"Error retrieving latent space data: {e}")
         st.warning("No data available for latent space visualization. Please ensure the database is built first.")
