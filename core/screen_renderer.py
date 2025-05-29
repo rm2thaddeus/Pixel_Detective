@@ -7,6 +7,9 @@ from core.app_state import AppState, AppStateManager
 from screens.fast_ui_screen import render_fast_ui_screen
 from screens.loading_screen import render_loading_screen
 from screens.advanced_ui_screen import render_advanced_ui_screen
+from components.accessibility import AccessibilityEnhancer
+from core.background_loader import background_loader
+from utils.lazy_session_state import LazySessionManager, get_cached_model_manager, get_cached_db_manager
 
 
 class ScreenRenderer:
@@ -15,16 +18,59 @@ class ScreenRenderer:
     @staticmethod
     def render():
         """Render the appropriate screen based on current app state"""
-        # Initialize session state if needed
+        
         AppStateManager.init_session_state()
         
-        # Get current state
         current_state = AppStateManager.get_current_state()
-        
-        # Route to appropriate screen
+        folder_path = st.session_state.get('folder_path')
+
+        # Check if FAST_UI has signaled to start loading
+        if current_state == AppState.FAST_UI and st.session_state.get('trigger_loading', False):
+            if folder_path:
+                AppStateManager.transition_to_loading(folder_path)
+                st.session_state.trigger_loading = False # Consume the trigger
+                
+                # 🚀 PERFORMANCE FIX: Don't create managers here - let background loader handle it
+                # This was causing 68+ second startup times by loading models immediately
+                
+                # --- BEGIN CRITICAL LOGGING ---
+                st.session_state.renderer_log = st.session_state.get('renderer_log', [])
+                st.session_state.renderer_log.append(f"RENDERER: Transitioning to loading for {folder_path}")
+                # --- END CRITICAL LOGGING ---
+
+                # Start the background loading pipeline - it will create managers when needed
+                if not background_loader.progress.is_loading: # Avoid starting if already in progress (e.g. from error retry)
+                    background_loader.start_loading_pipeline(folder_path)
+                    # --- BEGIN CRITICAL LOGGING ---
+                    st.session_state.renderer_log.append(f"RENDERER: Called start_loading_pipeline for {folder_path}.")
+                    # --- END CRITICAL LOGGING ---
+                else:
+                    # --- BEGIN CRITICAL LOGGING ---
+                    st.session_state.renderer_log.append("RENDERER: Loading already in progress, not restarting.")
+                    # --- END CRITICAL LOGGING ---
+                
+                current_state = AppState.LOADING # Update current_state for the next block
+                st.rerun() # Rerun to immediately go to loading screen render path
+            else:
+                st.warning("Folder path not set, cannot trigger loading.")
+                st.session_state.trigger_loading = False # Consume trigger
+
         if current_state == AppState.FAST_UI:
             ScreenRenderer._render_fast_ui()
         elif current_state == AppState.LOADING:
+            # Ensure the loader is started if we directly land in LOADING state (e.g. after app restart with state preserved)
+            # This is a safeguard, primary start is above.
+            if folder_path and not background_loader.progress.is_loading and not AppStateManager.is_ready_for_advanced():
+                # --- BEGIN CRITICAL LOGGING ---
+                st.session_state.renderer_log = st.session_state.get('renderer_log', [])
+                st.session_state.renderer_log.append(f"RENDERER (SAFEGUARD): Starting loading pipeline for {folder_path}")
+                # --- END CRITICAL LOGGING ---
+                background_loader.start_loading_pipeline(folder_path)
+                # --- BEGIN CRITICAL LOGGING ---
+                st.session_state.renderer_log.append(f"RENDERER (SAFEGUARD): Called start_loading_pipeline for {folder_path}.")
+                # --- END CRITICAL LOGGING ---
+
+                # No rerun here, loading screen will handle it.
             ScreenRenderer._render_loading()
         elif current_state == AppState.ADVANCED_UI:
             ScreenRenderer._render_advanced_ui()
@@ -82,16 +128,16 @@ class ScreenRenderer:
             
             with col1:
                 if st.button("🔄 Try Again", type="primary"):
-                    # Reset to loading state and retry
-                    folder_path = st.session_state.get('folder_path', '')
-                    if folder_path:
-                        AppStateManager.transition_to_loading(folder_path)
-                        from core.background_loader import background_loader
-                        background_loader.start_loading_pipeline(folder_path)
+                    folder_path_retry = st.session_state.get('folder_path', '')
+                    if folder_path_retry:
+                        AppStateManager.transition_to_loading(folder_path_retry)
+                        # 🚀 PERFORMANCE FIX: Let background loader create managers when needed
+                        # Start the background loading pipeline - it will create managers when needed
+                        if not background_loader.progress.is_loading:
+                             background_loader.start_loading_pipeline(folder_path_retry)
                         st.rerun()
                     else:
                         AppStateManager.reset_to_fast_ui()
-                        st.rerun()
             
             with col2:
                 if st.button("📁 Choose Different Folder"):
@@ -207,39 +253,16 @@ Image Count: {len(st.session_state.get('image_files', []))}
                         st.rerun()
 
 
-# Global function for easy import
+# Entry point for the main application rendering logic
 def render_app():
-    """Main entry point for the entire application"""
-    try:
-        # Load minimal CSS
-        st.markdown("""
-        <style>
-        .main { padding-top: 1rem; }
-        .stAlert { margin: 1rem 0; }
-        .loading-spinner { 
-            text-align: center; 
-            font-size: 2rem; 
-            animation: spin 2s linear infinite; 
-        }
-        @keyframes spin { 
-            0% { transform: rotate(0deg); } 
-            100% { transform: rotate(360deg); } 
-        }
-        </style>
-        """, unsafe_allow_html=True)
-        
-        # Render the appropriate screen
-        ScreenRenderer.render()
-        
-        # Show debug info in development
-        # ScreenRenderer.show_debug_info()  # Uncomment for debugging
-        
-    except Exception as e:
-        st.error("Critical application error occurred")
-        st.exception(e)
-        
-        if st.button("🔄 Force Reset"):
-            # Emergency reset
-            for key in list(st.session_state.keys()):
-                del st.session_state[key]
-            st.rerun() 
+    """Render the application UI"""
+    # Restore individual accessibility calls
+    AccessibilityEnhancer.inject_accessibility_styles()
+    AccessibilityEnhancer.add_skip_navigation()
+    AccessibilityEnhancer.add_keyboard_navigation_script()
+    
+    # Core rendering logic
+    ScreenRenderer.render()
+    
+    # Optional: Show debug info (controlled by a checkbox within ScreenRenderer)
+    ScreenRenderer.show_debug_info() 

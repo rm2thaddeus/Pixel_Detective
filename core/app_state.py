@@ -22,6 +22,10 @@ class AppStateManager:
     @staticmethod
     def init_session_state():
         """Initialize all session state variables with proper defaults"""
+        # CRITICAL: Initialize lazy session manager first
+        from utils.lazy_session_state import LazySessionManager
+        LazySessionManager.init_core_state()
+        
         # Core app state
         if 'app_state' not in st.session_state:
             st.session_state.app_state = AppState.FAST_UI

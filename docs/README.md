@@ -86,6 +86,10 @@ Pixel Detective leverages two powerful AI models:
 - **CLIP** (Contrastive Language-Image Pre-training): Creates embeddings that connect images and text in the same semantic space, enabling natural language search
 - **BLIP** (Bootstrapping Language-Image Pre-training): Generates detailed captions for images, enhancing searchability and organization
 
+## 📄 Metadata Structure Reference (`metadata.csv`)
+
+The `metadata.csv` file located in this `docs` directory serves as a reference for the expected structure and an example of the metadata that Pixel Detective aims to capture and store in its database for each image. This includes fields extracted from EXIF/XMP data, as well as AI-generated captions and tags. While the application dynamically handles various metadata, this CSV provides a clear example of the comprehensive data points the system works with.
+
 ## 📋 Requirements
 
 **Recommended**: Create and activate a Python virtual environment for dependency isolation before installing dependencies:

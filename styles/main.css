@@ -1,0 +1,294 @@
+/* 🎨 Pixel Detective - Core Design System
+ * Sprint 02: Visual Design System Implementation
+ * Purpose: Main CSS framework with design variables and core styling
+ */
+
+/* ===== CSS VARIABLES - DESIGN SYSTEM ===== */
+:root {
+  /* Color Palette - Detective Theme */
+  --pd-primary: #1f77b4;        /* Detective Blue */
+  --pd-secondary: #ff7f0e;      /* Accent Orange */
+  --pd-success: #2ca02c;        /* Action Green */
+  --pd-warning: #d62728;        /* Alert Red */
+  --pd-background: #f8f9fa;     /* Light Gray */
+  --pd-surface: #ffffff;        /* White */
+  --pd-text-primary: #212529;   /* Dark Text */
+  --pd-text-secondary: #6c757d; /* Muted Text */
+  --pd-border: #dee2e6;         /* Light Border */
+  
+  /* Dark Mode Colors */
+  --pd-dark-bg: #2b2b2b;        /* Charcoal */
+  --pd-dark-surface: #3c3c3c;   /* Dark Surface */
+  --pd-dark-text: #e9ecef;      /* Light Text */
+  --pd-dark-border: #495057;    /* Dark Border */
+  
+  /* Typography System */
+  --pd-font-header: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --pd-font-body: 'Source Sans Pro', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --pd-font-code: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+  
+  /* Font Sizes */
+  --pd-text-xs: 0.75rem;   /* 12px */
+  --pd-text-sm: 0.875rem;  /* 14px */
+  --pd-text-base: 1rem;    /* 16px */
+  --pd-text-lg: 1.125rem;  /* 18px */
+  --pd-text-xl: 1.25rem;   /* 20px */
+  --pd-text-2xl: 1.5rem;   /* 24px */
+  --pd-text-3xl: 1.875rem; /* 30px */
+  --pd-text-4xl: 2.25rem;  /* 36px */
+  
+  /* Spacing System - Base unit: 0.5rem (8px) */
+  --pd-space-1: 0.25rem;   /* 4px */
+  --pd-space-2: 0.5rem;    /* 8px */
+  --pd-space-3: 0.75rem;   /* 12px */
+  --pd-space-4: 1rem;      /* 16px */
+  --pd-space-5: 1.25rem;   /* 20px */
+  --pd-space-6: 1.5rem;    /* 24px */
+  --pd-space-8: 2rem;      /* 32px */
+  --pd-space-10: 2.5rem;   /* 40px */
+  --pd-space-12: 3rem;     /* 48px */
+  --pd-space-16: 4rem;     /* 64px */
+  
+  /* Border Radius */
+  --pd-radius-sm: 0.25rem;  /* 4px */
+  --pd-radius: 0.375rem;    /* 6px */
+  --pd-radius-md: 0.5rem;   /* 8px */
+  --pd-radius-lg: 0.75rem;  /* 12px */
+  --pd-radius-xl: 1rem;     /* 16px */
+  
+  /* Shadows */
+  --pd-shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --pd-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+  --pd-shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --pd-shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  
+  /* Transitions */
+  --pd-transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  --pd-transition: 200ms cubic-bezier(0.4, 0, 0.2, 1);
+  --pd-transition-slow: 300ms cubic-bezier(0.4, 0, 0.2, 1);
+  
+  /* Z-Index Scale */
+  --pd-z-dropdown: 1000;
+  --pd-z-sticky: 1020;
+  --pd-z-fixed: 1030;
+  --pd-z-modal: 1040;
+  --pd-z-popover: 1050;
+  --pd-z-tooltip: 1060;
+}
+
+/* ===== GLOBAL STYLES ===== */
+* {
+  box-sizing: border-box;
+}
+
+.pd-app {
+  font-family: var(--pd-font-body);
+  font-size: var(--pd-text-base);
+  line-height: 1.6;
+  color: var(--pd-text-primary);
+  background-color: var(--pd-background);
+}
+
+/* ===== TYPOGRAPHY ===== */
+.pd-title {
+  font-family: var(--pd-font-header);
+  font-size: var(--pd-text-4xl);
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--pd-text-primary);
+  margin-bottom: var(--pd-space-6);
+}
+
+.pd-heading {
+  font-family: var(--pd-font-header);
+  font-size: var(--pd-text-2xl);
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--pd-text-primary);
+  margin-bottom: var(--pd-space-4);
+}
+
+.pd-subheading {
+  font-family: var(--pd-font-header);
+  font-size: var(--pd-text-xl);
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--pd-text-secondary);
+  margin-bottom: var(--pd-space-3);
+}
+
+.pd-body {
+  font-family: var(--pd-font-body);
+  font-size: var(--pd-text-base);
+  line-height: 1.6;
+  color: var(--pd-text-primary);
+}
+
+.pd-small {
+  font-size: var(--pd-text-sm);
+  color: var(--pd-text-secondary);
+}
+
+.pd-code {
+  font-family: var(--pd-font-code);
+  font-size: var(--pd-text-sm);
+  background-color: rgba(var(--pd-primary), 0.1);
+  padding: var(--pd-space-1) var(--pd-space-2);
+  border-radius: var(--pd-radius-sm);
+}
+
+/* ===== LAYOUT UTILITIES ===== */
+.pd-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 var(--pd-space-4);
+}
+
+.pd-flex {
+  display: flex;
+}
+
+.pd-flex-col {
+  flex-direction: column;
+}
+
+.pd-items-center {
+  align-items: center;
+}
+
+.pd-justify-center {
+  justify-content: center;
+}
+
+.pd-justify-between {
+  justify-content: space-between;
+}
+
+.pd-gap-4 {
+  gap: var(--pd-space-4);
+}
+
+.pd-gap-6 {
+  gap: var(--pd-space-6);
+}
+
+/* ===== SPACING UTILITIES ===== */
+.pd-m-4 { margin: var(--pd-space-4); }
+.pd-mt-4 { margin-top: var(--pd-space-4); }
+.pd-mb-4 { margin-bottom: var(--pd-space-4); }
+.pd-p-4 { padding: var(--pd-space-4); }
+.pd-pt-4 { padding-top: var(--pd-space-4); }
+.pd-pb-4 { padding-bottom: var(--pd-space-4); }
+
+.pd-m-6 { margin: var(--pd-space-6); }
+.pd-p-6 { padding: var(--pd-space-6); }
+
+/* ===== SURFACE STYLES ===== */
+.pd-card {
+  background-color: var(--pd-surface);
+  border: 1px solid var(--pd-border);
+  border-radius: var(--pd-radius-lg);
+  padding: var(--pd-space-6);
+  box-shadow: var(--pd-shadow-sm);
+  transition: box-shadow var(--pd-transition);
+}
+
+.pd-card:hover {
+  box-shadow: var(--pd-shadow-md);
+}
+
+.pd-hero {
+  background: linear-gradient(135deg, var(--pd-primary) 0%, #1565c0 100%);
+  color: white;
+  padding: var(--pd-space-12) var(--pd-space-6);
+  border-radius: var(--pd-radius-xl);
+  text-align: center;
+  margin-bottom: var(--pd-space-8);
+}
+
+/* ===== ANIMATION CLASSES ===== */
+.pd-fade-in {
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+.pd-slide-in {
+  animation: slideIn 0.3s ease-out;
+}
+
+.pd-scale-in {
+  animation: scaleIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideIn {
+  from { 
+    opacity: 0; 
+    transform: translateY(10px); 
+  }
+  to { 
+    opacity: 1; 
+    transform: translateY(0); 
+  }
+}
+
+@keyframes scaleIn {
+  from { 
+    opacity: 0; 
+    transform: scale(0.95); 
+  }
+  to { 
+    opacity: 1; 
+    transform: scale(1); 
+  }
+}
+
+/* ===== DARK MODE SUPPORT ===== */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --pd-background: var(--pd-dark-bg);
+    --pd-surface: var(--pd-dark-surface);
+    --pd-text-primary: var(--pd-dark-text);
+    --pd-border: var(--pd-dark-border);
+  }
+}
+
+/* ===== ACCESSIBILITY ===== */
+.pd-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.pd-focus-visible:focus {
+  outline: 2px solid var(--pd-primary);
+  outline-offset: 2px;
+}
+
+/* ===== RESPONSIVE DESIGN ===== */
+@media (max-width: 768px) {
+  .pd-title {
+    font-size: var(--pd-text-3xl);
+  }
+  
+  .pd-heading {
+    font-size: var(--pd-text-xl);
+  }
+  
+  .pd-container {
+    padding: 0 var(--pd-space-3);
+  }
+  
+  .pd-hero {
+    padding: var(--pd-space-8) var(--pd-space-4);
+  }
+} 

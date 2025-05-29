@@ -9,6 +9,14 @@ import sys
 import gc
 from typing import Dict, Any, Optional, Callable
 
+# Import logger for error handling
+try:
+    from utils.logger import logger
+except ImportError:
+    # Fallback if logger is not available
+    import logging
+    logger = logging.getLogger(__name__)
+
 def get_or_init_session_var(key: str, default_factory: Callable[[], Any]) -> Any:
     """
     Get or initialize a session state variable on demand.
@@ -158,59 +166,121 @@ class LazySessionManager:
     @staticmethod
     def ensure_model_manager():
         """
-        Load model manager ONLY when explicitly called.
-        This should only happen when user clicks 'Start Processing'.
-        """
-        if 'model_manager' not in st.session_state:
-            # Show clear feedback that models are loading NOW
-            with st.spinner("🤖 Loading AI models for the first time..."):
-                progress = st.progress(0)
-                
-                # Import heavy modules
-                progress.progress(20)
-                from models.lazy_model_manager import LazyModelManager
-                
-                progress.progress(40)
-                # Only import torch when actually needed
-                import torch
-                
-                progress.progress(60)
-                device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-                
-                progress.progress(80)
-                # Create model manager (but models still load on demand)
-                st.session_state.model_manager = LazyModelManager(device)
-                
-                progress.progress(100)
-                progress.empty()
-                
-            st.session_state.models_loaded = True
-            st.success("✅ AI models ready for processing!")
+        Get the OptimizedModelManager instance.
+        This relies on OptimizedModelManager being a cached resource.
+        
+        Returns:
+            OptimizedModelManager: A valid model manager instance
             
-        return st.session_state.model_manager
+        Raises:
+            RuntimeError: If model manager cannot be created
+        """
+        try:
+            from core.optimized_model_manager import get_optimized_model_manager
+            model_manager = get_optimized_model_manager()
+            
+            if model_manager is None:
+                raise RuntimeError("get_optimized_model_manager() returned None")
+            
+            # OptimizedModelManager has its own checks. 'device' is a basic attribute.
+            if not hasattr(model_manager, 'device'): 
+                 logger.warning("OptimizedModelManager instance seems basic or not fully initialized.")
+
+            # OptimizedModelManager manages its own loading state. 
+            # We can check if it's ready or if models are preloading.
+            if hasattr(model_manager, 'are_all_models_ready') and model_manager.are_all_models_ready():
+                st.session_state.models_loaded = True
+            elif hasattr(model_manager, 'get_loading_status'):
+                status = model_manager.get_loading_status()
+                st.session_state.models_loaded = status.get('all_ready', False)
+            else:
+                 st.session_state.models_loaded = False # Fallback
+
+            logger.info("OptimizedModelManager instance obtained via get_optimized_model_manager.")
+            return model_manager
+            
+        except Exception as e:
+            error_msg = f"Failed to get OptimizedModelManager: {e}"
+            logger.error(error_msg, exc_info=True)
+            raise RuntimeError(error_msg)
     
     @staticmethod
     def ensure_database_manager():
         """
         Load database manager ONLY when explicitly called.
         This should only happen after model manager is loaded.
+        
+        Returns:
+            DatabaseManager: A valid database manager instance
+            
+        Raises:
+            RuntimeError: If database manager cannot be created after all attempts
         """
-        if 'db_manager' not in st.session_state:
-            with st.spinner("💾 Connecting to database..."):
+        if st.session_state.get('db_manager') is None:
+            try:
                 # Import database modules only when needed
                 from database.db_manager import DatabaseManager
-                from utils.logger import logger
+                
+                logger.info("Creating database manager...")
                 
                 # Ensure model manager exists first
                 model_manager = LazySessionManager.ensure_model_manager()
                 
-                logger.info("Creating database manager with lazy model manager")
-                st.session_state.db_manager = DatabaseManager(model_manager)
-                st.session_state.database_connected = True
+                if model_manager is None:
+                    raise RuntimeError("Model manager is None - cannot create database manager")
                 
-            st.success("✅ Database connection established!")
+                logger.info("Creating database manager with lazy model manager")
+                db_manager = DatabaseManager(model_manager)
+                
+                if db_manager is None:
+                    raise RuntimeError("DatabaseManager constructor returned None")
+                
+                # Test the database manager to ensure it's working
+                try:
+                    # Simple test to verify the database manager is functional
+                    test_result = db_manager.database_exists(".")
+                    logger.info(f"Database manager test successful: database_exists('.') = {test_result}")
+                except Exception as test_error:
+                    logger.error(f"Database manager test failed: {test_error}")
+                    raise RuntimeError(f"Database manager is not functional: {test_error}")
+                
+                st.session_state.db_manager = db_manager
+                st.session_state.database_connected = True
+                logger.info("Database manager created and stored in session state")
+                
+            except Exception as e:
+                error_msg = f"Failed to create database manager: {e}"
+                logger.error(error_msg)
+                
+                # Try to create a fallback database manager without Streamlit UI
+                try:
+                    logger.info("Attempting to create fallback database manager...")
+                    from database.db_manager import DatabaseManager
+                    from models.lazy_model_manager import LazyModelManager
+                    import torch
+                    
+                    # Create minimal components without Streamlit UI
+                    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+                    fallback_model_manager = LazyModelManager(device)
+                    fallback_db_manager = DatabaseManager(fallback_model_manager)
+                    
+                    # Test the fallback
+                    fallback_db_manager.database_exists(".")
+                    
+                    st.session_state.db_manager = fallback_db_manager
+                    st.session_state.database_connected = True
+                    logger.info("Fallback database manager created successfully")
+                    
+                except Exception as fallback_error:
+                    logger.error(f"Fallback database manager creation failed: {fallback_error}")
+                    raise RuntimeError(f"Cannot create database manager: {e}. Fallback also failed: {fallback_error}")
             
-        return st.session_state.db_manager
+        # Verify we have a valid database manager
+        db_manager = st.session_state.get('db_manager')
+        if db_manager is None:
+            raise RuntimeError("Database manager is None in session state")
+            
+        return db_manager
     
     @staticmethod
     def get_processing_status():
@@ -282,3 +352,41 @@ def migrate_from_old_session():
     
     # Ensure new lazy structure
     LazySessionManager.init_core_state() 
+
+# ===== STREAMLIT CACHING HELPERS =====
+
+@st.cache_resource(show_spinner=False)
+def get_cached_model_manager():
+    """
+    Get a cached instance of the OptimizedModelManager.
+    This now directly calls the cached function from core.optimized_model_manager.
+    """
+    logger.info("Attempting to get cached OptimizedModelManager instance via core module...")
+    try:
+        from core.optimized_model_manager import get_optimized_model_manager
+        model_manager = get_optimized_model_manager()
+
+        if model_manager is None:
+            error_msg = "get_optimized_model_manager() from core module returned None."
+            logger.error(error_msg)
+            raise RuntimeError(error_msg)
+        
+        # Basic check (OptimizedModelManager has methods like is_model_ready)
+        if not hasattr(model_manager, 'is_model_ready'): 
+             logger.warning("OptimizedModelManager instance obtained, but appears to be missing 'is_model_ready' method. Ensure it's the correct class.")
+        
+        logger.info("Successfully obtained OptimizedModelManager instance from core module.")
+        return model_manager
+    except ImportError as ie:
+        error_msg = f"ImportError while trying to get OptimizedModelManager from core: {str(ie)}. Check module paths."
+        logger.error(error_msg, exc_info=True)
+        raise RuntimeError(error_msg) from ie
+    except Exception as e:
+        error_msg = f"Unexpected error while trying to get OptimizedModelManager from core: {str(e)}"
+        logger.error(error_msg, exc_info=True)
+        raise RuntimeError(error_msg) from e
+
+@st.cache_resource(show_spinner=False)
+def get_cached_db_manager():
+    """Return a cached DatabaseManager instance."""
+    return LazySessionManager.ensure_database_manager() 

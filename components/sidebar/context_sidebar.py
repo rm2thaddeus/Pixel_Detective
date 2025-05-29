@@ -8,6 +8,7 @@ from utils.logger import logger
 from utils.lazy_session_state import LazySessionManager
 from config import DEFAULT_IMAGES_PATH
 from database.qdrant_connector import QdrantDB
+from components.task_orchestrator import submit, is_running
 
 def render_sidebar():
     """
@@ -27,138 +28,94 @@ def render_sidebar():
         st.sidebar.markdown("<h3 style='color: orange;'>🐢 CPU Mode (Slow & Steady) 🐢</h3>", unsafe_allow_html=True)
         st.sidebar.markdown("<p>No Graphix Cardz detected. We'll do our best with brain power alone!</p>", unsafe_allow_html=True)
     
-    # Current folder for the existing database
-    if 'image_folder' not in st.session_state:
-        st.session_state.image_folder = DEFAULT_IMAGES_PATH
+    # FIXED: Check if we're in a proper Streamlit context before accessing session state
+    try:
+        # Only access session state if we're in the main UI thread
+        if not hasattr(st, 'session_state'):
+            st.sidebar.warning("Sidebar not available yet. Please complete the initial setup first.")
+            return DEFAULT_IMAGES_PATH
+            
+        # Current folder for the existing database
+        if 'image_folder' not in st.session_state:
+            st.session_state.image_folder = DEFAULT_IMAGES_PATH
 
-    current_folder = st.sidebar.text_input("📁 Database folder", value=st.session_state.image_folder, key="db_folder").strip().strip('"')
-    st.session_state.image_folder = current_folder
-    
-    # 🚀 LAZY LOADING: Get db_manager only when needed
-    db_manager = LazySessionManager.ensure_database_manager()
-    
-    # Check and indicate if a database exists here
-    if os.path.exists(current_folder):
-        if db_manager.database_exists(current_folder):
-            st.sidebar.success("🧠 Database exists in this folder!")
-        else:
-            st.sidebar.info("No database found in this folder.")
-    else:
-        st.sidebar.error("Folder does not exist!")
-    
-    # Button to Build/Load the database if it doesn't exist
-    if st.sidebar.button("🚀 Build/Load Database"):
+        current_folder = st.sidebar.text_input("📁 Database folder", value=st.session_state.image_folder, key="db_folder").strip().strip('"')
+        st.session_state.image_folder = current_folder
+        
+        # Note: Removed the database_ready check as it was preventing database creation
+        
+        # 🚀 LAZY LOADING: Get db_manager only when needed and safe
+        # Don't try to create database manager on every page load - only when user needs it
+        db_manager = st.session_state.get('db_manager', None)
+        if db_manager is None:
+            st.sidebar.info("🔄 Database manager will initialize when you build/load a database.")
+        
+        # Check and indicate if a database exists here
         if os.path.exists(current_folder):
-            # 🚀 LAZY LOADING: Initialize search state only when building database
-            LazySessionManager.init_search_state()
-            
-            # Fun loading messages
-            loading_messages = [
-                "🕵️‍♂️ Deploying pixel detectives...",
-                "🧠 Training the AI to recognize your cat photos...",
-                "🔍 Examining each pixel with a magnifying glass...",
-                "🤖 Teaching robots to appreciate your photography skills...",
-                "🎨 Extracting colors, shapes, and secret messages...",
-                "📊 Converting visual beauty into boring numbers...",
-                "🧩 Solving the puzzle of image understanding...",
-                "🏃‍♂️ Making electrons run really fast...",
-                "🌈 Finding rainbows in your image collection...",
-                "🚀 Preparing for lightspeed image searching..."
-            ]
-            
-            # Create a progress placeholder in the sidebar
-            progress_placeholder = st.sidebar.empty()
-            progress_bar = st.sidebar.progress(0)
-            message_placeholder = st.sidebar.empty()
-            
-            # Display fun loading message
-            import random
-            message_placeholder.info(random.choice(loading_messages))
-            
-            # Update session state to track progress
-            if 'total_images' not in st.session_state:
-                st.session_state.total_images = 0
-            if 'current_image_index' not in st.session_state:
-                st.session_state.current_image_index = 0
-            
-            # Load the database if it exists, or build it if it doesn't
-            if db_manager.database_exists(current_folder):
-                progress_placeholder.info("Loading existing database...")
-                if db_manager.load_database(current_folder):
-                    progress_placeholder.success("Database loaded successfully!")
-                    progress_bar.progress(100)
-                    message_placeholder.success("Ready to search! 🚀")
-                    # Initialize QdrantDB after loading DB
-                    st.session_state.qdrant_db = QdrantDB(collection_name="image_collection")
-                else:
-                    progress_placeholder.error("Failed to load database.")
+            if db_manager:
+                try:
+                    if db_manager.database_exists(current_folder):
+                        st.sidebar.success("🧠 Database exists in this folder!")
+                    else:
+                        st.sidebar.info("No database found in this folder.")
+                except Exception as e:
+                    st.sidebar.error(f"❌ Error checking database: {e}")
+                    logger.error(f"Error checking database existence: {e}")
             else:
-                # Get the list of images in the folder
-                progress_placeholder.info("Scanning folder for images...")
-                image_files = db_manager.get_image_list(current_folder)
-                
-                if image_files:
-                    st.session_state.total_images = len(image_files)
-                    progress_placeholder.info(f"Found {len(image_files)} images. Building database...")
-                    try:
-                        with st.spinner("Building database..."):
-                            success = db_manager.build_database(current_folder, image_files)
-                        if success:
-                            progress_placeholder.success("Database built successfully!")
-                            progress_bar.progress(100)
-                            message_placeholder.success("Ready to search! 🚀")
-                            # Initialize QdrantDB after building DB
-                            st.session_state.qdrant_db = QdrantDB(collection_name="image_collection")
-                        else:
-                            progress_placeholder.error("Failed to build database.")
-                    except Exception as e:
-                        progress_placeholder.error(f"Error building database: {e}")
-                        logger.error(f"Error building database: {e}")
-                else:
-                    progress_placeholder.error("No images found in the folder.")
+                st.sidebar.info("🔄 Database manager loading... Click 'Build/Load Database' to initialize.")
         else:
-            st.sidebar.error("Invalid folder path.")
+            st.sidebar.error("Folder does not exist!")
+    except Exception as e:
+        logger.error(f"Error in sidebar rendering: {e}")
+        st.sidebar.warning("Sidebar temporarily unavailable. Please refresh the page.")
+        return DEFAULT_IMAGES_PATH
     
+    # Handle Build/Load in background using TaskOrchestrator
+    if st.sidebar.button("🚀 Build/Load Database") and os.path.exists(current_folder):
+        LazySessionManager.init_search_state()
+        # Schedule the build/load task
+        scheduled = submit("build_db", _background_build_or_load_db, current_folder)
+        if scheduled:
+            st.sidebar.info("🕵️‍♂️ Database build/load started in background.")
+            st.session_state.build_db_started = True
+        else:
+            st.sidebar.warning("⚠️ Database build already running.")
+
+    # Poll build status
+    if st.session_state.get('build_db_started'):
+        if is_running("build_db"):
+            st.sidebar.info("🔄 Database build in progress...")
+        else:
+            st.sidebar.success("✅ Database build/load complete!")
+            st.session_state.build_db_started = False
+            st.session_state.database_built = True
+            # Initialize QdrantDB after completion
+            try:
+                st.session_state.qdrant_db = QdrantDB(collection_name="image_collection")
+            except:
+                pass
+
     # Now add an option to merge a new folder into the existing database
     new_folder = st.sidebar.text_input("📁 New folder to merge", value="", key="new_folder").strip().strip('"')
     
-    if st.sidebar.button("🔗 Merge New Folder") and new_folder:
-        if os.path.exists(new_folder):
-            # Create progress placeholders for merge operation
-            merge_placeholder = st.sidebar.empty()
-            merge_progress = st.sidebar.progress(0)
-            merge_message = st.sidebar.empty()
-            
-            merge_placeholder.info("Scanning new folder for images...")
-            
-            # Get new images that aren't already in the current database
-            existing_images = set(db_manager.get_image_list(current_folder))
-            new_images = [img for img in db_manager.get_image_list(new_folder) if img not in existing_images]
-            
-            if new_images:
-                st.session_state.total_new_images = len(new_images)
-                st.session_state.current_new_image_index = 0
-
-                try:
-                    # Merge new images using existing build_database (caching will skip already processed images)
-                    merge_placeholder.info(f"Merging {len(new_images)} new images into database...")
-                    with st.spinner(f"Merging {len(new_images)} images..."):
-                        combined_images = db_manager.get_image_list(current_folder) + new_images
-                        success = db_manager.build_database(current_folder, combined_images)
-                    if success:
-                        merge_progress.progress(100)
-                        merge_placeholder.success(f"Successfully merged {len(new_images)} new images!")
-                        merge_message.success("Database ready for searching! 🎉")
-                    else:
-                        merge_placeholder.error("Error merging new images.")
-                except Exception as e:
-                    merge_placeholder.error(f"Error merging folders: {e}")
-                    logger.error(f"Error merging folders: {e}")
-            else:
-                merge_placeholder.warning("No new images found to merge.")
+    # Handle Merge New Folder in background using TaskOrchestrator
+    if st.sidebar.button("🔗 Merge New Folder") and new_folder and os.path.exists(new_folder):
+        scheduled = submit("merge_db", _background_merge_folder, current_folder, new_folder)
+        if scheduled:
+            st.sidebar.info(f"🔗 Merge `{new_folder}` started in background.")
+            st.session_state.merge_db_started = True
         else:
-            st.sidebar.error("New folder does not exist!")
-    
+            st.sidebar.warning("⚠️ Merge already running.")
+
+    # Poll merge status
+    if st.session_state.get('merge_db_started'):
+        if is_running("merge_db"):
+            st.sidebar.info("🔄 Folder merge in progress...")
+        else:
+            st.sidebar.success("✅ Folder merge complete!")
+            st.session_state.merge_db_started = False
+            st.sidebar.info("Database updated. Ready to search! 🎉")
+
     # 🚀 PERFORMANCE OPTIMIZATION: Show model status with lazy loading awareness
     model_manager = st.session_state.get('model_manager')
     if model_manager:
@@ -189,23 +146,25 @@ def render_sidebar():
         st.sidebar.info("⚡ Models will load when first needed")
 
     # Enable incremental indexing
-    watch_enabled = st.sidebar.checkbox("📡 Enable Incremental Indexing", value=False, key="enable_watch")
-    if watch_enabled:
-        if 'indexer_observer' not in st.session_state:
-            from utils.embedding_cache import get_cache
-            from utils.incremental_indexer import start_incremental_indexer
-
-            cache = get_cache()
-            folder = current_folder
-            model_mgr = LazySessionManager.ensure_model_manager()
-            observer = start_incremental_indexer(folder, db_manager, cache, model_mgr)
-            st.session_state.indexer_observer = observer
-            st.sidebar.success("Incremental indexer started.")
-    else:
-        if 'indexer_observer' in st.session_state:
-            st.session_state.indexer_observer.stop()
-            del st.session_state.indexer_observer
-            st.sidebar.info("Incremental indexer stopped.")
+    # watch_enabled = st.sidebar.checkbox("📡 Enable Incremental Indexing", value=False, key="enable_watch")
+    # if watch_enabled:
+    #     if 'indexer_observer' not in st.session_state:
+    #         from utils.embedding_cache import get_cache
+    #         from utils.incremental_indexer import start_incremental_indexer
+    #
+    #         cache = get_cache()
+    #         folder = current_folder
+    #         # model_mgr = LazySessionManager.ensure_model_manager() # This would fail
+    #         # db_manager = LazySessionManager.ensure_database_manager() # This would fail
+    #         st.sidebar.warning("Incremental indexer needs refactoring for new service architecture.")
+    #         # observer = start_incremental_indexer(folder, db_manager, cache, model_mgr)
+    #         # st.session_state.indexer_observer = observer
+    #         # st.sidebar.success("Incremental indexer started.")
+    # else:
+    #     if 'indexer_observer' in st.session_state:
+    #         st.session_state.indexer_observer.stop()
+    #         del st.session_state.indexer_observer
+    #         st.sidebar.info("Incremental indexer stopped.")
 
     return current_folder
 
@@ -286,3 +245,51 @@ def render_sidebar_old():
         st.sidebar.warning("CLIP model is not loaded yet")
     
     return image_folder 
+
+# Helper background functions
+def _background_build_or_load_db(current_folder):
+    import streamlit as st
+    import httpx
+    import time
+    from utils.logger import logger # Assuming logger is available
+
+    INGESTION_SERVICE_URL = "http://localhost:8002/ingest_directory" 
+    logger.info(f"Task 'build_db': Requesting ingestion for {current_folder} via {INGESTION_SERVICE_URL}")
+    
+    try:
+        with httpx.Client(timeout=30.0) as client: # Added timeout
+            response = client.post(INGESTION_SERVICE_URL, json={"directory_path": current_folder})
+            response.raise_for_status() # Raise an exception for bad status codes
+            logger.info(f"Task 'build_db': Ingestion request for {current_folder} successful. Response: {response.json()}")
+            st.session_state.database_built = True # Signifies request was made
+    except httpx.RequestError as e:
+        logger.error(f"Task 'build_db': HTTP RequestError for {current_folder}: {e}")
+        st.error(f"Error submitting folder for ingestion: {e}") # Show error on UI
+        st.session_state.database_built = False
+    except Exception as e:
+        logger.error(f"Task 'build_db': Unexpected error for {current_folder}: {e}")
+        st.error(f"Unexpected error: {e}")
+        st.session_state.database_built = False
+
+def _background_merge_folder(current_folder, new_folder):
+    import streamlit as st
+    import httpx
+    import time
+    from utils.logger import logger # Assuming logger is available
+
+    INGESTION_SERVICE_URL = "http://localhost:8002/ingest_directory"
+    logger.info(f"Task 'merge_db': Requesting ingestion for {new_folder} (to merge with {current_folder}) via {INGESTION_SERVICE_URL}")
+    
+    try:
+        with httpx.Client(timeout=30.0) as client: # Added timeout
+            # The service will handle deduplication or merging based on its Qdrant data
+            response = client.post(INGESTION_SERVICE_URL, json={"directory_path": new_folder})
+            response.raise_for_status()
+            logger.info(f"Task 'merge_db': Ingestion request for {new_folder} successful. Response: {response.json()}")
+            # No specific session state for merge completion, UI relies on is_running for now
+    except httpx.RequestError as e:
+        logger.error(f"Task 'merge_db': HTTP RequestError for {new_folder}: {e}")
+        st.error(f"Error submitting folder for merging: {e}")
+    except Exception as e:
+        logger.error(f"Task 'merge_db': Unexpected error for {new_folder}: {e}")
+        st.error(f"Unexpected error: {e}") 

@@ -22,6 +22,8 @@ import tempfile
 from utils.logger import logger
 from utils.metadata_extractor import extract_metadata
 from utils.lazy_session_state import LazySessionManager
+from components.task_orchestrator import submit as submit_task, is_running as is_task_running
+from core.optimized_model_manager import OptimizedModelManager
 
 # Callbacks to toggle metadata expansion without resetting tabs
 def _toggle_text_metadata(metadata_key):
@@ -37,24 +39,54 @@ def render_text_search_tab():
     st.header("🔍 Text Search")
     st.write("Search for images using text descriptions.")
     
-    # 🚀 LAZY LOADING: Initialize search state only when tab is accessed
-    LazySessionManager.init_search_state()
-    
-    # Text search input
-    query = st.text_input("Enter your search terms:", placeholder="e.g., sunset over mountains, cute dog, family picnic")
-    
-    # Number of results selector
-    num_results = st.slider("Number of results:", min_value=1, max_value=20, value=5)
-    
-    # 🚀 LAZY LOADING: Initialize metadata state only when needed
-    LazySessionManager.init_metadata_state()
+    # FIXED: Check if we're in a proper Streamlit context before accessing session state
+    try:
+        # Only access session state if we're in the main UI thread
+        if not hasattr(st, 'session_state'):
+            st.warning("Text search not available yet. Please complete the initial setup first.")
+            return
+            
+        # Check if database is ready before trying to access it
+        # More flexible check - look for any sign that database might be available
+        database_indicators = [
+            st.session_state.get('database_ready', False),
+            st.session_state.get('database_built', False),
+            st.session_state.get('images_data') is not None,
+            hasattr(st.session_state, 'database_manager')
+        ]
+        
+        if not any(database_indicators):
+            st.info("🔄 Database not ready yet. Please complete the image processing first.")
+            return
+            
+        # 🚀 LAZY LOADING: Initialize search state only when tab is accessed
+        LazySessionManager.init_search_state()
+        
+        # Text search input
+        query = st.text_input("Enter your search terms:", placeholder="e.g., sunset over mountains, cute dog, family picnic")
+        
+        # Number of results selector
+        num_results = st.slider("Number of results:", min_value=1, max_value=20, value=5)
+        
+        # 🚀 LAZY LOADING: Initialize metadata state only when needed
+        LazySessionManager.init_metadata_state()
+    except Exception as e:
+        from utils.logger import logger
+        logger.error(f"Error in text search tab: {e}")
+        st.warning("Text search temporarily unavailable. Please refresh the page.")
+        return
     
     # Search button
     if st.button("🔍 Search Images"):
         if query:
             with st.spinner("Searching..."):
                 # 🚀 LAZY LOADING: Get database manager only when searching
-                db_manager = LazySessionManager.ensure_database_manager()
+                try:
+                    db_manager = LazySessionManager.ensure_database_manager()
+                except Exception as e:
+                    st.error(f"❌ Database manager not available: {e}")
+                    st.info("💡 Please build the database first using the sidebar.")
+                    return
                 
                 # Search for images similar to the query text
                 results = db_manager.search_similar_images(query, top_k=num_results)
@@ -109,11 +141,36 @@ def render_image_upload_tab():
     st.header("📸 Image Search")
     st.write("Upload an image to find similar images in your collection.")
     
-    # 🚀 LAZY LOADING: Initialize search state only when tab is accessed
-    LazySessionManager.init_search_state()
-    
-    # File uploader
-    uploaded_file = st.file_uploader("Choose an image...", type=['jpg', 'jpeg', 'png', 'bmp', 'gif'])
+    # FIXED: Check if we're in a proper Streamlit context before accessing session state
+    try:
+        # Only access session state if we're in the main UI thread
+        if not hasattr(st, 'session_state'):
+            st.warning("Image search not available yet. Please complete the initial setup first.")
+            return
+            
+        # Check if database is ready before trying to access it
+        # More flexible check - look for any sign that database might be available
+        database_indicators = [
+            st.session_state.get('database_ready', False),
+            st.session_state.get('database_built', False),
+            st.session_state.get('images_data') is not None,
+            hasattr(st.session_state, 'database_manager')
+        ]
+        
+        if not any(database_indicators):
+            st.info("🔄 Database not ready yet. Please complete the image processing first.")
+            return
+            
+        # 🚀 LAZY LOADING: Initialize search state only when tab is accessed
+        LazySessionManager.init_search_state()
+        
+        # File uploader
+        uploaded_file = st.file_uploader("Choose an image...", type=['jpg', 'jpeg', 'png', 'bmp', 'gif'])
+    except Exception as e:
+        from utils.logger import logger
+        logger.error(f"Error in image upload tab: {e}")
+        st.warning("Image search temporarily unavailable. Please refresh the page.")
+        return
     
     if uploaded_file is not None:
         # Display the uploaded image
@@ -131,7 +188,12 @@ def render_image_upload_tab():
         if st.button("🔍 Find Similar Images"):
             with st.spinner("Searching for similar images..."):
                 # 🚀 LAZY LOADING: Get database manager only when searching
-                db_manager = LazySessionManager.ensure_database_manager()
+                try:
+                    db_manager = LazySessionManager.ensure_database_manager()
+                except Exception as e:
+                    st.error(f"❌ Database manager not available: {e}")
+                    st.info("💡 Please build the database first using the sidebar.")
+                    return
                 
                 # Search for images similar to the uploaded image
                 results = db_manager.search_by_image(tmp_path, top_k=num_results)
@@ -183,109 +245,128 @@ def render_image_upload_tab():
         except:
             pass
 
+# Unique key for the AI Guessing Game task in session state
+AI_GUESS_TASK_KEY = "ai_guess_task"
+AI_GUESS_IMAGE_PATH_KEY = "ai_guess_image_path"
+AI_GUESS_RESULT_KEY = "ai_guess_result"
+
+def _run_ai_guess_task(image_path_for_guess):
+    """Runs the AI image understanding task and stores the result in session state."""
+    try:
+        logger.info(f"Starting AI guess task for image: {image_path_for_guess}")
+        # 🚀 LAZY LOADING: Get model manager only when needed (OptimizedModelManager is cached)
+        # from utils.lazy_session_state import LazySessionManager # Not needed for this call anymore
+        # ai_insights = model_manager.get_image_understanding(image_path_for_guess) # OLD CALL
+        ai_insights = OptimizedModelManager.get_image_understanding_orchestrated(image_path_for_guess)
+        
+        st.session_state[AI_GUESS_RESULT_KEY] = ai_insights
+        logger.info(f"AI guess task completed for image: {image_path_for_guess}")
+    except Exception as e:
+        logger.error(f"Error during AI guess task for {image_path_for_guess}: {e}")
+        st.session_state[AI_GUESS_RESULT_KEY] = f"Error: Could not get AI insights. {e}"
+    finally:
+        # Ensure the task is marked as not running even if there's an error
+        # TaskOrchestrator might have its own status, but this helps clear our specific UI state
+        if AI_GUESS_TASK_KEY in st.session_state and st.session_state[AI_GUESS_TASK_KEY].get("status") == "running":
+             st.session_state[AI_GUESS_TASK_KEY]["status"] = "completed"
+
 def render_guessing_game_tab():
     """
-    Renders the AI guessing game tab UI with lazy loading optimizations.
+    Renders the AI guessing game tab UI with lazy loading and TaskOrchestrator for background processing.
     """
-    st.header("🎮 AI Guessing Game")
-    st.write("Test how well you can guess what the AI sees in your images!")
-    
-    # Only show the game if a database is loaded
-    if not st.session_state.get("database_built", False):
-        st.warning("Please build or load a database first to play the guessing game.")
+    st.header("🤖 AI Guessing Game")
+    st.write("Let the AI try to guess what's in a randomly selected image!")
+
+    try:
+        if not hasattr(st, 'session_state'):
+            st.warning("Guessing game not available yet. Please complete initial setup.")
         return
     
     # 🚀 LAZY LOADING: Initialize game state only when tab is accessed
-    LazySessionManager.init_game_state()
-    
-    # Get a random image if not already selected
-    if not st.session_state.get("game_image_shown", False):
-        if st.button("🎲 Select Random Image"):
-            # Get a random image from the database
-            num_images = len(st.session_state.images_data)
-            random_idx = random.randint(0, num_images - 1)
-            random_image = st.session_state.images_data.iloc[random_idx]
-            
-            # Store the selected image in session state
-            st.session_state.game_image = random_image
-            st.session_state.game_image_shown = True
-            st.session_state.game_understanding = None
-            
-            # Force a rerun to update the UI
-            st.rerun()
-    
-    # Show the game if an image is selected
-    if st.session_state.get("game_image_shown", False):
-        game_image = st.session_state.game_image
-        image_path = game_image['path']
+        LazySessionManager.init_guessing_game_state()
+        # Ensure task orchestrator keys are initialized
+        if AI_GUESS_TASK_KEY not in st.session_state:
+            st.session_state[AI_GUESS_TASK_KEY] = {"status": "idle"} # idle, running, completed, error
+        if AI_GUESS_IMAGE_PATH_KEY not in st.session_state:
+            st.session_state[AI_GUESS_IMAGE_PATH_KEY] = None
+        if AI_GUESS_RESULT_KEY not in st.session_state:
+            st.session_state[AI_GUESS_RESULT_KEY] = None
+
+        # 🚀 LAZY LOADING: Get database manager only when needed
+        db_manager = LazySessionManager.ensure_database_manager()
+        if not db_manager or not db_manager.is_db_ready():
+            st.info("🔄 Database not ready. Please build the database first.")
+            return
         
-        # Display the image
-        col1, col2 = st.columns([2, 1])
+        all_images = db_manager.get_all_image_paths()
+        if not all_images:
+            st.warning("No images found in the database. Please add images first.")
+            return
+
+        col1, col2 = st.columns(2)
         
         with col1:
-            try:
-                st.image(image_path, caption="What do you think the AI sees in this image?", use_container_width=True)
-            except Exception as e:
-                st.error(f"Error loading image: {e}")
-                st.write(f"Path: {image_path}")
+            if st.button("🎲 Show Random Image", key="new_random_image_guess_game"):
+                st.session_state[AI_GUESS_IMAGE_PATH_KEY] = random.choice(all_images)
+                st.session_state[AI_GUESS_RESULT_KEY] = None # Clear previous results
+                st.session_state[AI_GUESS_TASK_KEY]["status"] = "idle" # Reset task status
+
+        current_image_path = st.session_state.get(AI_GUESS_IMAGE_PATH_KEY)
+
+        if current_image_path:
+            st.image(current_image_path, caption="What does the AI see?", use_container_width=True)
         
         with col2:
-            # User guess input
-            user_guess = st.text_area("Your guess:", placeholder="What do you think this image contains?")
-            
-            # Button to reveal what the AI sees
-            if st.button("👁️ Reveal What AI Sees"):
-                with st.spinner("Analyzing the image..."):
-                    # 🚀 LAZY LOADING: Get the model manager only when needed for AI analysis
-                    model_manager = LazySessionManager.ensure_model_manager()
-                    
-                    # Get image understanding if not already cached
-                    if st.session_state.get("game_understanding") is None:
-                        understanding = model_manager.get_image_understanding(image_path)
-                        st.session_state.game_understanding = understanding
+                if st.session_state[AI_GUESS_TASK_KEY]["status"] == "idle" and st.button("🧠 AI, what do you see?"):
+                    if current_image_path:
+                        st.session_state[AI_GUESS_RESULT_KEY] = None # Clear previous result before new task
+                        logger.info(f"Submitting AI guess task for: {current_image_path}")
+                        # Use the imported submit_task and is_task_running
+                        submit_task(
+                            name=AI_GUESS_TASK_KEY,
+                            fn=_run_ai_guess_task,
+                            image_path_for_guess=current_image_path
+                        )
+                        st.session_state[AI_GUESS_TASK_KEY]["status"] = "running" # Manually update our status tracker
+                        st.rerun() # Rerun to show spinner
+
+                if st.session_state[AI_GUESS_TASK_KEY]["status"] == "running" or is_task_running(AI_GUESS_TASK_KEY):
+                    st.spinner("🤔 AI is thinking...")
+                    # If is_task_running shows it's done but our status hasn't updated, sync it.
+                    if not is_task_running(AI_GUESS_TASK_KEY) and st.session_state[AI_GUESS_TASK_KEY]["status"] == "running":
+                        st.session_state[AI_GUESS_TASK_KEY]["status"] = "completed"
+                        st.rerun()
+
+            ai_result = st.session_state.get(AI_GUESS_RESULT_KEY)
+            if ai_result:
+                if isinstance(ai_result, str) and ai_result.startswith("Error:"):
+                    st.error(ai_result)
+                else:
+                    st.subheader("🤖 AI's Thoughts:")
+                    if isinstance(ai_result, dict):
+                        for key, value in ai_result.items():
+                            st.markdown(f"**{key.replace('_', ' ').title()}:**")
+                            if isinstance(value, list):
+                                for item in value:
+                                    st.markdown(f"- {item}")
                     else:
-                        understanding = st.session_state.game_understanding
-                    
-                    # Display the AI's understanding
-                    st.subheader("🤖 AI's Understanding:")
-                    
-                    # First show the BLIP caption if available
-                    for concept, score in understanding:
-                        if concept == "BLIP Caption":
-                            st.markdown(f"**{concept}:** {score}")
-                            break
-                    
-                    # Then show the top concepts in a more visually organized way
-                    st.markdown("**Top concepts identified:**")
-                    
-                    # Create 3 columns for better organization of concepts
-                    concept_cols = st.columns(3)
-                    
-                    # Filter out BLIP Caption which we've already displayed
-                    concepts = [item for item in understanding if item[0] != "BLIP Caption"]
-                    
-                    # Distribute concepts across columns
-                    items_per_column = len(concepts) // 3 + (1 if len(concepts) % 3 > 0 else 0)
-                    
-                    for i, (concept, score) in enumerate(concepts):
-                        col_idx = i // items_per_column
-                        if col_idx < 3:  # Safety check
-                            with concept_cols[col_idx]:
-                                confidence = score * 100 if isinstance(score, (int, float)) else "N/A"
-                                if isinstance(confidence, (int, float)):
-                                    st.write(f"• {concept} ({confidence:.1f}%)")
+                                st.markdown(str(value))
+                    else: # Should be the detailed string from get_image_understanding
+                        st.markdown(ai_result)
+                 # Reset task status to allow new guess on the same image or new image
+                if st.session_state[AI_GUESS_TASK_KEY]["status"] != "idle": # Check to prevent multiple resets
+                    st.session_state[AI_GUESS_TASK_KEY]["status"] = "idle"
+
                                 else:
-                                    st.write(f"• {concept}")
-            
-            # Show a button to try another image
-            if st.button("🔄 Try Another Image"):
-                st.session_state.game_image_shown = False
-                st.session_state.game_understanding = None
-                st.rerun()
+            st.info("Click 'Show Random Image' to start the game.")
+
+    except Exception as e:
+        logger.error(f"Error in AI Guessing Game tab: {e}")
+        st.error("An error occurred in the Guessing Game. Please try again or check the logs.")
 
 def render_duplicates_tab():
     """
-    Renders the Duplicate Detection tab UI with lazy loading optimizations.
+    Renders the duplicates tab UI using TaskOrchestrator for background processing.
     """
     st.header("🧑‍🤝‍🧑 Duplicate Detection (Post-Embedding)")
     st.write("Find near-duplicate images using vector similarity in the embedding space.")
@@ -294,21 +375,50 @@ def render_duplicates_tab():
         st.warning("Please build or load a database first.")
         return
 
-    # 🚀 LAZY LOADING: Initialize search state only when tab is accessed
+    # LAZY LOADING: Initialize search state only when tab is accessed
     LazySessionManager.init_search_state()
 
-    if st.button("🔍 Find Duplicates"):  # Button to trigger detection
-        with st.spinner("Searching for duplicate images..."):
-            # 🚀 LAZY LOADING: Get managers only when needed for duplicate detection
-            db_manager = LazySessionManager.ensure_database_manager()
-            qdrant_db = st.session_state.qdrant_db
+    # Task function for duplicate detection
+    def _run_duplicate_detection_task():
+            try:
+            st.session_state.duplicate_results = [] # Clear previous results
+                db_manager = LazySessionManager.ensure_database_manager()
+            qdrant_db = st.session_state.qdrant_db # Assuming qdrant_db is in session_state
+            
             duplicates = db_manager.find_duplicate_images(qdrant_db)
-            # Store results using session state (this is legitimate for storing results)
             st.session_state.duplicate_results = duplicates
-            st.success(f"Found {len(duplicates)} duplicate pairs above similarity 0.98.")
+            st.session_state.duplicates_status = "completed"
+            # No st.rerun() here; UI will update based on session state changes
+        except Exception as e:
+            st.session_state.duplicates_status = "error"
+            st.session_state.duplicates_error_message = str(e)
+            # Log the error if a logger is available/configured
+            logger = LazySessionManager.lazy_import('logging').getLogger(__name__)
+            logger.error(f"Error during duplicate detection task: {e}", exc_info=True)
 
-    duplicates = st.session_state.get('duplicate_results', [])
-    if duplicates:
+    if st.button("🔍 Find Duplicates"): 
+        if not is_task_running("duplicate_detection_task"):
+            st.session_state.duplicates_status = "running"
+            st.session_state.duplicate_results = None # Clear previous results display
+            submit_task("duplicate_detection_task", _run_duplicate_detection_task)
+            # No st.rerun() here immediately, let the spinner show and periodic checks update UI
+        else:
+            st.info("Duplicate detection is already in progress.")
+
+    # Display status and results
+    task_status = st.session_state.get("duplicates_status")
+    
+    if task_status == "running" or is_task_running("duplicate_detection_task"):
+        st.spinner("Searching for duplicate images...")
+        # Add a timed rerun to refresh the spinner and check task status if needed
+        # This can be a simple time.sleep() + st.rerun() or a more sophisticated callback
+        # For now, relying on user interaction or other timed refreshes on the page.
+        # Consider adding a specific rerun logic if the spinner feels stuck.
+
+    elif task_status == "completed":
+        duplicates = st.session_state.get('duplicate_results', [])
+        if duplicates:
+            st.success(f"Found {len(duplicates)} duplicate pairs above similarity 0.98.")
         st.write(f"### Duplicate Pairs (showing up to 100):")
         for i, dup in enumerate(duplicates[:100]):
             col1, col2 = st.columns([1, 1])
@@ -320,5 +430,11 @@ def render_duplicates_tab():
                 st.caption(dup['duplicate'])
             st.markdown(f"**Cosine Similarity:** {dup['score']:.4f}")
             st.divider()
-    elif 'duplicate_results' in st.session_state:
+        else:
         st.info("No duplicate pairs found above the threshold.") 
+    elif task_status == "error":
+        st.error(f"Error during duplicate detection: {st.session_state.get('duplicates_error_message', 'Unknown error')}")
+    
+    # If no button clicked yet, and no status, it's the initial state
+    elif task_status is None and 'duplicate_results' not in st.session_state:
+        st.info("Click 'Find Duplicates' to start the detection process.") 

@@ -1,0 +1,5 @@
+fastapi
+uvicorn
+httpx
+qdrant-client
+# Add qdrant-client for interacting with Qdrant 

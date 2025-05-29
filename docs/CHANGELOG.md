@@ -1,5 +1,73 @@
 # CHANGELOG
 
+## [2025-05-27] - Project Cleanup & Organization
+
+### Chores
+- **Root Directory Cleanup**: Removed several outdated/temporary files from the project root:
+    - Deleted `ui-legacy-remove/` directory and its contents after confirming no active usage.
+    - Moved test scripts (`test_task_orchestrator.py`, `test_optimizations.py`, `test_performance_fix.py`) to a new `tests/` directory.
+    - Moved various result/log files (`.json`) and old documentation (`.md`) to `docs/reports_and_logs/`.
+    - Moved `metadata.csv` to `docs/` and added a description of its purpose to `docs/README.md`.
+- **`docs/` Directory Reorganization**:
+    - Created `docs/reference_guides/` for important, curated reference documents.
+        - Moved `Streamlit Background tasks.md`, `UX_FLOW_DESIGN.md`, `UI_SIMPLIFICATION_SESSION.md`, `UI_REDESIGN_FIXES.md`, and `UI_IMPROVEMENTS_LOADING_SCREEN.md` into this new directory.
+    - Created `docs/archive/` for older, less current, or highly specific documents to reduce clutter in the main `docs/` folder.
+        - Moved `THREADING_PERFORMANCE_GUIDELINES.md`, `PERFORMANCE_OPTIMIZATIONS.md`, `COMPONENT_THREADING_FIXES.md`, `CRITICAL_THREADING_FIXES.md`, `LOADING_SCREEN_FIXES.md`, and `CLI_ENTERPRISE_VISION.md` into this archive.
+- **Deprecated Code Removal**: Deleted `models/lazy_model_manager.py` as its functionality was superseded by `core/optimized_model_manager.py` and all usages were updated.
+
+---
+
+## [2025-01-25] - SPRINT 02 SCOPE REFINEMENT 🎯
+
+### STRATEGIC DECISION - Mobile Optimization Removed
+- **USER FEEDBACK**: "Forget about mobile, it's not useful for now"
+- **SCOPE ADJUSTMENT**: Removed mobile/tablet optimization tasks from Sprint 02
+- **FOCUS SHIFT**: Concentrated on desktop experience and core functionality
+- **SPRINT STATUS**: Updated to 75% complete with refined scope
+
+### SPRINT 02 ACHIEVEMENTS CONFIRMED
+- ✅ **Visual Design System**: Professional gradient-based theme implemented
+- ✅ **Search Interface**: Simplified from nested tabs to clean vertical layout
+- ✅ **Desktop Optimization**: Fully optimized for desktop workflow
+- ✅ **Performance**: 60fps animations and <1s startup maintained
+
+### REMAINING TASKS (25%)
+- 🔄 **Loading State Enhancement**: Skeleton screens for database building
+- 🔄 **Accessibility**: ARIA labels and keyboard support
+- 🔄 **Performance Verification**: Final optimization checks
+
+---
+
+## [2025-01-25] - UI SIMPLIFICATION SESSION 🎯
+
+### MAJOR UX IMPROVEMENT - Search Interface Simplification
+- **USER FEEDBACK**: "You've overcomplicated things" - simplified from nested tabs to clean vertical layout
+- **LAYOUT TRANSFORMATION**: Side-by-side confusion → intuitive top-to-bottom flow
+- **ENTER KEY SUPPORT**: Added natural search behavior (press Enter to search)
+- **TECHNICAL RELIABILITY**: Direct database integration replacing complex component chains
+
+### PROBLEMS SOLVED
+- ❌ **Overcomplicated Interface**: Nested tabs with side-by-side confusion
+- ✅ **Clean Vertical Flow**: Full-width elements with proper hierarchy
+- ❌ **Missing Enter Key**: Only button clicks triggered search
+- ✅ **Natural Interaction**: Enter key in search box triggers search
+- ❌ **Broken Search Logic**: Complex component calls causing issues
+- ✅ **Direct Integration**: Simplified database calls for reliability
+
+### TECHNICAL IMPROVEMENTS
+- **File Modified**: `screens/advanced_ui_screen.py`
+- **Layout Change**: Columns → vertical stack for better UX
+- **Functionality**: Enter key detection and search triggering
+- **Database Integration**: Direct calls to existing search components
+- **Image Preview**: Added preview for uploaded images
+
+### DOCUMENTATION UPDATED
+- **Created**: `docs/UI_SIMPLIFICATION_SESSION.md` - Session-specific documentation
+- **Updated**: `docs/UI_REDESIGN_FIXES.md` - Added latest changes
+- **Updated**: `docs/CHANGELOG.md` - Comprehensive change tracking
+
+---
+
 ## [2025-05-23] - PERFORMANCE BREAKTHROUGH 🚀
 
 ### CRITICAL FIXES - ScriptRunContext Threading Errors
@@ -48,6 +116,41 @@
 - ⚠️ **UI Integration**: Some existing UI components may need updates to work with new architecture
 - **Priority**: Medium - core functionality works, UI polish needed in next sprint
 - **Focus**: Test and update UI components for full compatibility
+
+---
+
+## [2025-05-27] - SPRINT 05: ADVANCED UI & STARTUP OPTIMIZATION
+
+### Added
+- **Advanced UI Screen (`screens/advanced_ui_screen.py`)**: Implemented tab structure for "Sophisticated Search", "Duplicates", "Latent Space Explorer", and "AI Guessing Game".
+- **Task Orchestration (`components/task_orchestrator.py`)**: Basic task orchestrator for submitting background tasks and checking their status.
+- **Optimized Model Manager (`core/optimized_model_manager.py`)**: Advanced model manager with background, prioritized loading and preloading capabilities for CLIP and BLIP models.
+- **Fast UI Screen (`screens/fast_ui_screen.py`)**: Enhanced to initiate asynchronous preloading of models via `OptimizedModelManager` for faster advanced UI readiness.
+
+### Changed
+- **`components/search/search_tabs.py`**:
+    - `render_duplicates_tab`: Refactored to use `TaskOrchestrator` for running duplicate detection (vector similarity search) in the background.
+    - `render_guessing_game_tab`: Refactored to use `TaskOrchestrator` for running AI image understanding in the background.
+- **`components/visualization/latent_space.py`**:
+    - `render_latent_space_tab`: Refactored to use `TaskOrchestrator` for running UMAP and DBSCAN computations in the background. UI elements for parameter adjustment moved to sidebar.
+- **`core/background_loader.py`**:
+    - Updated to use `OptimizedModelManager` (via `core.optimized_model_manager.get_optimized_model_manager()`) instead of `LazyModelManager`. This aligns background processing with the preloading initiated by the Fast UI screen.
+- **`models/lazy_model_manager.py`**:
+    - Corrected `NameError` for `BLIP_MODEL_NAME` and `BLIP_PROCESSOR_NAME` by adding imports from `config.py`.
+    - Corrected `BlipProcessor.from_pretrained` call to use `BLIP_PROCESSOR_NAME`.
+
+### Fixed
+- **BLIP Model Loading Error**: Resolved `NameError: name 'BLIP_MODEL_NAME' is not defined` in `models/lazy_model_manager.py` by adding missing imports from `config.py` and correcting processor name usage. This fixed the database build failure reported in `pixel_detective_20250527_203554.log`.
+
+### Performance
+- **Startup Optimization**: Streamlined model loading by introducing `OptimizedModelManager` with background preloading initiated from the `FAST_UI` screen. `BackgroundLoader` now leverages this preloading, aiming to meet the PRD goal of <1s `FAST_UI` render and faster overall readiness of the `ADVANCED_UI`.
+- **Advanced UI Responsiveness**: Improved responsiveness of Duplicates, Latent Space, and AI Guessing Game tabs by offloading their long-running computations to background tasks using `TaskOrchestrator`.
+
+### Adherence to Sprint Plan
+- Implemented `FAST_UI`, `LOADING`, and `ADVANCED_UI` screens as per `PRD.md` and `technical-implementation-plan.md`.
+- Addressed the BLIP model loading bug.
+- Focused on startup optimization by refactoring model loading and leveraging background processing.
+- Integrated `TaskOrchestrator` for specified Advanced UI tabs.
 
 ---
 

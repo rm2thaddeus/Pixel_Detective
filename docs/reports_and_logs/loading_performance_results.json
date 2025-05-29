@@ -1,0 +1,56 @@
+{
+  "overall_status": "FAIL",
+  "tests_passed": 4,
+  "tests_failed": 1,
+  "success_rate": 80.0,
+  "detailed_results": [
+    {
+      "test": "server_responsiveness",
+      "avg_response_time": 0.028755569458007814,
+      "all_response_times": [
+        0.020663976669311523,
+        0.0306856632232666,
+        0.031536102294921875,
+        0.0301969051361084,
+        0.030695199966430664
+      ],
+      "status": "PASS"
+    },
+    {
+      "test": "memory_usage",
+      "initial_memory_mb": 27.35546875,
+      "final_memory_mb": 27.35546875,
+      "memory_increase_mb": 0.0,
+      "status": "PASS"
+    },
+    {
+      "test": "cpu_usage",
+      "avg_cpu_percent": 3.01,
+      "max_cpu_percent": 6.1,
+      "all_cpu_readings": [
+        6.0,
+        0.0,
+        0.0,
+        2.3,
+        6.0,
+        6.1,
+        1.2,
+        3.7,
+        1.2,
+        3.6
+      ],
+      "status": "PASS"
+    },
+    {
+      "test": "module_imports",
+      "import_time": 1.2964048385620117,
+      "status": "FAIL"
+    },
+    {
+      "test": "background_threads",
+      "main_thread_block_time": 0.0010218620300292969,
+      "total_time": 2.0087320804595947,
+      "status": "PASS"
+    }
+  ]
+}

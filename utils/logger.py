@@ -16,7 +16,7 @@ logging.basicConfig(
     datefmt="%H:%M:%S",
     handlers=[
         logging.StreamHandler(sys.stdout),
-        logging.FileHandler(f"logs/pixel_detective_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log")
+        logging.FileHandler(f"logs/pixel_detective_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log", encoding='utf-8')
     ]
 )
 

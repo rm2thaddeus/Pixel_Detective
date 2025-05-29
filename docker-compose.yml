@@ -1,0 +1,56 @@
+version: '3.8'
+
+services:
+#  ml_inference_service:
+#    build:
+#      context: ./services/ml_inference_service
+#    ports:
+#      - "8001:8001"
+#    volumes:
+#      # Mount a volume for models if they are large and need to be persisted or shared
+#      # - ./models_cache:/models_cache # Example
+#      - ./services/ml_inference_service:/app # For development hot-reloading
+#    environment:
+#      # Environment variables for model paths or configurations
+#      # MODEL_STORE: /models_cache # Example
+#      PYTHONUNBUFFERED: 1 # Ensures print statements are sent straight to logs
+#      DEVICE_PREFERENCE: cuda # Explicitly set for clarity, though defaults to cuda in main.py now
+#    deploy:
+#      resources:
+#        reservations:
+#          devices:
+#            - driver: nvidia
+#              count: 1 # Request 1 GPU
+#              capabilities: [gpu]
+
+#  ingestion_orchestration_service:
+#    build:
+#      context: ./services/ingestion_orchestration_service
+#    ports:
+#      - "8002:8002"
+#    volumes:
+#      - ./services/ingestion_orchestration_service:/app # For development hot-reloading
+#      # Mount a volume for any data that needs to be accessed by this service, e.g., image sources
+#      # - ./data_to_process:/data_to_process # Example
+#    depends_on:
+#      - ml_inference_service
+#      - qdrant_db
+#    environment:
+#      ML_INFERENCE_SERVICE_URL: http://ml_inference_service:8001
+#      QDRANT_SERVICE_URL: http://qdrant_db:6333
+#      PYTHONUNBUFFERED: 1
+
+  qdrant_db:
+    image: qdrant/qdrant:latest
+    ports:
+      - "6333:6333"
+      - "6334:6334" # gRPC port
+    volumes:
+      - ./qdrant_storage:/qdrant/storage # Persist Qdrant data
+    # For production, consider adding API key configuration:
+    # environment:
+    #   QDRANT__SERVICE__API_KEY: your_secret_api_key
+
+volumes:
+  qdrant_storage: # Defines the named volume for Qdrant persistence
+  # models_cache: # Defines the named volume if used for ML models 

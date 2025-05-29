@@ -1,0 +1,10 @@
+fastapi
+uvicorn[standard]
+
+# ML Model Dependencies
+torch
+openai-clip
+transformers
+Pillow
+rawpy
+numpy 
