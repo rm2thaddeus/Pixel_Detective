@@ -19,7 +19,7 @@ import os
 import random
 # from models.clip_model import load_clip_model, get_image_understanding # To be replaced by service calls
 import tempfile
-from frontend.utils.logger import logger # Corrected import path
+from frontend.utils.logger import logger
 from frontend.utils.metadata_extractor import extract_metadata # Corrected import path
 from frontend.utils.lazy_session_state import LazySessionManager # Corrected import path
 from frontend.components.task_orchestrator import submit as submit_task, is_running as is_task_running # Corrected import path
@@ -74,7 +74,6 @@ def render_text_search_tab():
         # 🚀 LAZY LOADING: Initialize metadata state only when needed
         LazySessionManager.init_metadata_state()
     except Exception as e:
-        from utils.logger import logger
         logger.error(f"Error in text search tab: {e}")
         st.warning("Text search temporarily unavailable. Please refresh the page.")
         return
@@ -179,7 +178,6 @@ def render_image_upload_tab():
         # File uploader
         uploaded_file = st.file_uploader("Choose an image...", type=['jpg', 'jpeg', 'png', 'bmp', 'gif'])
     except Exception as e:
-        from utils.logger import logger
         logger.error(f"Error in image upload tab: {e}")
         st.warning("Image search temporarily unavailable. Please refresh the page.")
         return
