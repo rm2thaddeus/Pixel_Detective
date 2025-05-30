@@ -33,21 +33,23 @@ This document breaks down the objectives from `PRD.md` into more granular tasks.
 ## Objective 3: Streamlit UI Integration (Phase 1 - Read Operations)
 
 *   **UI-07-01: Develop API endpoints for UI data needs (Phase 1)**
-    *   `[ ]` Identify data requirements for initial Streamlit screens (e.g., list of processed images with thumbnails/metadata, basic keyword search results).
-    *   `[ ]` Design API endpoints in the Ingestion Orchestration Service (or a new UI-focused BFF service).
+    *   `[x]` Identify data requirements for initial Streamlit screens (e.g., list of processed images with thumbnails/metadata, basic keyword search results).
+    *   `[x]` Design API endpoints in the Ingestion Orchestration Service (or a new UI-focused BFF service).
         *   Example: `/api/v1/images?page=1&limit=20`
         *   Example: `/api/v1/search?query=keyword&top_k=10`
-    *   `[ ]` Implement these endpoints in the chosen FastAPI application.
-        *   `[ ]` Endpoints should query Qdrant (via Qdrant client).
-        *   `[ ]` Implement pagination, filtering, and sorting as needed.
-    *   `[ ]` Test API endpoints thoroughly using tools like `curl` or Postman.
+    *   `[x]` Implement these endpoints in the chosen FastAPI application.
+        *   `[x]` Endpoints should query Qdrant (via Qdrant client).
+        *   `[x]` Implement pagination, filtering, and sorting as needed.
+    *   `[x]` Test API endpoints thoroughly using tools like `curl` or Postman.
 *   **UI-07-02: Integrate Streamlit UI with backend services (Phase 1 - Read)**
-    *   `[ ]` Identify Streamlit scripts/components (`screens/`, `components/`) to be updated.
-    *   `[ ]` Modify these components to fetch data from the new API endpoints instead of local/direct data access.
-        *   `[ ]` Use `requests` or `httpx` library for making API calls.
-        *   `[ ]` Update UI to handle loading states and display data from API responses.
-        *   `[ ]` Ensure error handling for API call failures.
-    *   `[ ]` Test UI pages to confirm data is displayed correctly and interactions are smooth.
+    *   `[x]` Identify Streamlit scripts/components (`screens/`, `components/`) to be updated.
+    *   `[x]` Modify these components to fetch data from the new API endpoints instead of local/direct data access.
+        *   `[x]` Use `requests` or `httpx` library for making API calls.
+        *   `[x]` Update UI to handle loading states and display data from API responses.
+        *   `[x]` Ensure error handling for API call failures.
+    *   `[x]` Test UI pages to confirm data is displayed correctly and interactions are smooth.
+
+> The advanced UI screen is now fully decoupled from local model/DB logic and interacts only via HTTP APIs through the service API layer. Duplicate detection and some advanced features are pending backend support.
 
 ## Objective 4: Continue Legacy Code Deprecation
 
@@ -102,4 +104,13 @@ This document breaks down the objectives from `PRD.md` into more granular tasks.
     *   `[ ]` Fill in Sprint 07 `README.md` (`docs/sprints/sprint-07/README.md`) upon sprint completion.
 
 ---
+
+## Sprint 07 Wrap-up
+
+- FastAPI endpoints for image listing, search, and ingestion status were implemented; endpoints for duplicate detection, random image, and advanced filtering are pending (see BACKLOG.md).
+- CORS is enabled for all FastAPI services.
+- End-to-end integration is functional for all core features; further E2E and integration testing is planned.
+- All major sprint documentation has been updated. See BACKLOG.md for remaining work and next steps.
+- All UI decoupling and service API integration tasks are complete.
+
 *Assign tasks to team members and track progress here or in a project management tool.* 

@@ -64,7 +64,9 @@ This sprint aims to solidify the new architecture, make it more robust, and star
     *   The Ingestion Orchestration Service uses a persistent cache, and cached data survives service restarts.
     *   Cache effectively prevents re-processing of known images.
 3.  **UI Integration (Phase 1)**:
-    *   At least one key Streamlit UI component successfully fetches and displays data from the new backend services.
+    *   [x] At least one key Streamlit UI component (the advanced UI screen) successfully fetches and displays data from the new backend services via HTTP API calls.
+    *   [x] The UI is now fully decoupled from local model/DB logic and interacts only via HTTP APIs (using the service API layer).
+    *   [ ] Duplicate detection and some advanced features are pending backend endpoint support.
     *   Data displayed is accurate and consistent with the database.
 4.  **Legacy Code Reduction**:
     *   At least 2-3 major legacy modules/files (e.g., from `core/` or `models/`) are successfully deprecated and removed or significantly refactored.
@@ -105,3 +107,8 @@ This sprint aims to solidify the new architecture, make it more robust, and star
 
 ---
 *Self-reflection: Sprint 07 is crucial for stabilizing the architecture introduced in Sprint 06 and starting to realize its value through UI integration. The decision to run the ML inference service locally during development aims to maintain development velocity by mitigating issues encountered with its Dockerization (large image sizes, extended build times). Successful completion will mark a major milestone towards a robust and scalable application.* 
+
+**Update (Sprint 07 Progress):**
+- The advanced UI screen is now fully refactored to use only service API calls for all backend interactions.
+- The UI is decoupled from backend logic and communicates exclusively via HTTP APIs.
+- Duplicate detection and some advanced features are pending backend endpoint support. 

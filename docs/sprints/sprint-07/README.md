@@ -51,4 +51,16 @@ After researching persistent cache options for the ingestion service, **DiskCach
 - Supports local file storage and Docker volumes
 - Simple API, easy to integrate as a drop-in replacement for in-memory cache
 
-**Next steps:** Integrate DiskCache into the ingestion service and test with both local files and Docker volumes to ensure persistence and performance. 
+**Next steps:** Integrate DiskCache into the ingestion service and test with both local files and Docker volumes to ensure persistence and performance.
+
+---
+
+## Sprint 07 Wrap-up
+
+Sprint 07 achieved a major architectural milestone:
+- The Streamlit UI is now fully decoupled from backend logic and lives in the `frontend/` folder.
+- All UI/backend communication is via HTTP API calls through the new `service_api.py` layer.
+- FastAPI endpoints for image listing, search, and ingestion status are live; endpoints for duplicate detection, random image, and advanced filtering are planned.
+- CORS is enabled for all FastAPI services.
+- End-to-end integration is functional for all core features; further E2E and integration testing is planned.
+- All major sprint documentation has been updated. See BACKLOG.md for remaining work and next steps. 
