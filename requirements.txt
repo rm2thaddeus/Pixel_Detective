@@ -56,7 +56,6 @@ pydantic_core==2.27.2
 pydeck==0.9.1
 python-dateutil==2.9.0.post0
 pytz==2025.1
-pywin32==309
 PyYAML==6.0.2
 qdrant-client==1.13.3
 rawpy==0.24.0

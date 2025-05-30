@@ -15,6 +15,7 @@ from qdrant_client.http.models import Distance, VectorParams # For collection cr
 from utils.metadata_extractor import extract_metadata # Import the new extractor
 import uuid # Added for generating UUIDs for point_id
 import hashlib # Added for image content hashing
+import diskcache
 
 import logging
 
@@ -28,16 +29,17 @@ ML_INFERENCE_SERVICE_URL = os.environ.get("ML_INFERENCE_SERVICE_URL", "http://lo
 ML_INFERENCE_BATCH_SIZE = int(os.environ.get("ML_INFERENCE_BATCH_SIZE", 8)) # New config for batch size
 QDRANT_HOST = os.environ.get("QDRANT_HOST", "localhost") # Assuming Qdrant might run locally or in Docker
 QDRANT_PORT = int(os.environ.get("QDRANT_PORT", 6333))
-QDRANT_COLLECTION_NAME = os.environ.get("QDRANT_COLLECTION_NAME", "image_vectors")
+QDRANT_COLLECTION_NAME = os.environ.get("QDRANT_COLLECTION_NAME", "development test")
 # Define standard vector parameters for the collection (e.g., for ViT-B/32 CLIP model)
 QDRANT_VECTOR_SIZE = int(os.environ.get("QDRANT_VECTOR_SIZE", 512))
 QDRANT_DISTANCE_METRIC = Distance[os.environ.get("QDRANT_DISTANCE_METRIC", "Cosine").upper()]
 
 # Global Qdrant client instance
 qdrant_client: QdrantClient = None
-# In-memory cache for image hashes to embeddings and captions
+# Persistent cache for image hashes to embeddings and captions
 # Format: { "image_hash_sha256": {"embedding": [...], "caption": "...", "embedding_data": {...}, "caption_data": {...}} }
-image_content_cache: Dict[str, Dict[str, Any]] = {}
+DISKCACHE_DIR = os.environ.get("DISKCACHE_DIR", "./.diskcache")
+image_content_cache = diskcache.Cache(DISKCACHE_DIR)
 
 # --- Helper type for items to send to ML Service Batch Endpoint ---
 class MLBatchRequestItem(BaseModel):
@@ -112,12 +114,12 @@ async def process_batch_with_ml_service(
                 "device_used": ml_result.get("device_used")
             }
 
-            # Store in cache
+            # Store in persistent cache
             image_content_cache[image_hash] = {
                 "embedding_data": embedding_data_for_cache,
                 "caption_data": caption_data_for_cache
             }
-            logger.info(f"  Stored batch-processed embedding and caption for hash {image_hash} in cache.")
+            logger.info(f"  Stored batch-processed embedding and caption for hash {image_hash} in persistent cache.")
 
             # Proceed with metadata extraction and Qdrant storage for this item
             try:

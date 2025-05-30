@@ -1,20 +1,25 @@
 version: '3.8'
 
+networks:
+  vibe_net:
+    driver: bridge
+
 services:
 #  ml_inference_service:
 #    build:
-#      context: ./services/ml_inference_service
+#      context: ./backend/ml_inference_fastapi_app
 #    ports:
 #      - "8001:8001"
 #    volumes:
-#      # Mount a volume for models if they are large and need to be persisted or shared
-#      # - ./models_cache:/models_cache # Example
-#      - ./services/ml_inference_service:/app # For development hot-reloading
+#      # Mount Hugging Face cache (for BLIP and other transformers models)
+#      - /c/Users/aitor/.cache/huggingface:/root/.cache/huggingface
+#      # Mount CLIP model cache
+#      - /c/Users/aitor/.cache/clip:/root/.cache/clip
 #    environment:
-#      # Environment variables for model paths or configurations
-#      # MODEL_STORE: /models_cache # Example
-#      PYTHONUNBUFFERED: 1 # Ensures print statements are sent straight to logs
-#      DEVICE_PREFERENCE: cuda # Explicitly set for clarity, though defaults to cuda in main.py now
+#      PYTHONUNBUFFERED: 1
+#      DEVICE_PREFERENCE: cuda 
+#      HF_HOME: /root/.cache/huggingface 
+#      # CLIP library typically checks ~/.cache/clip by default, which will be /root/.cache/clip in the container
 #    deploy:
 #      resources:
 #        reservations:
@@ -22,23 +27,33 @@ services:
 #            - driver: nvidia
 #              count: 1 # Request 1 GPU
 #              capabilities: [gpu]
+#    networks:
+#      - vibe_net
 
-#  ingestion_orchestration_service:
-#    build:
-#      context: ./services/ingestion_orchestration_service
-#    ports:
-#      - "8002:8002"
-#    volumes:
-#      - ./services/ingestion_orchestration_service:/app # For development hot-reloading
-#      # Mount a volume for any data that needs to be accessed by this service, e.g., image sources
-#      # - ./data_to_process:/data_to_process # Example
-#    depends_on:
-#      - ml_inference_service
-#      - qdrant_db
-#    environment:
-#      ML_INFERENCE_SERVICE_URL: http://ml_inference_service:8001
-#      QDRANT_SERVICE_URL: http://qdrant_db:6333
-#      PYTHONUNBUFFERED: 1
+  ingestion_orchestration_service:
+    build:
+      context: .
+      dockerfile: backend/ingestion_orchestration_fastapi_app/Dockerfile
+    ports:
+      - "8002:8002"
+    volumes:
+      # Placeholder for persistent cache volume (to be defined in SVC-07-01)
+      - ingestion_cache:/cache  # Example: named volume 'ingestion_cache' mounted to /cache in container
+      # If you need to mount a directory for images to be processed:
+      # - ./data_to_process:/data_to_process 
+      - ./backend/ingestion_orchestration_fastapi_app/.diskcache:/cache
+    depends_on:
+      # - ml_inference_service # ML service will run on host
+      - qdrant_db
+    environment:
+      - PYTHONUNBUFFERED=1
+      - ML_INFERENCE_SERVICE_URL=http://host.docker.internal:8001
+      - QDRANT_HOST=qdrant_db
+      - QDRANT_PORT=6333
+      - DISKCACHE_DIR=/cache
+      # CACHE_PATH: /cache # Example path for persistent cache
+    networks:
+      - vibe_net
 
   qdrant_db:
     image: qdrant/qdrant:latest
@@ -46,11 +61,14 @@ services:
       - "6333:6333"
       - "6334:6334" # gRPC port
     volumes:
-      - ./qdrant_storage:/qdrant/storage # Persist Qdrant data
+      - qdrant_storage:/qdrant/storage # Persist Qdrant data
     # For production, consider adding API key configuration:
     # environment:
     #   QDRANT__SERVICE__API_KEY: your_secret_api_key
+    networks:
+      - vibe_net
 
 volumes:
   qdrant_storage: # Defines the named volume for Qdrant persistence
-  # models_cache: # Defines the named volume if used for ML models 
+  ingestion_cache: # Named volume for ingestion service's persistent cache
+  # models_cache: # If you chose a named volume for models instead of direct path mount 
