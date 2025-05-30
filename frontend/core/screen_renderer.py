@@ -9,7 +9,7 @@ from screens.loading_screen import render_loading_screen
 from screens.advanced_ui_screen import render_advanced_ui_screen
 from components.accessibility import AccessibilityEnhancer
 from core.background_loader import background_loader
-from utils.lazy_session_state import LazySessionManager, get_cached_model_manager, get_cached_db_manager
+from utils.lazy_session_state import LazySessionManager
 
 
 class ScreenRenderer:

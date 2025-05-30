@@ -7,9 +7,11 @@ import streamlit as st
 import threading
 import time
 import logging
-from typing import Any, Optional, Dict, Callable
+from typing import Any, Optional, Dict, Callable, TypeVar
 from dataclasses import dataclass
 from functools import wraps
+from contextlib import contextmanager
+# from core.optimized_model_manager import OptimizedModelManager # To be replaced by service calls
 
 logger = logging.getLogger(__name__)
 
@@ -261,50 +263,23 @@ def get_optimized_session_state() -> OptimizedSessionState:
 
 # Convenience functions for common operations
 def get_model_manager_optimized():
-    """Get model manager with optimized caching"""
-    session_state = get_optimized_session_state()
-    
-    def create_model_manager():
-        from core.optimized_model_manager import OptimizedModelManager
-        import torch
-        
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        manager = OptimizedModelManager(device)
-        
-        # Start preloading immediately
-        manager.preload_models_async()
-        
-        return manager
-    
-    return session_state.get_or_create(
-        key="model_manager",
-        factory=create_model_manager,
-        background=True,
-        timeout=60.0
-    )
+    """
+    DEPRECATED: Get model manager with optimized caching.
+    UI should use functions from service_api.py for model-related operations.
+    """
+    logger.warning("DEPRECATED: get_model_manager_optimized() was called. "
+                   "UI components should be updated to use service_api.py.")
+    raise NotImplementedError("Direct model manager access from UI is deprecated. Use service_api.py.")
 
 
 def get_database_manager_optimized():
-    """Get database manager with optimized caching"""
-    session_state = get_optimized_session_state()
-    
-    def create_database_manager():
-        from database.database_manager import DatabaseManager
-        
-        # Get the model manager first
-        model_manager = get_model_manager_optimized()
-        
-        # Create database manager
-        db_manager = DatabaseManager(model_manager)
-        
-        return db_manager
-    
-    return session_state.get_or_create(
-        key="database_manager",
-        factory=create_database_manager,
-        background=True,
-        timeout=30.0
-    )
+    """
+    DEPRECATED: Get database manager with optimized caching.
+    UI should use functions from service_api.py for database-related operations.
+    """
+    logger.warning("DEPRECATED: get_database_manager_optimized() was called. "
+                   "UI components should be updated to use service_api.py.")
+    raise NotImplementedError("Direct database manager access from UI is deprecated. Use service_api.py.")
 
 
 # Decorator for automatic caching
@@ -350,7 +325,7 @@ def heavy_computation_example():
 def model_inference_example(image_path: str):
     """Example of model inference with caching"""
     # This would use the optimized model manager
-    model_manager = get_model_manager_optimized()
+    # model_manager = get_model_manager_optimized() # This will now raise NotImplementedError
     
     # Perform inference
     # result = model_manager.process_image(image_path)

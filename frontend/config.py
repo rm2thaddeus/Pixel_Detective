@@ -16,8 +16,8 @@ DB_EMBEDDINGS_FILE = "embeddings.npy"
 DB_METADATA_FILE = "metadata.csv"
 
 # Model settings
-CLIP_MODEL_NAME = "ViT-B/32"
-BLIP_MODEL_NAME = "Salesforce/blip-image-captioning-base"
+# CLIP_MODEL_NAME = "ViT-B/32" # Moved to backend service
+# BLIP_MODEL_NAME = "Salesforce/blip-image-captioning-base" # Moved to backend service
 
 # Memory management settings
 GPU_MEMORY_EFFICIENT = True  # Keep this true for safety
@@ -35,10 +35,10 @@ CACHE_DIR = PROJECT_ROOT / "cache"
 LOGS_DIR = PROJECT_ROOT / "logs"
 
 # BLIP model settings
-BLIP_PROCESSOR_NAME = "Salesforce/blip-image-captioning-large"
+# BLIP_PROCESSOR_NAME = "Salesforce/blip-image-captioning-large" # Moved to backend service
 # Set device based on availability - no longer hardcoded to "cuda"
-BLIP_DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-BLIP_LOAD_8BIT = False  # Regular precision for this model
+# BLIP_DEVICE = "cuda" if torch.cuda.is_available() else "cpu" # Moved to backend service
+# BLIP_LOAD_8BIT = False  # Regular precision for this model # Moved to backend service
 
 # Update batch size to process more images at once
 BATCH_SIZE = 50  # Process images in batches

@@ -39,16 +39,16 @@ class AppStateManager:
         # Background loading tracking (these are updated from background loader results)
         if 'ui_deps_loaded' not in st.session_state:
             st.session_state.ui_deps_loaded = False
-        if 'models_loaded' not in st.session_state:
-            st.session_state.models_loaded = False
-        if 'database_ready' not in st.session_state:
-            st.session_state.database_ready = False
+        # if 'models_loaded' not in st.session_state: # Re-evaluate: Do we need this if models are serviced?
+        #     st.session_state.models_loaded = False
+        # if 'database_ready' not in st.session_state: # Re-evaluate: Backend services manage their DB readiness.
+        #     st.session_state.database_ready = False
         
         # Core objects (loaded when needed)
-        if 'model_manager' not in st.session_state:
-            st.session_state.model_manager = None
-        if 'db_manager' not in st.session_state:
-            st.session_state.db_manager = None
+        # if 'model_manager' not in st.session_state: # UI no longer directly manages this.
+        #     st.session_state.model_manager = None
+        # if 'db_manager' not in st.session_state: # UI no longer directly manages this.
+        #     st.session_state.db_manager = None
         if 'image_files' not in st.session_state:
             st.session_state.image_files = []
         
@@ -83,8 +83,8 @@ class AppStateManager:
         st.session_state.app_state = AppState.FAST_UI
         st.session_state.folder_selected = False
         st.session_state.ui_deps_loaded = False
-        st.session_state.models_loaded = False
-        st.session_state.database_ready = False
+        # st.session_state.models_loaded = False # Re-evaluate
+        # st.session_state.database_ready = False # Re-evaluate
         st.session_state.error_message = ""
         st.session_state.image_files = []
     
@@ -96,6 +96,9 @@ class AppStateManager:
     @staticmethod
     def is_ready_for_advanced() -> bool:
         """Check if app is ready for advanced interface"""
-        return (st.session_state.get('ui_deps_loaded', False) and
-                st.session_state.get('models_loaded', False) and 
-                st.session_state.get('database_ready', False)) 
+        # This condition needs to be re-evaluated based on service availability
+        # For now, let's assume UI dependencies are the main check.
+        # Actual readiness might involve checking if backend services are responsive.
+        return st.session_state.get('ui_deps_loaded', False)
+                # and st.session_state.get('models_loaded', False) 
+                # and st.session_state.get('database_ready', False) 

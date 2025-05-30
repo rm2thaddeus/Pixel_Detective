@@ -1,0 +1,7 @@
+# Frontend specific dependencies
+altair==5.5.0
+streamlit>=1.28.0
+streamlit-plotly-events>=0.0.5
+requests==2.32.3
+plotly>=5.0.0
+pydeck==0.9.1 

@@ -1,4 +1,6 @@
+import logging
 import re
+# from qdrant_client import models # Will be replaced by API calls
 from typing import Dict, Any, Tuple, List, Optional
 
 # Metadata fields as extracted by metadata_extractor.py
@@ -153,69 +155,78 @@ def parse_query(query: str) -> Tuple[Dict[str, Any], str]:
 
 def build_qdrant_filter(metadata: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """
-    Build a Qdrant-compatible filter from metadata dict.
-    Uses SHOULD (OR) logic to avoid over-constraining results.
+    DEPRECATED: Build a Qdrant-compatible filter from metadata dict.
+    UI should send raw query or extracted keywords to backend via service_api.py.
+    Backend is responsible for constructing DB-specific queries.
     """
-    if not metadata:
-        return None
-    
-    should_conditions = []
-    
-    for key, value in metadata.items():
-        if isinstance(value, list):
-            for v in value:
-                should_conditions.append({
-                    "key": key, 
-                    "match": {"value": v, "case_insensitive": True}
-                })
-        else:
-            should_conditions.append({
-                "key": key, 
-                "match": {"value": value, "case_insensitive": True}
-            })
-    
-    # Use SHOULD instead of MUST for softer constraints
-    if should_conditions:
-        return {"should": should_conditions}
-    
-    return None
+    logger.warning("DEPRECATED: build_qdrant_filter() was called. Query construction is now backend responsibility.")
+    # Original logic commented out as it's no longer UI's role.
+    # if not metadata:
+    #     return None
+    # 
+    # should_conditions = []
+    # 
+    # for key, value in metadata.items():
+    #     if isinstance(value, list):
+    #         for v in value:
+    #             should_conditions.append({
+    #                 "key": key, 
+    #                 "match": {"value": v, "case_insensitive": True}
+    #             })
+    #     else:
+    #         should_conditions.append({
+    #             "key": key, 
+    #             "match": {"value": value, "case_insensitive": True}
+    #         })
+    # 
+    # # Use SHOULD instead of MUST for softer constraints
+    # if should_conditions:
+    #     return {"should": should_conditions}
+    # 
+    # return None
+    raise NotImplementedError("UI should not construct Qdrant filters. Use service_api.py.")
 
 
 def build_qdrant_filter_object(metadata: Dict[str, Any]):
     """
-    Build a Qdrant Filter object from metadata dict for use with Query API.
+    DEPRECATED: Build a Qdrant Filter object from metadata dict for use with Query API.
+    UI should send raw query or extracted keywords to backend via service_api.py.
+    Backend is responsible for constructing DB-specific queries.
     """
-    try:
-        from qdrant_client import models
-    except ImportError:
-        return None
-    
-    if not metadata:
-        return None
-    
-    should_conditions = []
-    
-    for key, value in metadata.items():
-        if isinstance(value, list):
-            for v in value:
-                should_conditions.append(
-                    models.FieldCondition(
-                        key=key, 
-                        match=models.MatchValue(value=v)
-                    )
-                )
-        else:
-            should_conditions.append(
-                models.FieldCondition(
-                    key=key, 
-                    match=models.MatchValue(value=value)
-                )
-            )
-    
-    if should_conditions:
-        return models.Filter(should=should_conditions)
-    
-    return None
+    logger.warning("DEPRECATED: build_qdrant_filter_object() was called. Query construction is now backend responsibility.")
+    # Original logic commented out as it uses qdrant_client.models and is no longer UI's role.
+    # # try:
+    # #     from qdrant_client import models
+    # # except ImportError:
+    # #     return None
+    # 
+    # if not metadata:
+    #     return None
+    # 
+    # should_conditions = []
+    # 
+    # for key, value in metadata.items():
+    #     if isinstance(value, list):
+    #         for v in value:
+    #             should_conditions.append(
+    #                 models.FieldCondition(
+    #                     key=key, 
+    #                     match=models.MatchValue(value=v)
+    #                 )
+    #             )
+    #     else:
+    #         should_conditions.append(
+    #             models.FieldCondition(
+    #                 key=key, 
+    #                 match=models.MatchValue(value=value)
+    #             )
+    #         )
+    # 
+    # if should_conditions:
+    #     return models.Filter(should=should_conditions)
+    # 
+    # return None
+    raise NotImplementedError("UI should not construct Qdrant filter objects. Use service_api.py.")
 
 
 # Example usage (for testing)

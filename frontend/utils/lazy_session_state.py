@@ -166,121 +166,28 @@ class LazySessionManager:
     @staticmethod
     def ensure_model_manager():
         """
-        Get the OptimizedModelManager instance.
-        This relies on OptimizedModelManager being a cached resource.
+        DEPRECATED: Get the OptimizedModelManager instance.
+        UI should use functions from service_api.py for model-related operations.
         
-        Returns:
-            OptimizedModelManager: A valid model manager instance
-            
         Raises:
-            RuntimeError: If model manager cannot be created
+            NotImplementedError: Always, as this method is deprecated.
         """
-        try:
-            from core.optimized_model_manager import get_optimized_model_manager
-            model_manager = get_optimized_model_manager()
-            
-            if model_manager is None:
-                raise RuntimeError("get_optimized_model_manager() returned None")
-            
-            # OptimizedModelManager has its own checks. 'device' is a basic attribute.
-            if not hasattr(model_manager, 'device'): 
-                 logger.warning("OptimizedModelManager instance seems basic or not fully initialized.")
-
-            # OptimizedModelManager manages its own loading state. 
-            # We can check if it's ready or if models are preloading.
-            if hasattr(model_manager, 'are_all_models_ready') and model_manager.are_all_models_ready():
-                st.session_state.models_loaded = True
-            elif hasattr(model_manager, 'get_loading_status'):
-                status = model_manager.get_loading_status()
-                st.session_state.models_loaded = status.get('all_ready', False)
-            else:
-                 st.session_state.models_loaded = False # Fallback
-
-            logger.info("OptimizedModelManager instance obtained via get_optimized_model_manager.")
-            return model_manager
-            
-        except Exception as e:
-            error_msg = f"Failed to get OptimizedModelManager: {e}"
-            logger.error(error_msg, exc_info=True)
-            raise RuntimeError(error_msg)
+        logger.warning("DEPRECATED: LazySessionManager.ensure_model_manager() was called. "
+                       "UI components should be updated to use service_api.py.")
+        raise NotImplementedError("Direct model manager access from UI is deprecated. Use service_api.py.")
     
     @staticmethod
     def ensure_database_manager():
         """
-        Load database manager ONLY when explicitly called.
-        This should only happen after model manager is loaded.
+        DEPRECATED: Load database manager ONLY when explicitly called.
+        UI should use functions from service_api.py for database-related operations (like search or listing images).
         
-        Returns:
-            DatabaseManager: A valid database manager instance
-            
         Raises:
-            RuntimeError: If database manager cannot be created after all attempts
+            NotImplementedError: Always, as this method is deprecated.
         """
-        if st.session_state.get('db_manager') is None:
-            try:
-                # Import database modules only when needed
-                from database.db_manager import DatabaseManager
-                
-                logger.info("Creating database manager...")
-                
-                # Ensure model manager exists first
-                model_manager = LazySessionManager.ensure_model_manager()
-                
-                if model_manager is None:
-                    raise RuntimeError("Model manager is None - cannot create database manager")
-                
-                logger.info("Creating database manager with lazy model manager")
-                db_manager = DatabaseManager(model_manager)
-                
-                if db_manager is None:
-                    raise RuntimeError("DatabaseManager constructor returned None")
-                
-                # Test the database manager to ensure it's working
-                try:
-                    # Simple test to verify the database manager is functional
-                    test_result = db_manager.database_exists(".")
-                    logger.info(f"Database manager test successful: database_exists('.') = {test_result}")
-                except Exception as test_error:
-                    logger.error(f"Database manager test failed: {test_error}")
-                    raise RuntimeError(f"Database manager is not functional: {test_error}")
-                
-                st.session_state.db_manager = db_manager
-                st.session_state.database_connected = True
-                logger.info("Database manager created and stored in session state")
-                
-            except Exception as e:
-                error_msg = f"Failed to create database manager: {e}"
-                logger.error(error_msg)
-                
-                # Try to create a fallback database manager without Streamlit UI
-                try:
-                    logger.info("Attempting to create fallback database manager...")
-                    from database.db_manager import DatabaseManager
-                    from models.lazy_model_manager import LazyModelManager
-                    import torch
-                    
-                    # Create minimal components without Streamlit UI
-                    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-                    fallback_model_manager = LazyModelManager(device)
-                    fallback_db_manager = DatabaseManager(fallback_model_manager)
-                    
-                    # Test the fallback
-                    fallback_db_manager.database_exists(".")
-                    
-                    st.session_state.db_manager = fallback_db_manager
-                    st.session_state.database_connected = True
-                    logger.info("Fallback database manager created successfully")
-                    
-                except Exception as fallback_error:
-                    logger.error(f"Fallback database manager creation failed: {fallback_error}")
-                    raise RuntimeError(f"Cannot create database manager: {e}. Fallback also failed: {fallback_error}")
-            
-        # Verify we have a valid database manager
-        db_manager = st.session_state.get('db_manager')
-        if db_manager is None:
-            raise RuntimeError("Database manager is None in session state")
-            
-        return db_manager
+        logger.warning("DEPRECATED: LazySessionManager.ensure_database_manager() was called. "
+                       "UI components should be updated to use service_api.py.")
+        raise NotImplementedError("Direct database manager access from UI is deprecated. Use service_api.py.")
     
     @staticmethod
     def get_processing_status():
@@ -344,12 +251,12 @@ def log_performance_metrics():
 def migrate_from_old_session():
     """Migrate from old session state structure if needed."""
     # Remove old heavy objects if they exist
-    old_keys = ['old_model_manager', 'clip_model', 'blip_model', 'embedding_cache']
-    
-    for key in old_keys:
-        if key in st.session_state:
-            del st.session_state[key]
-    
+    # old_keys = ['old_model_manager', 'clip_model', 'blip_model', 'embedding_cache']
+    # for key in old_keys:
+        # if key in st.session_state:
+            # del st.session_state[key]
+            # logger.info(f"Removed deprecated session state key: {key}")
+
     # Ensure new lazy structure
     LazySessionManager.init_core_state() 
 
@@ -358,35 +265,30 @@ def migrate_from_old_session():
 @st.cache_resource(show_spinner=False)
 def get_cached_model_manager():
     """
-    Get a cached instance of the OptimizedModelManager.
-    This now directly calls the cached function from core.optimized_model_manager.
-    """
-    logger.info("Attempting to get cached OptimizedModelManager instance via core module...")
-    try:
-        from core.optimized_model_manager import get_optimized_model_manager
-        model_manager = get_optimized_model_manager()
+    DEPRECATED: Get a cached instance of the OptimizedModelManager.
+    UI should use functions from service_api.py for model-related operations.
 
-        if model_manager is None:
-            error_msg = "get_optimized_model_manager() from core module returned None."
-            logger.error(error_msg)
-            raise RuntimeError(error_msg)
-        
-        # Basic check (OptimizedModelManager has methods like is_model_ready)
-        if not hasattr(model_manager, 'is_model_ready'): 
-             logger.warning("OptimizedModelManager instance obtained, but appears to be missing 'is_model_ready' method. Ensure it's the correct class.")
-        
-        logger.info("Successfully obtained OptimizedModelManager instance from core module.")
-        return model_manager
-    except ImportError as ie:
-        error_msg = f"ImportError while trying to get OptimizedModelManager from core: {str(ie)}. Check module paths."
-        logger.error(error_msg, exc_info=True)
-        raise RuntimeError(error_msg) from ie
-    except Exception as e:
-        error_msg = f"Unexpected error while trying to get OptimizedModelManager from core: {str(e)}"
-        logger.error(error_msg, exc_info=True)
-        raise RuntimeError(error_msg) from e
+    Raises:
+        NotImplementedError: Always, as this method is deprecated.
+    """
+    logger.warning("DEPRECATED: get_cached_model_manager() was called. "
+                   "UI components should be updated to use service_api.py.")
+    raise NotImplementedError("Direct model manager access from UI is deprecated. Use service_api.py.")
 
 @st.cache_resource(show_spinner=False)
 def get_cached_db_manager():
-    """Return a cached DatabaseManager instance."""
-    return LazySessionManager.ensure_database_manager() 
+    """
+    DEPRECATED: Return a cached DatabaseManager instance.
+    UI should use functions from service_api.py for database-related operations.
+
+    Raises:
+        NotImplementedError: Always, as this method is deprecated.
+    """
+    logger.warning("DEPRECATED: get_cached_db_manager() was called. "
+                   "UI components should be updated to use service_api.py.")
+    raise NotImplementedError("Direct database manager access from UI is deprecated. Use service_api.py.")
+
+def _load_initial_settings_if_needed(self):
+    pass
+
+    # --- Convenience properties ---    
