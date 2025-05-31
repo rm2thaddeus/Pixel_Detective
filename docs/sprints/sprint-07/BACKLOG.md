@@ -7,9 +7,9 @@ This backlog captures all known improvements, technical debt, and follow-up task
 ## UI (Frontend)
 - [ ] **Duplicate Detection Tab:** Implement UI logic to display and manage duplicates once backend endpoint is available.
 - [ ] **Random Image Selection:** Add support for random image selection in AI Game and other features (pending backend support).
-- [ ] **Advanced Filtering & Sorting:** Add UI controls for advanced search filtering, sorting, and pagination (pending backend API support).
-- [x] **Async Refactor:** Frontend (`service_api.py`, `app.py`, `screen_renderer.py`, screen modules, `background_loader.py`) refactored to use `httpx.AsyncClient` and asynchronous operations for API calls. `httpx` added to `frontend/requirements.txt`.
-- [ ] **Error Handling:** Improve user-facing error messages and fallback UI for all API failures and edge cases.
+- [ ] **Advanced Filtering & Sorting:** Add UI controls for advanced search filtering, sorting, and pagination (pending backend API support for actual Qdrant queries).
+- [x] **Async Refactor:** Frontend (`service_api.py`, `app.py`, `screen_renderer.py`, screen modules, `background_loader.py`) refactored to use `httpx.AsyncClient` and asynchronous operations for API calls. `httpx` added to `frontend/requirements.txt`. Basic API calls (embed, caption, ingest placeholders) are now successful.
+- [ ] **Error Handling:** Improve user-facing error messages and fallback UI for all API failures and edge cases (some basic error propagation from service_api exists).
 - [ ] **UI Polish:** Further refine design system, accessibility, and responsiveness across all screens.
 - [x] **Component Refactor:** Ensure all components (e.g., guessing game, latent space) are fully decoupled and use `service_api` exclusively. (Largely done, service_api is the sole point of backend contact, now async).
 - [ ] **Loading/Progress Feedback:** Enhance progress indicators and skeleton screens for all long-running operations (Partially improved with async loading screen updates).
@@ -18,15 +18,15 @@ This backlog captures all known improvements, technical debt, and follow-up task
 ## Backend (FastAPI Services)
 - [ ] **Duplicate Detection Endpoint:** Implement and document an endpoint for finding and managing duplicate images.
 - [ ] **Random Image Endpoint:** Add an endpoint to fetch a random image from the collection.
-- [ ] **Advanced Search/Filtering:** Add support for advanced search, filtering, and sorting in API endpoints.
-- [ ] **Pagination:** Ensure all list endpoints support robust pagination and metadata.
-- [ ] **Error Details:** Standardize error responses and include helpful error details for all endpoints.
+- [ ] **Advanced Search/Filtering:** Add support for advanced search, filtering, and sorting in API endpoints (currently placeholder, needs Qdrant integration).
+- [ ] **Pagination:** Ensure all list endpoints support robust pagination and metadata (currently placeholder for `/images/`, needs Qdrant integration).
+- [ ] **Error Details:** Standardize error responses and include helpful error details for all endpoints (some basic error detail propagation tested).
 - [x] **CORS:** Ensure CORS middleware is enabled and properly configured for all FastAPI services. (Marked as done in S07 plan).
-- [ ] **API Documentation:** Update OpenAPI/Swagger docs to reflect all new and planned endpoints.
-- [x] **Fix ingestion pipeline connection:** Frontend `service_api.py` updated to use port 8002.
+- [ ] **API Documentation:** Update OpenAPI/Swagger docs to reflect all new and planned endpoints, including `/api/v1` prefixes.
+- [x] **Fix ingestion pipeline connection:** Frontend `service_api.py` updated to use port 8002. Backend services now use `/api/v1` prefixes. Ingestion service successfully calls ML service's `/api/v1/batch_embed_and_caption` endpoint. Test script `service_api.py` shows successful calls to all key endpoints (ML embed/caption, Ingestion ingest/search/images placeholders).
 
 ## Testing & Stability
-- [ ] **Integration Tests:** Add/expand integration tests for UI → FastAPI → Qdrant/ML → UI round-trips.
+- [ ] **Integration Tests:** Add/expand integration tests for UI → FastAPI → Qdrant/ML → UI round-trips (Basic API layer tests via `service_api.py` script are passing for placeholder/mocked data and ML processing).
 - [ ] **E2E Tests:** Develop end-to-end tests for the full ingestion and search pipeline.
 - [ ] **Error Handling Tests:** Add tests for error and edge-case handling in both UI and backend.
 - [ ] **Performance Testing:** Benchmark and optimize API and UI performance for large collections.

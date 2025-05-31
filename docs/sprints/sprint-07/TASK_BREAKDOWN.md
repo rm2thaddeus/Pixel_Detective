@@ -40,17 +40,17 @@ This document breaks down the objectives from `PRD.md` into more granular tasks.
     *   `[x]` Implement these endpoints in the chosen FastAPI application.
         *   `[x]` Endpoints should query Qdrant (via Qdrant client).
         *   `[x]` Implement pagination, filtering, and sorting as needed.
-    *   `[x]` Test API endpoints thoroughly using tools like `curl` or Postman.
+    *   `[x]` Test API endpoints thoroughly using tools like `curl` or Postman. (Test script `service_api.py` now confirms basic functionality of /api/v1 endpoints and inter-service calls for core paths).
 *   **UI-07-02: Integrate Streamlit UI with backend services (Phase 1 - Read)**
     *   `[x]` Identify Streamlit scripts/components (`screens/`, `components/`) to be updated.
     *   `[x]` Modify these components to fetch data from the new API endpoints instead of local/direct data access.
         *   `[x]` Use `requests` or `httpx` library for making API calls. (Now fully `httpx.AsyncClient`)
         *   `[x]` Update UI to handle loading states and display data from API responses. (Now fully async)
-        *   `[x]` Ensure error handling for API call failures.
-    *   `[x]` Test UI pages to confirm data is displayed correctly and interactions are smooth. (Pending full user validation after async refactor)
+        *   `[x]` Ensure error handling for API call failures. (Basic error propagation in `service_api.py`)
+    *   `[x]` Test UI pages to confirm data is displayed correctly and interactions are smooth. (Pending full user validation after async refactor; `service_api.py` test script passes for API layer).
 *   **UI-07-03: Async Refactor of Frontend (Based on `o3research.md` and `RECONNECT_UI_REFACTOR_PLAN.md`)**
     *   `[x]` Refactor `frontend/core/service_api.py` to use `httpx.AsyncClient` and `async def` functions.
-    *   `[x]` Update `INGESTION_ORCHESTRATION_URL` in `service_api.py` to correct port (8002).
+    *   `[x]` Update `INGESTION_ORCHESTRATION_URL` in `service_api.py` to correct port (8002) and ensure `ML_INFERENCE_URL` points to 8001. Both now target `/api/v1` effectively.
     *   `[x]` Refactor `frontend/app.py` to use an `async def main_async()` loop.
     *   `[x]` Refactor `frontend/core/screen_renderer.py` and its main `render_app` function to be asynchronous.
     *   `[x]` Refactor individual screen rendering functions in `frontend/screens/` (`fast_ui_screen.py`, `loading_screen.py`, `advanced_ui_screen.py`) to be `async def` and `await` API calls.
@@ -115,11 +115,12 @@ This document breaks down the objectives from `PRD.md` into more granular tasks.
 
 ## Sprint 07 Wrap-up
 
-- FastAPI endpoints for image listing, search, and ingestion status were implemented; endpoints for duplicate detection, random image, and advanced filtering are pending (see BACKLOG.md).
+- FastAPI endpoints for image listing, search, and ingestion status were implemented; endpoints for duplicate detection, random image, and advanced filtering are pending (see BACKLOG.md). Placeholders for search/listing are functional from `service_api.py`.
 - CORS is enabled for all FastAPI services.
-- Frontend ingestion orchestration URL fixed to port 8002.
+- Frontend ingestion orchestration URL fixed to port 8002. ML Inference URL to 8001. Both services use `/api/v1` prefixes.
+- Ingestion service successfully calls the ML service's `/api/v1/batch_embed_and_caption` endpoint during test ingestion.
 - Frontend refactored to be fully asynchronous for API calls using `httpx.AsyncClient`, impacting `service_api.py`, `app.py`, `screen_renderer.py`, screen modules, and `background_loader.py`.
-- End-to-end integration is functional for all core features; further E2E and integration testing is planned.
+- End-to-end integration is functional for all core features at the API level (as tested by `service_api.py`); further E2E and integration testing is planned.
 - All major sprint documentation has been updated. See BACKLOG.md for remaining work and next steps.
 - All UI decoupling and service API integration tasks are complete.
 

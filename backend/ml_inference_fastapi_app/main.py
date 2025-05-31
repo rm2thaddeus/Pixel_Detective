@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Body
+from fastapi import FastAPI, HTTPException, Body, APIRouter
 from pydantic import BaseModel
 import torch
 import clip # openai-clip
@@ -18,6 +18,7 @@ logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO").upper())
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="ML Inference Service")
+v1_router = APIRouter(prefix="/api/v1") # Define v1 router
 
 # --- Configuration ---
 CLIP_MODEL_NAME_CONFIG = os.environ.get("CLIP_MODEL_NAME", "ViT-B/32")
@@ -128,8 +129,8 @@ class EmbedRequest(BaseModel):
     image_base64: str
     filename: str # Optional, for logging/context
 
-@app.post("/embed", response_model=Dict[str, Any])
-async def embed_image_endpoint(request: EmbedRequest = Body(...)):
+@v1_router.post("/embed", response_model=Dict[str, Any])
+async def embed_image_endpoint_v1(request: EmbedRequest = Body(...)):
     if not clip_model_instance or not clip_preprocess_instance:
         logger.error("/embed call failed: CLIP model not loaded.")
         raise HTTPException(status_code=503, detail="CLIP model is not available. Please check service logs.")
@@ -171,8 +172,8 @@ class CaptionRequest(BaseModel):
     image_base64: str
     filename: str # Optional, for logging/context
 
-@app.post("/caption", response_model=Dict[str, Any])
-async def caption_image_endpoint(request: CaptionRequest = Body(...)):
+@v1_router.post("/caption", response_model=Dict[str, Any])
+async def caption_image_endpoint_v1(request: CaptionRequest = Body(...)):
     if not blip_model_instance or not blip_processor_instance:
         logger.error("/caption call failed: BLIP model not loaded.")
         raise HTTPException(status_code=503, detail="BLIP model is not available. Please check service logs.")
@@ -227,8 +228,8 @@ class BatchEmbedAndCaptionResponse(BaseModel):
     results: List[BatchResultItem]
 
 # --- Batch Processing Endpoint ---
-@app.post("/batch_embed_and_caption", response_model=BatchEmbedAndCaptionResponse)
-async def batch_embed_and_caption_endpoint(request: BatchEmbedAndCaptionRequest = Body(...)):
+@v1_router.post("/batch_embed_and_caption", response_model=BatchEmbedAndCaptionResponse)
+async def batch_embed_and_caption_endpoint_v1(request: BatchEmbedAndCaptionRequest = Body(...)):
     if not clip_model_instance or not clip_preprocess_instance or not blip_model_instance or not blip_processor_instance:
         logger.error("/batch_embed_and_caption call failed: One or more models not loaded.")
         raise HTTPException(status_code=503, detail="One or more models are not available. Please check service logs.")
@@ -248,139 +249,148 @@ async def batch_embed_and_caption_endpoint(request: BatchEmbedAndCaptionRequest 
             image_bytes = base64.b64decode(item.image_base64)
             # DNG handling - simplified, assuming PIL can handle it from bytes or we rely on general format support
             # For more robust DNG, rawpy logic would be here as in single endpoints.
-            pil_image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
-            pil_images.append(pil_image)
-            processed_indices.append(i)
-            request_items_for_processing.append(item)
+            pil_img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+            pil_images.append(pil_img)
+            processed_indices.append(i) # Store original index
+            request_items_for_processing.append(item) # Store corresponding request item
         except Exception as e:
-            logger.error(f"Error decoding/opening image {item.filename} (ID: {item.unique_id}) in batch: {e}")
+            logger.error(f"Error decoding/preprocessing image {item.filename} (ID: {item.unique_id}) for batch: {e}")
             batch_results.append(BatchResultItem(
-                unique_id=item.unique_id, 
-                filename=item.filename, 
-                error=f"Failed to decode or open image: {str(e)}"
+                unique_id=item.unique_id,
+                filename=item.filename,
+                error=f"Failed to decode or preprocess image: {str(e)}"
             ))
     
-    # Initialize full results list with potential errors for images that failed preprocessing
-    # This ensures the response has an entry for every requested image, in order.
-    full_results_list = [None] * len(request.images)
-    for br_item in batch_results: # Place already errored items
-        original_index = next((i for i, req_item in enumerate(request.images) if req_item.unique_id == br_item.unique_id), -1)
-        if original_index != -1:
-            full_results_list[original_index] = br_item
+    # Filter out items that failed preprocessing for model inference
+    if not pil_images: # All images failed preprocessing
+        logger.warning("All images in batch failed preprocessing. Returning empty results for model inference part.")
+        # Errors for failed preprocessing items are already in batch_results
+        return BatchEmbedAndCaptionResponse(results=batch_results)
 
-    if not pil_images: # All images failed decoding
-        return BatchEmbedAndCaptionResponse(results=[r for r in full_results_list if r is not None])
+    # Get CLIP embeddings for successfully preprocessed images
+    clip_embeddings = []
+    if clip_model_instance and clip_preprocess_instance:
+        # Preprocess all images for CLIP together if possible (check clip_preprocess_instance type)
+        # Assuming clip_preprocess_instance can take a list of PIL images or individual application
+        try:
+            # This part needs to be careful with how clip_preprocess_instance handles a list
+            # If it expects individual images, loop here. If it can batch, then batch.
+            # For simplicity, let's assume individual preprocessing for now, then stack.
+            image_inputs_clip = torch.stack([clip_preprocess_instance(img) for img in pil_images]).to(device)
+            with torch.no_grad():
+                image_features = clip_model_instance.encode_image(image_inputs_clip)
+                image_features /= image_features.norm(dim=-1, keepdim=True)
+            clip_embeddings = image_features.cpu().numpy()
+        except Exception as e:
+            logger.error(f"Error during CLIP batch embedding: {e}")
+            # Mark all items in this batch as errored for CLIP part
+            for idx, original_batch_idx in enumerate(processed_indices):
+                req_item = request_items_for_processing[idx]
+                # Find if this item already has an error, if so, append. If not, create.
+                found_result = next((r for r in batch_results if r.unique_id == req_item.unique_id), None)
+                if found_result:
+                    found_result.error = (found_result.error + "; CLIP embedding failed: " + str(e)) if found_result.error else "CLIP embedding failed: " + str(e)
+                else: # Should not happen if preprocessing errors are handled by adding to batch_results first
+                    batch_results.append(BatchResultItem(unique_id=req_item.unique_id, filename=req_item.filename, error="CLIP embedding failed: " + str(e)))
+    else:
+        logger.warning("CLIP model not available for batch processing.")
+        # Add error to all items that were successfully preprocessed but can't get embedding
+        for idx, original_batch_idx in enumerate(processed_indices):
+            req_item = request_items_for_processing[idx]
+            found_result = next((r for r in batch_results if r.unique_id == req_item.unique_id), None)
+            if found_result:
+                 found_result.error = (found_result.error + "; CLIP model unavailable") if found_result.error else "CLIP model unavailable"
+            else:
+                 batch_results.append(BatchResultItem(unique_id=req_item.unique_id, filename=req_item.filename, error="CLIP model unavailable"))
 
-    # --- CLIP Batch Embedding ---
-    clip_embeddings_list = [None] * len(pil_images)
-    try:
-        logger.info(f"Processing {len(pil_images)} images for CLIP batch embedding...")
-        # Preprocess all images for CLIP
-        clip_image_inputs = torch.stack([clip_preprocess_instance(img) for img in pil_images]).to(device)
-
-        with torch.no_grad():
-            batch_image_features = clip_model_instance.encode_image(clip_image_inputs)
-            batch_image_features /= batch_image_features.norm(dim=-1, keepdim=True)
-        
-        clip_embeddings_list = [features.cpu().numpy().squeeze().tolist() for features in batch_image_features]
-        logger.info(f"Successfully embedded {len(pil_images)} images with CLIP.")
-    except Exception as e:
-        logger.error(f"Error during CLIP batch embedding: {e}", exc_info=True)
-        # Mark all images in this batch as failed for CLIP if batch fails
-        for i, req_item in enumerate(request_items_for_processing):
-            error_msg = f"CLIP batch processing error: {str(e)}"
-            # Find original index to update the correct item in full_results_list
-            original_idx = next((j for j, r_item in enumerate(request.images) if r_item.unique_id == req_item.unique_id), -1)
-            if original_idx != -1:
-                if full_results_list[original_idx] is None:
-                    full_results_list[original_idx] = BatchResultItem(unique_id=req_item.unique_id, filename=req_item.filename, error=error_msg)
-                elif full_results_list[original_idx].error is None: # Only update if no prior decoding error
-                    full_results_list[original_idx].error = error_msg
-            # Skip BLIP if CLIP failed catastrophically for the batch
-            # Ensure all items in full_results_list that weren't decoding errors get this new error
-            for i_orig, orig_req_item in enumerate(request.images):
-                if full_results_list[i_orig] is None:
-                    full_results_list[i_orig] = BatchResultItem(unique_id=orig_req_item.unique_id, filename=orig_req_item.filename, error=error_msg)
-                elif full_results_list[i_orig].error is None: # If it was a successfully decoded image, add this error
-                    full_results_list[i_orig].error = error_msg
-        return BatchEmbedAndCaptionResponse(results=[r for r in full_results_list if r is not None])
-
-    # --- BLIP Iterative Captioning (on preprocessed batch where possible) ---
-    blip_captions_list = [None] * len(pil_images)
-    try:
-        logger.info(f"Processing {len(pil_images)} images for BLIP captioning...")
-        # BLIP processing is often image by image for generation, but we use the same PIL images
-        for i, pil_img in enumerate(pil_images):
-            try:
-                # Reuse the PIL image, BLIP processor handles its own specific preprocessing
-                blip_inputs = blip_processor_instance(images=pil_img, text=None, return_tensors="pt").to(device)
+    # Get BLIP captions for successfully preprocessed images
+    blip_captions = [None] * len(pil_images)
+    if blip_model_instance and blip_processor_instance:
+        try:
+            # BLIP usually processes one by one for captioning in a loop or small batches
+            for i, img in enumerate(pil_images):
+                inputs = blip_processor_instance(images=img, text=None, return_tensors="pt").to(device)
                 with torch.no_grad():
-                    output_ids = blip_model_instance.generate(**blip_inputs, max_length=75)
-                caption = blip_processor_instance.decode(output_ids[0], skip_special_tokens=True).strip()
-                blip_captions_list[i] = caption
-            except Exception as caption_e:
-                req_item = request_items_for_processing[i]
-                logger.error(f"Error during BLIP captioning for {req_item.filename} (ID: {req_item.unique_id}): {caption_e}")
-                blip_captions_list[i] = f"BLIP captioning error: {str(caption_e)}" # Store error as caption for now or mark error
-                # Also mark this error in the main results structure
-                original_idx = next((j for j, r_item in enumerate(request.images) if r_item.unique_id == req_item.unique_id), -1)
-                if original_idx != -1:
-                    err_msg = f"BLIP captioning error: {str(caption_e)}"
-                    if full_results_list[original_idx] is None: # Should not happen if CLIP was successful
-                        full_results_list[original_idx] = BatchResultItem(unique_id=req_item.unique_id, filename=req_item.filename, error=err_msg)
-                    elif full_results_list[original_idx].error is None:
-                        full_results_list[original_idx].error = err_msg # Add error if no previous one
-                    else: # Append to existing error
-                        full_results_list[original_idx].error += f"; {err_msg}"
-
-        logger.info(f"Successfully processed {len(pil_images)} images with BLIP.")
-    except Exception as e:
-        logger.error(f"Error during BLIP batch captioning (outer loop): {e}", exc_info=True)
-        # Mark all images as failed for BLIP if outer loop fails
-        for i, req_item in enumerate(request_items_for_processing):
-            error_msg = f"BLIP batch processing error (outer): {str(e)}"
-            original_idx = next((j for j, r_item in enumerate(request.images) if r_item.unique_id == req_item.unique_id), -1)
-            if original_idx != -1:
-                if full_results_list[original_idx] is None:
-                    full_results_list[original_idx] = BatchResultItem(unique_id=req_item.unique_id, filename=req_item.filename, error=error_msg)
-                elif full_results_list[original_idx].error is None:
-                    full_results_list[original_idx].error = error_msg
+                    output_ids = blip_model_instance.generate(**inputs, max_length=75)
+                blip_captions[i] = blip_processor_instance.decode(output_ids[0], skip_special_tokens=True).strip()
+        except Exception as e:
+            logger.error(f"Error during BLIP batch captioning: {e}")
+            # Mark all items as errored for BLIP part
+            for idx, original_batch_idx in enumerate(processed_indices):
+                req_item = request_items_for_processing[idx]
+                found_result = next((r for r in batch_results if r.unique_id == req_item.unique_id), None)
+                if found_result:
+                    found_result.error = (found_result.error + "; BLIP captioning failed: " + str(e)) if found_result.error else "BLIP captioning failed: " + str(e)
                 else:
-                    full_results_list[original_idx].error += f"; {error_msg}"
+                    batch_results.append(BatchResultItem(unique_id=req_item.unique_id, filename=req_item.filename, error="BLIP captioning failed: " + str(e)))
+    else:
+        logger.warning("BLIP model not available for batch processing.")
+        for idx, original_batch_idx in enumerate(processed_indices):
+            req_item = request_items_for_processing[idx]
+            found_result = next((r for r in batch_results if r.unique_id == req_item.unique_id), None)
+            if found_result:
+                 found_result.error = (found_result.error + "; BLIP model unavailable") if found_result.error else "BLIP model unavailable"
+            else:
+                 batch_results.append(BatchResultItem(unique_id=req_item.unique_id, filename=req_item.filename, error="BLIP model unavailable"))
 
-    # --- Assemble Results ---
-    final_batch_results = []
-    for i, req_item in enumerate(request_items_for_processing): # Iterate through successfully preprocessed items
-        original_idx = next((j for j, r_item in enumerate(request.images) if r_item.unique_id == req_item.unique_id), -1)
-        if original_idx == -1: continue # Should not happen
-
-        current_error = full_results_list[original_idx].error if full_results_list[original_idx] and full_results_list[original_idx].error else None
-        embedding_val = clip_embeddings_list[i] if i < len(clip_embeddings_list) and clip_embeddings_list[i] is not None and current_error is None else None
-        caption_val = blip_captions_list[i] if i < len(blip_captions_list) and blip_captions_list[i] is not None and not (isinstance(blip_captions_list[i], str) and "error:" in blip_captions_list[i].lower()) and current_error is None else None
+    # Combine results
+    # Iterate through the successfully preprocessed items and update/add to batch_results
+    for idx, original_batch_idx in enumerate(processed_indices):
+        item = request_items_for_processing[idx] # The original request item for this successfully preprocessed image
         
-        # If BLIP captioning stored an error message in caption_val, parse it
-        if isinstance(caption_val, str) and "error:" in caption_val.lower() and current_error is None:
-            current_error = caption_val # Use BLIP's error string
-            caption_val = None # Clear caption if it was an error message
-        elif isinstance(caption_val, str) and "error:" in caption_val.lower() and current_error is not None:
-            current_error += f"; {caption_val}" # Append BLIP error to existing error
-            caption_val = None
+        # Check if this item already exists in batch_results (e.g. due to a preprocessing error being logged)
+        # This logic can be complex if an item fails one model but not another.
+        # The current structure adds errors to existing entries or creates new ones.
+        # We need to ensure we are updating the correct BatchResultItem or creating it if it was fully successful up to this point.
 
-        result_item = BatchResultItem(
-            unique_id=req_item.unique_id,
-            filename=req_item.filename,
-            embedding=embedding_val,
-            embedding_shape=list(np.array(embedding_val).shape) if embedding_val else None,
-            caption=caption_val,
-            error=current_error,
-            device_used=str(device) # Actual device from global var
-        )
-        full_results_list[original_idx] = result_item # Update the placeholder in the full list
-    
-    # Filter out any Nones that might have remained if something went wrong with indexing
-    final_clean_results = [r for r in full_results_list if r is not None]
-    logger.info(f"Batch processing complete. Returning {len(final_clean_results)} results.")
-    return BatchEmbedAndCaptionResponse(results=final_clean_results)
+        existing_result_index = -1
+        for i, res in enumerate(batch_results):
+            if res.unique_id == item.unique_id:
+                existing_result_index = i
+                break
+        
+        current_result = None
+        if existing_result_index != -1:
+            current_result = batch_results[existing_result_index]
+        else:
+            current_result = BatchResultItem(unique_id=item.unique_id, filename=item.filename)
+            # This new item needs to be appended later if it wasn't found
+            # However, items that passed preprocessing should not need this unless errors are cleared.
+            # Let's assume items that passed preprocessing don't have an error entry yet, or their error entry is what we update.
+            # This means the `batch_results.append` in the error handling above for CLIP/BLIP already created the necessary entries.
+
+        # Update with embedding if available and no critical error for this item already
+        if idx < len(clip_embeddings) and clip_embeddings[idx] is not None and (not current_result.error or "CLIP" not in current_result.error):
+            current_result.embedding = clip_embeddings[idx].squeeze().tolist()
+            current_result.embedding_shape = list(np.array(clip_embeddings[idx].squeeze()).shape)
+        elif not current_result.error or "CLIP" not in current_result.error: # If embedding is None but no specific CLIP error logged for this item yet
+            current_result.error = (current_result.error + "; Embedding not generated") if current_result.error else "Embedding not generated"
+
+        # Update with caption if available and no critical error for this item already
+        if idx < len(blip_captions) and blip_captions[idx] is not None and (not current_result.error or "BLIP" not in current_result.error):
+            current_result.caption = blip_captions[idx]
+        elif not current_result.error or "BLIP" not in current_result.error: # If caption is None but no specific BLIP error logged for this item yet
+            current_result.error = (current_result.error + "; Caption not generated") if current_result.error else "Caption not generated"
+        
+        # Update model names and device (these are constant for the batch)
+        current_result.model_name_clip = CLIP_MODEL_NAME_CONFIG
+        current_result.model_name_blip = BLIP_MODEL_NAME_CONFIG
+        current_result.device_used = str(device) # Actual device used
+
+        if existing_result_index == -1 and not current_result.error: # Only append if it's a new, error-free result
+            # This case should ideally not be hit often if error handling above creates the items.
+            # This ensures items that passed everything are added if they somehow weren't.
+             batch_results.append(current_result)
+        elif existing_result_index != -1: # If it existed, update it in place
+            batch_results[existing_result_index] = current_result
+        elif current_result.error and existing_result_index == -1: # It has an error and wasn't in batch_results (e.g. only preproc error)
+             batch_results.append(current_result) # This was missing, ensure errored items from preproc are kept
+
+
+    logger.info(f"Batch processing completed. Returning {len(batch_results)} results.")
+    return BatchEmbedAndCaptionResponse(results=batch_results)
+
+app.include_router(v1_router) # Add the v1 router to the main app
 
 if __name__ == "__main__":
     import uvicorn

@@ -11,6 +11,7 @@ import asyncio
 import os
 import logging
 import streamlit as st
+import base64 # New import
 
 logger = logging.getLogger(__name__)
 
@@ -40,8 +41,9 @@ async def get_embedding(image_bytes: bytes, model_name: str = "clip"):
     """
     client = get_async_client()
     try:
-        files = {'image_file': ('image.jpg', image_bytes)} # Backend might expect a specific filename or type
-        response = await client.post(f"{ML_INFERENCE_URL}/embed/", files=files, params={"model_name": model_name})
+        image_base64_str = base64.b64encode(image_bytes).decode('utf-8')
+        payload = {"image_base64": image_base64_str, "filename": "uploaded_image.jpg"} # Assuming a generic filename
+        response = await client.post(f"{ML_INFERENCE_URL}/embed?model_name={model_name}", json=payload)
         response.raise_for_status()  # Raise an exception for HTTP errors (4xx or 5xx)
         return response.json()
     except httpx.HTTPStatusError as e:
@@ -67,8 +69,9 @@ async def get_caption(image_bytes: bytes, model_name: str = "blip"):
     """
     client = get_async_client()
     try:
-        files = {'image_file': ('image.jpg', image_bytes)}
-        response = await client.post(f"{ML_INFERENCE_URL}/caption/", files=files, params={"model_name": model_name})
+        image_base64_str = base64.b64encode(image_bytes).decode('utf-8')
+        payload = {"image_base64": image_base64_str, "filename": "uploaded_image.jpg"}
+        response = await client.post(f"{ML_INFERENCE_URL}/caption?model_name={model_name}", json=payload)
         response.raise_for_status()
         return response.json()
     except httpx.HTTPStatusError as e:
@@ -253,7 +256,9 @@ async def _test_main():
                 shutil.copy("test_image.jpg", "test_images_to_ingest/test_image_copy.jpg")
             print("Created dummy 'test_images_to_ingest/' directory.")
 
-        ingest_response = await ingest_directory("test_images_to_ingest")
+        # Use absolute path for ingestion to avoid issues with backend's CWD
+        ingest_dir_absolute_path = os.path.abspath("test_images_to_ingest")
+        ingest_response = await ingest_directory(ingest_dir_absolute_path)
         print(f"Ingest Directory Response: {ingest_response}")
         
         if ingest_response and "job_id" in ingest_response and ingest_response.get("error") is None:

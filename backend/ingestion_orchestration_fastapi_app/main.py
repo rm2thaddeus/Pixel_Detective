@@ -3,10 +3,10 @@ import os # Added import
 # Add project root to sys.path to allow importing 'utils'
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, APIRouter # Added APIRouter
 import httpx
 from pydantic import BaseModel
-from typing import List, Dict, Any, Tuple # Added Tuple
+from typing import List, Dict, Any, Tuple, Optional # Added Tuple and Optional
 import aiofiles # For async file reading
 import base64 # For encoding image data
 from qdrant_client import QdrantClient # Qdrant client
@@ -24,6 +24,8 @@ logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO").upper())
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Ingestion Orchestration Service")
+# Create a router for API version 1
+v1_router = APIRouter(prefix="/api/v1")
 
 ML_INFERENCE_SERVICE_URL = os.environ.get("ML_INFERENCE_SERVICE_URL", "http://localhost:8001")
 ML_INFERENCE_BATCH_SIZE = int(os.environ.get("ML_INFERENCE_BATCH_SIZE", 8)) # New config for batch size
@@ -67,7 +69,7 @@ async def process_batch_with_ml_service(
 
     try:
         batch_ml_response = await client.post(
-            f"{ML_INFERENCE_SERVICE_URL}/batch_embed_and_caption", 
+            f"{ML_INFERENCE_SERVICE_URL}/api/v1/batch_embed_and_caption",
             json=ml_request_payload,
             timeout=60.0 # Potentially longer timeout for batch processing
         )
@@ -220,13 +222,13 @@ async def shutdown_event():
 class IngestRequest(BaseModel):
     directory_path: str
 
-@app.post("/ingest_directory")
-async def ingest_directory(request: IngestRequest):
+@v1_router.post("/ingest/") # Changed path from /ingest_directory and added to v1_router
+async def ingest_directory_v1(request: IngestRequest): # Renamed function for clarity
     """
     Receives a directory path, processes files, calls ML inference, 
     and stores results in Qdrant.
     """
-    logger.info(f"Received request to ingest directory: {request.directory_path}")
+    logger.info(f"APIv1: Received request to ingest directory: {request.directory_path}")
     
     processed_files_details = []
     failed_files_details = []
@@ -323,8 +325,87 @@ async def ingest_directory(request: IngestRequest):
         "failed_details": failed_files_details
     }
 
-# Example of how this service might call the ML inference service (now integrated above)
-# async def call_ml_inference_embed(image_data):
+# --- Placeholder Endpoints for API v1 ---
+
+class JobStatusResponse(BaseModel):
+    job_id: str
+    status: str
+    progress: float
+    message: str
+
+@v1_router.get("/ingest/status/{job_id}", response_model=JobStatusResponse)
+async def get_ingestion_status_v1(job_id: str):
+    logger.info(f"APIv1: Received request for ingestion status for job_id: {job_id}")
+    # Placeholder logic: In a real scenario, you'd look up the job status
+    return JobStatusResponse(
+        job_id=job_id,
+        status="processing", # Or "completed", "failed", "pending"
+        progress=50.0,      # Example progress
+        message=f"Status for job {job_id}: Placeholder - In progress"
+    )
+
+class SearchTextRequest(BaseModel): # Although GET, using BaseModel for clarity if params grow
+    query: str
+    top_k: int = 10
+
+class SearchResultItem(BaseModel):
+    path: str
+    score: float
+    caption: Optional[str] = None 
+
+@v1_router.get("/search/text/", response_model=List[SearchResultItem])
+async def search_images_by_text_v1(query: str, top_k: int = 10):
+    logger.info(f"APIv1: Received text search request: query='{query}', top_k={top_k}")
+    # Placeholder
+    return [
+        SearchResultItem(path="/example/image1.jpg", score=0.9, caption="Example image 1"),
+        SearchResultItem(path="/example/image2.png", score=0.85, caption="Example image 2")
+    ]
+
+# For POST /search/image/, we'd typically expect a file upload.
+# FastAPI handles this with File(...). For simplicity as a placeholder:
+class ImageSearchResponseItem(BaseModel):
+    path: str
+    score: float
+
+@v1_router.post("/search/image/", response_model=List[ImageSearchResponseItem])
+async def search_images_by_image_v1(top_k: int = 10): # Actual implementation would take image_file: UploadFile
+    logger.info(f"APIv1: Received image search request: top_k={top_k}. (File upload not processed in placeholder)")
+    # Placeholder
+    return [
+        ImageSearchResponseItem(path="/similar/imageA.jpg", score=0.92),
+        ImageSearchResponseItem(path="/similar/imageB.png", score=0.88)
+    ]
+
+class ProcessedImageItem(BaseModel):
+    id: str # Or path, depending on what uniquely identifies an image
+    path: str
+    thumbnail_url: Optional[str] = None # Example field
+    caption: Optional[str] = None
+
+class GetProcessedImagesResponse(BaseModel):
+    images: List[ProcessedImageItem]
+    total: int
+    page: int
+    limit: int
+
+@v1_router.get("/images/", response_model=GetProcessedImagesResponse)
+async def get_processed_images_v1(page: int = 1, limit: int = 20):
+    logger.info(f"APIv1: Received request for processed images: page={page}, limit={limit}")
+    # Placeholder
+    example_images = [
+        ProcessedImageItem(id="img1", path="/processed/img1.jpg", caption="Processed image 1"),
+        ProcessedImageItem(id="img2", path="/processed/img2.jpg", caption="Processed image 2")
+    ]
+    return GetProcessedImagesResponse(
+        images=example_images[:limit],
+        total=len(example_images),
+        page=page,
+        limit=limit
+    )
+
+# Include the v1 router in the main app
+app.include_router(v1_router)
 
 if __name__ == "__main__":
     import uvicorn
