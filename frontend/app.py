@@ -11,6 +11,7 @@ Smart 3-screen progressive UX - FAST_UI → LOADING → ADVANCED_UI
 
 # ===== MINIMAL STARTUP IMPORTS ONLY =====
 import streamlit as st
+import asyncio # New import
 
 # Set page config as the absolute first command (before ANY other Streamlit calls)
 st.set_page_config(
@@ -21,24 +22,25 @@ st.set_page_config(
 )
 
 # ===== IMPORT THE NEW ARCHITECTURE =====
-from core.screen_renderer import render_app
-from core.fast_startup_manager import get_fast_startup_manager # Get the manager instance
+from core.screen_renderer import render_app # Assuming render_app will be made async
+from core.fast_startup_manager import get_fast_startup_manager, StartupPhase
 
 # ===== MAIN APPLICATION =====
-def main():
+async def main_async(): # Renamed and made async
     """Main application with smart 3-screen UX flow"""
     try:
         # Get/initialize FastStartupManager to start its background model preloading.
         # It won't render UI itself in this setup; ScreenRenderer handles all UI.
         fsm = get_fast_startup_manager()
-        if not fsm.get_progress().models_preloading and not fsm.is_ready():
+        progress = fsm.get_progress()  # Get progress object
+        if progress.phase == StartupPhase.BACKGROUND_PREP and not fsm.is_ready():
             # If preloading hasn't started and it's not already fully ready,
             # kick off the background model preloading. 
             # FastStartupManager uses its own thread for this.
             fsm._start_background_preload() # This is the correct method to start FSM's worker.
 
-        # ScreenRenderer handles all UI rendering
-        render_app()
+        # ScreenRenderer handles all UI rendering - this will need to be awaited
+        await render_app() # Awaiting the async render_app
         
     except Exception as e:
         # Emergency fallback
@@ -57,4 +59,4 @@ def main():
 
 # Start the smart 3-screen UX app!
 if __name__ == "__main__":
-    main() 
+    asyncio.run(main_async()) # Run the async main function 

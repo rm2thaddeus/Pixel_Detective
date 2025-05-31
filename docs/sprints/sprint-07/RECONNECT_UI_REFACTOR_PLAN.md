@@ -100,15 +100,15 @@ This document outlines the steps and components affected by the transition to a 
 ## Checklist
 
 - [x] Create `frontend/` folder and move all UI code
-- [x] Update import paths and requirements
-- [x] Remove all direct model/DB calls from UI
-- [x] Implement `service_api.py` for backend communication
-- [x] Refactor UI screens/components to use API layer
-- [x] Update state management for service-based data
-- [x] Add/adjust FastAPI endpoints as needed
-- [x] Add CORS to FastAPI apps
-- [x] Test end-to-end flow
-- [x] Update documentation and guides
+- [x] Update import paths and requirements (httpx added)
+- [x] Remove all direct model/DB calls from UI (via service_api.py)
+- [x] Implement `service_api.py` for backend communication (now fully async with httpx)
+- [x] Refactor UI screens/components to use API layer (now fully async)
+- [x] Update state management for service-based data (adapted for async calls)
+- [x] Add/adjust FastAPI endpoints as needed (Ingestion port fixed in frontend calls)
+- [x] Add CORS to FastAPI apps (Assumed backend complete as per plan)
+- [ ] Test end-to-end flow (Pending user validation)
+- [ ] Update documentation and guides (Partially addressed now, ongoing)
 
 ---
 
@@ -116,6 +116,12 @@ This document outlines the steps and components affected by the transition to a 
 
 - **Add/adjust FastAPI endpoints as needed:**
     - Endpoints for image listing, search, and ingestion status were implemented/updated to support the new UI. Endpoints for duplicate detection, random image selection, and advanced filtering are still pending (see BACKLOG.md).
+    - Frontend `service_api.py` updated to use correct ingestion service port (8002).
+- **Frontend Async Refactor (`o3research.md` Sprint 1 & 3 influences):**
+    - `frontend/core/service_api.py` refactored to use `httpx.AsyncClient` for all API calls.
+    - `frontend/app.py`, `frontend/core/screen_renderer.py`, and screen modules (`fast_ui_screen.py`, `loading_screen.py`, `advanced_ui_screen.py`) adapted to support async operations.
+    - `frontend/core/background_loader.py` refactored to work with the async `service_api.py`.
+    - `httpx` added to `frontend/requirements.txt`.
 - **Add CORS to FastAPI apps:**
     - CORS middleware is enabled for all FastAPI services to allow requests from the Streamlit frontend.
 - **Test end-to-end flow:**

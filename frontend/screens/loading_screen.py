@@ -18,6 +18,8 @@ from styles.style_injector import (
 )
 from components.skeleton_screens import SkeletonScreens
 import logging
+import asyncio
+from core import service_api
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +28,7 @@ class LoadingScreen:
     """Screen 2: Engaging progress tracking that builds excitement + Design System"""
     
     @staticmethod
-    def render():
+    async def render():
         """Render the enhanced loading screen with design system - PERFORMANCE OPTIMIZED"""
         # Only inject styles once per session to avoid performance issues
         if not st.session_state.get('loading_styles_injected', False):
@@ -66,29 +68,38 @@ class LoadingScreen:
         st.markdown('</div>', unsafe_allow_html=True)
         
         # Handle completion or errors by checking background_loader.progress.status
-        LoadingScreen._handle_completion_or_errors()
+        await LoadingScreen._handle_completion_or_errors()
         
         # OPTIMIZED: Use smart refresh mechanism
         if background_loader.progress.is_loading:
-            # Call check_ingestion_status to poll the backend
-            background_loader.check_ingestion_status()
+            # Now that background_loader.check_ingestion_status is async, await it.
+            await background_loader.check_ingestion_status() # Correctly await the async method
             
+            # If after checking, the status is no longer loading (e.g., completed or error), 
+            # re-evaluate completion/error to transition if needed.
+            if not background_loader.progress.is_loading:
+                await LoadingScreen._handle_completion_or_errors()
+                st.rerun() # Ensure transition if state changed to completed/error
+                return # Stop further processing in this render cycle
+            
+            # Rerun logic (throttled) if still loading
             import time
-            if not hasattr(st.session_state, 'last_loading_rerun_time'): # Use a specific key
+            if not hasattr(st.session_state, 'last_loading_rerun_time'):
                 st.session_state.last_loading_rerun_time = 0
             
             current_time = time.time()
-            # Throttle to prevent excessive reruns, e.g., every 1 second when loading
-            # The backend status check itself might take time, so aggressive reruns are less useful.
             if current_time - st.session_state.last_loading_rerun_time > 1.0: 
                 st.session_state.last_loading_rerun_time = current_time
                 st.rerun()
         elif background_loader.progress.status == "completed":
             # Completion state is handled by _handle_completion_or_errors which should have triggered a rerun to advanced UI
-            pass
+            pass # Or call _handle_completion_or_errors one last time to be sure
+            await LoadingScreen._handle_completion_or_errors() 
+            # No st.rerun() here if _handle_completion_or_errors already does it for completed state.
+            # _handle_completion_or_errors already calls st.rerun() when transitioning.
     
     @staticmethod
-    def _handle_completion_or_errors(): # progress_data argument removed
+    async def _handle_completion_or_errors():
         """Handle completion or error states based on background_loader.progress"""
         loader_status = background_loader.progress.status
         
@@ -694,6 +705,6 @@ class LoadingScreen:
 
 
 # Global function for easy import
-def render_loading_screen():
+async def render_loading_screen():
     """Main entry point for Screen 2 with enhanced design system"""
-    LoadingScreen.render() 
+    await LoadingScreen.render() 

@@ -65,9 +65,11 @@ This sprint aims to solidify the new architecture, make it more robust, and star
     *   Cache effectively prevents re-processing of known images.
 3.  **UI Integration (Phase 1)**:
     *   [x] At least one key Streamlit UI component (the advanced UI screen) successfully fetches and displays data from the new backend services via HTTP API calls.
-    *   [x] The UI is now fully decoupled from local model/DB logic and interacts only via HTTP APIs (using the service API layer).
+    *   [x] The UI is now fully decoupled from local model/DB logic and interacts only via HTTP APIs (using the service API layer, now fully async with `httpx`).
+    *   [x] The frontend API interaction layer (`service_api.py`), main application flow (`app.py`), screen rendering logic (`screen_renderer.py`, `fast_ui_screen.py`, `loading_screen.py`, `advanced_ui_screen.py`), and background loader (`background_loader.py`) have been refactored to support asynchronous operations, improving potential responsiveness.
+    *   [x] The frontend service API layer now correctly targets the ingestion service at port 8002.
     *   [ ] Duplicate detection and some advanced features are pending backend endpoint support.
-    *   Data displayed is accurate and consistent with the database.
+    *   Data displayed is accurate and consistent with the database (pending user validation).
 4.  **Legacy Code Reduction**:
     *   At least 2-3 major legacy modules/files (e.g., from `core/` or `models/`) are successfully deprecated and removed or significantly refactored.
     *   Progress on `SPRINT_06_REFACTOR_PLAN.md` Phase 3 is evident.
@@ -111,4 +113,6 @@ This sprint aims to solidify the new architecture, make it more robust, and star
 **Update (Sprint 07 Progress):**
 - The advanced UI screen is now fully refactored to use only service API calls for all backend interactions.
 - The UI is decoupled from backend logic and communicates exclusively via HTTP APIs.
+- The frontend API interaction layer (`service_api.py`) and related UI components (`app.py`, `screen_renderer.py`, individual screen files, `background_loader.py`) have been refactored to be fully asynchronous using `httpx.AsyncClient`.
+- The frontend is configured to use the correct port (8002) for the ingestion orchestration service.
 - Duplicate detection and some advanced features are pending backend endpoint support. 

@@ -11,12 +11,16 @@ from components.accessibility import AccessibilityEnhancer
 from core.background_loader import background_loader
 from utils.lazy_session_state import LazySessionManager
 
+# Helper to run async code in Streamlit. Required if calling async functions from sync Streamlit callbacks.
+# However, if the entire chain from main() is async, this might not be strictly needed everywhere,
+# but good to have for isolated async calls within sync contexts if they arise.
+# For now, we assume the main path will be async.
 
 class ScreenRenderer:
     """Central renderer that manages the 3-screen flow"""
     
     @staticmethod
-    def render():
+    async def render():
         """Render the appropriate screen based on current app state"""
         
         AppStateManager.init_session_state()
@@ -56,7 +60,7 @@ class ScreenRenderer:
                 st.session_state.trigger_loading = False # Consume trigger
 
         if current_state == AppState.FAST_UI:
-            ScreenRenderer._render_fast_ui()
+            await ScreenRenderer._render_fast_ui()
         elif current_state == AppState.LOADING:
             # Ensure the loader is started if we directly land in LOADING state (e.g. after app restart with state preserved)
             # This is a safeguard, primary start is above.
@@ -71,30 +75,30 @@ class ScreenRenderer:
                 # --- END CRITICAL LOGGING ---
 
                 # No rerun here, loading screen will handle it.
-            ScreenRenderer._render_loading()
+            await ScreenRenderer._render_loading()
         elif current_state == AppState.ADVANCED_UI:
-            ScreenRenderer._render_advanced_ui()
+            await ScreenRenderer._render_advanced_ui()
         elif current_state == AppState.ERROR:
-            ScreenRenderer._render_error()
+            await ScreenRenderer._render_error()
         else:
             # Fallback to fast UI
             st.session_state.app_state = AppState.FAST_UI
-            ScreenRenderer._render_fast_ui()
+            await ScreenRenderer._render_fast_ui()
     
     @staticmethod
-    def _render_fast_ui():
+    async def _render_fast_ui():
         """Render Screen 1: Fast UI"""
         try:
-            render_fast_ui_screen()
+            await render_fast_ui_screen()
         except Exception as e:
             st.error(f"Error in Fast UI: {str(e)}")
             st.exception(e)
     
     @staticmethod
-    def _render_loading():
+    async def _render_loading():
         """Render Screen 2: Loading"""
         try:
-            render_loading_screen()
+            await render_loading_screen()
         except Exception as e:
             st.error(f"Error in Loading screen: {str(e)}")
             st.exception(e)
@@ -102,17 +106,17 @@ class ScreenRenderer:
             AppStateManager.reset_to_fast_ui()
     
     @staticmethod
-    def _render_advanced_ui():
+    async def _render_advanced_ui():
         """Render Screen 3: Advanced UI"""
         try:
-            render_advanced_ui_screen()
+            await render_advanced_ui_screen()
         except Exception as e:
             st.error(f"Error in Advanced UI: {str(e)}")
             st.exception(e)
             # Show error but don't reset state - user can try to continue
     
     @staticmethod
-    def _render_error():
+    async def _render_error():
         """Render error recovery screen"""
         st.title("❌ Something Went Wrong")
         
@@ -206,7 +210,7 @@ Image Count: {len(st.session_state.get('image_files', []))}
                 st.text("System information unavailable")
     
     @staticmethod
-    def show_debug_info():
+    async def show_debug_info():
         """Show debug information (for development)"""
         if st.checkbox("🔧 Show Debug Info"):
             with st.expander("🛠️ Debug Information", expanded=True):
@@ -252,17 +256,12 @@ Image Count: {len(st.session_state.get('image_files', []))}
                         AppStateManager.transition_to_advanced()
                         st.rerun()
 
-
-# Entry point for the main application rendering logic
-def render_app():
-    """Render the application UI"""
-    # Restore individual accessibility calls
-    AccessibilityEnhancer.inject_accessibility_styles()
-    AccessibilityEnhancer.add_skip_navigation()
-    AccessibilityEnhancer.add_keyboard_navigation_script()
-    
-    # Core rendering logic
-    ScreenRenderer.render()
-    
-    # Optional: Show debug info (controlled by a checkbox within ScreenRenderer)
-    ScreenRenderer.show_debug_info() 
+# This is the function imported by app.py
+async def render_app():
+    # Initialize accessibility features if not already done
+    if 'accessibility_enhancer_applied' not in st.session_state:
+        AccessibilityEnhancer.apply_custom_styles()
+        st.session_state.accessibility_enhancer_applied = True
+        
+    await ScreenRenderer.render()
+    await ScreenRenderer.show_debug_info() 

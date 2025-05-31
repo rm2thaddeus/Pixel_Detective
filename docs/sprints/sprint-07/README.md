@@ -1,3 +1,14 @@
+# Sprint 07 Progress Update (2025-05-30)
+
+- FastAPI services (ingestion and ML inference) and Qdrant were started successfully.
+- Resolved Python import issues in the Streamlit frontend by setting PYTHONPATH and clarifying import structure.
+- Fixed a merge conflict in `frontend/screens/fast_ui_screen.py` by accepting incoming changes from the develop branch.
+- Updated `frontend/app.py` to use the correct startup phase check instead of a missing attribute.
+- The Streamlit app now boots and displays logs from the API in the UI debug section.
+- Remaining issue: The ingestion pipeline fails to connect to the backend at `localhost:8000` (connection refused). This is likely due to the ingestion FastAPI service running on port 8002 instead of 8000, or a misconfiguration in the frontend's API endpoint settings.
+
+---
+
 # Sprint 07 Summary: Service Hardening, UI Integration, and Legacy Cleanup
 
 ## Sprint Goal & Achievements

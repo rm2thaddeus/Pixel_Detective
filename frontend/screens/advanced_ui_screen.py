@@ -7,14 +7,15 @@ import streamlit as st
 import os
 from frontend.core import service_api
 from styles.style_injector import inject_pixel_detective_styles
-from frontend.utils.logger import logger
+from utils.logger import logger
+import asyncio
 
 
 class AdvancedUIScreen:
     """Screen 3: Full featured interface with sophisticated components + Design System"""
     
     @staticmethod
-    def render():
+    async def render():
         """Render the enhanced advanced UI screen with design system"""
         # Inject our custom styles
         inject_pixel_detective_styles()
@@ -22,24 +23,29 @@ class AdvancedUIScreen:
         # Add screen entrance animation
         st.markdown('<div class="pd-screen-enter">', unsafe_allow_html=True)
         
-        AdvancedUIScreen._render_enhanced_header()
-        AdvancedUIScreen._render_sophisticated_tabs()
+        await AdvancedUIScreen._render_enhanced_header()
+        await AdvancedUIScreen._render_sophisticated_tabs()
         AdvancedUIScreen._render_contextual_sidebar()
         
         # Close animation wrapper
         st.markdown('</div>', unsafe_allow_html=True)
     
     @staticmethod
-    def _render_enhanced_header():
+    async def _render_enhanced_header():
         """Enhanced header with styled components"""
         folder_path = st.session_state.get('folder_path', 'Unknown')
         folder_name = os.path.basename(folder_path)
-        # Fetch image count from backend
+        image_count = 0
         try:
-            images = service_api.get_processed_images()
-            image_count = len(images) if images else 0
-        except Exception:
-            image_count = 0
+            # API call is now async
+            response = await service_api.get_processed_images(page=1, limit=1) # Get 1 just for count, or modify API
+            if response and not response.get("error") and "total" in response:
+                image_count = response["total"]
+            elif response and response.get("error"):
+                logger.error(f"Error fetching image count for header: {response.get('error')}")
+        except Exception as e:
+            logger.error(f"Exception fetching image count for header: {e}")
+        
         st.markdown(
             f'''
             <div class="pd-hero pd-fade-in" style="text-align: center; margin-bottom: 2rem;">
@@ -58,7 +64,7 @@ class AdvancedUIScreen:
         )
     
     @staticmethod
-    def _render_sophisticated_tabs():
+    async def _render_sophisticated_tabs():
         """Enhanced tabs with styled components"""
         # Create tabs with enhanced styling
         st.markdown(
@@ -95,19 +101,19 @@ class AdvancedUIScreen:
         ])
         
         with search_tab:
-            AdvancedUIScreen._render_sophisticated_search()
+            await AdvancedUIScreen._render_sophisticated_search()
         
         with ai_game_tab:
-            AdvancedUIScreen._render_ai_game()
+            await AdvancedUIScreen._render_ai_game()
         
         with latent_space_tab:
-            AdvancedUIScreen._render_latent_space()
+            await AdvancedUIScreen._render_latent_space()
         
         with duplicates_tab:
-            AdvancedUIScreen._render_duplicates()
+            await AdvancedUIScreen._render_duplicates()
     
     @staticmethod
-    def _render_sophisticated_search():
+    async def _render_sophisticated_search():
         """Enhanced search with beautiful nested tabs instead of ugly radio buttons"""
         # Beautiful header with gradient background
         st.markdown(
@@ -190,18 +196,18 @@ class AdvancedUIScreen:
         
         with text_tab:
             st.markdown('<div class="search-content">', unsafe_allow_html=True)
-            AdvancedUIScreen._render_text_search()
+            await AdvancedUIScreen._render_text_search()
             st.markdown('</div>', unsafe_allow_html=True)
         
         with image_tab:
             st.markdown('<div class="search-content">', unsafe_allow_html=True)
-            AdvancedUIScreen._render_image_search()
+            await AdvancedUIScreen._render_image_search()
             st.markdown('</div>', unsafe_allow_html=True)
         
         st.markdown('</div>', unsafe_allow_html=True)
     
     @staticmethod
-    def _render_text_search():
+    async def _render_text_search():
         st.markdown("### 📝 Search by Description")
         search_query = st.text_input(
             "",
@@ -217,17 +223,20 @@ class AdvancedUIScreen:
         if search_button and search_query:
             with st.spinner("🔍 Searching your collection..."):
                 try:
-                    results = service_api.search_images_by_text(query=search_query, top_k=num_results)
-                    if results:
+                    # API call is now async
+                    results = await service_api.search_images_by_text(query=search_query, top_k=num_results)
+                    if results and not results.get("error"):
                         st.success(f"✨ Found {len(results)} matching images!")
                         AdvancedUIScreen._render_search_results(results)
+                    elif results and results.get("error"):
+                        st.error(f"Search error: {results.get('error')}")
                     else:
                         st.warning("No results found. Try different search terms.")
                 except Exception as e:
                     st.error(f"Search error: {str(e)}")
     
     @staticmethod
-    def _render_image_search():
+    async def _render_image_search():
         st.markdown("### 🖼️ Search by Image")
         uploaded_file = st.file_uploader(
             "Choose an image...", 
@@ -245,14 +254,18 @@ class AdvancedUIScreen:
                 if search_button:
                     with st.spinner("🔍 Finding similar images..."):
                         try:
-                            results = service_api.search_images_by_image(image_file=uploaded_file, top_k=num_results)
-                            if results:
+                            # API call is now async
+                            image_bytes = uploaded_file.getvalue()
+                            results = await service_api.search_images_by_image(image_bytes=image_bytes, top_k=num_results)
+                            if results and not results.get("error"):
                                 st.success(f"✨ Found {len(results)} similar images!")
                                 AdvancedUIScreen._render_search_results(results)
+                            elif results and results.get("error"):
+                                st.error(f"Search error: {results.get('error')}")
                             else:
-                                st.warning("No similar images found. Try a different image.")
+                                st.warning("No similar images found.")
                         except Exception as e:
-                            st.error(f"Search error: {str(e)}")
+                            st.error(f"Image search error: {str(e)}")
     
     @staticmethod
     def _render_search_results(results):
@@ -277,12 +290,12 @@ class AdvancedUIScreen:
                         st.write(f"Path: {result.get('path', 'Unknown')}")
     
     @staticmethod
-    def _render_latent_space():
+    async def _render_latent_space():
         """Enhanced latent space visualization"""
         st.markdown(
             '''
             <div class="pd-card pd-fade-in" style="margin-bottom: 2rem;">
-                <h2 style="color: var(--pd-primary); margin-bottom: 1rem;">🌐 Visual Exploration</h2>
+                <h2 style="color: var(--pd-primary); margin-bottom: 1rem;">�� Visual Exploration</h2>
                 <p style="color: var(--pd-text-secondary);">
                     Explore your images in a visual similarity space using advanced AI visualization
                 </p>
@@ -343,7 +356,7 @@ class AdvancedUIScreen:
                 )
     
     @staticmethod
-    def _render_ai_game():
+    async def _render_ai_game():
         """Enhanced AI game interface"""
         st.markdown(
             '''
@@ -409,7 +422,7 @@ class AdvancedUIScreen:
                 )
     
     @staticmethod
-    def _render_duplicates():
+    async def _render_duplicates():
         """Enhanced duplicate detection interface"""
         st.markdown(
             '''
@@ -495,6 +508,6 @@ class AdvancedUIScreen:
             )
 
 
-def render_advanced_ui_screen():
+async def render_advanced_ui_screen():
     """Main function to render the advanced UI screen"""
-    AdvancedUIScreen.render()
+    await AdvancedUIScreen.render()

@@ -3,6 +3,7 @@ import streamlit as st
 import time
 import logging
 from typing import Optional
+import asyncio # New import
 
 # Assuming service_api.py is in frontend.core
 from frontend.core import service_api
@@ -73,55 +74,49 @@ class BackgroundLoader:
             if key not in st.session_state:
                 st.session_state[key] = default_value
 
-    def start_loading_pipeline(self, folder_path: str):
+    # This method is called from synchronous Streamlit interactions (button clicks in loading_screen.py)
+    # So, it needs to bridge the sync-async gap if it calls async service_api functions.
+    # Option 1: Make it async and have callers use asyncio.run() or st.experimental_rerun().
+    # Option 2: Run the async parts in a separate thread or use asyncio.gather() if possible.
+    # For Streamlit, often the simplest is to make the calling chain async if possible.
+    # Since loading_screen.render() is now async, this can be async too.
+    async def start_loading_pipeline(self, folder_path: str): # Changed to async def
         """Initiates the ingestion pipeline for the given folder path."""
-        # Check if a job is already running for this loader instance based on job_id and status
-        # This simple check might need refinement if multiple concurrent "loadings" were possible
-        # or if we want to allow restarting a failed job with the same folder.
         if self.progress.is_loading and st.session_state.get(LOADING_JOB_ID_KEY):
             logger.info(f"Ingestion job {st.session_state[LOADING_JOB_ID_KEY]} already in progress. Not starting new one.")
             return
 
         logger.info(f"Requesting to start ingestion pipeline for folder: {folder_path}")
-        self.reset_loading_state() # Clear any previous job state
+        self.reset_loading_state()
         st.session_state[LOADING_STATUS_KEY] = "pending"
         st.session_state[LOADING_DETAIL_KEY] = f"Sending request to ingest {folder_path}..."
         
-        api_response = service_api.ingest_directory(path=folder_path)
+        # API call is now async
+        api_response = await service_api.ingest_directory(path=folder_path) # await
 
         if isinstance(api_response, dict) and api_response.get("error"):
             error_msg = f"Failed to start ingestion: {api_response['error']}"
             logger.error(error_msg)
             st.session_state[LOADING_STATUS_KEY] = "error"
             st.session_state[LOADING_ERROR_MSG_KEY] = error_msg
-            st.session_state[LOADING_DETAIL_KEY] = "Error during ingestion request."
-        elif isinstance(api_response, dict) and api_response.get("job_id"):
-            job_id = api_response["job_id"]
-            st.session_state[LOADING_JOB_ID_KEY] = job_id
-            # Use status from API response if available, otherwise default to "processing"
-            initial_status = api_response.get("status", "processing").lower()
-            st.session_state[LOADING_STATUS_KEY] = initial_status if initial_status in ["pending", "processing", "running"] else "processing"
-            st.session_state[LOADING_DETAIL_KEY] = api_response.get("message", f"Ingestion job {job_id} initiated. Monitoring status...")
-            logger.info(f"Ingestion job {job_id} initiated successfully for folder: {folder_path}. Initial status: {st.session_state[LOADING_STATUS_KEY]}")
-            # Perform an immediate status check to get initial progress
-            self.check_ingestion_status()
-        else:
-            error_msg = "Failed to start ingestion: Unexpected API response from server."
-            logger.error(f"{error_msg} Response: {api_response}")
-            st.session_state[LOADING_STATUS_KEY] = "error"
-            st.session_state[LOADING_ERROR_MSG_KEY] = error_msg
             st.session_state[LOADING_DETAIL_KEY] = "Error: Unexpected server response."
+            return # Return early on error
 
-    def check_ingestion_status(self):
+        # Perform an immediate status check to get initial progress if job_id was received
+        if st.session_state.get(LOADING_JOB_ID_KEY):
+            await self.check_ingestion_status() # await
+
+    # This method is also called from async loading_screen.render()
+    async def check_ingestion_status(self): # Changed to async def
         """Checks the status of the current ingestion job and updates session state."""
         job_id = st.session_state.get(LOADING_JOB_ID_KEY)
         
-        # Only check if there's an active job_id and the status implies it's worth checking
         if not job_id or st.session_state.get(LOADING_STATUS_KEY) not in ["pending", "processing"]:
             return
 
         logger.debug(f"Checking status for ingestion job_id: {job_id}")
-        api_response = service_api.get_ingestion_status(job_id=job_id)
+        # API call is now async
+        api_response = await service_api.get_ingestion_status(job_id=job_id) # await
 
         if isinstance(api_response, dict) and api_response.get("error"):
             status_code = api_response.get('status_code')

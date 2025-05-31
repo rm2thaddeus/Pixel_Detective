@@ -8,10 +8,11 @@ This backlog captures all known improvements, technical debt, and follow-up task
 - [ ] **Duplicate Detection Tab:** Implement UI logic to display and manage duplicates once backend endpoint is available.
 - [ ] **Random Image Selection:** Add support for random image selection in AI Game and other features (pending backend support).
 - [ ] **Advanced Filtering & Sorting:** Add UI controls for advanced search filtering, sorting, and pagination (pending backend API support).
+- [x] **Async Refactor:** Frontend (`service_api.py`, `app.py`, `screen_renderer.py`, screen modules, `background_loader.py`) refactored to use `httpx.AsyncClient` and asynchronous operations for API calls. `httpx` added to `frontend/requirements.txt`.
 - [ ] **Error Handling:** Improve user-facing error messages and fallback UI for all API failures and edge cases.
 - [ ] **UI Polish:** Further refine design system, accessibility, and responsiveness across all screens.
-- [ ] **Component Refactor:** Ensure all components (e.g., guessing game, latent space) are fully decoupled and use service_api exclusively.
-- [ ] **Loading/Progress Feedback:** Enhance progress indicators and skeleton screens for all long-running operations.
+- [x] **Component Refactor:** Ensure all components (e.g., guessing game, latent space) are fully decoupled and use `service_api` exclusively. (Largely done, service_api is the sole point of backend contact, now async).
+- [ ] **Loading/Progress Feedback:** Enhance progress indicators and skeleton screens for all long-running operations (Partially improved with async loading screen updates).
 - [ ] **Session State Cleanup:** Audit and clean up any remaining session state keys or logic that reference deprecated local state.
 
 ## Backend (FastAPI Services)
@@ -20,8 +21,9 @@ This backlog captures all known improvements, technical debt, and follow-up task
 - [ ] **Advanced Search/Filtering:** Add support for advanced search, filtering, and sorting in API endpoints.
 - [ ] **Pagination:** Ensure all list endpoints support robust pagination and metadata.
 - [ ] **Error Details:** Standardize error responses and include helpful error details for all endpoints.
-- [ ] **CORS:** Ensure CORS middleware is enabled and properly configured for all FastAPI services.
+- [x] **CORS:** Ensure CORS middleware is enabled and properly configured for all FastAPI services. (Marked as done in S07 plan).
 - [ ] **API Documentation:** Update OpenAPI/Swagger docs to reflect all new and planned endpoints.
+- [x] **Fix ingestion pipeline connection:** Frontend `service_api.py` updated to use port 8002.
 
 ## Testing & Stability
 - [ ] **Integration Tests:** Add/expand integration tests for UI → FastAPI → Qdrant/ML → UI round-trips.
