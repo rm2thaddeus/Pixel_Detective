@@ -316,6 +316,57 @@ async def get_random_image_qdrant():
         logger.error(f"Unexpected error getting random image: {e}")
         return {"error": str(e)}
 
+async def get_all_vectors_for_latent_space():
+    """
+    Retrieves all vectors (or a representative sample) suitable for latent space visualization.
+    This would typically fetch IDs, vectors, and minimal payload (like path, caption).
+    Corresponds to a new backend endpoint, e.g., GET /api/v1/vectors/all-for-visualization.
+    """
+    client = get_async_client()
+    try:
+        # Adjust endpoint as per your backend implementation
+        response = await client.get(f"{INGESTION_ORCHESTRATION_URL}/vectors/all-for-visualization")
+        response.raise_for_status()
+        # Expected: {"data": [{"id": "...", "vector": [...], "payload": {"path": "...", "caption": "..."}}, ...]}
+        # or simply a list of such items. Adapt based on actual backend response.
+        # For latent_space.py, it expects a list of dicts that can be made into a DataFrame
+        # with 'vector', 'path', 'caption' columns.
+        # Let's assume the backend returns data in a "data" key, which is a list of items.
+        # Each item should have 'vector' and 'payload' (with 'path', 'caption').
+        # We will transform it slightly here if needed to match latent_space.py expectations more directly.
+        
+        raw_response_data = response.json()
+        # Assuming raw_response_data is like: {"data": [{"id": "id1", "vector": [], "payload": {"path": "/p1", "caption": "c1"}}]}
+        # Transform into: [{"vector": [], "path": "/p1", "caption": "c1"}] for easier DataFrame creation
+        
+        processed_vectors = []
+        if "data" in raw_response_data and isinstance(raw_response_data["data"], list):
+            for item in raw_response_data["data"]:
+                # Ensure 'vector' and 'payload' exist
+                if "vector" in item and "payload" in item:
+                    entry = {"vector": item["vector"]}
+                    entry["path"] = item["payload"].get("path")
+                    entry["caption"] = item["payload"].get("caption")
+                    # Add other payload fields if needed by latent_space.py visualization
+                    entry["id"] = item.get("id") # Keep id if present
+                    processed_vectors.append(entry)
+                else:
+                    logger.warning(f"Skipping item in all_vectors due to missing 'vector' or 'payload': {item.get('id', 'Unknown ID')}")
+            return {"vectors": processed_vectors} # latent_space.py expects a dict with a "vectors" key
+        else:
+            logger.error(f"Unexpected response structure from /vectors/all-for-visualization: {raw_response_data}")
+            return {"error": "Invalid data structure from backend", "vectors": []}
+
+    except httpx.HTTPStatusError as e:
+        logger.error(f"HTTP error getting all vectors for latent space: {e} - Response: {e.response.text}")
+        return {"error": str(e), "status_code": e.response.status_code, "detail": e.response.json() if e.response.content else None, "vectors": []}
+    except httpx.RequestError as e:
+        logger.error(f"Request error getting all vectors for latent space: {e}")
+        return {"error": str(e), "status_code": None, "vectors": []}
+    except Exception as e:
+        logger.error(f"Unexpected error getting all vectors for latent space: {e}")
+        return {"error": str(e), "vectors": []}
+
 # Add more functions here as UI requirements evolve, e.g., for:
 # - Getting image metadata
 # - Advanced search filters

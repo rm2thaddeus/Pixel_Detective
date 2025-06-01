@@ -76,24 +76,27 @@ def render_latent_space_tab():
         st.session_state.latent_space_viz_results = None # Clear previous viz results
         st.session_state.latent_space_viz_status = "idle"
         try:
-            raw_data = await service_api.get_all_vectors_for_latent_space()
+            # Use the new service_api function
+            raw_data = await service_api.get_all_vectors_for_latent_space() # MODIFIED
+            
             if raw_data and not raw_data.get("error"):
-                vectors_list = raw_data.get("vectors", [])
+                vectors_list = raw_data.get("vectors", []) # Adjusted to expect "vectors" key from service_api
                 if vectors_list:
+                    # DataFrame creation will now expect 'vector', 'path', 'caption' directly if service_api formats it
                     st.session_state.latent_space_data_df = pd.DataFrame(vectors_list)
                     st.success("Latent space data loaded successfully from backend.")
                 else:
-                    st.session_state.latent_space_data_df = pd.DataFrame()
+                    st.session_state.latent_space_data_df = pd.DataFrame() # Ensure it's an empty DataFrame
                     st.info("No vector data returned from backend for latent space.")
             else:
                 err_msg = raw_data.get("detail", raw_data.get("error", "Unknown error fetching latent space data."))
                 st.session_state.latent_space_error = err_msg
                 logger.error(f"API Error fetching latent space data: {err_msg}")
-                st.session_state.latent_space_data_df = pd.DataFrame()
+                st.session_state.latent_space_data_df = pd.DataFrame() # Ensure it's an empty DataFrame
         except Exception as e:
             logger.error(f"Exception fetching latent space data: {e}", exc_info=True)
             st.session_state.latent_space_error = str(e)
-            st.session_state.latent_space_data_df = pd.DataFrame()
+            st.session_state.latent_space_data_df = pd.DataFrame() # Ensure it's an empty DataFrame
         finally:
             st.session_state.latent_space_loading = False
 
@@ -121,12 +124,14 @@ def render_latent_space_tab():
         st.info("Click 'Load/Refresh Latent Space Data from Backend' to visualize.")
         return
         
-    if df.empty:
-        st.info("No data available to visualize. Backend returned no vectors or an error occurred.")
+    if df.empty: # Now check if the DataFrame is empty after attempting to load
+        st.info("No data available to visualize. Backend returned no vectors or an error occurred. Check logs if this persists.")
         return
         
-    if 'vector' not in df.columns or df['vector'].isnull().any():
-        st.error("Fetched data is missing 'vector' column or contains null vectors. Cannot proceed.")
+    if 'vector' not in df.columns or df['vector'].apply(lambda x: x is None or (isinstance(x, list) and not x)).any(): # Check for missing or empty vectors
+        st.error("Fetched data is missing 'vector' column or contains null/empty vectors. Cannot proceed.")
+        # Optionally, display the problematic part of the DataFrame
+        # st.dataframe(df[df['vector'].isnull() | df['vector'].apply(lambda x: isinstance(x, list) and not x)])
         return
 
     df_display_initial = df.copy()
@@ -199,9 +204,9 @@ def render_latent_space_tab():
         # Ensure to use marker_size_val for marker size
         # fig.update_traces(marker=dict(size=marker_size_val))
         # Example from before:
-        df_plot = df_display_initial.copy()
+        df_plot = df_display_initial.copy() # Use the initially loaded and validated df
         if len(df_plot) != len(results_data['embeddings_2d']):
-            st.error("Data mismatch after computation. Please reload and recompute.")
+            st.error("Data mismatch after computation. The number of items in the source data and computed results do not align. Please reload and recompute.")
             st.session_state.latent_space_viz_status = "idle" # Reset to allow re-run
             st.session_state.latent_space_viz_results = None
             return
