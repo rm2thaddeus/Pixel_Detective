@@ -7,9 +7,9 @@ from core.app_state import AppState, AppStateManager
 from screens.fast_ui_screen import render_fast_ui_screen
 from screens.loading_screen import render_loading_screen
 from screens.advanced_ui_screen import render_advanced_ui_screen
-from components.accessibility import AccessibilityEnhancer
 from core.background_loader import background_loader
-from utils.lazy_session_state import LazySessionManager
+from styles.style_injector import inject_pixel_detective_styles
+from components.accessibility import AccessibilityEnhancer
 
 # Helper to run async code in Streamlit. Required if calling async functions from sync Streamlit callbacks.
 # However, if the entire chain from main() is async, this might not be strictly needed everywhere,
@@ -258,10 +258,19 @@ Image Count: {len(st.session_state.get('image_files', []))}
 
 # This is the function imported by app.py
 async def render_app():
-    # Initialize accessibility features if not already done
-    if 'accessibility_enhancer_applied' not in st.session_state:
-        AccessibilityEnhancer.apply_custom_styles()
-        st.session_state.accessibility_enhancer_applied = True
-        
-    await ScreenRenderer.render()
-    await ScreenRenderer.show_debug_info() 
+    AccessibilityEnhancer.add_skip_navigation()
+
+    renderer = ScreenRenderer()
+    await renderer.render()
+
+    # Apply custom visual styles globally after rendering main content
+    inject_pixel_detective_styles() # This should handle main visual styles
+
+    # Explicitly inject accessibility-specific CSS.
+    # If inject_pixel_detective_styles already includes these, this might be redundant
+    # but it's safer to call it to ensure accessibility styles are applied.
+    AccessibilityEnhancer.inject_accessibility_styles()
+
+    # Optionally, show debug info
+    if st.session_state.get("show_debug_info", False):
+        await ScreenRenderer.show_debug_info() 
