@@ -5,4 +5,5 @@ streamlit-plotly-events>=0.0.5
 requests==2.32.3
 httpx>=0.25.0
 plotly>=5.0.0
-pydeck==0.9.1 
+pydeck==0.9.1
+streamlit-extras 

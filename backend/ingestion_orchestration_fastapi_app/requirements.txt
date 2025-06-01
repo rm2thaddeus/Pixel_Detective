@@ -1,6 +1,8 @@
 fastapi
 uvicorn[standard]
 httpx
-qdrant-client
+qdrant-client>=1.3.0
 aiofiles
 diskcache
+python-multipart
+brotli

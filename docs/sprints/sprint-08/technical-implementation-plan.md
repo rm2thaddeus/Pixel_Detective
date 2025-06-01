@@ -23,35 +23,29 @@ flowchart LR
 - **Background Processing**: Duplicate detection runs in a `ThreadPoolExecutor` to avoid blocking the main event loop. Results are streamed back to UI.
 
 ## 2. Setup & Dependencies
-- Add to `backend/requirements.txt`: `qdrant-client>=0.8.1`, `fastapi`, `uvicorn`, `python-multipart`, `brotli`.
+- Add to `backend/ingestion_orchestration_fastapi_app/requirements.txt`: `qdrant-client>=0.8.1`, `fastapi`, `uvicorn`, `python-multipart`, `brotli`.
 - Add to `frontend/requirements.txt`: `httpx`, `streamlit>=1.18.0`.
-- Update `docker-compose.yml` to include a Qdrant service:
-  ```yaml
-  qdrant:
-    image: qdrant/qdrant:v1.3.0
-    ports:
-      - "6333:6333"
-  ```
+- Update `docker-compose.yml` to include a Qdrant service with `image: qdrant/qdrant:v1.3.0`.
 
 ## 3. Implementation Steps
 
-### 3.1 Backend Service Enhancements
-1. **Search Router**: Create `backend/routers/search.py`:
+### 3.1 Backend Service Enhancements (Initial coding DONE, testing pending)
+1. **Search Router**: Create `backend/ingestion_orchestration_fastapi_app/routers/search.py`:
    - Implement `POST /api/v1/search` accepting embedding and filter payload.
    - Use `qdrant-client` `search()` method with vector and filter parameters.
    - Return results with pagination metadata (`total`, `page`, `per_page`).
 
-2. **Images Router**: Create `backend/routers/images.py`:
+2. **Images Router**: Create `backend/ingestion_orchestration_fastapi_app/routers/images.py`:
    - Implement `GET /api/v1/images` with query params `page`, `per_page`, filters, sort.
    - Use Qdrant's `scroll()` or similar for pagination.
    - Return images list and metadata.
 
-3. **Duplicates Router**: Create `backend/routers/duplicates.py`:
+3. **Duplicates Router**: Create `backend/ingestion_orchestration_fastapi_app/routers/duplicates.py`:
    - Define `POST /api/v1/duplicates` that triggers a vector-similarity search for duplicates.
    - Offload heavy computation to `ThreadPoolExecutor` (e.g., `executor.submit(detect_duplicates)`).
    - Return grouped results as they complete via streaming or final result.
 
-4. **Random Router**: Create `backend/routers/random.py`:
+4. **Random Router**: Create `backend/ingestion_orchestration_fastapi_app/routers/random.py`:
    - Implement `GET /api/v1/random` selecting a random point ID from Qdrant.
    - Use Qdrant's metadata or a random sampling strategy.
 
@@ -59,11 +53,11 @@ flowchart LR
 
 6. **OpenAPI Docs**: Ensure all routers are registered; verify interactive docs at `/docs`.
 
-### 3.2 Frontend App Updates
+### 3.2 Frontend App Updates (Initial coding for service_api.py DONE, UI pending)
 1. **Service API**: In `frontend/core/service_api.py`:
-   - Add `async def search_images(self, ...):` and `async def list_images(...)` methods.
-   - Add `async def get_duplicates(self):` using background thread invocation.
-   - Add `async def get_random_image(self):` method.
+   - Add `async def search_images_vector(...)`, `async def list_images_qdrant(...)` methods.
+   - Add `async def get_duplicates_qdrant(self):` using background thread invocation.
+   - Add `async def get_random_image_qdrant(self):` method.
    - Cache the `httpx.AsyncClient` with `@st.cache_resource`.
 
 2. **UI Screens**: In `frontend/app.py` or `components/`:
@@ -78,6 +72,13 @@ flowchart LR
 4. **Accessibility & Responsiveness**:
    - Add ARIA labels via `st.markdown('<div role="...">')` where needed.
    - Ensure keyboard navigation compatibility.
+
+**[DONE] Duplicate Detection UI:**
+- Implemented the Duplicate Detection tab in the Advanced UI (see `frontend/screens/advanced_ui_screen.py`).
+- Added a trigger button to start duplicate detection, which calls the backend via `service_api.get_duplicates_qdrant()`.
+- Shows a spinner/progress indicator while waiting for results.
+- Displays grouped duplicate results with image previews, or an error/info message as appropriate.
+- Handles UI state for loading, results, and errors using `st.session_state`.
 
 ### 3.3 Testing & CI
 1. **Unit Tests**: Write pytest tests in `tests/`:

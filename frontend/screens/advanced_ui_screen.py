@@ -5,10 +5,15 @@
 
 import streamlit as st
 import os
-from frontend.core import service_api
+from core import service_api
 from styles.style_injector import inject_pixel_detective_styles
 from utils.logger import logger
 import asyncio
+import json
+from datetime import datetime
+from components.visualization.latent_space import render_latent_space_tab
+from components.search.search_tabs import render_guessing_game_tab
+from components.sidebar.context_sidebar import render_sidebar
 
 
 class AdvancedUIScreen:
@@ -93,11 +98,12 @@ class AdvancedUIScreen:
             unsafe_allow_html=True
         )
         
-        search_tab, ai_game_tab, latent_space_tab, duplicates_tab = st.tabs([
+        search_tab, ai_game_tab, latent_space_tab, duplicates_tab, random_tab = st.tabs([
             "🔍 Search", 
             "🎮 AI Game", 
             "🌐 Latent Space", 
-            "👥 Duplicates"
+            "👥 Duplicates",
+            "🎲 Random Image"
         ])
         
         with search_tab:
@@ -111,183 +117,133 @@ class AdvancedUIScreen:
         
         with duplicates_tab:
             await AdvancedUIScreen._render_duplicates()
+        
+        with random_tab:
+            await AdvancedUIScreen._render_random_image()
     
     @staticmethod
     async def _render_sophisticated_search():
-        """Enhanced search with beautiful nested tabs instead of ugly radio buttons"""
-        # Beautiful header with gradient background
-        st.markdown(
-            '''
-            <div style="
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                padding: 2rem;
-                border-radius: 15px;
-                margin-bottom: 2rem;
-                color: white;
-                text-align: center;
-                box-shadow: 0 8px 32px rgba(102, 126, 234, 0.3);
-            ">
-                <h1 style="margin: 0; font-size: 2.5rem; font-weight: 700;">🔍 Search Your Collection</h1>
-                <p style="margin: 0.5rem 0 0 0; font-size: 1.2rem; opacity: 0.9;">
-                    Find images using text or upload a sample image
-                </p>
-            </div>
-            ''',
-            unsafe_allow_html=True
-        )
-        
-        # Custom CSS for beautiful nested tabs
-        st.markdown(
-            '''
-            <style>
-            /* Beautiful nested tabs styling */
-            .search-tabs .stTabs [data-baseweb="tab-list"] {
-                gap: 0;
-                background: linear-gradient(90deg, #f8f9fa, #e9ecef);
-                border-radius: 12px;
-                padding: 4px;
-                margin-bottom: 2rem;
-                box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
-            }
-            
-            .search-tabs .stTabs [data-baseweb="tab"] {
-                background: transparent;
-                border: none;
-                border-radius: 8px;
-                padding: 1rem 2rem;
-                font-weight: 600;
-                font-size: 1.1rem;
-                transition: all 0.3s ease;
-                color: #6c757d;
-            }
-            
-            .search-tabs .stTabs [aria-selected="true"] {
-                background: linear-gradient(135deg, #667eea, #764ba2);
-                color: white;
-                box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
-                transform: translateY(-2px);
-            }
-            
-            .search-tabs .stTabs [data-baseweb="tab"]:hover:not([aria-selected="true"]) {
-                background: rgba(102, 126, 234, 0.1);
-                color: #495057;
-            }
-            
-            /* Search content area styling */
-            .search-content {
-                background: white;
-                border-radius: 15px;
-                padding: 2rem;
-                box-shadow: 0 4px 20px rgba(0,0,0,0.1);
-                border: 1px solid #e9ecef;
-            }
-            </style>
-            ''',
-            unsafe_allow_html=True
-        )
-        
-        # Create beautiful nested tabs for search types
+        """Enhanced search with sidebar filtering, sorting, pagination, and vector search integration."""
+        import json
+        from datetime import datetime
+
+        # Sidebar for filters and sorting
+        with st.sidebar:
+            st.markdown("## 🔍 Search Filters")
+            @st.cache_data
+            def get_tag_options():
+                return ["nature", "people", "city", "animals", "vacation", "family", "work"]
+            tag_options = get_tag_options()
+            selected_tags = st.multiselect("Tags", tag_options, key="search_tags")
+            date_range = st.date_input("Date range", [], key="search_date_range")
+            st.markdown("## 🔃 Sorting")
+            sort_field = st.selectbox("Sort by", ["created_at", "name"], key="search_sort_field")
+            sort_order = st.radio("Order", ["desc", "asc"], key="search_sort_order")
+
+        # Pagination state
+        if 'search_page' not in st.session_state:
+            st.session_state['search_page'] = 1
+        if 'search_per_page' not in st.session_state:
+            st.session_state['search_per_page'] = 9
+
+        # Build filters for API
+        filters = {}
+        if selected_tags:
+            filters['tags'] = selected_tags
+        if date_range and len(date_range) == 2:
+            filters['date_from'] = date_range[0].isoformat()
+            filters['date_to'] = date_range[1].isoformat()
+        filters_json_str = json.dumps(filters) if filters else None
+
+        # Main area: nested tabs for standard and vector search
         st.markdown('<div class="search-tabs">', unsafe_allow_html=True)
-        
-        text_tab, image_tab = st.tabs([
-            "📝 Text Search", 
-            "🖼️ Image Search"
-        ])
-        
-        with text_tab:
-            st.markdown('<div class="search-content">', unsafe_allow_html=True)
-            await AdvancedUIScreen._render_text_search()
-            st.markdown('</div>', unsafe_allow_html=True)
-        
-        with image_tab:
-            st.markdown('<div class="search-content">', unsafe_allow_html=True)
-            await AdvancedUIScreen._render_image_search()
-            st.markdown('</div>', unsafe_allow_html=True)
-        
-        st.markdown('</div>', unsafe_allow_html=True)
-    
-    @staticmethod
-    async def _render_text_search():
-        st.markdown("### 📝 Search by Description")
-        search_query = st.text_input(
-            "",
-            placeholder="e.g., 'sunset over mountains', 'cute dog playing', 'family vacation photos'",
-            key="text_search_input",
-            label_visibility="collapsed"
-        )
-        col1, col2 = st.columns([3, 1])
-        with col1:
-            num_results = st.slider("Number of results:", 1, 20, 5, key="text_results_slider")
-        with col2:
-            search_button = st.button("🔍 Search Images", type="primary", use_container_width=True)
-        if search_button and search_query:
-            with st.spinner("🔍 Searching your collection..."):
-                try:
-                    # API call is now async
-                    results = await service_api.search_images_by_text(query=search_query, top_k=num_results)
-                    if results and not results.get("error"):
-                        st.success(f"✨ Found {len(results)} matching images!")
-                        AdvancedUIScreen._render_search_results(results)
-                    elif results and results.get("error"):
-                        st.error(f"Search error: {results.get('error')}")
-                    else:
-                        st.warning("No results found. Try different search terms.")
-                except Exception as e:
-                    st.error(f"Search error: {str(e)}")
-    
-    @staticmethod
-    async def _render_image_search():
-        st.markdown("### 🖼️ Search by Image")
-        uploaded_file = st.file_uploader(
-            "Choose an image...", 
-            type=['jpg', 'jpeg', 'png', 'bmp', 'gif'],
-            key="image_search_uploader"
-        )
-        if uploaded_file is not None:
-            col1, col2 = st.columns([2, 3])
-            with col1:
-                st.image(uploaded_file, caption="📤 Uploaded Image", use_container_width=True)
-            with col2:
-                st.markdown("#### Search Settings")
-                num_results = st.slider("Number of similar images:", 1, 20, 5, key="image_results_slider")
-                search_button = st.button("🔍 Find Similar Images", type="primary", use_container_width=True)
-                if search_button:
-                    with st.spinner("🔍 Finding similar images..."):
-                        try:
-                            # API call is now async
-                            image_bytes = uploaded_file.getvalue()
-                            results = await service_api.search_images_by_image(image_bytes=image_bytes, top_k=num_results)
-                            if results and not results.get("error"):
-                                st.success(f"✨ Found {len(results)} similar images!")
-                                AdvancedUIScreen._render_search_results(results)
-                            elif results and results.get("error"):
-                                st.error(f"Search error: {results.get('error')}")
-                            else:
-                                st.warning("No similar images found.")
-                        except Exception as e:
-                            st.error(f"Image search error: {str(e)}")
-    
-    @staticmethod
-    def _render_search_results(results):
-        import os
-        st.markdown("---")
-        st.markdown("### 🎯 Search Results")
-        cols_per_row = 3
-        for i in range(0, len(results), cols_per_row):
-            cols = st.columns(cols_per_row)
-            for j, result in enumerate(results[i:i+cols_per_row]):
-                with cols[j]:
+        standard_tab, vector_tab = st.tabs(["🖼️ Standard Search", "🧬 Vector Search"])
+        with standard_tab:
+            st.markdown("### 🖼️ Image Results")
+            placeholder = st.empty()
+            with placeholder.container():
+                with st.spinner("Loading images..."):
                     try:
-                        st.image(result['path'], use_container_width=True)
-                        score_percentage = result.get('score', 0) * 100
-                        filename = os.path.basename(result['path'])
-                        st.markdown(f"**{filename[:25]}{'...' if len(filename) > 25 else ''}**")
-                        st.markdown(f"🎯 **{score_percentage:.1f}% match**")
-                        if 'caption' in result and result['caption']:
-                            st.caption(f"💬 {result['caption'][:50]}{'...' if len(result['caption']) > 50 else ''}")
+                        result = await service_api.list_images_qdrant(
+                            page=st.session_state['search_page'],
+                            per_page=st.session_state['search_per_page'],
+                            filters_json_str=filters_json_str,
+                            sort_by=sort_field,
+                            sort_order=sort_order
+                        )
+                        if result and not result.get('error'):
+                            images = result.get('images', [])
+                            total = result.get('total', 0)
+                            page = result.get('page', 1)
+                            per_page = result.get('per_page', st.session_state['search_per_page'])
+                            if images:
+                                cols_per_row = 3
+                                for i in range(0, len(images), cols_per_row):
+                                    cols = st.columns(cols_per_row)
+                                    for j, img in enumerate(images[i:i+cols_per_row]):
+                                        with cols[j]:
+                                            st.image(img.get('url', img.get('path', '')), use_container_width=True)
+                                            st.markdown(f"**{img.get('filename', 'Image')}**")
+                                            st.caption(f"Tags: {', '.join(img.get('tags', []))}")
+                                            st.caption(f"Date: {img.get('created_at', 'N/A')}")
+                            else:
+                                st.info("No images found for the selected filters.")
+                            total_pages = max(1, (total + per_page - 1) // per_page)
+                            col1, col2, col3 = st.columns([1,2,1])
+                            with col1:
+                                if st.button("⬅️ Prev", disabled=page <= 1, key="search_prev_page"):
+                                    st.session_state['search_page'] = max(1, page - 1)
+                                    st.experimental_rerun()
+                            with col2:
+                                st.markdown(f"Page **{page}** of **{total_pages}**")
+                            with col3:
+                                if st.button("Next ➡️", disabled=page >= total_pages, key="search_next_page"):
+                                    st.session_state['search_page'] = min(total_pages, page + 1)
+                                    st.experimental_rerun()
+                        else:
+                            st.error(f"Search error: {result.get('error', 'Unknown error')}")
                     except Exception as e:
-                        st.error(f"Error loading result: {e}")
-                        st.write(f"Path: {result.get('path', 'Unknown')}")
+                        st.error(f"Search error: {str(e)}")
+        with vector_tab:
+            st.markdown("### 🧬 Vector Search (Text or Image)")
+            vector_mode = st.radio("Search by", ["Text", "Image"], key="vector_mode")
+            embedding = None
+            if vector_mode == "Text":
+                text_query = st.text_input("Enter a description for semantic search", key="vector_text_query")
+                if st.button("Get Embedding & Search", key="vector_text_search_btn") and text_query:
+                    with st.spinner("Getting embedding and searching..."):
+                        try:
+                            emb_result = await service_api.get_embedding(text_query.encode("utf-8"), model_name="clip")
+                            embedding = emb_result.get("embedding")
+                            if embedding:
+                                search_result = await service_api.search_images_vector(embedding=embedding, filters=filters, limit=st.session_state['search_per_page'])
+                                if search_result and not search_result.get('error'):
+                                    AdvancedUIScreen._render_search_results(search_result)
+                                else:
+                                    st.error(f"Vector search error: {search_result.get('error', 'Unknown error')}")
+                            else:
+                                st.error("Failed to get embedding from text.")
+                        except Exception as e:
+                            st.error(f"Embedding/search error: {str(e)}")
+            else:
+                uploaded_file = st.file_uploader("Upload an image for semantic search", type=['jpg', 'jpeg', 'png', 'bmp', 'gif'], key="vector_image_uploader")
+                if st.button("Get Embedding & Search", key="vector_image_search_btn") and uploaded_file:
+                    with st.spinner("Getting embedding and searching..."):
+                        try:
+                            image_bytes = uploaded_file.getvalue()
+                            emb_result = await service_api.get_embedding(image_bytes, model_name="clip")
+                            embedding = emb_result.get("embedding")
+                            if embedding:
+                                search_result = await service_api.search_images_vector(embedding=embedding, filters=filters, limit=st.session_state['search_per_page'])
+                                if search_result and not search_result.get('error'):
+                                    AdvancedUIScreen._render_search_results(search_result)
+                                else:
+                                    st.error(f"Vector search error: {search_result.get('error', 'Unknown error')}")
+                            else:
+                                st.error("Failed to get embedding from image.")
+                        except Exception as e:
+                            st.error(f"Embedding/search error: {str(e)}")
+        st.markdown('</div>', unsafe_allow_html=True)
     
     @staticmethod
     async def _render_latent_space():
@@ -295,7 +251,7 @@ class AdvancedUIScreen:
         st.markdown(
             '''
             <div class="pd-card pd-fade-in" style="margin-bottom: 2rem;">
-                <h2 style="color: var(--pd-primary); margin-bottom: 1rem;">�� Visual Exploration</h2>
+                <h2 style="color: var(--pd-primary); margin-bottom: 1rem;">🌐 Visual Exploration</h2>
                 <p style="color: var(--pd-text-secondary);">
                     Explore your images in a visual similarity space using advanced AI visualization
                 </p>
@@ -306,9 +262,6 @@ class AdvancedUIScreen:
         
         try:
             # Import and use the sophisticated latent space component
-            from frontend.components.visualization.latent_space import render_latent_space_tab
-            
-            # Use the sophisticated UMAP visualization with all features
             render_latent_space_tab()
             
         except ImportError as e:
@@ -372,9 +325,6 @@ class AdvancedUIScreen:
         
         try:
             # Import and use the AI guessing game component
-            from frontend.components.search.search_tabs import render_guessing_game_tab
-            
-            # Use the sophisticated AI game component
             render_guessing_game_tab()
             
         except ImportError as e:
@@ -423,10 +373,10 @@ class AdvancedUIScreen:
     
     @staticmethod
     async def _render_duplicates():
-        """Enhanced duplicate detection interface"""
+        """Enhanced duplicate detection interface with error handling, retry, and accessibility."""
         st.markdown(
             '''
-            <div class="pd-card pd-fade-in" style="margin-bottom: 2rem;">
+            <div class="pd-card pd-fade-in" style="margin-bottom: 2rem;" role="region" aria-label="Duplicate Detection">
                 <h2 style="color: var(--pd-primary); margin-bottom: 1rem;">👥 Duplicate Detection</h2>
                 <p style="color: var(--pd-text-secondary);">
                     Find and manage duplicate or very similar images in your collection
@@ -435,18 +385,64 @@ class AdvancedUIScreen:
             ''',
             unsafe_allow_html=True
         )
-        
-        # TODO: When backend endpoint is available, use service_api.find_duplicates()
-        st.info("Duplicate detection coming soon! Backend support required.")
+        if 'duplicates_result' not in st.session_state:
+            st.session_state['duplicates_result'] = None
+        if 'duplicates_error' not in st.session_state:
+            st.session_state['duplicates_error'] = None
+        if 'duplicates_loading' not in st.session_state:
+            st.session_state['duplicates_loading'] = False
+
+        placeholder = st.empty()
+        if st.button('🔍 Run Duplicate Detection', disabled=st.session_state['duplicates_loading'], key='run_duplicates_btn'):
+            st.session_state['duplicates_loading'] = True
+            st.session_state['duplicates_result'] = None
+            st.session_state['duplicates_error'] = None
+
+        if st.session_state['duplicates_loading']:
+            with placeholder.container():
+                with st.spinner('Detecting duplicates...'):
+                    try:
+                        result = await service_api.get_duplicates_qdrant()
+                        if result and not result.get('error'):
+                            st.session_state['duplicates_result'] = result
+                            st.session_state['duplicates_error'] = None
+                        else:
+                            st.session_state['duplicates_result'] = None
+                            st.session_state['duplicates_error'] = result.get('error', 'Unknown error')
+                    except Exception as e:
+                        st.session_state['duplicates_result'] = None
+                        st.session_state['duplicates_error'] = str(e)
+                    st.session_state['duplicates_loading'] = False
+
+        if st.session_state['duplicates_result']:
+            with placeholder.container():
+                st.success('Duplicate detection complete!')
+                groups = st.session_state['duplicates_result'].get('groups', [])
+                if groups:
+                    for idx, group in enumerate(groups, 1):
+                        st.markdown(f"**Group {idx}** ({len(group)} images):")
+                        cols = st.columns(len(group))
+                        for col, img in zip(cols, group):
+                            with col:
+                                st.image(img.get('url', ''), caption=img.get('filename', ''))
+                else:
+                    st.info('No duplicates found!')
+        elif st.session_state['duplicates_error']:
+            with placeholder.container():
+                st.error(f"Duplicate detection failed: {st.session_state['duplicates_error']}")
+                if st.button('Retry Duplicate Detection', key='retry_duplicates_btn'):
+                    st.session_state['duplicates_loading'] = True
+                    st.session_state['duplicates_result'] = None
+                    st.session_state['duplicates_error'] = None
+        elif not st.session_state['duplicates_loading']:
+            with placeholder.container():
+                st.info('Click the button above to start duplicate detection.')
     
     @staticmethod
     def _render_contextual_sidebar():
         """Enhanced contextual sidebar with smart features"""
         try:
             # Import and use the enhanced sidebar component
-            from frontend.components.sidebar.context_sidebar import render_sidebar
-            
-            # Use the sophisticated sidebar with all features
             render_sidebar()
             
         except ImportError as e:
@@ -506,6 +502,71 @@ class AdvancedUIScreen:
                 ''',
                 unsafe_allow_html=True
             )
+
+    @staticmethod
+    async def _render_random_image():
+        """Random Image UI: Button, spinner, image display, error handling, retry, accessibility."""
+        st.markdown(
+            '''
+            <div class="pd-card pd-fade-in" style="margin-bottom: 2rem;" role="region" aria-label="Random Image">
+                <h2 style="color: var(--pd-primary); margin-bottom: 1rem;">🎲 Random Image</h2>
+                <p style="color: var(--pd-text-secondary);">
+                    Fetch and display a random image from your collection.
+                </p>
+            </div>
+            ''',
+            unsafe_allow_html=True
+        )
+        if 'random_image_result' not in st.session_state:
+            st.session_state['random_image_result'] = None
+        if 'random_image_error' not in st.session_state:
+            st.session_state['random_image_error'] = None
+        if 'random_image_loading' not in st.session_state:
+            st.session_state['random_image_loading'] = False
+
+        placeholder = st.empty()
+        if st.button('🎲 Show Random Image', disabled=st.session_state['random_image_loading'], key='show_random_btn'):
+            st.session_state['random_image_loading'] = True
+            st.session_state['random_image_result'] = None
+            st.session_state['random_image_error'] = None
+
+        if st.session_state['random_image_loading']:
+            with placeholder.container():
+                with st.spinner('Fetching a random image...'):
+                    try:
+                        result = await service_api.get_random_image_qdrant()
+                        if result and not result.get('error'):
+                            st.session_state['random_image_result'] = result
+                            st.session_state['random_image_error'] = None
+                        else:
+                            st.session_state['random_image_result'] = None
+                            st.session_state['random_image_error'] = result.get('error', 'Unknown error')
+                    except Exception as e:
+                        st.session_state['random_image_result'] = None
+                        st.session_state['random_image_error'] = str(e)
+                    st.session_state['random_image_loading'] = False
+
+        if st.session_state['random_image_result']:
+            with placeholder.container():
+                img_url = st.session_state['random_image_result'].get('url') or st.session_state['random_image_result'].get('path')
+                meta = st.session_state['random_image_result']
+                if img_url:
+                    st.image(img_url, caption=meta.get('filename', 'Random Image'), use_container_width=True)
+                st.markdown('---')
+                st.markdown('**Metadata:**')
+                for k, v in meta.items():
+                    if k not in ('url', 'path', 'image_bytes'):
+                        st.markdown(f"- **{k}**: {v}")
+        elif st.session_state['random_image_error']:
+            with placeholder.container():
+                st.error(f"Failed to fetch random image: {st.session_state['random_image_error']}")
+                if st.button('Retry Random Image', key='retry_random_btn'):
+                    st.session_state['random_image_loading'] = True
+                    st.session_state['random_image_result'] = None
+                    st.session_state['random_image_error'] = None
+        elif not st.session_state['random_image_loading']:
+            with placeholder.container():
+                st.info('Click the button above to fetch a random image.')
 
 
 async def render_advanced_ui_screen():

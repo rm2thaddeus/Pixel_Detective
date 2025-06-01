@@ -16,6 +16,7 @@ This backlog captures all Sprint 07 carry-over tasks and new feature requests fo
 - 🔸 UI Polish: Design refinements, accessibility compliance, responsive layouts.
 - 🔸 Loading/Progress Feedback: Skeleton screens, `st.spinner`, `st.progress` placeholders.
 - 🔸 Session State Cleanup: Audit and remove deprecated `st.session_state` keys.
+- 🔸 Docker Strategy Update: For local development/testing, Docker Compose will now primarily manage Qdrant. FastAPI services (ML inference, Ingestion orchestration) will be run manually. This simplifies local setup while ensuring services can communicate via localhost/network.
 
 ## Low Priority
 - ⚪ Legacy Module Removal: Deprecate and remove `core/fast_startup_manager.py` and `utils/embedding_cache.py`.

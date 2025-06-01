@@ -30,45 +30,39 @@ services:
 #    networks:
 #      - vibe_net
 
-  ingestion_orchestration_service:
-    build:
-      context: .
-      dockerfile: backend/ingestion_orchestration_fastapi_app/Dockerfile
-    ports:
-      - "8002:8002"
-    volumes:
-      # Placeholder for persistent cache volume (to be defined in SVC-07-01)
-      - ingestion_cache:/cache  # Example: named volume 'ingestion_cache' mounted to /cache in container
-      # If you need to mount a directory for images to be processed:
-      # - ./data_to_process:/data_to_process 
-      - ./backend/ingestion_orchestration_fastapi_app/.diskcache:/cache
-    depends_on:
-      # - ml_inference_service # ML service will run on host
-      - qdrant_db
-    environment:
-      - PYTHONUNBUFFERED=1
-      - ML_INFERENCE_SERVICE_URL=http://host.docker.internal:8001
-      - QDRANT_HOST=qdrant_db
-      - QDRANT_PORT=6333
-      - DISKCACHE_DIR=/cache
-      # CACHE_PATH: /cache # Example path for persistent cache
-    networks:
-      - vibe_net
+#  ingestion_orchestration_service:
+#    build:
+#      context: .
+#      dockerfile: backend/ingestion_orchestration_fastapi_app/Dockerfile
+#    ports:
+#      - "8002:8002"
+#    volumes:
+#      - ingestion_cache:/cache
+#      - ./backend/ingestion_orchestration_fastapi_app/.diskcache:/cache
+#    depends_on:
+#      # ml_inference_service: # This service will be run manually on the host
+#      #   condition: service_started # Condition not applicable if run manually
+#      - qdrant_db
+#    environment:
+#      - PYTHONUNBUFFERED=1
+#      - ML_INFERENCE_SERVICE_URL=http://host.docker.internal:8001 # For ingestion service to reach ML service on host
+#      - QDRANT_HOST=qdrant_db
+#      - QDRANT_PORT=6333
+#      - DISKCACHE_DIR=/cache
+#    networks:
+#      - vibe_net
 
   qdrant_db:
-    image: qdrant/qdrant:latest
+    image: qdrant/qdrant:v1.3.0
     ports:
       - "6333:6333"
-      - "6334:6334" # gRPC port
+      - "6334:6334"
     volumes:
-      - qdrant_storage:/qdrant/storage # Persist Qdrant data
-    # For production, consider adding API key configuration:
-    # environment:
-    #   QDRANT__SERVICE__API_KEY: your_secret_api_key
+      - qdrant_storage:/qdrant/storage
     networks:
       - vibe_net
 
 volumes:
-  qdrant_storage: # Defines the named volume for Qdrant persistence
-  ingestion_cache: # Named volume for ingestion service's persistent cache
+  qdrant_storage:
+#  ingestion_cache:
   # models_cache: # If you chose a named volume for models instead of direct path mount 

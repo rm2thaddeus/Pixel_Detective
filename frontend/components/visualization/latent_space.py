@@ -42,50 +42,29 @@ def render_latent_space_tab():
     """
     st.header("🔮 Latent Space Explorer")
 
-    # FIXED: Check if we're in a proper Streamlit context before accessing session state
-    try:
-        # Only access session state if we're in the main UI thread
-        if not hasattr(st, 'session_state'):
-            st.warning("Latent space visualization not available yet. Please complete the initial setup first.")
-            return
-            
-<<<<<<< HEAD
-        # LAZY LOADING: Initialize search state only when tab is accessed
-        LazySessionManager.init_search_state()
+    # Only access session state if we're in the main UI thread
+    if not hasattr(st, 'session_state'):
+        st.warning("Latent space visualization not available yet. Please complete the initial setup first.")
+        return
 
-        db_manager = st.session_state.get('db_manager', None)
-        if db_manager is None:
-            st.info("🔄 Database manager not ready. Please build the database first using the sidebar.")
-            # Attempt to get it if not present, might have been set by another process/tab
-            try:
-                db_manager = LazySessionManager.ensure_database_manager(create_if_missing=False) # Don't auto-create here
-                if db_manager is None:
-                    return # Still not available
-            except Exception:
-                 return # Failed to get it
-            
+    # LAZY LOADING: Initialize search state only when tab is accessed
+    LazySessionManager.init_search_state()
+
+    db_manager = st.session_state.get('db_manager', None)
+    if db_manager is None:
+        st.info("🔄 Database manager not ready. Please build the database first using the sidebar.")
         try:
-            df = db_manager.get_latent_space_data()
-        except Exception as e:
-            logger.error(f"Error retrieving latent space data: {e}")
-            st.warning("Error retrieving latent space data. Please ensure the database is built properly.")
-            return
-=======
-        # 🚀 LAZY LOADING: Initialize search state only when tab is accessed
-        LazySessionManager.init_search_state()
+            db_manager = LazySessionManager.ensure_database_manager(create_if_missing=False)  # Don't auto-create here
+            if db_manager is None:
+                return  # Still not available
+        except Exception:
+            return  # Failed to get it
 
-        # Check if database is ready before trying to access it
-        if not st.session_state.get('database_ready', False):
-            st.info("🔄 Database not ready yet. Please complete the image processing first.")
-            return
-
-        # 🚀 LAZY LOADING: Get database manager only when needed and safe
-        db_manager = LazySessionManager.ensure_database_manager()
+    try:
         df = db_manager.get_latent_space_data()
->>>>>>> e999a0dbfc5b1dedbbf2bc17b574607da607c9fb
     except Exception as e:
         logger.error(f"Error retrieving latent space data: {e}")
-        st.warning("No data available for latent space visualization. Please ensure the database is built first.")
+        st.warning("Error retrieving latent space data. Please ensure the database is built properly.")
         return
 
     if df is None or df.empty or 'vector' not in df.columns:
@@ -186,45 +165,45 @@ def render_latent_space_tab():
         n_clusters = len(unique_clusters) - (1 if -1 in unique_clusters else 0)
         noise_points = np.sum(np.array(cluster_labels_list) == -1)
                 
-                st.write(f"**Clustering Results:**")
+        st.write(f"**Clustering Results:**")
         st.write(f"- Number of clusters found: {n_clusters}")
         st.write(f"- Noise points (not clustered): {noise_points}")
                 
-                fig = px.scatter(
-                    df_display, 
-                    x='x', 
-                    y='y', 
-                    color='cluster',
-                    hover_data=['path', 'caption'] if 'caption' in df_display.columns else ['path'],
-                    title="Image Embeddings in 2D Latent Space (Colored by Cluster)",
+        fig = px.scatter(
+            df_display, 
+            x='x', 
+            y='y', 
+            color='cluster',
+            hover_data=['path', 'caption'] if 'caption' in df_display.columns else ['path'],
+            title="Image Embeddings in 2D Latent Space (Colored by Cluster)",
             color_continuous_scale=px.colors.qualitative.Plotly # Using a qualitative colormap
-                )
-                fig.update_traces(marker=dict(size=marker_size))
-                fig.update_layout(
-                    width=800,
-                    height=600,
-                    xaxis_title="UMAP Dimension 1",
-                    yaxis_title="UMAP Dimension 2"
-                )
-                st.plotly_chart(fig, use_container_width=True)
+        )
+        fig.update_traces(marker=dict(size=marker_size))
+        fig.update_layout(
+            width=800,
+            height=600,
+            xaxis_title="UMAP Dimension 1",
+            yaxis_title="UMAP Dimension 2"
+        )
+        st.plotly_chart(fig, use_container_width=True)
                 
-                if st.checkbox("Show cluster details"):
-                    for cluster_id in sorted(unique_clusters):
+        if st.checkbox("Show cluster details"):
+            for cluster_id in sorted(unique_clusters):
                 cluster_data = df_display[df_display['cluster'] == cluster_id]
-                        if cluster_id == -1:
+                if cluster_id == -1:
                     st.write(f"**Noise points (cluster -1):** {len(cluster_data)} images")
-                        else:
+                else:
                     st.write(f"**Cluster {cluster_id}:** {len(cluster_data)} images")
                             
-                cluster_images = cluster_data['path'].head(3).tolist()
-                            if cluster_images:
-                                cols = st.columns(len(cluster_images))
-                                for i, img_path in enumerate(cluster_images):
-                                    with cols[i]:
-                                        try:
-                                st.image(img_path, width=150)
-                                        except Exception as e:
-                                            st.write(f"Error loading {img_path}: {e}")
+        cluster_images = cluster_data['path'].head(3).tolist()
+        if cluster_images:
+            cols = st.columns(len(cluster_images))
+            for i, img_path in enumerate(cluster_images):
+                with cols[i]:
+                    try:
+                        st.image(img_path, width=150)
+                    except Exception as e:
+                        st.write(f"Error loading {img_path}: {e}")
                 
     elif task_status == "error":
         st.error(f"Error during latent space computation: {st.session_state.get('latent_space_error_message', 'Unknown error')}")

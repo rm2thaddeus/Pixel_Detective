@@ -4,16 +4,9 @@ import torch
 import random
 from utils.logger import logger
 from utils.lazy_session_state import LazySessionManager
-<<<<<<< HEAD
 from config import DEFAULT_IMAGES_PATH
 from database.qdrant_connector import QdrantDB
 from components.task_orchestrator import submit, is_running
-=======
-from utils.qdrant_db import QdrantDB
-
-# Default path for images
-DEFAULT_IMAGES_PATH = os.path.expanduser("~/Pictures")
->>>>>>> e999a0dbfc5b1dedbbf2bc17b574607da607c9fb
 
 def render_sidebar():
     """
@@ -47,9 +40,6 @@ def render_sidebar():
         current_folder = st.sidebar.text_input("📁 Database folder", value=st.session_state.image_folder, key="db_folder").strip().strip('"')
         st.session_state.image_folder = current_folder
         
-<<<<<<< HEAD
-        # Note: Removed the database_ready check as it was preventing database creation
-        
         # 🚀 LAZY LOADING: Get db_manager only when needed and safe
         # Don't try to create database manager on every page load - only when user needs it
         db_manager = st.session_state.get('db_manager', None)
@@ -57,31 +47,6 @@ def render_sidebar():
             st.sidebar.info("🔄 Database manager will initialize when you build/load a database.")
         
         # Check and indicate if a database exists here
-=======
-        # Check if database is ready before trying to access it
-        if not st.session_state.get('database_ready', False):
-            st.sidebar.info("🔄 Database not ready yet. Please complete the image processing first.")
-            return current_folder
-        
-        # 🚀 LAZY LOADING: Get db_manager only when needed and safe
-        db_manager = LazySessionManager.ensure_database_manager()
-        
-        # Check and indicate if a database exists here
-        if os.path.exists(current_folder):
-            if db_manager.database_exists(current_folder):
-                st.sidebar.success("🧠 Database exists in this folder!")
-            else:
-                st.sidebar.info("No database found in this folder.")
-        else:
-            st.sidebar.error("Folder does not exist!")
-    except Exception as e:
-        logger.error(f"Error in sidebar rendering: {e}")
-        st.sidebar.warning("Sidebar temporarily unavailable. Please refresh the page.")
-        return DEFAULT_IMAGES_PATH
-    
-    # Button to Build/Load the database if it doesn't exist
-    if st.sidebar.button("🚀 Build/Load Database"):
->>>>>>> e999a0dbfc5b1dedbbf2bc17b574607da607c9fb
         if os.path.exists(current_folder):
             if db_manager:
                 try:
@@ -101,6 +66,22 @@ def render_sidebar():
         st.sidebar.warning("Sidebar temporarily unavailable. Please refresh the page.")
         return DEFAULT_IMAGES_PATH
     
+    # Button to Build/Load the database if it doesn't exist
+    if st.sidebar.button("🚀 Build/Load Database"):
+        if os.path.exists(current_folder):
+            if db_manager:
+                try:
+                    if db_manager.database_exists(current_folder):
+                        st.sidebar.success("🧠 Database exists in this folder!")
+                    else:
+                        st.sidebar.info("No database found in this folder.")
+                except Exception as e:
+                    st.sidebar.error(f"❌ Error checking database: {e}")
+                    logger.error(f"Error checking database existence: {e}")
+            else:
+                st.sidebar.info("🔄 Database manager loading... Click 'Build/Load Database' to initialize.")
+        else:
+            st.sidebar.error("Folder does not exist!")
     # Handle Build/Load in background using TaskOrchestrator
     if st.sidebar.button("🚀 Build/Load Database") and os.path.exists(current_folder):
         LazySessionManager.init_search_state()
@@ -236,8 +217,7 @@ def render_sidebar_old():
     else:
         st.sidebar.error("Folder does not exist!")
     
-<<<<<<< HEAD
-    return image_folder 
+    return current_folder
 
 # Helper background functions
 def _background_build_or_load_db(current_folder):
@@ -286,6 +266,3 @@ def _background_merge_folder(current_folder, new_folder):
     except Exception as e:
         logger.error(f"Task 'merge_db': Unexpected error for {new_folder}: {e}")
         st.error(f"Unexpected error: {e}") 
-=======
-    return current_folder
->>>>>>> e999a0dbfc5b1dedbbf2bc17b574607da607c9fb

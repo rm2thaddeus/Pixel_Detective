@@ -6,7 +6,7 @@ from typing import Optional
 import asyncio # New import
 
 # Assuming service_api.py is in frontend.core
-from frontend.core import service_api
+from core import service_api
 # Assuming app_state.py is in frontend.core (AppStateManager might be used later for transitions)
 # from frontend.core.app_state import AppStateManager 
 

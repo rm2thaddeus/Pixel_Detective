@@ -22,10 +22,10 @@ import tempfile
 from utils.logger import logger
 from utils.metadata_extractor import extract_metadata
 from utils.lazy_session_state import LazySessionManager
-from frontend.components.task_orchestrator import submit as submit_task, is_running as is_task_running # Corrected import path
+from components.task_orchestrator import submit as submit_task, is_running as is_task_running # Corrected import path
 # from core.optimized_model_manager import OptimizedModelManager # To be replaced by service calls
 from streamlit_extras.switch_page_button import switch_page
-from frontend.core import service_api # Added service_api import
+from core import service_api # Added service_api import
 
 # Callbacks to toggle metadata expansion without resetting tabs
 def _toggle_text_metadata(metadata_key):

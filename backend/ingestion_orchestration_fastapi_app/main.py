@@ -3,7 +3,9 @@ import os # Added import
 # Add project root to sys.path to allow importing 'utils'
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
-from fastapi import FastAPI, HTTPException, APIRouter # Added APIRouter
+from fastapi import FastAPI, HTTPException, APIRouter, Depends, Request # Added Depends, Request
+from fastapi.responses import JSONResponse # Added JSONResponse
+from fastapi.exceptions import RequestValidationError # Added RequestValidationError
 import httpx
 from pydantic import BaseModel
 from typing import List, Dict, Any, Tuple, Optional # Added Tuple and Optional
@@ -22,6 +24,14 @@ import logging
 # Configure basic logging - Uvicorn might override this, but good for standalone potential
 logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO").upper())
 logger = logging.getLogger(__name__)
+
+# Import new routers
+from .routers import search as search_router
+from .routers import images as images_router
+from .routers import duplicates as duplicates_router
+from .routers import random as random_router
+from .routers.duplicates import on_shutdown as duplicates_on_shutdown # Import shutdown handler
+from .dependencies import get_qdrant_dependency
 
 app = FastAPI(title="Ingestion Orchestration Service")
 # Create a router for API version 1
@@ -187,6 +197,8 @@ async def startup_event():
     logger.info(f"Connecting to Qdrant at: {QDRANT_HOST}:{QDRANT_PORT}")
     try:
         qdrant_client = QdrantClient(host=QDRANT_HOST, port=QDRANT_PORT, timeout=20) # Added timeout
+        # Attach the Qdrant client to FastAPI app state for dependency injection without circular imports
+        app.state.qdrant_client = qdrant_client
         logger.info(f"Successfully connected to Qdrant instance at {QDRANT_HOST}:{QDRANT_PORT}.")
 
         # Check if collection exists
@@ -213,10 +225,36 @@ async def startup_event():
 
     except Exception as e:
         logger.error(f"Failed to connect to Qdrant or ensure collection: {e}", exc_info=True)
+        # Depending on policy, you might want to set qdrant_client to None or exit
+        # For now, it will be None if connection fails. get_qdrant_dependency will raise 503.
 
 @app.on_event("shutdown")
 async def shutdown_event():
     logger.info("Ingestion Orchestration Service shutting down...")
+    if qdrant_client:
+        try:
+            # qdrant_client.close() # Check Qdrant client documentation for a close method if available/needed
+            logger.info("Qdrant client closed (if applicable).")
+        except Exception as e:
+            logger.error(f"Error closing Qdrant client: {e}", exc_info=True)
+    await duplicates_on_shutdown() # Call the shutdown handler from duplicates router
+
+# Exception Handlers
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    logger.error(f"Request validation error: {exc.errors()}")
+    return JSONResponse(
+        status_code=422,
+        content={"detail": exc.errors(), "body": exc.body},
+    )
+
+@app.exception_handler(Exception)
+async def generic_exception_handler(request: Request, exc: Exception):
+    logger.error(f"Unhandled exception: {exc}", exc_info=True)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal server error. Please check logs for more details."},
+    )
 
 # Placeholder for actual ingestion endpoint
 class IngestRequest(BaseModel):
@@ -377,32 +415,15 @@ async def search_images_by_image_v1(top_k: int = 10): # Actual implementation wo
         ImageSearchResponseItem(path="/similar/imageB.png", score=0.88)
     ]
 
-class ProcessedImageItem(BaseModel):
-    id: str # Or path, depending on what uniquely identifies an image
-    path: str
-    thumbnail_url: Optional[str] = None # Example field
-    caption: Optional[str] = None
+# Placeholder for job status
+# In a real app, you would store job status in a DB or cache
+background_tasks_store = {}
 
-class GetProcessedImagesResponse(BaseModel):
-    images: List[ProcessedImageItem]
-    total: int
-    page: int
-    limit: int
-
-@v1_router.get("/images/", response_model=GetProcessedImagesResponse)
-async def get_processed_images_v1(page: int = 1, limit: int = 20):
-    logger.info(f"APIv1: Received request for processed images: page={page}, limit={limit}")
-    # Placeholder
-    example_images = [
-        ProcessedImageItem(id="img1", path="/processed/img1.jpg", caption="Processed image 1"),
-        ProcessedImageItem(id="img2", path="/processed/img2.jpg", caption="Processed image 2")
-    ]
-    return GetProcessedImagesResponse(
-        images=example_images[:limit],
-        total=len(example_images),
-        page=page,
-        limit=limit
-    )
+# Include new routers into v1_router
+v1_router.include_router(search_router.router, prefix="/search", tags=["Qdrant Search Extensions"]) # Path from plan
+v1_router.include_router(images_router.router, prefix="/images", tags=["Qdrant Image Listing Extensions"]) # Path from plan
+v1_router.include_router(duplicates_router.router, prefix="/duplicates", tags=["Qdrant Duplicate Detection Extensions"]) # Path from plan
+v1_router.include_router(random_router.router, prefix="/random", tags=["Qdrant Random Image Extensions"]) # Path from plan
 
 # Include the v1 router in the main app
 app.include_router(v1_router)

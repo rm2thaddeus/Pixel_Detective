@@ -10,6 +10,10 @@ Smart 3-screen progressive UX - FAST_UI → LOADING → ADVANCED_UI
 """
 
 # ===== MINIMAL STARTUP IMPORTS ONLY =====
+import os
+import sys
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
 import streamlit as st
 import asyncio # New import
 

@@ -19,7 +19,7 @@ Sprint 08 focuses on integrating Qdrant for robust vector search and image listi
 | NFR-08-02 | UI must maintain smooth interactions (>30 FPS) during navigation and filter changes.           | - Streamlit profiler reports >30 FPS on 1080p display                                                                              |
 
 ## 4. Technical Architecture
-- **Backend Services**: FastAPI with Qdrant Python client under `/api/v1` namespace; new routers: `search`, `images`, `duplicates`, `random`.
+- **Backend Services**: FastAPI with Qdrant Python client under `/api/v1` namespace; new routers: `search`, `images`, `duplicates`, `random`. For local development and testing, these FastAPI services will be run manually. Docker Compose will be used to manage the Qdrant instance.
 - **Frontend App**: Streamlit with `httpx.AsyncClient` in `service_api.py`; new UI screens/modules under `components/`: `DuplicateDetection`, `RandomImage`, enhanced `SearchScreen` with filters.
 - **Data Layer**: Qdrant as vector database; attribute-based filtering for metadata; pagination via offset+limit.
 - **Background Processing**: Use Python `ThreadPoolExecutor` or lightweight task queue for duplicate detection; integrate with Streamlit via threads and `st.spinner`.
@@ -34,7 +34,7 @@ Sprint 08 focuses on integrating Qdrant for robust vector search and image listi
 
 ## 6. Testing Strategy
 - Unit tests for each FastAPI endpoint and `service_api.py` methods.  
-- Integration tests using Docker Compose with a Qdrant instance for full-stack validation.  
+- Integration tests using Docker Compose (for Qdrant) with manually started FastAPI services for full-stack validation.  
 - E2E tests with Playwright for UI flows (search, duplicates, random, filtering).  
 - Performance benchmarks via `pytest-benchmark` and `nsys` profiling for NFR compliance.
 

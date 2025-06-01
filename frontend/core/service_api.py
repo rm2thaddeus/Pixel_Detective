@@ -214,6 +214,108 @@ async def get_processed_images(page: int = 1, limit: int = 20):
         logger.error(f"Unexpected error getting processed images: {e}")
         return {"error": str(e), "images": []}
 
+# --- New Qdrant-backed Endpoints (Sprint 08) ---
+
+async def search_images_vector(embedding: list, filters: dict = None, limit: int = 10, offset: int = 0):
+    """
+    Searches for images based on a query vector and optional metadata filters using the new Qdrant search endpoint.
+    Corresponds to POST /api/v1/search in the backend.
+    """
+    client = get_async_client()
+    payload = {
+        "embedding": embedding,
+        "filters": filters,
+        # limit and offset are passed as query parameters in the backend for this POST endpoint
+        # but the backend /search router actually expects them in the body or as query. Let's assume query for now.
+    }
+    params = {
+        "limit": limit,
+        "offset": offset
+    }
+    try:
+        response = await client.post(f"{INGESTION_ORCHESTRATION_URL}/search", json=payload, params=params)
+        response.raise_for_status()
+        return response.json()
+    except httpx.HTTPStatusError as e:
+        logger.error(f"HTTP error vector searching images: {e} - Response: {e.response.text}")
+        return {"error": str(e), "status_code": e.response.status_code, "detail": e.response.json() if e.response.content else None}
+    except httpx.RequestError as e:
+        logger.error(f"Request error vector searching images: {e}")
+        return {"error": str(e), "status_code": None}
+    except Exception as e:
+        logger.error(f"Unexpected error vector searching images: {e}")
+        return {"error": str(e)}
+
+async def list_images_qdrant(page: int = 1, per_page: int = 10, filters_json_str: str = None, sort_by: str = None, sort_order: str = "desc"):
+    """
+    Lists images with pagination, filtering, and sorting from the new Qdrant /images endpoint.
+    Corresponds to GET /api/v1/images in the backend.
+    """
+    client = get_async_client()
+    params = {
+        "page": page,
+        "per_page": per_page,
+        "filters": filters_json_str, # Backend expects a JSON string for filters
+        "sort_by": sort_by,
+        "sort_order": sort_order
+    }
+    # Remove None params to keep URL clean
+    params = {k: v for k, v in params.items() if v is not None}
+    try:
+        response = await client.get(f"{INGESTION_ORCHESTRATION_URL}/images", params=params)
+        response.raise_for_status()
+        return response.json()
+    except httpx.HTTPStatusError as e:
+        logger.error(f"HTTP error listing images (qdrant): {e} - Response: {e.response.text}")
+        return {"error": str(e), "status_code": e.response.status_code, "detail": e.response.json() if e.response.content else None}
+    except httpx.RequestError as e:
+        logger.error(f"Request error listing images (qdrant): {e}")
+        return {"error": str(e), "status_code": None}
+    except Exception as e:
+        logger.error(f"Unexpected error listing images (qdrant): {e}")
+        return {"error": str(e)}
+
+async def get_duplicates_qdrant():
+    """
+    Triggers duplicate image detection process from the new Qdrant /duplicates endpoint.
+    Corresponds to POST /api/v1/duplicates in the backend.
+    """
+    client = get_async_client()
+    try:
+        # This endpoint might take parameters like threshold in the future, passed in JSON body
+        response = await client.post(f"{INGESTION_ORCHESTRATION_URL}/duplicates", json={}) # Empty JSON body for now
+        response.raise_for_status()
+        return response.json() # Expected: {"status": "acknowledged", "message": "..."}
+    except httpx.HTTPStatusError as e:
+        logger.error(f"HTTP error triggering duplicate detection: {e} - Response: {e.response.text}")
+        return {"error": str(e), "status_code": e.response.status_code, "detail": e.response.json() if e.response.content else None}
+    except httpx.RequestError as e:
+        logger.error(f"Request error triggering duplicate detection: {e}")
+        return {"error": str(e), "status_code": None}
+    except Exception as e:
+        logger.error(f"Unexpected error triggering duplicate detection: {e}")
+        return {"error": str(e)}
+
+async def get_random_image_qdrant():
+    """
+    Gets a random image from the new Qdrant /random endpoint.
+    Corresponds to GET /api/v1/random in the backend.
+    """
+    client = get_async_client()
+    try:
+        response = await client.get(f"{INGESTION_ORCHESTRATION_URL}/random")
+        response.raise_for_status()
+        return response.json()
+    except httpx.HTTPStatusError as e:
+        logger.error(f"HTTP error getting random image: {e} - Response: {e.response.text}")
+        return {"error": str(e), "status_code": e.response.status_code, "detail": e.response.json() if e.response.content else None}
+    except httpx.RequestError as e:
+        logger.error(f"Request error getting random image: {e}")
+        return {"error": str(e), "status_code": None}
+    except Exception as e:
+        logger.error(f"Unexpected error getting random image: {e}")
+        return {"error": str(e)}
+
 # Add more functions here as UI requirements evolve, e.g., for:
 # - Getting image metadata
 # - Advanced search filters
