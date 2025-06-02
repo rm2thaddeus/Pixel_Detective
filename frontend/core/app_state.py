@@ -6,6 +6,8 @@ from enum import Enum
 from typing import List, Optional
 import streamlit as st
 import time
+from utils.logger import logger
+from frontend.config import AppConfig, DEFAULT_IMAGES_PATH, DEFAULT_COLLECTION_NAME
 
 
 class AppState(Enum):
@@ -17,47 +19,61 @@ class AppState(Enum):
 
 
 class AppStateManager:
-    """Centralized state management for the 3-screen flow"""
-    
+    """
+    Manages the global application state stored in Streamlit's session_state.
+    This includes initialization of necessary keys and providing helper methods
+    to access or modify state in a structured way.
+    """
+
     @staticmethod
     def init_session_state():
-        """Initialize all session state variables with proper defaults"""
-        # CRITICAL: Initialize lazy session manager first
-        from utils.lazy_session_state import LazySessionManager
-        LazySessionManager.init_core_state()
+        """
+        Initializes the core session state variables if they don't exist.
+        This should be called once at the beginning of the app.
+        """
+        logger.debug("Initializing AppStateManager session state...")
+
+        # Core application state keys
+        if 'app_config' not in st.session_state:
+            st.session_state.app_config = AppConfig()
+            logger.debug("Initialized 'app_config' in session state.")
+
+        if 'current_screen' not in st.session_state:
+            st.session_state.current_screen = "loading"  # Default to loading screen
+            logger.debug("Initialized 'current_screen' to 'loading'.")
         
-        # Core app state
-        if 'app_state' not in st.session_state:
-            st.session_state.app_state = AppState.FAST_UI
+        if 'folder_path' not in st.session_state: # Previously managed by LazySessionManager.init_folder_state()
+            st.session_state.folder_path = None # Or some default like DEFAULT_IMAGES_PATH if appropriate
+            logger.debug(f"Initialized 'folder_path' to None (was {DEFAULT_IMAGES_PATH}).")
+
+        if 'collection_name' not in st.session_state: # Previously LazySessionManager.init_folder_state()
+            st.session_state.collection_name = DEFAULT_COLLECTION_NAME
+            logger.debug(f"Initialized 'collection_name' to {DEFAULT_COLLECTION_NAME}.")
         
-        # User inputs
-        if 'folder_path' not in st.session_state:
-            st.session_state.folder_path = ""
-        if 'folder_selected' not in st.session_state:
-            st.session_state.folder_selected = False
+        # States related to backend API calls and data loading (managed by service_api and components)
+        # No direct LazySessionManager calls needed here anymore.
+        # Components should initialize their specific states as needed.
+
+        # Example: Search related states (if previously in LazySessionManager.init_search_state())
+        # These might be better initialized within the search components themselves or not at all globally
+        # if they are transient.
+        if 'search_query' not in st.session_state: # If this was part of init_search_state
+            st.session_state.search_query = ""
+        if 'search_results' not in st.session_state: # If this was part of init_search_state
+            st.session_state.search_results = []
         
-        # Background loading tracking (these are updated from background loader results)
-        if 'ui_deps_loaded' not in st.session_state:
-            st.session_state.ui_deps_loaded = False
-        # if 'models_loaded' not in st.session_state: # Re-evaluate: Do we need this if models are serviced?
-        #     st.session_state.models_loaded = False
-        # if 'database_ready' not in st.session_state: # Re-evaluate: Backend services manage their DB readiness.
-        #     st.session_state.database_ready = False
-        
-        # Core objects (loaded when needed)
-        # if 'model_manager' not in st.session_state: # UI no longer directly manages this.
-        #     st.session_state.model_manager = None
-        # if 'db_manager' not in st.session_state: # UI no longer directly manages this.
-        #     st.session_state.db_manager = None
-        if 'image_files' not in st.session_state:
-            st.session_state.image_files = []
-        
-        # Error handling
-        if 'error_message' not in st.session_state:
-            st.session_state.error_message = ""
-        if 'can_retry' not in st.session_state:
-            st.session_state.can_retry = True
-    
+        # UI Interaction states (e.g., expanded sections, modal visibility)
+        # These are typically managed by the components that use them.
+
+        logger.info("Core session state initialization check complete via AppStateManager.")
+
+    @staticmethod
+    def update_app_config(new_config_values: dict):
+        """Update the app configuration with new values"""
+        current_config = st.session_state.get('app_config', AppConfig())
+        updated_config = current_config.update(**new_config_values)
+        st.session_state.app_config = updated_config
+
     @staticmethod
     def transition_to_loading(folder_path: str):
         """Transition from FAST_UI to LOADING"""

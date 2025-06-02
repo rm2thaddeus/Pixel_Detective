@@ -92,4 +92,35 @@ This document breaks down the UI tasks for Sprint 08. We will tackle these one b
     - [x] Provide UI element (text input for query, file uploader for image) to generate/get an embedding.
     - [x] Call `get_embedding` from `service_api.py` for text-to-image or image-to-image search.
     - [x] Call `search_images_vector` with the embedding and display results in a grid with pagination.
-    > **Done:** Implemented in `frontend/screens/advanced_ui_screen.py` — Vector search (text/image), embedding, and results display now live. 
+    > **Done:** Implemented in `frontend/screens/advanced_ui_screen.py` — Vector search (text/image), embedding, and results display now live.
+
+### General UI Stability and Performance:
+*   **Startup Errors:**
+    *   Status: Significantly Improved / Mostly Resolved
+    *   Details: Addressed critical `ImportError` (e.g., for `AppConfig`) and component-specific errors (e.g., `IndentationError` in `latent_space.py`) that previously prevented the app from starting. The application now launches.
+*   **Responsiveness during Backend Calls:**
+    *   Status: In Progress
+    *   Details: Asynchronous calls via `service_api.py` are in place. The current focus is on resolving errors in these calls (e.g., ingestion service call). UI responsiveness during *successful* calls needs to be re-verified.
+*   **Initial Load Time:**
+    *   Status: Needs Improvement
+    *   Details: User reports that the application is "pretty slow to load." This will be a focus after critical runtime errors are fixed.
+*   **Decoupling Impact:**
+    *   Status: In Progress
+    *   Details: The removal of `LazySessionManager` and direct model/DB calls aims to simplify UI logic and improve stability by centralizing backend interactions through `service_api.py`. The immediate challenge is ensuring these API calls are successful.
+
+### Specific Component Updates & Status:
+
+*   **`context_sidebar.py`:**
+    *   Refactored to remove `LazySessionManager` and direct QdrantDB/model interactions.
+    *   Now relies on `service_api.py` for operations like starting ingestion and fetching folder stats.
+    *   *Current Issue:* The "Start Processing" button triggers an ingestion call that is currently failing.
+*   **`latent_space.py` (Latent Space Explorer):**
+    *   Data loading now via `service_api.get_all_vectors_for_latent_space()`.
+    *   Frontend UMAP/DBSCAN computation for interactive visualization.
+    *   `IndentationError` fixed by commenting out older/conflicting plot logic.
+*   **`search_tabs.py` (Text Search, Image Search, AI Guessing Game):**
+    *   Removed `LazySessionManager`.
+    *   Search operations and AI captioning now use `service_api.py` to call backend endpoints.
+*   **`app_state.py` / `screen_renderer.py`:**
+    *   `AppStateManager` now correctly imports `AppConfig` using an absolute path.
+    *   `LazySessionManager` dependencies removed. 

@@ -246,6 +246,45 @@ class AdvancedUIScreen:
         st.markdown('</div>', unsafe_allow_html=True)
     
     @staticmethod
+    def _render_search_results(search_result_data):
+        """Helper to render search results from vector search."""
+        # Accommodate common keys for results like 'results' or 'hits'
+        images = search_result_data.get('results', search_result_data.get('hits', []))
+        
+        if images:
+            st.success(f"Found {len(images)} similar images.")
+            cols_per_row = 3  # Or make this configurable
+            for i in range(0, len(images), cols_per_row):
+                cols = st.columns(cols_per_row)
+                for j, img_data in enumerate(images[i:i+cols_per_row]):
+                    with cols[j]:
+                        payload = img_data.get('payload', {}) # Qdrant often stores metadata in payload
+                        img_path_or_url = payload.get('path', img_data.get('path', img_data.get('url'))) # Check multiple possible keys
+                        
+                        filename = payload.get('filename', os.path.basename(img_path_or_url) if img_path_or_url else 'Image')
+                        caption_text = payload.get('caption', img_data.get('caption', filename)) # Prefer specific caption, fallback to filename
+                        
+                        if img_path_or_url:
+                            try:
+                                st.image(img_path_or_url, use_container_width=True, caption=f"Score: {img_data.get('score', 'N/A'):.4f}")
+                            except Exception as e:
+                                st.caption(f"Cannot load: {filename} ({e})")
+                        else:
+                            st.caption(f"No image path/URL for: {filename}")
+
+                        st.markdown(f"**{filename}**")
+                        # Display other relevant metadata from payload if needed
+                        # For example, if 'tags' or 'created_at' are in payload:
+                        tags = payload.get('tags', [])
+                        if tags:
+                            st.caption(f"Tags: {', '.join(tags)}")
+                        created_at = payload.get('created_at')
+                        if created_at:
+                            st.caption(f"Date: {created_at}")
+        else:
+            st.info("No similar images found for this query.")
+    
+    @staticmethod
     async def _render_latent_space():
         """Enhanced latent space visualization"""
         st.markdown(

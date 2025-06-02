@@ -87,3 +87,25 @@ flowchart LR
 
 3. **Performance & Feedback**:
    - Use `
+
+## Key Technical Decisions & Changes:
+
+*   **Centralized API Interaction:** All frontend communication with backend services (ML, Ingestion) is now strictly routed through `frontend/core/service_api.py`. This was a major refactoring effort.
+*   **Removal of `LazySessionManager`:** This utility has been deprecated and removed. State initialization is now handled by `frontend/core/app_state.py:AppStateManager` for global states, or by individual components for local UI states.
+*   **Frontend ML Decoupling:** Direct `torch`, `clip`, and other ML model loading/inference calls have been systematically removed from frontend components (e.g., `config.py`, `search_tabs.py`). Investigation is ongoing to ensure complete removal.
+*   **Error Resolution for Startup:**
+    *   Corrected absolute import paths (e.g., `from frontend.config import AppConfig` in `app_state.py`).
+    *   Resolved `IndentationError` in `latent_space.py` by commenting out older, potentially conflicting plotting logic, favoring the newer UMAP/DBSCAN path.
+*   **Latent Space Visualization:**
+    *   Data is fetched via `service_api.get_all_vectors_for_latent_space()`.
+    *   UMAP dimensionality reduction and DBSCAN clustering are now performed on the frontend *after* fetching raw vectors. This allows for interactive parameter tuning in the UI.
+
+## Current Focus & Challenges:
+
+*   **Diagnosing Ingestion Service Call Failure:** The immediate priority is to identify why the frontend's call to the backend ingestion service (via `service_api.py`) is failing. This requires examining:
+    *   The full error message/traceback from the frontend (`httpx` or `service_api.py` logs).
+    *   Logs from the `ingestion_orchestration_fastapi_app` backend service.
+    *   Ensuring backend services are running and accessible.
+    *   Verifying endpoint paths, request methods (GET/POST), and payload structures.
+*   **Eliminating Residual `torch` Interactions:** The `torch` runtime errors suggest that `torch` might still be linked or imported in the frontend. A `grep_search` is underway. The goal is zero direct `torch` usage in the production frontend code.
+*   **Improving Load Performance:** Once critical errors are resolved, application startup and interaction performance will be profiled and optimized.

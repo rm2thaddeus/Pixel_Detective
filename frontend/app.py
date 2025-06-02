@@ -15,52 +15,59 @@ import sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 import streamlit as st
-import asyncio # New import
+import asyncio 
 
 # Set page config as the absolute first command (before ANY other Streamlit calls)
-st.set_page_config(
-    page_title="Pixel Detective",
-    page_icon="🕵️‍♂️",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
+# This should only be called once per app.
+if not hasattr(st, '_page_config_set'):
+    st.set_page_config(
+        page_title="Pixel Detective",
+        page_icon="🕵️‍♂️",
+        layout="wide",
+        initial_sidebar_state="expanded" # Keep expanded for easy access to folder processing
+    )
+    st._page_config_set = True
+
 
 # ===== IMPORT THE NEW ARCHITECTURE =====
-from core.screen_renderer import render_app # Assuming render_app will be made async
-from core.fast_startup_manager import get_fast_startup_manager, StartupPhase
+from core.screen_renderer import render_app 
+from core.fast_startup_manager import get_fast_startup_manager 
+# from core.app_state import AppStateManager # AppStateManager is used by ScreenRenderer
 
 # ===== MAIN APPLICATION =====
-async def main_async(): # Renamed and made async
+async def main_async(): 
     """Main application with smart 3-screen UX flow"""
     try:
-        # Get/initialize FastStartupManager to start its background model preloading.
-        # It won't render UI itself in this setup; ScreenRenderer handles all UI.
+        # Initialize FastStartupManager to start any background tasks it's designed for (e.g., service checks)
+        # Assuming get_fast_startup_manager() or a method it calls internally starts its non-UI work.
+        # If FSM needs an explicit start for its background tasks without rendering UI:
         fsm = get_fast_startup_manager()
-        progress = fsm.get_progress()  # Get progress object
-        if progress.phase == StartupPhase.BACKGROUND_PREP and not fsm.is_ready():
-            # If preloading hasn't started and it's not already fully ready,
-            # kick off the background model preloading. 
-            # FastStartupManager uses its own thread for this.
-            fsm._start_background_preload() # This is the correct method to start FSM's worker.
+        # fsm.start_background_tasks_only() # Hypothetical method if FSM is refactored
 
-        # ScreenRenderer handles all UI rendering - this will need to be awaited
-        await render_app() # Awaiting the async render_app
+        # ScreenRenderer handles all UI rendering and state transitions
+        await render_app() 
         
     except Exception as e:
         # Emergency fallback
-        st.error("Critical application startup error")
+        st.error("🚨 Critical application startup error!")
         st.exception(e)
         st.markdown("---")
-        st.markdown("### 🆘 Emergency Recovery")
+        st.markdown("### 🆘 Emergency Recovery Options")
+        st.markdown("An unexpected error has occurred. You can try the following:")
         
-        if st.button("🔄 Force Application Reset"):
+        if st.button("🔄 Force Application Reset & Clear Cache"):
             # Clear everything and restart
             for key in list(st.session_state.keys()):
                 del st.session_state[key]
+            st.cache_data.clear()
+            st.cache_resource.clear()
             st.rerun()
         
-        st.markdown("If the problem persists, please restart your browser or contact support.")
+        st.markdown("If the problem persists, please close this browser tab, ensure your backend services are running correctly, and then try reopening the application. Consult the application logs for more details.")
 
 # Start the smart 3-screen UX app!
 if __name__ == "__main__":
-    asyncio.run(main_async()) # Run the async main function 
+    # Initialize core app state here if not handled by ScreenRenderer's first call
+    # AppStateManager.init_session_state() # Ensure this is called once. ScreenRenderer also calls it.
+                                        # It's idempotent, so calling it here is safe too.
+    asyncio.run(main_async()) 

@@ -50,9 +50,9 @@ def render_latent_space_tab():
     """
     st.header("🔮 Latent Space Explorer")
 
-        if not hasattr(st, 'session_state'):
+    if not hasattr(st, 'session_state'):
         st.warning("Latent space visualization not available yet.")
-            return
+        return
             
     # Initialize state for latent space data
     if 'latent_space_data_df' not in st.session_state:
@@ -109,7 +109,7 @@ def render_latent_space_tab():
 
     if st.session_state.latent_space_loading:
         st.spinner("🌌 Fetching cosmic vector data from backend...")
-            return
+        return
 
     if st.session_state.latent_space_error:
         st.error(f"Could not load latent space data: {st.session_state.latent_space_error}")
@@ -221,15 +221,15 @@ def render_latent_space_tab():
                 
         st.write(f"**Clustering Results:** Found {n_clusters} clusters and {noise_points} noise points.")
                 
-                fig = px.scatter(
+        fig = px.scatter(
             df_plot, x='x', y='y', color='cluster',
             hover_data=['path', 'caption'] if 'caption' in df_plot.columns else ['path'],
-                    title="Image Embeddings in 2D Latent Space (Colored by Cluster)",
+            title="Image Embeddings in 2D Latent Space (Colored by Cluster)",
             color_continuous_scale=px.colors.qualitative.Plotly 
         )
         fig.update_traces(marker=dict(size=marker_size_val)) # Use the slider value
         fig.update_layout(width=800, height=600, xaxis_title="UMAP Dimension 1", yaxis_title="UMAP Dimension 2")
-                st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, use_container_width=True)
                 
         if st.checkbox("Show cluster details table"):
             for cluster_id_val in sorted(unique_clusters):
@@ -264,3 +264,105 @@ def render_latent_space_tab():
              st.experimental_rerun() # Or st.rerun() in newer Streamlit
 
     # No specific message if idle and data is loaded, button prompts to compute. 
+
+    # ==========================================================================
+    # START OF POTENTIALLY REDUNDANT/CONFLICTING PLOTTING BLOCK TO BE COMMENTED OUT
+    # ==========================================================================
+    # if st.session_state.latent_space_vectors:
+    #     # Pre-process data for Plotly
+    #     df_list = []
+    #     for i, vec_data in enumerate(st.session_state.latent_space_vectors):
+    #         path = vec_data.get('path', f"Unknown Path {i+1}")
+    #         filename = os.path.basename(path)
+    #         vector = vec_data.get('vector', []) # Should be a list/array
+            
+    #         # Handle cases where vector might not be 2D or 3D as expected by UMAP
+    #         # For now, assume UMAP in backend handled dimensionality reduction
+    #         # and service_api.get_all_vectors_for_latent_space returns appropriate vectors.
+            
+    #         # We expect 'vector' to already be the reduced 2D or 3D representation
+    #         if len(vector) == 2:
+    #             df_list.append({'x': vector[0], 'y': vector[1], 'path': path, 'filename': filename, 'id': vec_data.get('id', str(i))})
+    #         elif len(vector) == 3:
+    #             df_list.append({'x': vector[0], 'y': vector[1], 'z': vector[2], 'path': path, 'filename': filename, 'id': vec_data.get('id', str(i))})
+    #         else:
+    #             logger.warning(f"Vector for {filename} has unexpected dimension: {len(vector)}. Skipping for plot.")
+    #             continue # Skip this vector if not 2D or 3D
+
+    #     if not df_list:
+    #         st.info("No suitable vectors found to plot for latent space. Ensure backend processing provides 2D or 3D vectors.")
+    #         return
+
+    #     df = pd.DataFrame(df_list)
+
+    #     plot_3d = 'z' in df.columns
+        
+    #     hover_data_columns = ['filename'] # Base hover data
+        
+    #     # Construct figure
+    #     if plot_3d:
+    #         fig = px.scatter_3d(
+    #             df,
+    #             x='x', y='y', z='z',
+    #             color='id', # Color by ID or another categorical variable if available
+    #             hover_name='filename',
+    #             custom_data=['path', 'id'], # Pass path and ID for click events
+    #             title="Latent Space Visualization (3D)"
+    #         )
+    #         fig.update_traces(marker=dict(size=5))
+    #     else:
+    #         fig = px.scatter( # Ensure this line and its block are correctly indented
+    #             df,
+    #             x='x', y='y',
+    #             color='id',
+    #             hover_name='filename',
+    #             custom_data=['path', 'id'],
+    #             title="Latent Space Visualization (2D)"
+    #         )
+    #         fig.update_traces(marker=dict(size=8))
+
+    #     fig.update_layout(
+    #         margin=dict(l=0, r=0, b=0, t=40),
+    #         legend_title_text='Image ID',
+    #         # scene=dict(aspectmode='data') if plot_3d else None # Ensure proper aspect ratio for 3D
+    #     )
+    #     if plot_3d:
+    #          fig.update_layout(scene=dict(aspectmode='data'))
+
+
+    #     # Display the plot and handle click events
+    #     # Using st_plotly_events for click interactions
+    #     # Store the clicked point in session state to display image
+    #     # Note: Ensure `plotly_events` is robust or replace with `st_plotly_events` if available and preferred
+        
+    #     # Ensure unique key for plotly_events
+    #     # Assuming plotly_events is a valid function call; if not, this also needs to be addressed or removed.
+    #     # from streamlit_plotly_events import plotly_events # Ensure this import is present if used
+    #     selected_point = plotly_events(fig, click_event=True, hover_event=False, key="latent_space_plot_events")
+
+
+    #     if selected_point and selected_point[0]:
+    #         point_data = selected_point[0]
+            
+    #         # Find the corresponding image path from custom_data
+    #         # The custom_data for px.scatter is a list of lists if multiple columns are passed
+    #         # For a single click, selected_point[0] contains info about that point
+    #         # point_data['customdata'] will be a list like [path_val, id_val]
+            
+    #         clicked_path = None
+    #         if 'customdata' in point_data and isinstance(point_data['customdata'], list) and len(point_data['customdata']) > 0:
+    #             clicked_path = point_data['customdata'][0] # Assuming path is the first item in custom_data
+
+    #         if clicked_path:
+    #             st.session_state.selected_image_path_latent = clicked_path
+    #             st.session_state.selected_image_filename_latent = os.path.basename(clicked_path)
+    #         else:
+    #             logger.warning(f"Clicked point did not have expected customdata for path: {point_data}")
+    #             st.session_state.selected_image_path_latent = None
+    #             st.session_state.selected_image_filename_latent = None
+
+    # else: # if not st.session_state.latent_space_vectors:
+    #     st.info("Vector data not yet loaded. Click 'Load/Refresh Latent Space' above.")
+    # ========================================================================
+    # END OF POTENTIALLY REDUNDANT/CONFLICTING PLOTTING BLOCK
+    # ======================================================================== 

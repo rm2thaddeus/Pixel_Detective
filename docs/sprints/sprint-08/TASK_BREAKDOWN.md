@@ -75,4 +75,57 @@ All core backend and frontend features for Qdrant integration, search, image lis
 - TASK-08-04-04: Write tests for filter logic and UI behavior under edge cases.
 - TASK-08-07-04: Backend implementation of `/api/v1/vectors/all-for-visualization` (if not yet completed).
 - All Objective 6 (Testing & Stability) tasks.
-- All remaining Objective 8 (Documentation & Cleanup) tasks. 
+- All remaining Objective 8 (Documentation & Cleanup) tasks.
+
+### Objective 3: Decouple Frontend from Backend Logic (via `service_api.py`)
+*   **Task 3.1:** Refactor `context_sidebar.py`
+    *   Status: 🔄 In Progress (Significant refactoring done, but needs verification post ingestion bug fix)
+    *   Details: Removed direct DB/model calls. All operations should now use `service_api.py`.
+    *   Dependencies: `service_api.py` fully functional.
+*   **Task 3.2:** Refactor `latent_space.py`
+    *   Status: 🔄 In Progress (Major refactoring for `service_api.py` data loading and UMAP/DBSCAN on frontend. Older conflicting plot logic commented out to fix `IndentationError`.)
+    *   Details: Data loading via `service_api.get_all_vectors_for_latent_space`. Client-side UMAP/DBSCAN implemented.
+    *   Dependencies: Backend endpoint for `get_all_vectors_for_latent_space` must be stable.
+*   **Task 3.3:** Refactor `search_tabs.py`
+    *   Status: 🔄 In Progress (Major refactoring done to remove `LazySessionManager` and use `service_api.py` for search and AI guess)
+    *   Details: Text search, image search, and AI guessing game now use API calls.
+*   **Task 3.4:** Remove `LazySessionManager` and its direct usage.
+    *   Status: ✅ Done (File removed, direct imports in `app_state.py`, `search_tabs.py`, `context_sidebar.py`, `latent_space.py` addressed. `AppStateManager` handles core state init.)
+    *   Dependencies: All components updated to manage their own state or use `AppStateManager`.
+*   **Task 3.5:** Remove direct `torch` / `clip` model loading from frontend components.
+    *   Status: 🔄 In Progress (Removed from `config.py`. Grep search initiated to find other instances.)
+    *   Dependencies: Backend services must handle all ML operations.
+*   **Task 3.6:** Resolve Frontend Import and Startup Errors
+    *   Status: ✅ Done (AppConfig import fixed, `latent_space.py` indentation error resolved, `LazySessionManager` import errors resolved).
+    *   Details: App now starts, though runtime errors with backend calls exist.
+
+### Objective 4: Performance Optimization
+*   **Task 4.1:** Identify and address causes of slow initial load time.
+    *   Status: 🟡 Pending (Blocked by critical ingestion call bug)
+*   **Task 4.2:** Ensure UI remains responsive during backend API calls.
+    *   Status: 🔄 In Progress (Async calls in place, further optimization may be needed)
+
+### Objective 5: Bug Fixing and Stability
+*   **Task 5.1:** Critical: Fix "Request error calling ingestion service".
+    *   Status: ❗ NEW - BLOCKER (Under Investigation)
+    *   Details: Frontend fails when trying to initiate ingestion process via `service_api.py`.
+*   **Task 5.2:** Investigate and resolve `torch` runtime messages.
+    *   Status: 🟡 NEW - In Progress
+    *   Details: Logs show `torch` related errors, potentially from watcher or stray imports.
+*   **Task 5.3:** Systematically test all UI features after refactoring.
+    *   Status: 🟡 Pending (Blocked by critical bugs)
+
+## Objective 7: Frontend Refactoring & Decoupling (New Objective from previous plan)
+*   **Overall Status:** 🔄 In Progress
+*   **Summary of Work Done:**
+    *   Removed `LazySessionManager` and updated dependent components.
+    *   Refactored `search_tabs.py`, `context_sidebar.py`, `latent_space.py` to use `service_api.py` for backend communication.
+    *   Addressed critical startup errors related to imports (`AppConfig`, `LazySessionManager`) and component errors (`IndentationError` in `latent_space.py`).
+    *   Removed direct `torch` dependency from `frontend/config.py`.
+*   **Current Blockers:**
+    *   Failure in calling the backend ingestion service.
+*   **Next Steps:**
+    *   Resolve ingestion service call failure.
+    *   Eliminate any remaining frontend `torch` imports.
+    *   Thoroughly test all refactored components and UI flows.
+    *   Address application slowness. 
