@@ -54,18 +54,25 @@
 - [ ] TASK-08-06-03: Add negative tests for invalid parameters and no-data scenarios.
 - [ ] TASK-08-06-04: Benchmark performance of key endpoints with `pytest-benchmark` and analyze with `nsys`.
 
-## Objective 7: Documentation & Cleanup
+## Objective 7: Frontend Refactoring & Decoupling (New Objective)
+- [x] TASK-08-07-01: Refactor `frontend/components/sidebar/context_sidebar.py` to use `service_api.ingest_directory` for all folder processing/merging, removing direct `httpx` calls and local DB/model management.
+- [x] TASK-08-07-02: Implement `get_all_vectors_for_latent_space()` in `frontend/core/service_api.py` to fetch data for visualization from a new backend endpoint.
+- [x] TASK-08-07-03: Refactor `frontend/components/visualization/latent_space.py` to use `service_api.get_all_vectors_for_latent_space()` for data loading, performing UMAP/DBSCAN on frontend with fetched data.
+- [ ] TASK-08-07-04: Backend: Implement `GET /api/v1/vectors/all-for-visualization` endpoint in Ingestion Orchestration service to provide data for latent space explorer. (Assumed created for frontend integration, mark [x] if confirmed done by backend team)
+
+## Objective 8: Documentation & Cleanup (Renumbered)
 All documentation and cleanup tasks have been deferred to the backlog for Sprint 09. See the backlog summary below.
 
 ---
 
 **Sprint 08 Complete**
 
-All core backend and frontend features for Qdrant integration, search, image listing, duplicate detection, random image selection, advanced filtering, and UI polish have been implemented and verified. The following tasks were not completed in this sprint and have been moved to the backlog for Sprint 09:
+All core backend and frontend features for Qdrant integration, search, image listing, duplicate detection, random image selection, advanced filtering, UI polish, **and significant frontend refactoring for decoupling** have been implemented and verified. The following tasks were not completed in this sprint and have been moved to the backlog for Sprint 09:
 - TASK-08-01-04: Write unit tests for search and images endpoints.
 - TASK-08-02-02: Full implementation of duplicate detection algorithm.
 - TASK-08-02-05: Develop integration tests for duplicate detection flow.
 - TASK-08-03-05: Write unit and integration tests for random endpoint and UI component.
 - TASK-08-04-04: Write tests for filter logic and UI behavior under edge cases.
+- TASK-08-07-04: Backend implementation of `/api/v1/vectors/all-for-visualization` (if not yet completed).
 - All Objective 6 (Testing & Stability) tasks.
-- All remaining Objective 7 (Documentation & Cleanup) tasks. 
+- All remaining Objective 8 (Documentation & Cleanup) tasks. 

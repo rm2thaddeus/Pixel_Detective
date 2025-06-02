@@ -7,7 +7,7 @@
 import os
 import streamlit as st
 from core.app_state import AppStateManager, AppState
-from core.background_loader import background_loader
+from core.background_loader import background_loader, BackgroundLoaderProgress
 from styles.style_injector import (
     inject_pixel_detective_styles,
     create_hero_section,
@@ -292,48 +292,54 @@ class LoadingScreen:
             )
     
     @staticmethod
-    def _render_skeleton_preview(progress_data): # progress_data is now background_loader.progress
-        """Show skeleton UI for Advanced UI - only if loading"""
-        if not progress_data.is_loading: # Check using the new progress object
-            st.markdown("<br>", unsafe_allow_html=True)
-            
-            # Show skeleton preview with contextual information
-            with st.expander("👀 Preview: What's Being Built", expanded=False):
-                st.markdown(
-                    '''
-                    <div style="text-align: center; margin-bottom: 1rem;">
-                        <h4 style="color: var(--pd-text-primary); margin-bottom: 0.5rem;">
-                            🔮 Sneak Peek at Your Future Interface
-                        </h4>
-                        <p style="color: var(--pd-text-secondary); font-size: 0.9rem;">
-                            This is what we're preparing for you right now...
-                        </p>
-                    </div>
-                    ''',
-                    unsafe_allow_html=True
-                )
-                
-                # Add contextual message
-                phase_messages = {
-                    'UI_DEPS': "🎨 Setting up your beautiful interface components...",
-                    'FOLDER_SCAN': "🔍 This is how your photo gallery will look once we find all your images!",
-                    'MODEL_INIT': "🤖 Preparing AI-powered search capabilities for you...",
-                    'DB_BUILD': "🧠 Building the intelligent database that will power instant search...",
-                    'READY': "🎉 Your complete image search interface is ready!"
-                }
-                
-                current_message = phase_messages.get(progress_data.current_phase, "✨ Creating something amazing for your photos...")
-                
-                st.markdown(
-                    f'''
-                    <div class="pd-alert pd-alert-info pd-fade-in" style="margin-top: 1rem; text-align: center;">
-                        <div style="font-size: 1rem; color: var(--pd-text-primary);">
-                            {current_message}
-                        </div>
-                    </div>
-                    ''',
-                    unsafe_allow_html=True
-                )
+    def _render_skeleton_preview(progress_data: BackgroundLoaderProgress):
+        """Render the skeleton preview area with dynamic messages."""
+        
+        # Phase messages (Consider if these are still needed if backend provides good detail)
+        # phase_messages = {
+        #     "initializing": "✨ Initializing the magic...",
+        #     "scanning_files": "📂 Scanning your image collection...",
+        #     "generating_embeddings": "🧠 Creating image understanding (embeddings)...",
+        #     "building_index": "🏗️ Building the search index...",
+        #     "finalizing": "🏁 Finalizing the process...",
+        #     "completed": "✅ All done! Ready for the advanced UI.",
+        #     "error": "⚠️ An error occurred during processing."
+        # }
+
+        # Use current_detail from progress_data, which comes from the backend's message
+        # If current_detail is empty or generic, provide a fallback.
+        current_message = progress_data.current_detail
+        if not current_message or current_message == "Initializing...": # Default from BackgroundLoaderProgress
+             if progress_data.status == "pending":
+                 current_message = "🚀 Preparing to launch processing..."
+             elif progress_data.status == "processing":
+                 current_message = "⚙️ Working on it..."
+             elif progress_data.status == "completed":
+                 current_message = "✅ Processing complete!"
+             elif progress_data.status == "error":
+                 current_message = f"⚠️ Error: {progress_data.error_message or 'An issue occurred.'}"
+             else: # idle or unknown
+                 current_message = "✨ Stand by, magic in progress..."
+
+
+        # Preview section
+        st.markdown("### 👀 Preview: What's Being Built")
+        
+        # Simulate task update
+        tasks_container = st.empty()
+        with tasks_container.container():
+            st.markdown(f"""
+            <div class="pd-task-item">
+                <div class="pd-task-icon">🔄</div>
+                <div>
+                    <div class="pd-task-name">Current Task</div>
+                    <div class="pd-task-detail">{current_message}</div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+        # Simulate image processing (could show some generic images or placeholders)
+        # ... existing code ...
     
     @staticmethod
     def _render_enhanced_features_preview():

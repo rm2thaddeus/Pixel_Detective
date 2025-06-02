@@ -34,7 +34,7 @@ def render_sidebar():
             key="db_folder_main_processing" # Changed key to avoid conflict if old one lingered
         ).strip().strip('"')
         st.session_state.image_folder = current_folder
-
+        
         if not os.path.exists(current_folder) and current_folder: # Only show error if path is non-empty and invalid
             st.sidebar.error("Selected folder path does not exist locally!")
         

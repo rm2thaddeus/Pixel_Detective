@@ -11,16 +11,22 @@ flowchart LR
   subgraph Frontend
     S[Streamlit App]
     SA[service_api.py]
+    LSV[Latent Space Viz]
+    SIDEBAR[Context Sidebar]
   end
-  S -->|HTTPX Async| SA -->|Requests| API --> Q
-  API -->|Vector/Search| Q
+  S -->|UI Interaction| LSV
+  S -->|UI Interaction| SIDEBAR
+  LSV -->|Fetch Vector Data| SA
+  SIDEBAR -->|Initiate Ingestion| SA
+  SA -->|HTTPX Async Requests| API
+  API -->|Vector/Search/Ingest| Q
   API -->|Metadata| Q
   API -->|Background Tasks| Q
-```  
+```
 
-- **Backend**: FastAPI application with routers under `/api/v1`: `search`, `images`, `duplicates`, `random`. Uses `qdrant-client` for vector operations.
-- **Frontend**: Streamlit app with `service_api.py` providing async methods using `httpx.AsyncClient` (cached via `@st.cache_resource`). UI modules use `st.spinner`, `st.progress`, and skeleton placeholders via `st.empty()`.
-- **Background Processing**: Duplicate detection runs in a `ThreadPoolExecutor` to avoid blocking the main event loop. Results are streamed back to UI.
+- **Backend**: FastAPI application with routers under `/api/v1`: `search`, `images`, `duplicates`, `random`, **and a new `vectors/all-for-visualization` endpoint.** Uses `qdrant-client` for vector operations.
+- **Frontend**: Streamlit app with `service_api.py` providing async methods using `httpx.AsyncClient` (cached via `@st.cache_resource`). **All backend interactions from UI components (e.g., `context_sidebar.py` for ingestion, `latent_space.py` for visualization data) are routed through `service_api.py`.** UI modules use `st.spinner`, `st.progress`, and skeleton placeholders via `st.empty()`.
+- **Background Processing**: Duplicate detection runs in a `ThreadPoolExecutor` to avoid blocking the main event loop. **Folder ingestion initiated from `context_sidebar.py` triggers background tasks that call the Ingestion Orchestration service.** Results are streamed back to UI or status updated.
 
 ## 2. Setup & Dependencies
 - Add to `backend/ingestion_orchestration_fastapi_app/requirements.txt`: `qdrant-client>=0.8.1`, `fastapi`, `uvicorn`, `python-multipart`, `brotli`.
@@ -53,45 +59,31 @@ flowchart LR
 
 6. **OpenAPI Docs**: Ensure all routers are registered; verify interactive docs at `/docs`.
 
+7. **Latent Space Data Endpoint (New)**:
+   - Implement `GET /api/v1/vectors/all-for-visualization` in the Ingestion Orchestration service.
+   - This endpoint should query Qdrant to retrieve all (or a representative sample of) vectors along with their `id`, `path`, and `caption` (from payload).
+   - Structure the response as a JSON object, e.g., `{"data": [{"id": "...", "vector": [...], "payload": {"path": "...", "caption": "..."}}, ...]}`.
+
 ### 3.2 Frontend App Updates (Initial coding for service_api.py DONE, UI pending)
 1. **Service API**: In `frontend/core/service_api.py`:
    - Add `async def search_images_vector(...)`, `async def list_images_qdrant(...)` methods.
    - Add `async def get_duplicates_qdrant(self):` using background thread invocation.
    - Add `async def get_random_image_qdrant(self):` method.
+   - **Add `async def get_all_vectors_for_latent_space():` to fetch data for visualization.**
    - Cache the `httpx.AsyncClient` with `@st.cache_resource`.
 
 2. **UI Screens**: In `frontend/app.py` or `components/`:
    - **SearchScreen**: Add sidebar controls for filters (tags, date) and sort options; show progress with `st.progress`.
    - **DuplicateDetection**: New tab using `st.spinner` and placeholder containers for groups.
    - **RandomImage**: Button to fetch random image; display in `st.empty` placeholder.
+   - **`context_sidebar.py` (Refactor)**:
+     - Modified to use `service_api.ingest_directory` for all folder processing and merging.
+     - Removed direct `httpx` calls and local DB/model management logic.
+     - UI feedback (spinners, status messages) updated to reflect API call initiation and background task status.
+   - **`latent_space.py` (Refactor)**:
+     - Visualization data (vectors, metadata) is now fetched via `service_api.get_all_vectors_for_latent_space()`.
+     - UMAP/DBSCAN computations remain on the frontend but use data retrieved from the backend.
+     - UI includes loading states and error handling for the data fetching process.
 
 3. **Performance & Feedback**:
-   - Use `st.empty()` to reserve layout slots, then update with `st.image`, `st.table` as data loads.
-   - For duplicate detection, show incremental progress: `progress = st.progress(0)` and update within thread callback.
-
-4. **Accessibility & Responsiveness**:
-   - Add ARIA labels via `st.markdown('<div role="...">')` where needed.
-   - Ensure keyboard navigation compatibility.
-
-**[DONE] Duplicate Detection UI:**
-- Implemented the Duplicate Detection tab in the Advanced UI (see `frontend/screens/advanced_ui_screen.py`).
-- Added a trigger button to start duplicate detection, which calls the backend via `service_api.get_duplicates_qdrant()`.
-- Shows a spinner/progress indicator while waiting for results.
-- Displays grouped duplicate results with image previews, or an error/info message as appropriate.
-- Handles UI state for loading, results, and errors using `st.session_state`.
-
-### 3.3 Testing & CI
-1. **Unit Tests**: Write pytest tests in `tests/`:
-   - `test_search.py`, `test_images.py`, `test_duplicates.py`, `test_random.py`.
-2. **Integration Tests**: Use Docker Compose fixture to spin up FastAPI + Qdrant; tests in `tests/integration/`.
-3. **E2E Tests**: Add Playwright config and test scenarios for critical flows.
-4. **Performance Tests**: Implement benchmarks using `pytest-benchmark`; integrate `nsys` profiling for GPU traces if needed.
-5. **CI Pipeline**: Update GitHub Actions workflow:
-   - Add services: Qdrant, Docker Compose up.
-   - Run unit, integration, E2E, and benchmark tests.
-
-## 4. Documentation & Handoff
-- **Architecture Diagrams**: Update `/docs/architecture.md` with Mermaid diagrams showing new routers and data flow.
-- **Service API Guide**: Generate markdown in `/docs/api/service_api.md` from docstrings.
-- **Developer Guide**: Create `/docs/developers/feature_extension.md` explaining how to extend search and filtering.
-- **Changelog**: Append Sprint 08 section to `CHANGELOG.md` summarizing features, fixes, and cleanup. 
+   - Use `

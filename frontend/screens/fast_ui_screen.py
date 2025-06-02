@@ -237,16 +237,17 @@ class FastUIScreen:
             unsafe_allow_html=True
         )
         
-        # Transition to loading
+        # Transition to loading state. ScreenRenderer will pick up from here.
         AppStateManager.transition_to_loading(folder_path)
         
-        # Start background loading
-        if background_loader.start_loading_pipeline(folder_path):
-            import time
-            time.sleep(0.5)
-            st.rerun()
-        else:
-            st.error("❌ Could not start processing. Please try again.")
+        # REMOVED: Direct call to background_loader.start_loading_pipeline
+        # The ScreenRenderer will handle starting the pipeline on the next rerun
+        # after the state transition.
+
+        # Ensure a rerun to trigger ScreenRenderer with the new state
+        import time # Keep for the sleep if desired, or remove if rerun is enough
+        time.sleep(0.1) # Small delay to allow UI update before rerun if needed, often not necessary.
+        st.rerun()
     
     @staticmethod
     def _start_background_preparation():

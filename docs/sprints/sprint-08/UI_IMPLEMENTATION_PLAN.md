@@ -50,10 +50,35 @@ This document breaks down the UI tasks for Sprint 08. We will tackle these one b
     - [x] Display relevant metadata alongside the image.
     > **Done:** Implemented in `frontend/screens/advanced_ui_screen.py` — Tab, button, spinner, image, and metadata display now live.
 
-## 4. General UI Polish & Error Handling (Corresponds to TASK-08-05-02, TASK-08-05-03, TASK-08-05-04)
+## 4. Latent Space Explorer UI (New/Refined Section)
+- [x] **Data Loading:**
+    - [x] Implement a "Load/Refresh Latent Space Data" button.
+    - [x] On click, call `service_api.get_all_vectors_for_latent_space()` to fetch vectors and associated metadata (paths, captions) from the backend.
+    - [x] Display `st.spinner` during data fetching.
+    - [x] Show user-friendly error messages if data loading fails, or success/info messages.
+- [x] **Frontend Computation & Visualization:**
+    - [x] Once data is loaded, enable a "Compute & Display Visualization (UMAP/DBSCAN)" button.
+    - [x] UMAP and DBSCAN computations run on the frontend using the fetched data.
+    - [x] Use `st.spinner` during these computations.
+    - [x] Display the 2D scatter plot using Plotly.
+    - [x] Allow customization of UMAP/DBSCAN parameters via sidebar sliders.
+- [x] **Interaction & Details:**
+    - [x] Hover-over tooltips on the plot to show image path/caption.
+    - [x] Option to view images belonging to selected clusters.
+    > **Done:** Implemented in `frontend/components/visualization/latent_space.py`. Data fetching is now API-driven. Frontend handles UMAP/DBSCAN.
+
+## 5. Context Sidebar UI (Refinements)
+- [x] **Folder Processing/Merging:**
+    - [x] "Process Folder" and "Merge Folder" buttons now trigger background tasks that call `service_api.ingest_directory`.
+    - [x] UI displays `st.spinner` or info messages indicating that a backend task has been initiated.
+    - [x] Status messages reflect the success or failure of *initiating* the backend task (e.g., "Ingestion started for folder X, Job ID: YYY").
+    - [x] Detailed progress of the actual ingestion is intended to be shown on the main application screen by polling the job status.
+    > **Done:** `frontend/components/sidebar/context_sidebar.py` refactored to use `service_api.py`.
+
+## 6. General UI Polish & Error Handling (Corresponds to TASK-08-05-02, TASK-08-05-03, TASK-08-05-04 - Applicable to all new/refactored components)
 
 - [x] **Error Handling (TASK-08-05-02):**
-    - [x] All new UI interactions check for `{"error": ...}` in API responses.
+    - [x] All new UI interactions **and refactored API calls** check for `{"error": ...}` in API responses.
     - [x] User-friendly error messages are displayed using `st.error`.
     - [x] "Retry" buttons added for failed API calls where appropriate.
 - [x] **Loading States (TASK-08-05-03):**

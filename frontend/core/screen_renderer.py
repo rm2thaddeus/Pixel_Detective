@@ -44,7 +44,7 @@ class ScreenRenderer:
 
                 # Start the background loading pipeline - it will create managers when needed
                 if not background_loader.progress.is_loading: # Avoid starting if already in progress (e.g. from error retry)
-                    background_loader.start_loading_pipeline(folder_path)
+                    await background_loader.start_loading_pipeline(folder_path)
                     # --- BEGIN CRITICAL LOGGING ---
                     st.session_state.renderer_log.append(f"RENDERER: Called start_loading_pipeline for {folder_path}.")
                     # --- END CRITICAL LOGGING ---
@@ -69,7 +69,7 @@ class ScreenRenderer:
                 st.session_state.renderer_log = st.session_state.get('renderer_log', [])
                 st.session_state.renderer_log.append(f"RENDERER (SAFEGUARD): Starting loading pipeline for {folder_path}")
                 # --- END CRITICAL LOGGING ---
-                background_loader.start_loading_pipeline(folder_path)
+                await background_loader.start_loading_pipeline(folder_path)
                 # --- BEGIN CRITICAL LOGGING ---
                 st.session_state.renderer_log.append(f"RENDERER (SAFEGUARD): Called start_loading_pipeline for {folder_path}.")
                 # --- END CRITICAL LOGGING ---
@@ -138,7 +138,7 @@ class ScreenRenderer:
                         # 🚀 PERFORMANCE FIX: Let background loader create managers when needed
                         # Start the background loading pipeline - it will create managers when needed
                         if not background_loader.progress.is_loading:
-                             background_loader.start_loading_pipeline(folder_path_retry)
+                             await background_loader.start_loading_pipeline(folder_path_retry)
                         st.rerun()
                     else:
                         AppStateManager.reset_to_fast_ui()

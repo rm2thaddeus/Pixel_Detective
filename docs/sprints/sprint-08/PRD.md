@@ -4,8 +4,8 @@
 Sprint 08 focuses on integrating Qdrant for robust vector search and image listing, delivering key user-facing features (duplicate detection, random image selection, advanced filtering/sorting), enhancing UI feedback and accessibility, and solidifying testing, stability, and documentation.
 
 ## 2. Context7 Research Summary
-- **Streamlit Background Tasks**: Leverage `st.cache_resource` for shared clients, `st.spinner`/`st.progress` for UI feedback, and background threads/task queues for long-running operations.  
-- **Async & Lazy Patterns (o3research)**: Use `asyncio` in `service_api.py`, cache the HTTPX client, and lazy-load heavy modules via `@st.cache_resource` to minimize cold-start time.  
+- **Streamlit Background Tasks**: Leverage `st.cache_resource` for shared clients, `st.spinner`/`st.progress` for UI feedback, and background threads/task queues for long-running operations.
+- **Async & Lazy Patterns (o3research)**: Use `asyncio` in `service_api.py`, cache the HTTPX client, and lazy-load heavy modules via `@st.cache_resource` to minimize cold-start time. **This sprint emphasized centralizing all backend communication through `service_api.py` to further enhance decoupling and UI responsiveness.**
 - **Performance Optimizations**: Adopt multipart form-data for image uploads, Brotli compression, and Qdrant indexing strategies to meet sub-200ms response targets.
 
 ## 3. Requirements Matrix
@@ -17,12 +17,13 @@ Sprint 08 focuses on integrating Qdrant for robust vector search and image listi
 | FR-08-04  | As a user, I want a random image feature for exploration.                                    | - `/api/v1/random` returns a valid random image object                                                                                |
 | NFR-08-01 | System must handle up to 100k items with <200ms average response latency.                    | - Load tests confirm average latency <200ms for search and list endpoints                                                        |
 | NFR-08-02 | UI must maintain smooth interactions (>30 FPS) during navigation and filter changes.           | - Streamlit profiler reports >30 FPS on 1080p display                                                                              |
+| NFR-08-03 | Maintainable and Decoupled Frontend Architecture.                                            | - Backend interactions are centralized in `service_api.py`.<br>- UI components are primarily responsible for presentation and user interaction, not direct data fetching or model management. |
 
 ## 4. Technical Architecture
-- **Backend Services**: FastAPI with Qdrant Python client under `/api/v1` namespace; new routers: `search`, `images`, `duplicates`, `random`. For local development and testing, these FastAPI services will be run manually. Docker Compose will be used to manage the Qdrant instance.
-- **Frontend App**: Streamlit with `httpx.AsyncClient` in `service_api.py`; new UI screens/modules under `components/`: `DuplicateDetection`, `RandomImage`, enhanced `SearchScreen` with filters.
+- **Backend Services**: FastAPI with Qdrant Python client under `/api/v1` namespace; new routers: `search`, `images`, `duplicates`, `random`, **and a new endpoint `vectors/all-for-visualization` to supply data for latent space exploration.** For local development and testing, these FastAPI services will be run manually. Docker Compose will be used to manage the Qdrant instance.
+- **Frontend App**: Streamlit with `httpx.AsyncClient` in `service_api.py`; **`service_api.py` serves as the exclusive gateway for all backend communications, ensuring a decoupled architecture.** New UI screens/modules under `components/`: `DuplicateDetection`, `RandomImage`, enhanced `SearchScreen` with filters. The `context_sidebar.py` and `latent_space.py` components were refactored to use this API-driven approach.
 - **Data Layer**: Qdrant as vector database; attribute-based filtering for metadata; pagination via offset+limit.
-- **Background Processing**: Use Python `ThreadPoolExecutor` or lightweight task queue for duplicate detection; integrate with Streamlit via threads and `st.spinner`.
+- **Background Processing**: Use Python `ThreadPoolExecutor` or lightweight task queue for duplicate detection; integrate with Streamlit via threads and `st.spinner`. **Folder ingestion tasks initiated from the UI (`context_sidebar.py`) are handled by submitting tasks that call the backend Ingestion Orchestration service via `service_api.py`.**
 
 ## 5. Implementation Timeline
 | Week   | Milestones                                                                                                   |

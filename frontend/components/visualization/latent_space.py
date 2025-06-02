@@ -50,10 +50,10 @@ def render_latent_space_tab():
     """
     st.header("🔮 Latent Space Explorer")
 
-    if not hasattr(st, 'session_state'):
+        if not hasattr(st, 'session_state'):
         st.warning("Latent space visualization not available yet.")
-        return
-
+            return
+            
     # Initialize state for latent space data
     if 'latent_space_data_df' not in st.session_state:
         st.session_state.latent_space_data_df = None
@@ -109,25 +109,25 @@ def render_latent_space_tab():
 
     if st.session_state.latent_space_loading:
         st.spinner("🌌 Fetching cosmic vector data from backend...")
-        return
+            return
 
     if st.session_state.latent_space_error:
         st.error(f"Could not load latent space data: {st.session_state.latent_space_error}")
         # Offer to retry
         if st.button("Retry Load"):
             asyncio.run(_fetch_and_set_latent_space_data())
-        return
+            return
 
     df = st.session_state.get('latent_space_data_df')
 
     if df is None: # Data has not been loaded yet
         st.info("Click 'Load/Refresh Latent Space Data from Backend' to visualize.")
         return
-        
+
     if df.empty: # Now check if the DataFrame is empty after attempting to load
         st.info("No data available to visualize. Backend returned no vectors or an error occurred. Check logs if this persists.")
         return
-        
+
     if 'vector' not in df.columns or df['vector'].apply(lambda x: x is None or (isinstance(x, list) and not x)).any(): # Check for missing or empty vectors
         st.error("Fetched data is missing 'vector' column or contains null/empty vectors. Cannot proceed.")
         # Optionally, display the problematic part of the DataFrame
@@ -210,7 +210,7 @@ def render_latent_space_tab():
             st.session_state.latent_space_viz_status = "idle" # Reset to allow re-run
             st.session_state.latent_space_viz_results = None
             return
-
+            
         df_plot['x'] = [item[0] for item in results_data['embeddings_2d']]
         df_plot['y'] = [item[1] for item in results_data['embeddings_2d']]
         df_plot['cluster'] = results_data['cluster_labels']
@@ -221,15 +221,15 @@ def render_latent_space_tab():
                 
         st.write(f"**Clustering Results:** Found {n_clusters} clusters and {noise_points} noise points.")
                 
-        fig = px.scatter(
+                fig = px.scatter(
             df_plot, x='x', y='y', color='cluster',
             hover_data=['path', 'caption'] if 'caption' in df_plot.columns else ['path'],
-            title="Image Embeddings in 2D Latent Space (Colored by Cluster)",
+                    title="Image Embeddings in 2D Latent Space (Colored by Cluster)",
             color_continuous_scale=px.colors.qualitative.Plotly 
         )
         fig.update_traces(marker=dict(size=marker_size_val)) # Use the slider value
         fig.update_layout(width=800, height=600, xaxis_title="UMAP Dimension 1", yaxis_title="UMAP Dimension 2")
-        st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, use_container_width=True)
                 
         if st.checkbox("Show cluster details table"):
             for cluster_id_val in sorted(unique_clusters):
