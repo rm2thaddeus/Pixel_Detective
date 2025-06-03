@@ -5,6 +5,8 @@ from utils.logger import logger
 from core import service_api # Ensure this is imported
 import asyncio
 from frontend.config import DEFAULT_IMAGES_PATH # Keep this for default folder
+from frontend.styles.style_injector import create_styled_button
+from frontend.components.accessibility import AccessibilityEnhancer
 
 def render_sidebar():
     """
@@ -12,6 +14,7 @@ def render_sidebar():
     All backend operations are now routed through service_api.py.
     """
     st.sidebar.header("🔧 Folder Processor")
+    AccessibilityEnhancer.add_skip_navigation()
     
     # Initialize session state keys if they don't exist
     if 'image_folder' not in st.session_state:
@@ -123,6 +126,8 @@ def render_sidebar():
         logger.error(f"Error in sidebar rendering: {e}", exc_info=True)
         st.sidebar.error("Sidebar rendering error. Please check logs.")
         current_folder = st.session_state.get('image_folder', DEFAULT_IMAGES_PATH)
+
+    AccessibilityEnhancer.inject_accessibility_styles()
 
     return current_folder
 

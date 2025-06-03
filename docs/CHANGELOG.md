@@ -309,3 +309,9 @@ This major release represents a complete transformation of the user experience, 
 ## [1.5.0] - 2025-01-18 - Pre-Sprint 01 Baseline
 
 ### Added
+
+## [Sprint 08] Frontend Refactor
+- Removed all legacy model loading, direct backend logic, and background task orchestration from the frontend.
+- Deleted obsolete files: task_orchestrator.py, performance_optimizer.py, and all direct torch/model imports.
+- All UI components now interact with the backend exclusively via service_api.py and FastAPI endpoints.
+- UI code is now minimal, stateless, and API-driven.

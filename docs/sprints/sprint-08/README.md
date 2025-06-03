@@ -49,14 +49,12 @@
     *   ✅ Ensure `service_api.py` is the sole interface for frontend-backend communication.
     *   ✅ Implement `get_all_vectors_for_latent_space` endpoint in backend and integrate with frontend. (Assumed done based on previous work, verification pending full app functionality)
 
-### Key Achievements:
+### Key Achievements (Update)
 
-*   Frontend application now starts without critical import or component initialization errors that previously prevented launch.
-*   Resolved `AppConfig` import errors by correcting import paths.
-*   Fixed an `IndentationError` in `latent_space.py` by commenting out older, potentially conflicting code.
-*   Removed direct `torch` dependency from `frontend/config.py`.
-*   Removed `LazySessionManager` import from `app_state.py`.
-*   Frontend attempts to call backend ingestion service, signifying progress in decoupling (though the call itself is failing).
+- ✅ **Frontend fully decoupled from backend logic:** All legacy model loading, direct database/model access, and background task orchestration have been removed from the frontend.
+- ✅ **API-driven UI:** All user actions (folder processing, merging, search, visualization) now trigger backend FastAPI endpoints via `service_api.py`.
+- ✅ **Obsolete code and files deleted:** Removed `task_orchestrator.py`, `performance_optimizer.py`, and all direct torch/model imports.
+- ✅ **UI code is now minimal, stateless, and maintainable.**
 
 ### Roadblocks & Challenges:
 
@@ -65,10 +63,36 @@
 *   **Potential Torch Environment Issues:** Lingering `torch` runtime messages in logs need investigation to ensure a clean frontend environment.
 *   **Completeness of Decoupling:** Need to systematically verify that all direct backend operations and legacy state management are removed from UI components.
 
-### Next Steps:
+### Next Steps: UI Refactoring
 
-*   **Diagnose and Fix Ingestion Service Call Failure:** This is the top priority.
-*   **Investigate and Resolve Torch Runtime Errors:** Use grep search results to find and remove any unnecessary frontend torch imports.
-*   **Address Application Slowness:** Profile and optimize once critical bugs are fixed.
-*   **Complete Full Decoupling Refactor:** Continue verifying and refactoring components to use `service_api.py` exclusively.
-*   Systematically test all UI interactions and backend calls. 
+1. **UI/UX Polish & Consistency**
+   - Review all UI screens for consistency in style, feedback, and error handling.
+   - Ensure all loading, error, and empty states are user-friendly and visually clear.
+   - Standardize button placement, sidebar layout, and tab navigation.
+
+2. **Componentization & Reusability**
+   - Break down large UI files into smaller, reusable components (e.g., result cards, loaders, error banners).
+   - Move repeated UI patterns into shared components.
+
+3. **Async/Await Modernization**
+   - Where possible, refactor event loop usage (`asyncio.new_event_loop()`, `run_until_complete`) to use native async/await patterns, especially if Streamlit or your framework supports it.
+
+4. **Accessibility & Responsiveness**
+   - Use the `accessibility.py` helpers to audit and improve accessibility (ARIA labels, keyboard navigation, color contrast).
+   - Test and refine the UI for different screen sizes and devices.
+
+5. **Testing & Error Handling**
+   - Add or update unit/integration tests for UI logic (where possible).
+   - Simulate backend failures and ensure the UI degrades gracefully.
+
+6. **Documentation**
+   - Update `/docs/services/ui.md` to reflect the new API-driven, stateless frontend architecture.
+   - Add code comments and docstrings to new/updated components.
+
+7. **Performance Profiling**
+   - Profile the UI for any remaining bottlenecks (e.g., large dataframes, image rendering).
+   - Optimize where needed, but avoid premature optimization.
+
+8. **Feature Enhancements**
+   - Implement or polish advanced features (duplicate detection tab, random image selector, advanced filtering/sorting) as described in Sprint 08 goals.
+   - Ensure all new features use the backend API and follow the new architecture. 

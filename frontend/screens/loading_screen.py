@@ -20,6 +20,7 @@ from components.skeleton_screens import SkeletonScreens
 import logging
 import asyncio
 from core import service_api
+from frontend.components.accessibility import AccessibilityEnhancer
 
 logger = logging.getLogger(__name__)
 
@@ -713,4 +714,13 @@ class LoadingScreen:
 # Global function for easy import
 async def render_loading_screen():
     """Main entry point for Screen 2 with enhanced design system"""
+    AccessibilityEnhancer.add_skip_navigation()
+    SkeletonScreens.inject_skeleton_styles()
+    # Use skeleton for loading state
+    SkeletonScreens.render_folder_scan_skeleton()
+    # Standardized loading spinner
+    create_loading_spinner("Loading, please wait...")
+    # Standardized error handling
+    if st.session_state.get('loading_error'):
+        st.error(st.session_state['loading_error'])
     await LoadingScreen.render() 

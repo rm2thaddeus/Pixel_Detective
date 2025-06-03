@@ -1,7 +1,7 @@
 # UI Service Documentation
 
 ## 1. Overview
-The UI service provides the user-facing interface for Pixel Detective, built with Streamlit and a modular component architecture. Refactored in Sprint 01, the UI is organized into a 3-screen flow (Fast UI, Loading, Advanced UI) and leverages extracted components for search, visualization, and sidebar functionality. In the new service-oriented architecture (Sprint 06), the UI interacts with backend services (ML Inference, Database, Ingestion Orchestrator) exclusively via HTTP APIs, ensuring a decoupled, scalable, and maintainable system.
+The UI is now fully decoupled from backend logic. All model inference, data processing, and ingestion are handled by backend FastAPI services. The frontend interacts with these services exclusively via `service_api.py` using HTTP APIs. No direct model loading, database access, or local data processing remains in the UI.
 
 ---
 
@@ -113,14 +113,10 @@ core/
 ---
 
 ## 7. Migration Notes
-- **From Monolith to Services:**
-    - All direct function calls to model inference, database queries, or batch processing have been replaced with HTTP API requests
-    - Components now use async requests and handle loading/error states explicitly
-    - State management (via `core/app_state.py` and `core/session_manager.py`) is updated to reflect async data fetching and error propagation
-- **Component Changes:**
-    - `latent_space.py` now fetches data from `/api/latent-space-data` instead of calling `DatabaseManager.get_latent_space_data()`
-    - `search_tabs.py` submits search queries to `/api/search` instead of local search functions
-    - Sidebar fetches metadata and filters from backend endpoints
+- All direct function calls to model inference, database queries, or batch processing have been replaced with HTTP API requests via `service_api.py`.
+- Components now use async requests and handle loading/error states explicitly.
+- State management is updated to reflect async data fetching and error propagation.
+- All legacy code, background task orchestration, and direct backend logic have been removed from the frontend.
 
 ---
 

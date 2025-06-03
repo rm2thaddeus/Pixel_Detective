@@ -63,6 +63,16 @@
 ## Objective 8: Documentation & Cleanup (Renumbered)
 All documentation and cleanup tasks have been deferred to the backlog for Sprint 09. See the backlog summary below.
 
+## Task Status Update (Frontend Refactor)
+
+- [x] Remove all legacy model loading and direct backend logic from frontend
+- [x] Delete obsolete files: task_orchestrator.py, performance_optimizer.py, etc.
+- [x] Ensure all UI is API-driven and stateless
+- [x] Refactor sidebar, search, and visualization components to use only service_api.py for backend interaction
+- [x] Remove all background task orchestration from frontend
+
+See Sprint 08 README for detailed next steps on UI refactoring and polish.
+
 ---
 
 **Sprint 08 Complete**

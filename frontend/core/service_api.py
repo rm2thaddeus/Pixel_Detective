@@ -84,6 +84,40 @@ async def get_caption(image_bytes: bytes, model_name: str = "blip"):
         logger.error(f"Unexpected error getting caption: {e}")
         return {"error": str(e)}
 
+async def batch_embed_and_caption(images: list):
+    """
+    Batch embed and caption images using the ML Inference backend.
+    Args:
+        images: List of dicts with keys 'unique_id', 'image_bytes', 'filename'.
+    Returns:
+        Backend response (list of results or error).
+    """
+    client = get_async_client()
+    try:
+        # Prepare payload: base64 encode each image
+        payload = {
+            "images": [
+                {
+                    "unique_id": img["unique_id"],
+                    "image_base64": base64.b64encode(img["image_bytes"]).decode("utf-8"),
+                    "filename": img["filename"]
+                }
+                for img in images
+            ]
+        }
+        response = await client.post(f"{ML_INFERENCE_URL}/batch_embed_and_caption", json=payload)
+        response.raise_for_status()
+        return response.json()
+    except httpx.HTTPStatusError as e:
+        logger.error(f"HTTP error calling batch_embed_and_caption: {e} - Response: {e.response.text}")
+        return {"error": str(e), "status_code": e.response.status_code, "detail": e.response.json() if e.response.content else None}
+    except httpx.RequestError as e:
+        logger.error(f"Request error calling batch_embed_and_caption: {e}")
+        return {"error": str(e), "status_code": None}
+    except Exception as e:
+        logger.error(f"Unexpected error in batch_embed_and_caption: {e}")
+        return {"error": str(e)}
+
 # --- Ingestion Orchestration Service Endpoints ---
 
 async def ingest_directory(path: str):

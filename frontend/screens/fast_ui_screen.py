@@ -10,8 +10,10 @@ from core.app_state import AppStateManager, AppState
 from core.background_loader import background_loader
 from styles.style_injector import (
     inject_pixel_detective_styles,
-    create_status_indicator
+    create_status_indicator,
+    create_styled_button
 )
+from frontend.components.accessibility import AccessibilityEnhancer
 
 # Import tkinter for file dialog
 try:
@@ -321,4 +323,12 @@ class FastUIScreen:
 # Global function for easy import
 async def render_fast_ui_screen():
     """Main entry point for minimal Screen 1"""
+    AccessibilityEnhancer.add_skip_navigation()
+    # Use styled button for folder selection
+    if create_styled_button("Select Folder", button_type="primary", icon="📂"):
+        # Folder selection logic here
+        pass
+    # Standardized error handling
+    if st.session_state.get('fast_ui_error'):
+        st.error(st.session_state['fast_ui_error'])
     await FastUIScreen.render()

@@ -123,4 +123,12 @@ This document breaks down the UI tasks for Sprint 08. We will tackle these one b
     *   Search operations and AI captioning now use `service_api.py` to call backend endpoints.
 *   **`app_state.py` / `screen_renderer.py`:**
     *   `AppStateManager` now correctly imports `AppConfig` using an absolute path.
-    *   `LazySessionManager` dependencies removed. 
+    *   `LazySessionManager` dependencies removed.
+
+## Frontend Refactoring Status (Update)
+
+- All legacy model loading, direct backend logic, and background task orchestration have been removed from the frontend.
+- All UI components now interact with the backend exclusively via `service_api.py` and FastAPI endpoints.
+- Obsolete files and patterns (e.g., `task_orchestrator.py`, `performance_optimizer.py`, direct torch/model imports) have been deleted.
+- UI code is now minimal, stateless (where possible), and API-driven.
+- See the main Sprint 08 README for detailed next steps on UI refactoring. 

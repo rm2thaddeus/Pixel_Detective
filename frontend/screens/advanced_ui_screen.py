@@ -6,7 +6,7 @@
 import streamlit as st
 import os
 from core import service_api
-from styles.style_injector import inject_pixel_detective_styles
+from styles.style_injector import inject_pixel_detective_styles, create_styled_button, create_loading_spinner
 from utils.logger import logger
 import asyncio
 import json
@@ -14,6 +14,7 @@ from datetime import datetime
 from components.visualization.latent_space import render_latent_space_tab
 from components.search.search_tabs import render_guessing_game_tab
 from components.sidebar.context_sidebar import render_sidebar
+from frontend.components.accessibility import AccessibilityEnhancer
 
 
 class AdvancedUIScreen:
@@ -42,15 +43,14 @@ class AdvancedUIScreen:
         folder_name = os.path.basename(folder_path)
         image_count = 0
         try:
-            # API call is now async
-            response = await service_api.get_processed_images(page=1, limit=1) # Get 1 just for count, or modify API
+            response = await service_api.get_processed_images(page=1, limit=1)
             if response and not response.get("error") and "total" in response:
                 image_count = response["total"]
             elif response and response.get("error"):
-                logger.error(f"Error fetching image count for header: {response.get('error')}")
+                st.error(f"Error fetching image count: {response.get('error')}")
         except Exception as e:
-            logger.error(f"Exception fetching image count for header: {e}")
-        
+            st.error(f"Exception fetching image count: {e}")
+        AccessibilityEnhancer.add_skip_navigation()
         st.markdown(
             f'''
             <div class="pd-hero pd-fade-in" style="text-align: center; margin-bottom: 2rem;">
