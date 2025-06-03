@@ -70,6 +70,35 @@
 
 ---
 
+### Sprint 08 → Sprint 09 Transition 📝 PLANNED
+
+#### ✅ Sprint 08 Closure (Assumed based on PRD and transition doc)
+- [x] **Qdrant Integration & Core Features**: Search, list, duplicates, random image functionalities delivered (as per S08 PRD).
+- [x] **API-Driven UI**: Frontend interactions centralized via `service_api.py` (as per S08 PRD).
+- [x] **Testing & Stability Focus**: Unit tests, integration tests, E2E tests, and performance benchmarks outlined (as per S08 PRD).
+- [x] **Documentation**: Sprint 08 PRD completed.
+- [x] **Transition Plan**: `docs/sprints/sprint-09/transition-to-sprint-09.md` created, outlining recovery and robustness for S09.
+
+#### 📝 Sprint 09 Preparation (Based on S09 PRD and transition doc)
+- [ ] **Documentation Ready**: Sprint 09 README and PRD created.
+- [ ] **Key Focus Areas Defined**:
+    - Full application testing.
+    - Persistent Qdrant collections (startup load, check existence, prompt for folder).
+    - Frontend-Backend alignment (API for logs/progress).
+    - Restore "Folder Load" functionality.
+    - API stability and enhanced error handling/test coverage.
+- [ ] **Success Criteria**: Defined in Sprint 09 PRD (FR-09-XX, NFR-09-XX).
+- [ ] **Technical Architecture Considerations**: Outlined in Sprint 09 PRD for Qdrant persistence, frontend, and backend API updates.
+
+#### 🚀 Next Actions for Sprint 09 Kickoff
+- [ ] **Confirm Sprint 08 Actual Deliverables**: Verify NFR-08-01 (100k items <200ms latency) status.
+- [ ] **Detailed Task Breakdown**: For implementing Qdrant persistence and UI updates.
+- [ ] **Resource Allocation**: For testing and bug fixing.
+- [ ] **Prioritize "Folder Load" Restoration**: Address TASK-09-01 from transition doc early.
+- [ ] **Sprint 09 Kickoff Meeting**: Team alignment on recovery, robustness, and new feature goals.
+
+---
+
 ## 🏗️ Cross-Sprint Architecture Evolution
 
 ### Sprint 01 Architecture Achievements

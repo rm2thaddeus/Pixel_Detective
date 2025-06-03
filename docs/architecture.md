@@ -19,62 +19,26 @@ This document describes the high-level architecture of the Pixel Detective appli
 3. **Screen 3**: Sophisticated features integrated (real components with fallbacks)
 4. **Component Architecture**: Extracted `ui/` components to organized `components/` structure
 
-## 🏗️ New Unified Architecture (Post Sprint 01)
+## ✅ **Current Status (Post-Sprint 08 / Planning Sprint 09)**
 
-### Screen-Based Architecture
-```
-screens/
-├── fast_ui_screen.py     # ✅ Screen 1: Simplified & user-focused  
-├── loading_screen.py     # ✅ Screen 2: Engaging progress experience
-└── advanced_ui_screen.py # ✅ Screen 3: Sophisticated with real components
-```
+**Overall System Health:** Stable, with ongoing enhancements for robustness and feature set.
+**Key Architectural Pillars:**
+-   **API-Driven Frontend:** Streamlit application interacts with backend services exclusively through a dedicated API service layer (`frontend/service_api.py`).
+-   **Decoupled Backend Services:** FastAPI applications manage specific domains like ingestion and ML inference.
+-   **Persistent Vector Storage:** Qdrant collections are intended to be persistent and loaded at application startup (target for Sprint 09).
+-   **Modular Frontend Components:** UI is built with reusable components, though continuous alignment with backend capabilities is ongoing.
 
-### Component System (NEW)
-```
-components/
-├── search/               # Text search, image search, AI games, duplicates
-│   └── search_tabs.py   # Extracted from ui/tabs.py
-├── visualization/        # UMAP, DBSCAN, interactive plots  
-│   └── latent_space.py  # Extracted from ui/latent_space.py
-└── sidebar/             # Context-aware sidebar content
-    └── context_sidebar.py # Extracted from ui/sidebar.py
-```
+**Sprint 08 Achievements Relevant to Architecture:**
+-   Centralized backend interactions in `frontend/service_api.py`.
+-   Developed new API endpoints for search, image listing, duplicates, random image, and vector visualization.
+-   UI components (including `latent_space.py`) made API-driven and stateless.
+-   Folder ingestion tasks from UI (`context_sidebar.py`) now submit tasks to the backend Ingestion Orchestration service via `service_api.py`.
 
-### Integration Pattern
-All screens use graceful component integration:
-```python
-try:
-    from components.module import sophisticated_function
-    sophisticated_function()  # Use advanced features
-except ImportError as e:
-    st.error(f"Component not integrated: {e}")
-    fallback_function()  # Graceful degradation
-```
-
-### UI State Management
-```
-core/
-├── app_state.py         # ✅ 3-screen state management
-├── background_loader.py # ✅ Non-blocking progress tracking
-└── session_manager.py   # ✅ Session state handling
-```
-
-## ⚠️ **URGENT: UI Integration Issues Post-Refactor**
-
-**Status**: Performance optimization complete, UI components need updating  
-**Priority**: High - Core 3-screen architecture works, but some UI components may be broken  
-**Issue**: The recent performance refactor that fixed ScriptRunContext errors changed the core architecture significantly  
-**Impact**: 
-- ✅ App launches instantly (<1s) with zero errors  
-- ✅ Background loading works perfectly  
-- ⚠️ Some existing UI components may not work with new `core/` and `screens/` architecture  
-- ⚠️ Original `ui/` components may need integration updates  
-
-**Next Sprint Focus**: 
-1. Test all UI components with new architecture
-2. Update broken components to work with new state management  
-3. Ensure all tabs and features work with the 3-screen flow
-4. Polish user experience and fix any remaining issues
+**Sprint 09 Architectural Goals:**
+-   Implement persistent Qdrant collections loaded at startup.
+-   Mechanism to check for existing collections and prompt for folder-based creation if absent.
+-   Enhance frontend to consume APIs for progress/log updates from the backend.
+-   Full restoration and testing of "Folder Load" functionality with persistent Qdrant.
 
 ## 0. Environment Setup
 
@@ -84,255 +48,247 @@ core/
 - **Install CUDA-enabled PyTorch** for GPU acceleration. See the README for installation and troubleshooting instructions.
 - If you see `torch.cuda.is_available() == False`, check your drivers and CUDA install, and ensure you have the correct PyTorch version for your CUDA toolkit.
 
-## 1. Application Modes
+## 1. Application Structure
 
-- **Streamlit App (`app.py`)**: ⚡ **Lightning-fast startup** (<1s) with TRUE lazy loading. **NEW**: Unified 3-screen experience with sophisticated features integrated.
-- **CLI MVP (`scripts/mvp_app.py`)**: Command-line tool for batch ingestion, embedding, captioning, and database creation. Optimized for large-scale, headless processing.
+The application is broadly divided into a `frontend` (Streamlit application) and a `backend` (FastAPI services), interacting with a `Data Layer` (Qdrant).
 
-## 2. Core Modules & Directory Structure
+### 1.1. Frontend (`frontend/`)
 
-- **config.py**: Global settings (e.g., GPU memory efficiency, model loading).
-- **core/** (NEW): State management and background processing
-  - `app_state.py`: 3-screen state management (Fast UI → Loading → Advanced UI)
-  - `background_loader.py`: Non-blocking progress tracking with user-friendly phases
-  - `session_manager.py`: Session state handling between screens
-- **models/**
-  - `clip_model.py`: CLIP model logic, including DNG/RAW support and batch processing.
-  - `blip_model.py`: BLIP model logic for captioning.
-  - `model_manager.py`: Loads and manages models for the Streamlit app.
-  - `lazy_model_manager.py`: TRUE on-demand model loading with smart swapping.
-- **metadata_extractor.py**: Extracts file metadata and image EXIF data.
-- **database/**
-  - `qdrant_connector.py`: QdrantDB class for all vector DB operations (batch upsert, search, collection management).
-  - `db_manager.py`: Higher-level DB management for the Streamlit app.
-  - `vector_db.py`: (Legacy, used by Streamlit app; new code uses `qdrant_connector.py`.)
-- **screens/** (TRANSFORMED): 3-screen architecture
-  - `fast_ui_screen.py`: ✅ Screen 1 - Simplified user-focused folder selection
-  - `loading_screen.py`: ✅ Screen 2 - Engaging progress with excitement-building
-  - `advanced_ui_screen.py`: ✅ Screen 3 - Sophisticated features with component integration
-- **components/** (NEW): Organized extracted components
-  - `search/search_tabs.py`: Text search, image search, AI games, duplicates (from ui/tabs.py)
-  - `visualization/latent_space.py`: UMAP & DBSCAN with interactive plots (from ui/latent_space.py)
-  - `sidebar/context_sidebar.py`: Context-aware sidebar content (from ui/sidebar.py)
-- **ui/** (PRESERVED): Original sophisticated implementations for reference
-  - Original components preserved but functionality extracted to `components/`
-- **utils/**
-  - `image_utils.py`: Image loading, resizing, preprocessing.
-  - `logger.py**: Standardized logging.
-  - `cuda_utils.py`: CUDA checks and memory usage logging.
-  - `incremental_indexer.py`: File system watcher and incremental indexing logic.
-  - `embedding_cache.py`: Cache for embedding computations.
-  - `lazy_session_state.py`: TRUE lazy session management - UI state without model loading.
-- **scripts/**
-  - `mvp_app.py`: CLI MVP for batch processing.
-  - `diagnose_cuda.py`: GPU diagnostics.
-  - `minigame.py`: AI guessing game prototype.
-  - `run_app.bat`: Windows launcher for the Streamlit app.
+-   **Streamlit App (`frontend/app.py`)**: Main entry point for the user interface. Implements the unified 3-screen experience. Relies on `service_api.py` for all backend communication.
+-   **Configuration (`frontend/config.py`)**: Global settings for the frontend, potentially including Qdrant collection names or API endpoints.
+-   **Core Logic (`frontend/core/`)**:
+    -   `app_state.py`: Manages 3-screen state transitions.
+    -   `background_loader.py`: Handles non-blocking progress tracking (to be enhanced with API-based feedback).
+    -   `session_manager.py`: Manages session state.
+-   **API Service Layer (`frontend/service_api.py`)**: Crucial module acting as the sole intermediary for communication with all backend FastAPI services. Uses `httpx.AsyncClient`.
+-   **Screens (`frontend/screens/`)**: Implements the different stages of the UI flow (Fast UI, Loading, Advanced UI). All screens are API-driven.
+-   **Components (`frontend/components/`)**: Reusable UI modules for search, visualization, sidebar, etc. These components fetch data and trigger actions via `service_api.py`.
+-   **Styling (`frontend/styles/`, `frontend/.streamlit/custom.css`)**: Defines the visual appearance of the application.
 
-## 3. Data Flow
+### 1.2. Backend (`backend/`)
 
-### A. Streamlit App (`app.py`) - ⚡ UNIFIED 3-SCREEN EXPERIENCE
-1. **Screen 1 - Fast UI** (<1s startup):
-   - User-focused folder selection with validation
-   - Quick folder shortcuts (Pictures, Downloads, Desktop)
-   - Welcoming messaging about AI capabilities
-   - Background preparation starts silently
+The backend consists of decoupled FastAPI services. For local development and testing, these services are run manually. Docker Compose is used to manage the Qdrant instance.
 
-2. **Screen 2 - Loading Progress**:
-   - Excitement-building progress messages by phase
-   - Feature previews to build anticipation  
-   - User-friendly time estimates
-   - Collection celebration and encouraging facts
+-   **Ingestion Orchestration (`backend/ingestion_orchestration_fastapi_app/`)**:
+    -   Manages the process of ingesting images from folders.
+    -   Handles tasks like metadata extraction, embedding generation (potentially by calling the ML inference service), and storing data in Qdrant.
+    -   Provides APIs for initiating and monitoring ingestion tasks (e.g., "Folder Load").
+    -   Sprint 09 aims to make this service work with persistent Qdrant collections and provide progress updates.
+-   **ML Inference (`backend/ml_inference_fastapi_app/`)**:
+    -   Provides APIs for machine learning model inferences, primarily CLIP for embeddings and BLIP for captions.
+    -   Likely called by the Ingestion Orchestration service during the ingestion pipeline.
+    -   May also be used for on-the-fly inference if needed by other features (e.g., image search).
+-   **Shared Models/Utilities (Conceptual)**: Common utilities, model loading logic, or database connectors specific to the backend might reside in shared modules accessible by these FastAPI apps.
+-   **Node Modules (`backend/node_modules/`)**: Indicates potential use of Node.js tools, possibly for build processes, linting, or auxiliary scripts within the backend environment.
+-   **Disk Cache (`backend/.diskcache/`)**: Suggests caching is used within the backend services.
 
-3. **Screen 3 - Advanced Features**:
-   - Sophisticated search (text + image + AI games)
-   - UMAP visualization with DBSCAN clustering
-   - Duplicate detection and smart organization
-   - Context-aware sidebar with advanced controls
+### 1.3. Data Layer (Qdrant)
 
-### B. Component Integration Flow
-1. **Graceful imports**: Each screen tries to import sophisticated components
-2. **Fallback handling**: If components missing, shows user-friendly error + fallback
-3. **Progressive enhancement**: Features work from basic to sophisticated levels
-4. **State preservation**: Session state maintained across all screens
+-   **Vector Database**: Qdrant is used for storing and searching image embeddings and metadata.
+-   **Persistence (Sprint 09 Goal)**:
+    -   Collections will be persistent.
+    -   The application (likely the backend services or a startup script coordinated with them) will check for and load an existing collection by a configured name.
+    -   If no collection exists, the UI (via `frontend/app.py` and `service_api.py` to the ingestion service) will prompt the user to specify a folder to build a new collection.
+-   **Access**: Backend services interact directly with Qdrant using the Qdrant Python client. The frontend does not interact with Qdrant directly but goes through `service_api.py`.
 
-### C. CLI MVP (`scripts/mvp_app.py`)
-1. User runs the script with a folder path.
-2. Images are processed in batches:
-   - CLIP embeddings (with DNG/RAW support)
-   - BLIP captions (parallelized)
-   - Metadata extraction
-3. Batch upsert to Qdrant via `QdrantDB`.
-4. Optionally outputs a summary (`results_summary.txt`) and a detailed CSV.
+## 2. Core Modules & Directory Structure (Consolidated View)
 
-### D. Latent Space Explorer (`components/visualization/latent_space.py`)
-1. Fetch embeddings and metadata via `DatabaseManager.get_latent_space_data()`.
-2. Compute and cache 2D UMAP projection of embedding vectors for responsive rerenders.
-3. Render a minimal, robust Plotly scatter plot (using plotly.graph_objects) for all points.
-4. **DBSCAN clustering overlay:** After UMAP projection, DBSCAN is run on the 2D coordinates. Points are colored by cluster label, with outliers (noise, label -1) shown in gray. A sidebar slider allows interactive tuning of the DBSCAN `eps` (cluster radius) parameter. This enables visual exploration of clusters and outliers in the embedding space.
-5. Extensive UI debugging was required: Plotly/Streamlit can silently fail to render points if marker/color/selection properties are misused. The current approach prioritizes reliability and clarity.
-
-## 3.5. Hybrid Search System
-
-The Pixel Detective search system implements a sophisticated hybrid approach combining vector similarity with metadata filtering:
-
-### A. Query Processing (`utils/query_parser.py`)
-1. **Query Parsing**: Analyzes user input to extract:
-   - Metadata constraints (e.g., `camera:canon`, `iso:100`)
-   - Semantic query text for vector search
-   - Field aliases (e.g., `aperture_value` → `aperture`)
-2. **Normalization**: Converts all fields and values to lowercase for consistent matching
-3. **Filter Building**: Creates Qdrant-compatible filters using SHOULD (OR) logic instead of restrictive MUST (AND) logic
-
-### B. Search Execution (`database/db_manager.py`, `database/qdrant_connector.py`)
-1. **Vector Encoding**: Text queries are encoded using CLIP for semantic similarity
-2. **Hybrid Search**: Uses Qdrant's Query API with RRF (Reciprocal Rank Fusion):
-   - Primary vector search for semantic relevance
-   - Metadata boosting for exact matches
-   - Soft constraint filtering that enhances rather than restricts results
-3. **Result Fusion**: Combines vector similarity scores with metadata match scores
-
-### C. Metadata Field Mapping
-- **Comprehensive Coverage**: Supports 80+ metadata fields from EXIF/XMP extraction
-- **Field Aliases**: Maps extracted field names to user-friendly query terms
-- **Automatic Enrichment**: Extracts year from date fields, normalizes camera makes/models
-- **Case-Insensitive Matching**: All string comparisons use case-insensitive logic
-
-### D. Search Logic Principles
-- **Always Return Results**: Users always see relevant images, even with non-matching filters
-- **Boost, Don't Block**: Metadata filters boost relevance rather than create hard restrictions
-- **Flexible Queries**: Natural language works alongside technical specifications
-- **Progressive Enhancement**: Vector search provides baseline results, metadata refines ranking
-
-## 4. Batch Processing & Results
-
-- **Batch size** is configurable for both CLIP and BLIP (CLI MVP).
-- **Results summary**: CLI MVP can print and save a summary of all processed images, captions, and embedding status (`--save-summary` flag).
-- **Detailed CSV**: CLI MVP can output a CSV with all metadata, captions, and embedding status.
-
-## 5. RAW/DNG Image Support
-
-- DNG/RAW files are handled natively in both the Streamlit app and CLI MVP.
-- When a DNG file is encountered, it is loaded using `rawpy` and converted to RGB before processing by CLIP/BLIP.
-
-## 6. Static Assets & Test Data
-
-- **.streamlit/static/**: Contains app icons (e.g., `detective.png`).
-- **Library Test/**: Contains test images and scripts for development/testing.
-- **docs/**: Documentation, including this file, roadmap, and changelog.
-
-## 7. Deployment & Scaling
-
-- Designed for consumer GPUs (6GB VRAM minimum), but falls back to CPU.
-- Batch processing and memory-efficient options for large collections.
-- QdrantDB supports both local and remote (cloud) deployments.
-- CLI MVP can be run headless for large-scale ingestion.
-
-## 8. File/Directory Structure (Current - Post Sprint 01)
+*(This section replaces older, more fragmented directory descriptions and reflects the current project structure based on provided information and sprint plans.)*
 
 ```
 project_root/
 │
-├── app.py                          # ⚡ Lightning-fast startup (<1s) + 3-screen flow
-├── config.py
-├── metadata_extractor.py
-├── requirements.txt
-├── test_lightning_startup.py       # 🔬 Performance verification testing
+├── frontend/
+│   ├── app.py                      # Main Streamlit application
+│   ├── config.py                   # Frontend configuration
+│   ├── requirements.txt            # Frontend Python dependencies
+│   ├── service_api.py              # API client for backend communication
+│   ├── __init__.py
+│   │
+│   ├── core/                       # Frontend state management, background tasks
+│   │   ├── app_state.py
+│   │   ├── background_loader.py
+│   │   └── session_manager.py
+│   │
+│   ├── screens/                    # UI screens
+│   │   ├── fast_ui_screen.py
+│   │   ├── loading_screen.py
+│   │   └── advanced_ui_screen.py
+│   │
+│   ├── components/                 # Reusable UI components
+│   │   ├── search/
+│   │   │   └── search_tabs.py
+│   │   ├── visualization/
+│   │   │   └── latent_space.py
+│   │   └── sidebar/
+│   │       └── context_sidebar.py
+│   │
+│   ├── styles/                     # CSS styles
+│   ├── logs/                       # Frontend logs
+│   ├── cache/                      # Frontend cache
+│   └── .streamlit/                 # Streamlit specific files (config, static assets)
+│       ├── custom.css
+│       ├── config.toml
+│       └── static/
+│           └── detective.png
 │
-├── core/                           # 🆕 State management (Sprint 01)
-│   ├── app_state.py               # 3-screen state transitions
-│   ├── background_loader.py       # Non-blocking progress tracking
-│   └── session_manager.py         # Session state handling
+├── backend/
+│   ├── ingestion_orchestration_fastapi_app/  # FastAPI service for ingestion
+│   │   └── (service specific files: main.py, routers, models, etc.)
+│   ├── ml_inference_fastapi_app/             # FastAPI service for ML inference
+│   │   └── (service specific files: main.py, routers, models, etc.)
+│   ├── node_modules/                         # Node.js dependencies (if actively used)
+│   └── .diskcache/                           # Backend caching
 │
-├── screens/                        # 🔄 TRANSFORMED (Sprint 01)
-│   ├── fast_ui_screen.py          # ✅ Screen 1: Simplified & user-focused
-│   ├── loading_screen.py          # ✅ Screen 2: Engaging progress experience  
-│   └── advanced_ui_screen.py      # ✅ Screen 3: Sophisticated features
-│
-├── components/                     # 🆕 Extracted components (Sprint 01)
-│   ├── search/
-│   │   └── search_tabs.py         # Text search, AI games, duplicates
-│   ├── visualization/
-│   │   └── latent_space.py        # UMAP, DBSCAN, interactive plots
-│   └── sidebar/
-│       └── context_sidebar.py     # Context-aware sidebar content
-│
-├── models/
+├── models/ (Legacy or Shared Models for Backend?)
 │   ├── clip_model.py
 │   ├── blip_model.py
 │   ├── model_manager.py
-│   └── lazy_model_manager.py       # 🚀 TRUE on-demand model loading
+│   └── lazy_model_manager.py       # Potentially used by backend services
 │
-├── database/
-│   ├── qdrant_connector.py
+├── database/ (Legacy or Shared DB connectors for Backend?)
+│   ├── qdrant_connector.py         # Qdrant client wrapper, likely used by backend
 │   ├── db_manager.py
 │   └── vector_db.py
 │
-├── ui/                             # 📚 PRESERVED - Original implementations
-│   ├── main_interface.py
-│   ├── sidebar.py
-│   ├── tabs.py
-│   └── latent_space.py
+├── metadata_extractor.py (Legacy or Shared Utility for Backend?)
 │
-├── utils/
+├── utils/ (Legacy or Shared Utilities for Backend?)
 │   ├── image_utils.py
 │   ├── logger.py
 │   ├── cuda_utils.py
 │   ├── incremental_indexer.py
 │   ├── embedding_cache.py
-│   └── lazy_session_state.py       # ⚡ TRUE lazy session management
+│   └── lazy_session_state.py
 │
 ├── scripts/
-│   ├── mvp_app.py
+│   ├── mvp_app.py                  # CLI tool, potentially interacts with backend services or Qdrant
 │   ├── diagnose_cuda.py
 │   ├── minigame.py
 │   └── run_app.bat
 │
-├── .streamlit/
-│   ├── custom.css
-│   ├── config.toml
-│   └── static/
-│       └── detective.png
+├── docs/
+│   ├── architecture.md             # This file
+│   ├── roadmap.md
+│   ├── CHANGELOG.md
+│   └── sprints/
+│       ├── sprint-01/
+│       ├── ...
+│       └── sprint-09/
 │
-├── Library Test/
-│   └── (test images, .csv, .npy, extract_xmp.py, etc.)
-│
-└── docs/
-    ├── architecture.md             # 📖 This file (updated Sprint 01)
-    ├── roadmap.md
-    ├── CHANGELOG.md                # ✅ Updated with Sprint 01 achievements
-    ├── SPRINT_STATUS.md            # 🆕 Sprint tracking
-    └── sprints/                    # 🆕 Sprint documentation
-        └── sprint-01/              # ✅ Complete Sprint 01 docs
-            ├── PRD.md
-            ├── technical-implementation-plan.md
-            ├── completion-summary.md
-            └── README.md
+├── Library Test/                   # Test data
+└── .venv/                          # Virtual environment
 ```
+**Note on Legacy Folders (`models/`, `database/`, `metadata_extractor.py`, `utils/` at root):**
+The Sprint 08 PRD indicates a strong shift towards backend services and `frontend/service_api.py`. The roles of older top-level folders like `models/`, `database/`, `metadata_extractor.py`, and `utils/` need clarification. They might be:
+1.  Legacy code primarily used by the `scripts/mvp_app.py`.
+2.  Shared libraries/utilities now primarily consumed by the `backend/` services.
+3.  Partially or fully superseded by logic within the backend services themselves.
+This architecture document assumes they are increasingly supporting backend operations or are for CLI usage. The frontend relies on `service_api.py`.
 
-## 9. Sprint 01 Implementation Highlights
+## 3. Data Flow
 
-### Architecture Transformation
-- **Before**: Fragmented dual UI system (`ui/` sophisticated + `screens/` basic)
-- **After**: Unified 3-screen architecture with integrated sophisticated components
+*(This section is updated to reflect the API-driven architecture and planned Sprint 09 functionalities.)*
 
-### Component Extraction Strategy
-- Preserved ALL sophisticated functionality from `ui/` folder
-- Organized into logical `components/` directory structure  
-- Implemented graceful import patterns with fallback handling
-- Maintained performance requirements (<1s startup)
+### A. Streamlit App (`frontend/app.py`) - API-Driven UI
+1.  **Screen 1 - Fast UI**:
+    -   User selects a folder (for initial collection creation if none exists and prompted based on S09 plans) or interacts with features assuming a collection is loaded.
+    -   Actions (e.g., selecting folder, initiating search, choosing a tool) trigger calls to `frontend/service_api.py`.
+2.  **Screen 2 - Loading Progress**:
+    -   Displays progress information received from `service_api.py`. This service layer polls or receives updates from backend services about the status of long-running tasks (e.g., folder ingestion, complex searches), a feature to be enhanced in Sprint 09.
+3.  **Screen 3 - Advanced Features**:
+    -   All interactions (search, visualization, duplicate detection) make requests via `service_api.py` to the relevant backend FastAPI endpoints (e.g., `/api/v1/search`, `/api/v1/duplicates` from S08 PRD).
+    -   Results returned by the backend are processed by `service_api.py` and then rendered by the UI components.
 
-### User Experience Evolution
-- **Screen 1**: Removed technical metrics → User-focused welcome messaging
-- **Screen 2**: Replaced boring logs → Excitement-building progress experience  
-- **Screen 3**: Integrated real components → Sophisticated features with fallbacks
+### B. "Folder Load" / Initial Collection Creation (Sprint 09 Focus)
+1.  **Startup Check**: Application startup sequence (likely initiated by `frontend/app.py` making a call through `service_api.py` to the `ingestion_orchestration_fastapi_app`) checks if the configured Qdrant collection exists.
+2.  **Prompt (if no collection)**: If the collection is not found, the frontend UI (e.g., `fast_ui_screen.py`) presents an option to the user (e.g., a button or text input) to specify a local folder path for creating a new collection.
+3.  **Initiate Ingestion**: Upon user action, the frontend calls an appropriate endpoint on the `backend/ingestion_orchestration_fastapi_app` (via `service_api.py`), passing the folder path.
+4.  **Backend Processing (Ingestion Service)**:
+    -   The `ingestion_orchestration_fastapi_app` processes the folder content:
+        -   Extracts metadata from files.
+        -   Coordinates with `ml_inference_fastapi_app` to get embeddings (and captions if applicable) for the images.
+        -   Upserts the data (embeddings and metadata) into the persistent Qdrant collection.
+    -   This service is responsible for providing progress updates that `service_api.py` can poll or receive, enabling the frontend to display status to the user.
+5.  **UI Feedback**: The frontend (`loading_screen.py` or other relevant components) displays progress and completion/error status based on information from the backend.
 
-### Technical Achievements
-- ✅ **Performance preserved**: <1s startup maintained throughout transformation
-- ✅ **All features accessible**: Every sophisticated component integrated
-- ✅ **Graceful error handling**: Fallbacks prevent broken experiences
-- ✅ **Design compliance**: Matches UX_FLOW_DESIGN.md vision completely
+### C. Backend Service Interaction
+-   **Frontend to API Service Layer**: `frontend/app.py` (Streamlit UI) → `frontend/service_api.py` (using `httpx.AsyncClient`).
+-   **API Service Layer to Backend Services**: `frontend/service_api.py` → Specific HTTP/S endpoints on `backend/ingestion_orchestration_fastapi_app` or `backend/ml_inference_fastapi_app`.
+-   **Inter-Service Backend Communication (Conceptual)**: `backend/ingestion_orchestration_fastapi_app` may call `backend/ml_inference_fastapi_app` (e.g., via HTTP/S or direct Python calls if deployed in a tightly coupled manner, though separate HTTP calls maintain better decoupling).
+-   **Backend Services to Data Store**: `backend/*_fastapi_app` → Qdrant instance (using Qdrant Python Client).
+
+### D. Latent Space Explorer (`frontend/components/visualization/latent_space.py`)
+1.  The component, via `service_api.py`, calls a dedicated backend endpoint (e.g., `/api/v1/vectors/all-for-visualization` as mentioned in Sprint 08 PRD) to fetch necessary data (embeddings, metadata).
+2.  The backend service retrieves this data from the Qdrant collection.
+3.  The frontend component then computes UMAP projections and DBSCAN clustering (or receives pre-computed data if the backend handles this processing step).
+4.  Renders an interactive Plotly scatter plot in the Streamlit UI.
+
+## 3.5. Hybrid Search System
+
+*(This system is primarily implemented in the backend, orchestrated via `service_api.py` from the frontend.)*
+
+### A. Query Processing (`utils/query_parser.py` - Assumed backend utility or integrated into backend search logic)
+1.  **Query Parsing**: User input from the frontend is sent via `service_api.py` to the backend. The backend analyzes the query to extract metadata constraints and semantic query text.
+2.  **Normalization & Filter Building**: The backend normalizes fields/values and creates Qdrant-compatible filters.
+
+### B. Search Execution (Backend Service, e.g., a dedicated search router in one of the FastAPI apps, using `database/qdrant_connector.py`)
+1.  **Vector Encoding**: Text queries are encoded using CLIP on the backend.
+2.  **Hybrid Search**: The backend service uses Qdrant's Query API, potentially with RRF, combining vector search with metadata boosting/filtering.
+3.  **Result Fusion & Return**: The backend combines scores and returns ranked results to `service_api.py`, which then passes them to the frontend.
+
+### C. Metadata Field Mapping (Backend Responsibility)
+-   The backend maintains mappings for comprehensive metadata coverage and aliases.
+
+### D. Search Logic Principles (Implemented in Backend)
+-   The backend search endpoint embodies these principles (always return results, boost don't block, etc.).
+
+## 4. Batch Processing & Results
+
+-   **Backend Ingestion Service (`ingestion_orchestration_fastapi_app`)**: Handles batch processing of images from folders, including metadata extraction, embedding (via ML service), and Qdrant upsertion.
+-   **CLI MVP (`scripts/mvp_app.py`)**: Provides alternative headless batch processing capabilities. Its direct interaction with Qdrant or backend services should be clarified if it's still a primary tool for data preparation.
+-   Batch sizes are configurable within the respective backend services or CLI tool.
+
+## 5. RAW/DNG Image Support
+
+-   Handled by the `backend/ingestion_orchestration_fastapi_app` during the ingestion pipeline, likely utilizing `rawpy` before sending image data to the `ml_inference_fastapi_app` for embedding/captioning.
+
+## 6. Static Assets & Test Data
+-   **`.streamlit/static/`**: Contains app icons (e.g., `detective.png`).
+-   **`Library Test/`**: Contains test images and scripts for development/testing.
+-   **`docs/`**: Documentation, including this file, roadmap, and changelog.
+
+## 7. Deployment & Scaling
+
+-   **Frontend (`frontend/app.py`)**: Deployed as a standard Streamlit application.
+-   **Backend Services (`backend/*_fastapi_app`)**: FastAPI services are designed to be containerized (e.g., using Docker) and can be deployed independently or as a group (e.g., via Docker Compose for local development, or Kubernetes/serverless functions for cloud deployment).
+-   **QdrantDB**: Supports both local (via Docker Compose) and remote/cloud deployments. The choice depends on the scale and operational requirements.
+-   The decoupled nature of backend services allows for individual scaling based on load (e.g., scaling the ML inference service if it becomes a bottleneck).
+-   Designed for consumer GPUs (6GB VRAM minimum) for local ML tasks, but can fall back to CPU. Cloud deployments of ML services can leverage more powerful GPU instances.
+
+## 8. File/Directory Structure (Current - Post Sprint 08 / Planning S09)
+*(Refer to consolidated structure in Section 2. This heading is a placeholder if content was here previously)*
+
+## 9. Architectural Evolution Summary (High-Level)
+
+*(This new section summarizes the journey from Sprint 01 to current state)*
+
+-   **Sprint 01**: Focused on unifying a fragmented dual UI system into a cohesive 3-screen Streamlit frontend. Key activities included component extraction from the old `ui/` folder into a new `components/` structure and establishing the `fast_ui_screen`, `loading_screen`, and `advanced_ui_screen` flow. Performance (<1s startup) was a key consideration.
+-   **Sprints 02-07 (Assumed Broad Strokes)**: Likely focused on visual design enhancements (e.g., Sprint 02 Visual Design System & Accessibility), progressive feature additions, backend service groundwork, and initial Qdrant exploration. The specifics of architectural changes in these sprints would need to be drawn from their respective PRDs/summaries.
+-   **Sprint 08**: A pivotal sprint that solidified the API-driven architecture. All frontend-to-backend communication was centralized through `frontend/service_api.py`. Backend functionalities were more clearly delineated into FastAPI services (`ingestion_orchestration_fastapi_app`, `ml_inference_fastapi_app`) providing endpoints for search, image listing, duplicate detection, random image generation, and vector visualization data. Docker Compose for Qdrant was established for local development. UI components became fully API-driven and stateless.
+-   **Sprint 09 (Planned)**: Aims to enhance robustness and user experience by introducing persistent Qdrant collections loaded at application startup. This includes implementing a check for existing collections and providing a UI mechanism to create new collections from user-specified folders if none exist. Further improvements include integrating more detailed progress/log feedback from backend APIs into the frontend and conducting comprehensive application testing, particularly for the "Folder Load" functionality.
 
 ---
 
-**🎯 Next: Sprint 02 - Visual Design System**: With the unified architecture complete, Sprint 02 will focus on visual polish, smooth transitions, and mobile responsiveness.
+**🎯 Next Steps (Post Sprint 09 Implementation & Beyond):**
+
+-   **Implement and Test Sprint 09 Goals**: Successfully deliver persistent Qdrant, robust folder loading with UI prompts, and enhanced API-driven feedback.
+-   **Refine Backend Service APIs**: Based on frontend needs and performance testing, iterate on API design for clarity, efficiency, and error reporting.
+-   **Scalability and Performance Tuning**: For both backend services and Qdrant, especially with large datasets.
+-   **Monitoring and Logging**: Implement more comprehensive monitoring and structured logging across frontend and backend services for easier debugging and operational insight.
+-   **Expand Test Coverage**: Continue to build out unit, integration, and E2E tests for all critical paths and new features.
+-   **Documentation**: Keep this `architecture.md` document, along with sprint-specific documentation and API documentation (e.g., OpenAPI specs for FastAPI services), up-to-date.
+-   **Address Legacy Code**: Strategically refactor or retire parts of the older top-level folders (`models/`, `database/`, `utils/`) as their functionality is fully absorbed or better managed by the backend services or `frontend/service_api.py`.
+
+// Remove very old concluding sections if they exist, like "Sprint 01 Implementation Highlights" //
+// or "Next: Sprint 02 - Visual Design System" as these are now superseded.          //

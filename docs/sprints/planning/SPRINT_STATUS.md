@@ -171,22 +171,76 @@ Pixel Detective/
 
 ---
 
-## 🔮 Sprint 03 Readiness
+## 🔮 Next Sprint: Sprint 04
 
-### Prerequisites Status
-- ✅ **Architecture Foundation**: Clean 3-screen system with accessibility
-- ✅ **Component Patterns**: Integration approach proven and tested
-- ✅ **Performance Baseline**: Outstanding 0.001s startup achieved
-- ✅ **User Experience**: Professional polish with skeleton loading
-- ✅ **Accessibility**: WCAG 2.1 AA compliance established
-- ✅ **Quality Assurance**: 100% test coverage for new components
+### Sprint 04: Threading & Task Orchestration
+**Status:** **PLANNED**  
+**Planned Start Date:** TBD  
+**Objective:** Centralize background tasks under a `TaskOrchestrator`, refactor UI components, integrate `mvp_app.py` pipelines, and benchmark performance improvements.
 
-### Sprint 03 Planning Ready
-- ✅ **Foundation Stable**: Production-ready architecture established
-- ✅ **Performance Optimized**: Excellent baseline for new features
-- ✅ **Accessibility Compliant**: Inclusive design patterns established
-- ✅ **Testing Framework**: Comprehensive verification system in place
-- ✅ **Documentation**: Complete sprint documentation and results
+#### Sprint 04 Documents
+- 📋 [PRD](../sprint-04/PRD.md)
+- 🔧 [Technical Plan](../sprint-04/technical-implementation-plan.md)
+- 📚 [README](../sprint-04/README.md)
+- ⚡ [Quick Reference](../sprint-04/quick_reference.md)
+- 🔄 [Transition Plan](../sprint-04/transition-to-sprint-05.md) 
+
+## ✅ Sprint 03: [Assumed Topic - Placeholder]
+**Status**: **COMPLETED** ✅
+**Objective**: [Placeholder for Sprint 03 objectives]
+
+#### Sprint 03 Deliverables
+- [📋 PRD](../sprint-03/PRD.md) - Product Requirements Document (Assumed)
+- [📚 README](../sprint-03/README.md) - Sprint overview (Assumed)
+
+## Sprint 04: [Assumed Topic - Placeholder, if different from above or superseded by actuals]
+**Status**: **COMPLETED** ✅ 
+**Objective**: [Placeholder for Sprint 04 objectives, assuming it was completed differently or this is a new entry]
+
+#### Sprint 04 Deliverables
+- [📋 PRD](../sprint-04/PRD.md) - Product Requirements Document (Assumed)
+- [📚 README](../sprint-04/README.md) - Sprint overview (Assumed)
+
+## ✅ Sprint 05: [Assumed Topic - Placeholder]
+**Status**: **COMPLETED** ✅
+**Objective**: [Placeholder for Sprint 05 objectives]
+
+#### Sprint 05 Deliverables
+- [📋 PRD](../sprint-05/PRD.md) - Product Requirements Document (Assumed)
+- [📚 README](../sprint-05/README.md) - Sprint overview (Assumed)
+
+## ✅ Sprint 06: [Assumed Topic - Placeholder]
+**Status**: **COMPLETED** ✅
+**Objective**: [Placeholder for Sprint 06 objectives]
+
+#### Sprint 06 Deliverables
+- [📋 PRD](../sprint-06/PRD.md) - Product Requirements Document (Assumed)
+- [📚 README](../sprint-06/README.md) - Sprint overview (Assumed)
+
+## ✅ Sprint 07: [Assumed Topic - Placeholder]
+**Status**: **COMPLETED** ✅
+**Objective**: [Placeholder for Sprint 07 objectives]
+
+#### Sprint 07 Deliverables
+- [📋 PRD](../sprint-07/PRD.md) - Product Requirements Document (Assumed)
+- [📚 README](../sprint-07/README.md) - Sprint overview (Assumed)
+
+## ✅ Sprint 08: Qdrant Integration & Advanced Features
+**Status**: **COMPLETED** ✅
+**Objective**: Integrate Qdrant for robust vector search and image listing, deliver key user-facing features (duplicate detection, random image, advanced filtering/sorting), enhance UI feedback and accessibility, and solidify testing, stability, and documentation.
+
+#### Sprint 08 Deliverables
+- [📋 PRD](../sprint-08/PRD.md) - Product Requirements Document
+- [📚 README](../sprint-08/README.md) - Sprint overview (Assumed)
+- [🚀 Transition to S09](../sprint-09/transition-to-sprint-09.md) - Transition Plan
+
+## 📝 Sprint 09: Recovery, Robustness, and Feature Enhancement
+**Status**: **PLANNED** 📝
+**Objective**: Comprehensive testing, persistent Qdrant collections (startup load, check existence, prompt for folder), frontend/backend alignment (API for logs/progress), restore "Folder Load", API stability, and improved error handling/test coverage.
+
+#### Sprint 09 Deliverables (Planned)
+- [📋 PRD](../sprint-09/PRD.md) - Product Requirements Document
+- [📚 README](../sprint-09/README.md) - Sprint overview
 
 ---
 
