@@ -36,7 +36,7 @@ This roadmap outlines the development priorities for Pixel Detective, organized 
 ---
 
 ## ✅ **Sprint 08 COMPLETED: Qdrant Integration & Frontend Decoupling**
-*Status: Successfully completed - Major architectural overall and feature delivery*
+*Status: Successfully completed - Major architectural overall and feature delivery. **Identified critical "folder load" regression post-refactor.** *
 
 ### **Sprint Achievements** ✅
 - **Qdrant Integration**: Fully integrated Qdrant for `/api/v1/search` and `/api/v1/images` endpoints, replacing placeholder logic.
@@ -51,6 +51,7 @@ This roadmap outlines the development priorities for Pixel Detective, organized 
 - **Backend Services Established**: FastAPI services for ML inference (`ml_inference_fastapi_app`) and ingestion/orchestration (`ingestion_orchestration_fastapi_app`) are now core components.
 - **Standardized UI Elements**: Improved error handling, loading states (spinners, progress) for new/refactored S08 components.
 - **Dependency Management**: Optimized `requirements.txt` for both frontend and backend services.
+- **Identified Regression**: Critical "folder load" functionality broken post-refactor, requiring immediate attention in S09.
 
 ### **Completed Deliverables** ✅
 - [x] Functional Qdrant-powered search and image listing APIs and UI integration.
@@ -58,60 +59,73 @@ This roadmap outlines the development priorities for Pixel Detective, organized 
 - [x] Fully refactored, API-driven, and stateless frontend architecture.
 - [x] Established FastAPI backend services for core operations.
 - [x] Detailed Sprint 08 documentation (`PRD.md`, `TASK_BREAKDOWN.md`).
+- [x] **Carry-over to S09**: Full backend implementation for duplicate detection, comprehensive testing, and regression fixes.
 
 ---
 
-## 🚀 **Sprint 09: Testing, Stabilization & Final Polish**
-*Priority: High - Ensure production readiness*
+## 🚀 **Sprint 09: Recovery, Robustness & Testing**
+*Priority: Critical - Restore core functionality and ensure system stability*
 *Timeline: Approx. 2-3 weeks (estimate)*
+*Theme: **Recovery and Robustness:** Restore all core user flows (especially "folder load"), ensure API-driven architecture is stable, and improve error handling and test coverage.*
 
 ### **Sprint Goals**
+- **CRITICAL: Restore "Folder Load" functionality** - Diagnose and fix the UI → API → backend flow.
 - Achieve high confidence in system stability and correctness through comprehensive testing.
 - Complete all pending development tasks from Sprint 08, primarily the duplicate detection backend.
 - Update all key project documentation to reflect the current state of the application.
 - Perform final polish and address any critical/high-priority bugs identified.
 
-### **Key Tasks (from Sprint 09 Backlog - `docs/sprints/sprint-08/BACKLOG.md`)**
+### **Key Tasks (Prioritized from `docs/sprints/sprint-09/transition-to-sprint-09.md`)**
 
-#### **Week 1-2: Core Testing & Development Finalization**
-- **Core Functionality Finalization**
+#### **Week 1: Critical Recovery & Core Testing**
+- **Recovery & Core Functionality Finalization**
+  - [ ] **TASK-09-01 (P0): Restore "Folder Load" functionality (UI → API → backend).**
+    - [ ] Diagnose and fix the broken flow.
+    - [ ] Ensure user feedback for errors.
+    - [ ] Add integration tests for this flow.
   - [ ] TASK-08-02-02: Full implementation of duplicate detection algorithm (backend).
-- **Unit & Integration Testing**
-  - [ ] TASK-08-01-04: Write unit tests for `/api/v1/search` and `/api/v1/images` endpoints.
+- **Targeted Integration Testing**
   - [ ] TASK-08-02-05: Develop integration tests for duplicate detection flow (UI to backend).
+  - [ ] TASK-08-06-01: Expand integration tests for full UI → API → Qdrant roundtrip (validate against key S08 features).
+
+#### **Week 1-2: Broader Testing & API Validation**
+- **Unit & Integration Testing (API Focus)**
+  - [ ] TASK-08-01-04: Write unit tests for `/api/v1/search` and `/api/v1/images` endpoints.
   - [ ] TASK-08-03-05: Write unit and integration tests for random image endpoint and UI component.
   - [ ] TASK-08-04-04: Write tests for filter logic and UI behavior under edge cases.
-  - [ ] TASK-08-06-01: Expand integration tests for full UI → API → Qdrant roundtrip.
-- **End-to-End Testing**
-  - [ ] TASK-08-06-02: Develop end-to-end tests with Playwright for critical user flows.
+- **End-to-End & Negative Testing**
+  - [ ] TASK-08-06-02: Develop end-to-end tests with Playwright for critical user flows (search, duplicates, random, filtering, **folder load post-fix**).
   - [ ] TASK-08-06-03: Add negative tests for invalid parameters and no-data scenarios.
+- **Error Handling**
+  - [ ] TASK-09-04 (New): Add robust error handling and user feedback for all critical UI actions, especially around folder processing and API interactions.
 
 #### **Week 2-3: Performance, Documentation & Polish**
 - **Performance & Stability**
   - [ ] TASK-08-06-04: Benchmark performance of key endpoints (`pytest-benchmark`, `nsys`).
-  - [ ] Address any remaining UI polish or minor bug fixes identified.
-- **Documentation Overhaul**
-  - [ ] Update `README.md` (if further changes needed post this revision).
-  - [ ] Update `docs/architecture.md` to reflect S08 FastAPI/Qdrant architecture.
-  - [ ] Update/Auto-generate Swagger/OpenAPI docs for Sprint 08 APIs.
-  - [ ] Update `CHANGELOG.md` for Sprint 08 release.
-- **Cleanup (Low Priority)**
-  - [ ] Review legacy modules (`core/fast_startup_manager.py`, `utils/embedding_cache.py`).
-  - [ ] Review `scripts/mvp_app.py` for cleanup.
+  - [ ] TASK-09-06 (New): Address any remaining UI polish or minor bug fixes identified during S09 testing.
+- **Documentation Overhaul (Post-Recovery)**
+  - [ ] TASK-09-07 (New): Update `README.md` (project root) reflecting current status and S09 focus.
+  - [ ] TASK-09-07 (New): Update `docs/architecture.md` to detail S08 FastAPI/Qdrant architecture and new UI-API interaction patterns.
+  - [ ] TASK-09-07 (New): Update/Auto-generate Swagger/OpenAPI docs for Sprint 08 APIs.
+  - [ ] TASK-09-07 (New): Update `CHANGELOG.md` for Sprint 08 release and Sprint 09 recovery efforts.
+- **Cleanup (Low Priority - If time permits)**
+  - [ ] TASK-09-08 (New): Review legacy modules (`core/fast_startup_manager.py`, `utils/embedding_cache.py`).
+  - [ ] TASK-09-08 (New): Review `scripts/mvp_app.py` for cleanup.
 
 ---
 
 ## 🎯 **Sprint 09 Success Criteria**
 
 ### **Quality & Stability Targets**
-- [ ] **Test Coverage**: Significant increase in unit, integration, and E2E test coverage for S08 features.
+- [ ] **"Folder Load" Restored**: Functionality is fully restored and verified with integration tests.
+- [ ] **Test Coverage**: Significant increase in unit, integration, and E2E test coverage for S08 features and "folder load".
 - [ ] **Duplicate Detection**: Backend algorithm implemented and validated.
-- [ ] **Bug Resolution**: All critical/high priority bugs identified during S09 are resolved.
-- [ ] **Documentation**: Key project documents (`README.md`, `architecture.md`, `CHANGELOG.md`, API docs) are accurate and up-to-date.
+- [ ] **Bug Resolution**: All critical/high priority bugs identified during S09 (including regressions) are resolved.
+- [ ] **Documentation**: Key project documents (`README.md`, `architecture.md`, `CHANGELOG.md`, API docs) are accurate and up-to-date post-recovery.
 
 ### **Performance Targets**
 - [ ] **API Latency**: Key S08 endpoints (search, list) meet <200ms average response target under benchmark conditions.
-- [ ] **UI Responsiveness**: Maintain >30 FPS during typical user interactions.
+- [ ] **UI Responsiveness**: Maintain >30 FPS during typical user interactions, especially during/after folder operations.
 
 --- 
 
