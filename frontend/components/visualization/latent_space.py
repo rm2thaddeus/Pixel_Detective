@@ -11,6 +11,9 @@ from utils.logger import logger
 from core import service_api
 import asyncio
 import os
+from frontend.styles.style_injector import create_loading_spinner
+from frontend.components.skeleton_screens import SkeletonScreens
+from frontend.components.accessibility import AccessibilityEnhancer
 
 # Define keys for sliders to ensure consistency
 UMAP_N_NEIGHBORS_KEY = "umap_n_neighbors_slider_key" # Made keys more unique
@@ -48,6 +51,8 @@ def render_latent_space_tab():
     Renders the Latent Space Explorer tab for embedding visualization with lazy loading optimizations.
     """
     st.header("🔮 Latent Space Explorer")
+    AccessibilityEnhancer.add_skip_navigation()
+    SkeletonScreens.inject_skeleton_styles()
 
     if not hasattr(st, 'session_state'):
         st.warning("Latent space visualization not available yet.")
@@ -71,66 +76,54 @@ def render_latent_space_tab():
     async def _fetch_and_set_latent_space_data():
         st.session_state.latent_space_loading = True
         st.session_state.latent_space_error = None
-        st.session_state.latent_space_data_df = None # Clear previous data
-        st.session_state.latent_space_viz_results = None # Clear previous viz results
+        st.session_state.latent_space_data_df = None
+        st.session_state.latent_space_viz_results = None
         st.session_state.latent_space_viz_status = "idle"
         try:
-            # Use the new service_api function
-            raw_data = await service_api.get_all_vectors_for_latent_space() # MODIFIED
-            
+            raw_data = await service_api.get_all_vectors_for_latent_space()
             if raw_data and not raw_data.get("error"):
-                vectors_list = raw_data.get("vectors", []) # Adjusted to expect "vectors" key from service_api
+                vectors_list = raw_data.get("vectors", [])
                 if vectors_list:
-                    # DataFrame creation will now expect 'vector', 'path', 'caption' directly if service_api formats it
                     st.session_state.latent_space_data_df = pd.DataFrame(vectors_list)
                     st.success("Latent space data loaded successfully from backend.")
                 else:
-                    st.session_state.latent_space_data_df = pd.DataFrame() # Ensure it's an empty DataFrame
+                    st.session_state.latent_space_data_df = pd.DataFrame()
                     st.info("No vector data returned from backend for latent space.")
             else:
                 err_msg = raw_data.get("detail", raw_data.get("error", "Unknown error fetching latent space data."))
                 st.session_state.latent_space_error = err_msg
                 logger.error(f"API Error fetching latent space data: {err_msg}")
-                st.session_state.latent_space_data_df = pd.DataFrame() # Ensure it's an empty DataFrame
+                st.session_state.latent_space_data_df = pd.DataFrame()
         except Exception as e:
             logger.error(f"Exception fetching latent space data: {e}", exc_info=True)
             st.session_state.latent_space_error = str(e)
-            st.session_state.latent_space_data_df = pd.DataFrame() # Ensure it's an empty DataFrame
+            st.session_state.latent_space_data_df = pd.DataFrame()
         finally:
             st.session_state.latent_space_loading = False
 
     if st.button("🔄 Load/Refresh Latent Space Data from Backend"):
-        # This button directly triggers the async fetch.
-        # Consider if this needs to be a task_orchestrator job if it's very long,
-        # but for now, direct asyncio.run is fine for a button click.
         asyncio.run(_fetch_and_set_latent_space_data())
-        # After running, the UI will re-render, and subsequent checks will use the new state.
 
     if st.session_state.latent_space_loading:
-        st.spinner("🌌 Fetching cosmic vector data from backend...")
+        SkeletonScreens.render_folder_scan_skeleton()
+        create_loading_spinner("🌌 Fetching cosmic vector data from backend...")
         return
 
     if st.session_state.latent_space_error:
         st.error(f"Could not load latent space data: {st.session_state.latent_space_error}")
-        # Offer to retry
         if st.button("Retry Load"):
             asyncio.run(_fetch_and_set_latent_space_data())
             return
 
     df = st.session_state.get('latent_space_data_df')
-
-    if df is None: # Data has not been loaded yet
+    if df is None:
         st.info("Click 'Load/Refresh Latent Space Data from Backend' to visualize.")
         return
-
-    if df.empty: # Now check if the DataFrame is empty after attempting to load
+    if df.empty:
         st.info("No data available to visualize. Backend returned no vectors or an error occurred. Check logs if this persists.")
         return
-
-    if 'vector' not in df.columns or df['vector'].apply(lambda x: x is None or (isinstance(x, list) and not x)).any(): # Check for missing or empty vectors
+    if 'vector' not in df.columns or df['vector'].apply(lambda x: x is None or (isinstance(x, list) and not x)).any():
         st.error("Fetched data is missing 'vector' column or contains null/empty vectors. Cannot proceed.")
-        # Optionally, display the problematic part of the DataFrame
-        # st.dataframe(df[df['vector'].isnull() | df['vector'].apply(lambda x: isinstance(x, list) and not x)])
         return
 
     df_display_initial = df.copy()
@@ -145,27 +138,23 @@ def render_latent_space_tab():
     def _run_frontend_computation_task(embeddings_list, umap_n, umap_d, db_eps, db_min):
         try:
             st.session_state.latent_space_viz_results = None
-            # ... (validation of embeddings_list as before) ...
-            if not embeddings_list: # Simpler check
+            if not embeddings_list:
                  st.session_state.latent_space_viz_status = "error"
                  st.session_state.latent_space_viz_error_message = "Cannot run computation on empty embeddings list."
                  return
-            
             embeddings_np = np.array([np.array(e) for e in embeddings_list])
             if embeddings_np.ndim != 2:
                  st.session_state.latent_space_viz_status = "error"
                  st.session_state.latent_space_viz_error_message = "Embeddings could not be formed into a 2D array."
                  return
-
             embeddings_2d = reduce_dimensionality_umap(embeddings_np, n_neighbors=umap_n, min_dist=umap_d)
             cluster_labels = cluster_embeddings(embeddings_2d, eps=db_eps, min_samples=db_min)
-            
             st.session_state.latent_space_viz_results = {
                 'embeddings_2d': embeddings_2d.tolist(),
                 'cluster_labels': cluster_labels.tolist(),
             }
             st.session_state.latent_space_viz_status = "completed"
-        except ValueError as ve: # Catch specific numpy/conversion errors
+        except ValueError as ve:
             logger.error(f"ValueError during frontend latent space computation task: {ve}", exc_info=True)
             st.session_state.latent_space_viz_status = "error"
             st.session_state.latent_space_viz_error_message = f"Data error: {str(ve)}"
@@ -175,73 +164,52 @@ def render_latent_space_tab():
             st.session_state.latent_space_viz_error_message = str(e)
 
     if st.button("📊 Compute & Display Visualization (UMAP/DBSCAN)"):
-        if not is_task_running("frontend_computation_task"):
-            st.session_state.latent_space_viz_status = "running"
-            st.session_state.latent_space_viz_results = None
-            
-            raw_embeddings_for_frontend_calc = df_display_initial['vector'].tolist()
+        st.session_state.latent_space_viz_status = "running"
+        st.session_state.latent_space_viz_results = None
+        raw_embeddings_for_frontend_calc = df_display_initial['vector'].tolist()
+        _run_frontend_computation_task(
+            raw_embeddings_for_frontend_calc,
+            n_neighbors_val,
+            min_dist_val,
+            dbscan_eps_val,
+            dbscan_min_samples_val
+        )
 
-            submit_task("frontend_computation_task", 
-                        _run_frontend_computation_task, 
-                        raw_embeddings_for_frontend_calc,
-                        n_neighbors_val, 
-                        min_dist_val, 
-                        dbscan_eps_val, 
-                        dbscan_min_samples_val
-                        )
-        else:
-            st.info("Visualization computation is already in progress.")
-            
-    # Display based on computation status
     viz_status = st.session_state.get("latent_space_viz_status", "idle")
-
-    if viz_status == "running" or is_task_running("frontend_computation_task"):
-        st.spinner("🔬 Running UMAP/DBSCAN and preparing visualization...")
+    if viz_status == "running":
+        create_loading_spinner("🔬 Running UMAP/DBSCAN and preparing visualization...")
     elif viz_status == "completed" and st.session_state.get('latent_space_viz_results'):
         results_data = st.session_state.get('latent_space_viz_results')
-        # ... (rest of the plotting logic as before, using df_display_initial and results_data) ...
-        # Ensure to use marker_size_val for marker size
-        # fig.update_traces(marker=dict(size=marker_size_val))
-        # Example from before:
-        df_plot = df_display_initial.copy() # Use the initially loaded and validated df
+        df_plot = df_display_initial.copy()
         if len(df_plot) != len(results_data['embeddings_2d']):
             st.error("Data mismatch after computation. The number of items in the source data and computed results do not align. Please reload and recompute.")
-            st.session_state.latent_space_viz_status = "idle" # Reset to allow re-run
+            st.session_state.latent_space_viz_status = "idle"
             st.session_state.latent_space_viz_results = None
             return
-            
         df_plot['x'] = [item[0] for item in results_data['embeddings_2d']]
         df_plot['y'] = [item[1] for item in results_data['embeddings_2d']]
         df_plot['cluster'] = results_data['cluster_labels']
-        
         unique_clusters = np.unique(results_data['cluster_labels'])
         n_clusters = len(unique_clusters) - (1 if -1 in unique_clusters else 0)
         noise_points = np.sum(np.array(results_data['cluster_labels']) == -1)
-                
         st.write(f"**Clustering Results:** Found {n_clusters} clusters and {noise_points} noise points.")
-                
         fig = px.scatter(
             df_plot, x='x', y='y', color='cluster',
             hover_data=['path', 'caption'] if 'caption' in df_plot.columns else ['path'],
             title="Image Embeddings in 2D Latent Space (Colored by Cluster)",
             color_continuous_scale=px.colors.qualitative.Plotly 
         )
-        fig.update_traces(marker=dict(size=marker_size_val)) # Use the slider value
+        fig.update_traces(marker=dict(size=marker_size_val))
         fig.update_layout(width=800, height=600, xaxis_title="UMAP Dimension 1", yaxis_title="UMAP Dimension 2")
         st.plotly_chart(fig, use_container_width=True)
-                
         if st.checkbox("Show cluster details table"):
             for cluster_id_val in sorted(unique_clusters):
                 cluster_data_df = df_plot[df_plot['cluster'] == cluster_id_val]
                 cluster_label_text = "Noise points (unclustered)" if cluster_id_val == -1 else f"Cluster {cluster_id_val}"
                 st.write(f"**{cluster_label_text}:** {len(cluster_data_df)} images")
-                
-                # Display a few image paths or thumbnails from the cluster_data_df
                 if 'path' in cluster_data_df.columns:
                     paths_to_show = cluster_data_df['path'].head(min(3, len(cluster_data_df))).tolist()
                     if paths_to_show:
-                        # st.image can take a list of paths/URLs
-                        # st.image(paths_to_show, width=100) # This might not work well for many
                         img_cols = st.columns(len(paths_to_show))
                         for idx, img_p in enumerate(paths_to_show):
                             with img_cols[idx]:
@@ -254,114 +222,9 @@ def render_latent_space_tab():
                         st.caption("No image paths to display for this cluster.")
                 else:
                     st.caption("Path information not available in data for this cluster.")
-
-
     elif viz_status == "error":
         st.error(f"Error during visualization computation: {st.session_state.get('latent_space_viz_error_message', 'Unknown error')}")
         if st.button("Retry Computation"):
-             st.session_state.latent_space_viz_status = "idle" # Reset to allow re-run
-             st.experimental_rerun() # Or st.rerun() in newer Streamlit
-
+             st.session_state.latent_space_viz_status = "idle"
+             st.experimental_rerun()
     # No specific message if idle and data is loaded, button prompts to compute. 
-
-    # ==========================================================================
-    # START OF POTENTIALLY REDUNDANT/CONFLICTING PLOTTING BLOCK TO BE COMMENTED OUT
-    # ==========================================================================
-    # if st.session_state.latent_space_vectors:
-    #     # Pre-process data for Plotly
-    #     df_list = []
-    #     for i, vec_data in enumerate(st.session_state.latent_space_vectors):
-    #         path = vec_data.get('path', f"Unknown Path {i+1}")
-    #         filename = os.path.basename(path)
-    #         vector = vec_data.get('vector', []) # Should be a list/array
-            
-    #         # Handle cases where vector might not be 2D or 3D as expected by UMAP
-    #         # For now, assume UMAP in backend handled dimensionality reduction
-    #         # and service_api.get_all_vectors_for_latent_space returns appropriate vectors.
-            
-    #         # We expect 'vector' to already be the reduced 2D or 3D representation
-    #         if len(vector) == 2:
-    #             df_list.append({'x': vector[0], 'y': vector[1], 'path': path, 'filename': filename, 'id': vec_data.get('id', str(i))})
-    #         elif len(vector) == 3:
-    #             df_list.append({'x': vector[0], 'y': vector[1], 'z': vector[2], 'path': path, 'filename': filename, 'id': vec_data.get('id', str(i))})
-    #         else:
-    #             logger.warning(f"Vector for {filename} has unexpected dimension: {len(vector)}. Skipping for plot.")
-    #             continue # Skip this vector if not 2D or 3D
-
-    #     if not df_list:
-    #         st.info("No suitable vectors found to plot for latent space. Ensure backend processing provides 2D or 3D vectors.")
-    #         return
-
-    #     df = pd.DataFrame(df_list)
-
-    #     plot_3d = 'z' in df.columns
-        
-    #     hover_data_columns = ['filename'] # Base hover data
-        
-    #     # Construct figure
-    #     if plot_3d:
-    #         fig = px.scatter_3d(
-    #             df,
-    #             x='x', y='y', z='z',
-    #             color='id', # Color by ID or another categorical variable if available
-    #             hover_name='filename',
-    #             custom_data=['path', 'id'], # Pass path and ID for click events
-    #             title="Latent Space Visualization (3D)"
-    #         )
-    #         fig.update_traces(marker=dict(size=5))
-    #     else:
-    #         fig = px.scatter( # Ensure this line and its block are correctly indented
-    #             df,
-    #             x='x', y='y',
-    #             color='id',
-    #             hover_name='filename',
-    #             custom_data=['path', 'id'],
-    #             title="Latent Space Visualization (2D)"
-    #         )
-    #         fig.update_traces(marker=dict(size=8))
-
-    #     fig.update_layout(
-    #         margin=dict(l=0, r=0, b=0, t=40),
-    #         legend_title_text='Image ID',
-    #         # scene=dict(aspectmode='data') if plot_3d else None # Ensure proper aspect ratio for 3D
-    #     )
-    #     if plot_3d:
-    #          fig.update_layout(scene=dict(aspectmode='data'))
-
-
-    #     # Display the plot and handle click events
-    #     # Using st_plotly_events for click interactions
-    #     # Store the clicked point in session state to display image
-    #     # Note: Ensure `plotly_events` is robust or replace with `st_plotly_events` if available and preferred
-        
-    #     # Ensure unique key for plotly_events
-    #     # Assuming plotly_events is a valid function call; if not, this also needs to be addressed or removed.
-    #     # from streamlit_plotly_events import plotly_events # Ensure this import is present if used
-    #     selected_point = plotly_events(fig, click_event=True, hover_event=False, key="latent_space_plot_events")
-
-
-    #     if selected_point and selected_point[0]:
-    #         point_data = selected_point[0]
-            
-    #         # Find the corresponding image path from custom_data
-    #         # The custom_data for px.scatter is a list of lists if multiple columns are passed
-    #         # For a single click, selected_point[0] contains info about that point
-    #         # point_data['customdata'] will be a list like [path_val, id_val]
-            
-    #         clicked_path = None
-    #         if 'customdata' in point_data and isinstance(point_data['customdata'], list) and len(point_data['customdata']) > 0:
-    #             clicked_path = point_data['customdata'][0] # Assuming path is the first item in custom_data
-
-    #         if clicked_path:
-    #             st.session_state.selected_image_path_latent = clicked_path
-    #             st.session_state.selected_image_filename_latent = os.path.basename(clicked_path)
-    #         else:
-    #             logger.warning(f"Clicked point did not have expected customdata for path: {point_data}")
-    #             st.session_state.selected_image_path_latent = None
-    #             st.session_state.selected_image_filename_latent = None
-
-    # else: # if not st.session_state.latent_space_vectors:
-    #     st.info("Vector data not yet loaded. Click 'Load/Refresh Latent Space' above.")
-    # ========================================================================
-    # END OF POTENTIALLY REDUNDANT/CONFLICTING PLOTTING BLOCK
-    # ======================================================================== 

@@ -57,8 +57,10 @@
 ## Objective 7: Frontend Refactoring & Decoupling (New Objective)
 - [x] TASK-08-07-01: Refactor `frontend/components/sidebar/context_sidebar.py` to use `service_api.ingest_directory` for all folder processing/merging, removing direct `httpx` calls and local DB/model management.
 - [x] TASK-08-07-02: Implement `get_all_vectors_for_latent_space()` in `frontend/core/service_api.py` to fetch data for visualization from a new backend endpoint.
-- [x] TASK-08-07-03: Refactor `frontend/components/visualization/latent_space.py` to use `service_api.get_all_vectors_for_latent_space()` for data loading, performing UMAP/DBSCAN on frontend with fetched data.
-- [ ] TASK-08-07-04: Backend: Implement `GET /api/v1/vectors/all-for-visualization` endpoint in Ingestion Orchestration service to provide data for latent space explorer. (Assumed created for frontend integration, mark [x] if confirmed done by backend team)
+- [x] TASK-08-07-03: Refactor `frontend/components/visualization/latent_space.py` to use `service_api.get_all_vectors_for_latent_space()` for data loading, performing UMAP/DBSCAN on frontend with fetched data. **(Complete: UI is now consistent, accessible, and uses the design system.)**
+- [x] TASK-08-07-04: Backend: Implement `GET /api/v1/vectors/all-for-visualization` endpoint in Ingestion Orchestration service to provide data for latent space explorer. (Confirmed done.)
+- [x] TASK-08-07-05: Add batch embedding/captioning support to frontend via service_api.py.
+- [x] TASK-08-07-06: Optimize requirements.txt for only used dependencies.
 
 ## Objective 8: Documentation & Cleanup (Renumbered)
 All documentation and cleanup tasks have been deferred to the backlog for Sprint 09. See the backlog summary below.
@@ -75,7 +77,7 @@ See Sprint 08 README for detailed next steps on UI refactoring and polish.
 
 ---
 
-**Sprint 08 Complete**
+**Sprint 08 Complete: All frontend screens are now API-driven, stateless, accessible, and use the design system. Batch embedding/captioning is supported. requirements.txt is optimized. Remaining polish/testing tasks moved to backlog.**
 
 All core backend and frontend features for Qdrant integration, search, image listing, duplicate detection, random image selection, advanced filtering, UI polish, **and significant frontend refactoring for decoupling** have been implemented and verified. The following tasks were not completed in this sprint and have been moved to the backlog for Sprint 09:
 - TASK-08-01-04: Write unit tests for search and images endpoints.
