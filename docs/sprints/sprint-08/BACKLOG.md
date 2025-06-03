@@ -1,32 +1,29 @@
-# Sprint 08 Backlog
+# Sprint 09 Backlog (Items carried over from Sprint 08)
 
-This backlog captures all Sprint 07 carry-over tasks and new feature requests for Sprint 08.
-
----
-
-## High Priority
-- 🔹 Qdrant Integration: Replace placeholder search and list endpoints (`/api/v1/search`, `/api/v1/images`).
-- 🔹 Duplicate Detection: Backend endpoint and UI tab.
-- 🔹 Random Image: Backend endpoint and UI selector.
-- 🔹 Advanced Filtering & Sorting: UI controls and backend support.
-- 🔹 Pagination: Add robust pagination to `/images` endpoint and UI.
-- ✅ **Frontend Refactor & UI Polish: All UI screens (including latent_space.py) are now API-driven, stateless, accessible, and use the design system. Error handling and feedback are standardized.**
-
-## Medium Priority
-- 🔸 Error Handling: Improved error messages, standardized responses, retry mechanisms. **(Core work complete; further polish/testing can be addressed as needed.)**
-- 🔸 UI Polish: Design refinements, accessibility compliance, responsive layouts. **(Core work complete; further polish/testing can be addressed as needed.)**
-- 🔸 Loading/Progress Feedback: Skeleton screens, `st.spinner`, `st.progress` placeholders. **(Core work complete.)**
-- 🔸 Session State Cleanup: Audit and remove deprecated `st.session_state` keys.
-- 🔸 Docker Strategy Update: For local development/testing, Docker Compose will now primarily manage Qdrant. FastAPI services (ML inference, Ingestion orchestration) will be run manually. This simplifies local setup while ensuring services can communicate via localhost/network.
-
-## Low Priority
-- ⚪ Legacy Module Removal: Deprecate and remove `core/fast_startup_manager.py` and `utils/embedding_cache.py`.
-- ⚪ MVP App Refactor: Clean up or remove `scripts/mvp_app.py` features not using service_api.
-- ⚪ Performance Testing: Benchmark with realistic large datasets and optimize if needed.
-- ⚪ E2E Tests: Develop additional end-to-end tests for complex user flows.
-- ⚪ API Documentation: Auto-generate Swagger/OpenAPI docs for new endpoints.
-- ⚪ Architecture Diagrams Update: Refresh diagrams in `/docs/architecture.md`.
+This backlog outlines tasks carried over from Sprint 08 and planned for Sprint 09. Sprint 08 focused on Qdrant integration, key feature delivery (duplicate detection UI, random image, advanced filtering/sorting UI), and a major frontend refactor to make UI screens API-driven and stateless.
 
 ---
 
-**Note**: Prioritize high-priority items in Weeks 1–2, then address medium items in Week 3, and low priority as time allows in Week 4. 
+## High Priority (Testing & Core Functionality Finalization)
+- ⚪ TASK-08-02-02: Full implementation of duplicate detection algorithm (backend).
+- ⚪ TASK-08-01-04: Write unit tests for `/api/v1/search` and `/api/v1/images` endpoints.
+- ⚪ TASK-08-02-05: Develop integration tests for duplicate detection flow (UI to backend).
+- ⚪ TASK-08-03-05: Write unit and integration tests for random image endpoint and UI component.
+- ⚪ TASK-08-04-04: Write tests for filter logic and UI behavior under edge cases.
+- ⚪ TASK-08-06-01: Expand integration tests for full UI → API → Qdrant roundtrip (manual FastAPI, Qdrant via Docker).
+- ⚪ TASK-08-06-02: Develop end-to-end tests with Playwright for critical user flows (search, duplicates, random, filtering).
+- ⚪ TASK-08-06-03: Add negative tests for invalid parameters and no-data scenarios.
+
+## Medium Priority (Stability & Performance Verification)
+- ⚪ TASK-08-06-04: Benchmark performance of key endpoints with `pytest-benchmark` and analyze with `nsys`.
+- ⚪ Address any remaining UI polish or minor bug fixes identified during Sprint 08 testing and carry-over.
+
+## Low Priority (Documentation & Cleanup - Deferred from Sprint 08)
+- ⚪ Legacy Module Removal: Review and potentially deprecate/remove `core/fast_startup_manager.py` and `utils/embedding_cache.py` if fully superseded by new architecture.
+- ⚪ MVP App Refactor: Review and potentially clean up or remove `scripts/mvp_app.py` features not using `service_api.py`.
+- ⚪ API Documentation: Auto-generate/update Swagger/OpenAPI docs for new/changed endpoints from Sprint 08.
+- ⚪ Architecture Diagrams Update: Refresh diagrams in `/docs/architecture.md` to reflect Sprint 08 changes (API-driven frontend, FastAPI services, Qdrant).
+
+---
+
+**Note**: This backlog is based on the outcomes and pending items from Sprint 08, as detailed in `docs/sprints/sprint-08/TASK_BREAKDOWN.md`. It will form the basis for Sprint 09 planning. 

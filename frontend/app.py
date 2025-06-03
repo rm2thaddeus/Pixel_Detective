@@ -12,6 +12,9 @@ Smart 3-screen progressive UX - FAST_UI → LOADING → ADVANCED_UI
 # ===== MINIMAL STARTUP IMPORTS ONLY =====
 import streamlit as st
 import asyncio 
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 # Set page config as the absolute first command (before ANY other Streamlit calls)
 # This should only be called once per app.

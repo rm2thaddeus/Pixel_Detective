@@ -24,15 +24,23 @@ Pixel Detective now features a completely redesigned user experience with a **un
 
 ## 🛠️ Technical Architecture
 
-### Component System (NEW)
+### Component System (NEW - Refined in Sprint 08)
 ```
-components/
-├── search/           # Text search, image search, AI games, duplicates
-├── visualization/    # UMAP, DBSCAN, interactive plots  
-└── sidebar/         # Context-aware sidebar content
+frontend/
+├── components/
+│   ├── search/           # Text search, image search, AI games, duplicates UI
+│   ├── visualization/    # UMAP (API-driven), interactive plots
+│   └── sidebar/         # Context-aware sidebar content, including adv. filters
+├── core/service_api.py # Central API client for all backend communication
+└── screens/            # API-driven Streamlit screens (fast_ui, loading, advanced_ui)
+
+backend/
+├── ml_inference_fastapi_app/    # Handles ML model inference (CLIP, BLIP)
+└── ingestion_orchestration_fastapi_app/ # Handles data ingestion, Qdrant interaction, other core logic
+
 ```
 
-### Screen Architecture
+### Screen Architecture (API-Driven)
 ```
 screens/
 ├── fast_ui_screen.py     # ✅ Simplified & user-focused  
@@ -47,9 +55,9 @@ screens/
   - Metadata-aware search (e.g., "camera:canon iso:100")
   - Soft constraint filtering that boosts relevance without restricting results
   - RRF (Reciprocal Rank Fusion) for optimal result ranking
-- **AI-Powered Image Search**: Search your image collection using natural language queries
-- **Automatic Image Captioning**: Generate high-quality captions for all your images using BLIP
-- **Semantic Understanding**: Extract meaningful concepts and tags from your images using CLIP
+- **AI-Powered Image Search**: Search your image collection using natural language queries (via Qdrant & ML backend)
+- **Automatic Image Captioning**: Generate high-quality captions for all your images using BLIP (via ML backend)
+- **Semantic Understanding**: Extract meaningful concepts and tags from your images using CLIP (via ML backend)
 - **Comprehensive Metadata Extraction**: Extract and index 80+ metadata fields from EXIF/XMP data
   - Camera settings (aperture, ISO, focal length, etc.)
   - Geographic information (GPS coordinates, location names)
@@ -58,13 +66,16 @@ screens/
   - Custom tags and keywords
 - **RAW/DNG Support**: Full support for DNG (RAW) images. DNG files are processed for both CLIP embeddings and BLIP captions using rawpy and PIL interoperability.
 - **GPU Acceleration**: Optimized to run efficiently on consumer GPUs (6GB VRAM minimum recommended)
-- **Interactive UI**: User-friendly Streamlit interface with **unified 3-screen experience**
-- **Latent Space Explorer**: Visualize image embeddings in 2D using UMAP with interactive clustering
-- **AI Games**: Interactive photo guessing games and challenges
+- **Interactive UI**: User-friendly Streamlit interface with **unified 3-screen experience, now fully API-driven**
+- **Latent Space Explorer**: Visualize image embeddings in 2D using UMAP (data via API, UMAP on frontend) with interactive clustering
+- **AI Games**: Interactive photo guessing games and challenges (API-driven)
+- **Duplicate Detection**: UI to identify and manage duplicate images (backend algorithm finalization in S09)
+- **Random Image Selection**: UI and API to fetch and display random images
+- **Advanced Filtering & Sorting**: UI controls in sidebar for refining image lists
 
 ## 🔍 Enhanced Search Capabilities
 
-Pixel Detective features a sophisticated hybrid search system that intelligently combines:
+Pixel Detective features a sophisticated hybrid search system powered by Qdrant and backend FastAPI services:
 
 1. **Vector Similarity Search**: Semantic understanding of image content using CLIP embeddings
 2. **Metadata Filtering**: Precise filtering based on extracted EXIF/XMP metadata
@@ -122,11 +133,12 @@ python -c "import torch; print(torch.__version__); print(torch.version.cuda); pr
 **Qdrant Vector Database Required for Metadata-Based Filtering and Hybrid Search:**
 - For advanced search features (metadata-based filtering, hybrid vector+metadata search), you must have the Qdrant vector database running locally or remotely. The easiest way is via Docker:
 ```
-docker run -p 6333:6333 qdrant/qdrant
+docker run -p 6333:6333 -p 6334:6334 qdrant/qdrant
 ```
-- If Qdrant is not running, these features will not work and you may see errors or missing results in the UI.
+- Backend FastAPI services (`ml_inference_fastapi_app` and `ingestion_orchestration_fastapi_app`) also need to be running. See their respective `README.md` files in the `backend/` directory for startup instructions.
+- If Qdrant or backend services are not running, features will not work and you may see errors or missing results in the UI.
 
-The following packages are required to run this application (see `docs/current_requirements.txt` for full list):
+The following packages are required to run this application (see `requirements.txt` in `frontend/` and `backend/` directories for specific service dependencies):
 
 ```
 torch==2.7.0+cu118
@@ -197,7 +209,24 @@ python scripts/mvp_app.py --folder "C:\Users\aitor\OneDrive\Escritorio\test imag
 
 ## 🚧 Development Status
 
-**Current Status: Sprint 01 ✅ COMPLETED**
+**Current Status: Sprint 08 ✅ COMPLETED**
+
+### ✅ **Sprint 08: Qdrant Integration & Frontend Decoupling**
+**COMPLETED** - Successfully integrated Qdrant, delivered key new features, and refactored frontend to be API-driven.
+
+**Key Achievements:**
+- ✅ **Qdrant Integration**: Replaced placeholder search/list with Qdrant-powered APIs (`/api/v1/search`, `/api/v1/images`).
+- ✅ **New Features (UI & Core API an Frontend Logic)**:
+    - Duplicate Detection (UI complete, backend algorithm finalization pending in S09).
+    - Random Image selection.
+    - Advanced Filtering & Sorting UI and backend support.
+- ✅ **Major Frontend Refactor**:
+    - All UI screens are now API-driven via `frontend/core/service_api.py`.
+    - UI is stateless, enhancing predictability and maintainability.
+    - `frontend/components/visualization/latent_space.py` refactored to use API data.
+    - Standardized error handling and loading states for new components.
+- ✅ **Backend Services**: Established FastAPI services for ML inference and ingestion/orchestration.
+- ✅ **Optimized `requirements.txt`** for frontend and backend services.
 
 ### ✅ **Sprint 01: UI/UX Architecture Integration** 
 **COMPLETED** - Successfully unified dual UI systems into clean 3-screen architecture
@@ -209,29 +238,31 @@ python scripts/mvp_app.py --folder "C:\Users\aitor\OneDrive\Escritorio\test imag
 - ✅ **Component Architecture** - Extracted and organized sophisticated components
 - ✅ **Performance Maintained** - <1s startup preserved throughout transformation
 
-### 🔜 **Sprint 02: Visual Design System** 
-**READY TO START** - Polish visual design and user experience
+### 🔜 **Sprint 09: Testing, Stabilization & Final Polish** 
+**UP NEXT** - Focus on ensuring system robustness, completing pending items, and documentation.
 
 **Planned Focus:**
-- 🎨 **Custom CSS** for consistent styling across all screens
-- ✨ **Smooth transitions** between the 3 screens
-- 🎭 **Animation & micro-interactions** for enhanced UX
-- 📱 **Mobile responsiveness** testing and optimization
+- 🧪 **Comprehensive Testing**: Unit, integration, and E2E tests for Sprint 08 features and core system.
+- ⚙️ **Finalize Duplicate Detection**: Implement the full backend algorithm for duplicate detection.
+- 📊 **Performance Benchmarking**: Validate API latencies and UI responsiveness.
+- 📄 **Documentation Overhaul**: Update `README.md`, `roadmap.md`, `architecture.md`, and API docs.
+- ✨ **Bug Fixing & Polish**: Address issues found during testing.
 
-**Recently Completed ✅**
-- **Unified Architecture**: Single 3-screen system with integrated sophisticated components
-- **User Experience Transformation**: From technical to welcoming and engaging
-- **Component Integration**: All advanced features accessible with graceful fallbacks
-- **Performance Optimization**: <1s startup maintained with improved UX
+**Recently Completed (Sprint 08) ✅**
+- Qdrant integration for search and image listing.
+- New features: Duplicate Detection UI, Random Image, Advanced Filtering & Sorting.
+- Major frontend refactor: API-driven, stateless UI, `service_api.py` centralization.
+- `latent_space.py` refactor to be API-driven.
 
-**Coming Next 🔄**
-- Visual design polish and consistency
-- Smooth screen transitions and animations
-- Mobile responsiveness improvements
-- Advanced interaction patterns
+**Coming Next (Sprint 09) 🔄**
+- Full testing suite implementation.
+- Completion of duplicate detection backend.
+- Documentation updates.
+- Performance validation and final polish.
 
 For detailed development plans, see:
-- [`docs/SPRINT_STATUS.md`](SPRINT_STATUS.md) - Current sprint tracking
-- [`docs/sprints/sprint-01/`](sprints/sprint-01/) - Sprint 01 complete documentation
-- [`docs/roadmap.md`](roadmap.md) - Long-term development roadmap
-- [`docs/architecture.md`](architecture.md) - Technical architecture details
+- [`docs/PROJECT_STATUS.md`](./docs/PROJECT_STATUS.md) - Current overall project status
+- [`docs/sprints/sprint-08/BACKLOG.md`](./docs/sprints/sprint-08/BACKLOG.md) - Backlog for Sprint 09
+- [`docs/sprints/sprint-08/`](./docs/sprints/sprint-08/) - Sprint 08 complete documentation
+- [`docs/roadmap.md`](./docs/roadmap.md) - Long-term development roadmap (to be updated for S09)
+- [`docs/architecture.md`](./docs/architecture.md) - Technical architecture details (to be updated for S08 changes)

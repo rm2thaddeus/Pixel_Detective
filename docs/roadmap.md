@@ -23,153 +23,107 @@ This roadmap outlines the development priorities for Pixel Detective, organized 
 
 ---
 
-## 🚀 **Sprint 02: Visual Design System**
-*Priority: High - Polish and Consistency*
-*Timeline: 2 weeks*
+## ✅ **Sprint 02 - Sprint 07: Incremental Development & Foundational Work**
+*Status: Summarized as complete leading to Sprint 08 capabilities*
+
+### **Key Achievements (S02-S07)** ✅
+- Progressive feature enhancements based on initial architecture.
+- Development of core AI functionalities (CLIP, BLIP integrations - later moved to backend services).
+- Iterative UI improvements and component development.
+- Initial Qdrant exploration and performance optimizations.
+*(Specific sprint details for S02-S07 can be found in their respective archived documentation if available, this roadmap now focuses on S08 onwards due to significant architectural shifts.)*
+
+---
+
+## ✅ **Sprint 08 COMPLETED: Qdrant Integration & Frontend Decoupling**
+*Status: Successfully completed - Major architectural overall and feature delivery*
+
+### **Sprint Achievements** ✅
+- **Qdrant Integration**: Fully integrated Qdrant for `/api/v1/search` and `/api/v1/images` endpoints, replacing placeholder logic.
+- **New Feature Delivery (UI & Core Logic)**:
+    - Duplicate Detection: UI functional, displays groups; backend algorithm finalization for S09.
+    - Random Image Selection: Fully functional UI and API.
+    - Advanced Filtering & Sorting: UI controls and backend support for enhanced image listing.
+- **Major Frontend Refactor**: 
+    - All UI screens are now API-driven via `frontend/core/service_api.py`.
+    - UI is stateless, improving maintainability and predictability.
+    - `frontend/components/visualization/latent_space.py` refactored to be API-driven using a new `/api/v1/vectors/all-for-visualization` backend endpoint.
+- **Backend Services Established**: FastAPI services for ML inference (`ml_inference_fastapi_app`) and ingestion/orchestration (`ingestion_orchestration_fastapi_app`) are now core components.
+- **Standardized UI Elements**: Improved error handling, loading states (spinners, progress) for new/refactored S08 components.
+- **Dependency Management**: Optimized `requirements.txt` for both frontend and backend services.
+
+### **Completed Deliverables** ✅
+- [x] Functional Qdrant-powered search and image listing APIs and UI integration.
+- [x] UI for Duplicate Detection, Random Image, Advanced Filtering & Sorting.
+- [x] Fully refactored, API-driven, and stateless frontend architecture.
+- [x] Established FastAPI backend services for core operations.
+- [x] Detailed Sprint 08 documentation (`PRD.md`, `TASK_BREAKDOWN.md`).
+
+---
+
+## 🚀 **Sprint 09: Testing, Stabilization & Final Polish**
+*Priority: High - Ensure production readiness*
+*Timeline: Approx. 2-3 weeks (estimate)*
 
 ### **Sprint Goals**
-- Implement consistent visual design system across all 3 screens
-- Add smooth transitions and animations between screens  
-- Ensure mobile responsiveness and accessibility
-- Polish micro-interactions and user feedback
+- Achieve high confidence in system stability and correctness through comprehensive testing.
+- Complete all pending development tasks from Sprint 08, primarily the duplicate detection backend.
+- Update all key project documentation to reflect the current state of the application.
+- Perform final polish and address any critical/high-priority bugs identified.
+
+### **Key Tasks (from Sprint 09 Backlog - `docs/sprints/sprint-08/BACKLOG.md`)**
+
+#### **Week 1-2: Core Testing & Development Finalization**
+- **Core Functionality Finalization**
+  - [ ] TASK-08-02-02: Full implementation of duplicate detection algorithm (backend).
+- **Unit & Integration Testing**
+  - [ ] TASK-08-01-04: Write unit tests for `/api/v1/search` and `/api/v1/images` endpoints.
+  - [ ] TASK-08-02-05: Develop integration tests for duplicate detection flow (UI to backend).
+  - [ ] TASK-08-03-05: Write unit and integration tests for random image endpoint and UI component.
+  - [ ] TASK-08-04-04: Write tests for filter logic and UI behavior under edge cases.
+  - [ ] TASK-08-06-01: Expand integration tests for full UI → API → Qdrant roundtrip.
+- **End-to-End Testing**
+  - [ ] TASK-08-06-02: Develop end-to-end tests with Playwright for critical user flows.
+  - [ ] TASK-08-06-03: Add negative tests for invalid parameters and no-data scenarios.
+
+#### **Week 2-3: Performance, Documentation & Polish**
+- **Performance & Stability**
+  - [ ] TASK-08-06-04: Benchmark performance of key endpoints (`pytest-benchmark`, `nsys`).
+  - [ ] Address any remaining UI polish or minor bug fixes identified.
+- **Documentation Overhaul**
+  - [ ] Update `README.md` (if further changes needed post this revision).
+  - [ ] Update `docs/architecture.md` to reflect S08 FastAPI/Qdrant architecture.
+  - [ ] Update/Auto-generate Swagger/OpenAPI docs for Sprint 08 APIs.
+  - [ ] Update `CHANGELOG.md` for Sprint 08 release.
+- **Cleanup (Low Priority)**
+  - [ ] Review legacy modules (`core/fast_startup_manager.py`, `utils/embedding_cache.py`).
+  - [ ] Review `scripts/mvp_app.py` for cleanup.
 
 ---
 
-### **Week 1: Visual Design Foundation**
+## 🎯 **Sprint 09 Success Criteria**
 
-#### **2.1 Custom CSS System**
-**Objective:** Consistent styling across all screens and components
-- [ ] **Design System Creation**
-  - Define color palette, typography, spacing standards
-  - Create custom CSS variables for consistency
-  - Implement dark/light theme support
-- [ ] **Screen-Specific Styling**
-  - Screen 1: Clean, welcoming folder selection design
-  - Screen 2: Engaging progress with visual excitement
-  - Screen 3: Professional, sophisticated interface styling
-- [ ] **Component Visual Consistency**
-  - Consistent button styles, input fields, cards
-  - Unified icon system and visual hierarchy
-  - Responsive grid layouts
-
-#### **2.2 Smooth Screen Transitions**
-**Objective:** Seamless flow between the 3 screens
-- [ ] **Transition Animations**
-  - Smooth fade/slide transitions between screens
-  - Loading state animations for better perceived performance
-  - Progress indicators that feel natural and engaging
-- [ ] **State Preservation**
-  - Maintain visual context during transitions
-  - Smooth data handoff between screens
-  - No jarring UI resets or flickering
-
----
-
-### **Week 2: Interactions & Polish**
-
-#### **2.3 Micro-Interactions & Feedback**
-**Objective:** Delightful user interactions and clear feedback
-- [ ] **Interactive Elements**
-  - Hover states, button press feedback
-  - Form validation with real-time feedback
-  - Search result animations and highlights
-- [ ] **Loading & Progress**
-  - Skeleton screens for loading states
-  - Smooth progress bar animations
-  - Contextual loading messages
-- [ ] **Error Handling Design**
-  - User-friendly error messages with clear actions
-  - Graceful degradation visual patterns
-  - Recovery flows that guide users
-
-#### **2.4 Mobile & Accessibility**
-**Objective:** Responsive design and inclusive experience
-- [ ] **Mobile Responsiveness**
-  - Touch-friendly interface for tablets/phones
-  - Responsive layouts for all screen sizes
-  - Mobile-optimized navigation patterns
-- [ ] **Accessibility Improvements**
-  - ARIA labels and semantic HTML
-  - Keyboard navigation support
-  - Color contrast and text scaling
-- [ ] **Performance Optimization**
-  - Optimized asset loading and caching
-  - Reduced CSS/JS bundle sizes
-  - Progressive enhancement patterns
-
----
-
-## 🎯 **Sprint 02 Success Criteria**
-
-### **Visual Quality Targets**
-- [ ] **Design Consistency**: Unified visual language across all screens
-- [ ] **Smooth Transitions**: <300ms screen transitions, no UI jank
-- [ ] **Mobile Experience**: Fully functional on tablets and phones
-- [ ] **Accessibility**: WCAG 2.1 AA compliance
-
-### **User Experience Quality**
-- [ ] **Polish Level**: Production-ready visual experience
-- [ ] **Feedback Clarity**: All user actions have clear visual feedback
-- [ ] **Error Recovery**: Users can recover from all error states
+### **Quality & Stability Targets**
+- [ ] **Test Coverage**: Significant increase in unit, integration, and E2E test coverage for S08 features.
+- [ ] **Duplicate Detection**: Backend algorithm implemented and validated.
+- [ ] **Bug Resolution**: All critical/high priority bugs identified during S09 are resolved.
+- [ ] **Documentation**: Key project documents (`README.md`, `architecture.md`, `CHANGELOG.md`, API docs) are accurate and up-to-date.
 
 ### **Performance Targets**
-- [ ] **Visual Performance**: 60fps animations, smooth interactions
-- [ ] **Load Time**: CSS/JS optimized for fast initial load
-- [ ] **Startup Maintained**: <1s startup preserved throughout visual changes
+- [ ] **API Latency**: Key S08 endpoints (search, list) meet <200ms average response target under benchmark conditions.
+- [ ] **UI Responsiveness**: Maintain >30 FPS during typical user interactions.
 
----
+--- 
 
-## 📅 **Future Sprints**
+## 📅 **Future Sprints (Post Sprint 09)**
 
-### **Sprint 03: Advanced Features Enhancement**
-*Timeline: 3-4 weeks*
+Planning for Sprint 10 and beyond will commence after the successful completion and review of Sprint 09. Future work may include:
+- Further Enterprise CLI enhancements.
+- Advanced AI-driven features or model updates.
+- Scalability improvements for larger datasets or user loads (e.g., Qdrant clustering, cloud deployment patterns).
+- User-requested features and enhancements based on feedback.
 
-#### **Enterprise CLI Enhancements** 
-- [ ] **Large Collection Optimization** (100k+ images)
-  - Advanced progress tracking with ETA calculations
-  - Resume functionality for interrupted processing
-  - Database sharding for massive collections
-  - Parallel embedding computation across multiple GPUs
-- [ ] **Professional Workflow Integration**
-  - Export/import functionality for embedding databases
-  - Custom metadata field extraction and indexing
-  - Integration with photo management software (Lightroom, CaptureOne)
-  - Automated quality assessment and filtering
-
-#### **Search Experience Polish**
-- [ ] Advanced search UI with filters and suggestions
-- [ ] Real-time search results with infinite scroll
-- [ ] Search history and saved queries
-- [ ] Advanced result sorting and filtering
-
-#### **AI Games & Interaction**
-- [ ] Enhanced AI guessing game with scoring
-- [ ] Interactive challenges and achievements
-- [ ] Social features for sharing discoveries
-- [ ] Leaderboards and progress tracking
-
-### **Sprint 04: Enterprise & Scalability**
-*Timeline: 3-4 weeks*
-
-#### **Industrial Scale Processing**
-- [ ] **Multi-Machine Processing**: Distributed processing across multiple servers
-- [ ] **Cloud Integration**: S3/GCS support for massive image storage
-- [ ] **Database Clustering**: Qdrant cluster setup for enterprise deployments
-- [ ] **API Development**: REST API for programmatic access
-
-#### **Large Collection Support**
-- [ ] Virtual scrolling for large result sets
-- [ ] Progressive image loading strategies
-- [ ] Background processing optimization
-- [ ] Memory usage optimization
-
-#### **Advanced Analytics**
-- [ ] Collection insights and statistics
-- [ ] Search analytics and recommendations
-- [ ] Usage patterns and optimization
-- [ ] Performance monitoring dashboard
-
----
+--- 
 
 ## 🏆 **Long-term Vision (3+ Months)**
 
@@ -195,6 +149,13 @@ This roadmap outlines the development priorities for Pixel Detective, organized 
 - [x] **Screen Transformations**: User-focused design with engaging progress
 - [x] **Performance Preservation**: <1s startup maintained throughout
 - [x] **Graceful Integration**: Sophisticated features with fallback handling
+
+### **Sprint 08: Qdrant Integration & Frontend Decoupling** *(Newly Completed)*
+- [x] **Qdrant-Powered APIs**: For search and image listing.
+- [x] **New Features UI**: Duplicate Detection (UI), Random Image, Advanced Filters.
+- [x] **Frontend Refactor**: Fully API-driven and stateless UI via `service_api.py`.
+- [x] **Backend Services**: FastAPI for ML and ingestion/orchestration.
+- [x] **`latent_space.py` Refactor**: API-driven visualization data.
 
 ### **Foundation & Performance** *(Previously Completed)*
 - [x] **Lightning Startup**: <1s application startup time
