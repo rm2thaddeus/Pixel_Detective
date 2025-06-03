@@ -10,10 +10,6 @@ Smart 3-screen progressive UX - FAST_UI → LOADING → ADVANCED_UI
 """
 
 # ===== MINIMAL STARTUP IMPORTS ONLY =====
-import os
-import sys
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-
 import streamlit as st
 import asyncio 
 
@@ -28,22 +24,13 @@ if not hasattr(st, '_page_config_set'):
     )
     st._page_config_set = True
 
-
 # ===== IMPORT THE NEW ARCHITECTURE =====
 from core.screen_renderer import render_app 
-from core.fast_startup_manager import get_fast_startup_manager 
-# from core.app_state import AppStateManager # AppStateManager is used by ScreenRenderer
 
 # ===== MAIN APPLICATION =====
 async def main_async(): 
     """Main application with smart 3-screen UX flow"""
     try:
-        # Initialize FastStartupManager to start any background tasks it's designed for (e.g., service checks)
-        # Assuming get_fast_startup_manager() or a method it calls internally starts its non-UI work.
-        # If FSM needs an explicit start for its background tasks without rendering UI:
-        fsm = get_fast_startup_manager()
-        # fsm.start_background_tasks_only() # Hypothetical method if FSM is refactored
-
         # ScreenRenderer handles all UI rendering and state transitions
         await render_app() 
         
@@ -67,7 +54,4 @@ async def main_async():
 
 # Start the smart 3-screen UX app!
 if __name__ == "__main__":
-    # Initialize core app state here if not handled by ScreenRenderer's first call
-    # AppStateManager.init_session_state() # Ensure this is called once. ScreenRenderer also calls it.
-                                        # It's idempotent, so calling it here is safe too.
     asyncio.run(main_async()) 

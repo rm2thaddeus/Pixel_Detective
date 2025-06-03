@@ -8,7 +8,6 @@ import plotly.express as px
 import umap
 from sklearn.cluster import DBSCAN
 from utils.logger import logger
-from components.task_orchestrator import submit as submit_task, is_running as is_task_running
 from core import service_api
 import asyncio
 import os

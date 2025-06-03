@@ -22,7 +22,7 @@ import random
 from utils.logger import logger
 # from utils.metadata_extractor import extract_metadata # REMOVED: If not used directly by UI after LazySessionManager removal
 # from utils.lazy_session_state import LazySessionManager # REMOVED
-from components.task_orchestrator import submit as submit_task, is_running as is_task_running
+# from components.task_orchestrator import submit as submit_task, is_running as is_task_running
 # from core.optimized_model_manager import OptimizedModelManager # REMOVED
 from streamlit_extras.switch_page_button import switch_page # Keep if used
 from core import service_api
@@ -346,11 +346,7 @@ def render_guessing_game_tab():
                 st.session_state[AI_GUESS_TASK_KEY] = "running"
                 logger.info(f"Submitting AI guess task for: {current_image_path}")
                 # Task orchestrator runs the function in a separate thread
-                submit_task(
-                    name="ai_guess_processing_task", # Use a more descriptive name for orchestrator
-                    fn=_run_ai_guess_task,
-                    image_path_for_guess=current_image_path
-                )
+                _run_ai_guess_task(current_image_path)
                 st.rerun() 
 
         if st.session_state[AI_GUESS_TASK_KEY] == "running" or is_task_running("ai_guess_processing_task"):
