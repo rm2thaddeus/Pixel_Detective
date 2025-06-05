@@ -12,8 +12,10 @@ import os
 import logging
 import streamlit as st
 import base64 # New import
+import json
+from utils.logger import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # Configuration for backend services - these should ideally come from environment variables
 # For example: os.environ.get("ML_INFERENCE_SERVICE_URL", "http://localhost:8001/api/v1")
@@ -120,29 +122,31 @@ async def batch_embed_and_caption(images: list):
 
 # --- Ingestion Orchestration Service Endpoints ---
 
-async def ingest_directory(path: str):
+async def start_ingestion(folder_path: str):
     """
-    Triggers directory ingestion via the Ingestion Orchestration service.
-    
-    Args:
-        path: The directory path to ingest.
-        
-    Returns:
-        A dictionary with the job ID and status or an error response.
+    Starts the ingestion process for a given folder.
+    Corresponds to POST /api/v1/ingest in the backend.
     """
     client = get_async_client()
+    payload = {"directory_path": folder_path}
+    url = f"{INGESTION_ORCHESTRATION_URL}/ingest/"
+    
+    logger.info(f"Requesting ingestion start for folder: {folder_path}")
+    logger.debug(f"POST {url} with payload: {payload}")
+
     try:
-        response = await client.post(f"{INGESTION_ORCHESTRATION_URL}/ingest/", json={"directory_path": path})
+        response = await client.post(url, json=payload)
         response.raise_for_status()
-        return response.json() # Expected: {"job_id": "some_id", "status": "started", "message": "..."}
+        logger.info(f"Ingestion started successfully for {folder_path}. Response: {response.status_code}")
+        return response.json()
     except httpx.HTTPStatusError as e:
-        logger.error(f"HTTP error calling ingestion service to ingest directory: {e} - Response: {e.response.text}")
+        logger.error(f"HTTP error starting ingestion: {e.response.status_code} - {e.response.text}", exc_info=True)
         return {"error": str(e), "status_code": e.response.status_code, "detail": e.response.json() if e.response.content else None}
     except httpx.RequestError as e:
-        logger.error(f"Request error calling ingestion service to ingest directory: {e}")
+        logger.error(f"Request error starting ingestion: {e}", exc_info=True)
         return {"error": str(e), "status_code": None}
     except Exception as e:
-        logger.error(f"Unexpected error ingesting directory: {e}")
+        logger.critical(f"Unexpected error in start_ingestion: {e}", exc_info=True)
         return {"error": str(e)}
 
 async def get_ingestion_status(job_id: str):
@@ -156,18 +160,21 @@ async def get_ingestion_status(job_id: str):
         A dictionary with the job status or an error response.
     """
     client = get_async_client()
+    url = f"{INGESTION_ORCHESTRATION_URL}/ingest/status/{job_id}"
+    logger.debug(f"Polling ingestion status: GET {url}")
     try:
-        response = await client.get(f"{INGESTION_ORCHESTRATION_URL}/ingest/status/{job_id}")
+        response = await client.get(url)
         response.raise_for_status()
-        return response.json() # Expected: {"job_id": job_id, "status": "processing/completed/failed", "progress": ..., "details": ...}
+        logger.debug(f"Ingestion status for job {job_id}: {response.json()}")
+        return response.json()
     except httpx.HTTPStatusError as e:
-        logger.error(f"HTTP error getting ingestion status for job {job_id}: {e} - Response: {e.response.text}")
+        logger.error(f"HTTP error getting ingestion status for job {job_id}: {e.response.status_code} - {e.response.text}", exc_info=True)
         return {"error": str(e), "status_code": e.response.status_code, "detail": e.response.json() if e.response.content else None}
     except httpx.RequestError as e:
-        logger.error(f"Request error getting ingestion status for job {job_id}: {e}")
+        logger.error(f"Request error getting ingestion status for job {job_id}: {e}", exc_info=True)
         return {"error": str(e), "status_code": None}
     except Exception as e:
-        logger.error(f"Unexpected error getting ingestion status: {e}")
+        logger.critical(f"Unexpected error in get_ingestion_status: {e}", exc_info=True)
         return {"error": str(e)}
 
 async def search_images_by_text(query: str, top_k: int = 10):
@@ -228,25 +235,37 @@ async def search_images_by_image(image_bytes: bytes, top_k: int = 10):
 
 # --- Other potential API calls as needed by the UI ---
 
-async def get_processed_images(page: int = 1, limit: int = 20):
+async def get_processed_images(page: int = 1, limit: int = 10, sort_by: str = None, sort_order: str = "asc", filters: dict = None):
     """
-    Retrieves a paginated list of processed images from the Ingestion Orchestration service.
-    (As per UI-07-01 in TASK_BREAKDOWN.md)
+    Retrieves a paginated list of processed images from the backend.
+    Corresponds to GET /images in the backend.
     """
     client = get_async_client()
+    params = {
+        "page": page,
+        "per_page": limit,
+        "sort_by": sort_by,
+        "sort_order": sort_order,
+        "filters": json.dumps(filters) if filters else None,
+    }
+    params = {k: v for k, v in params.items() if v is not None}
+    url = f"{INGESTION_ORCHESTRATION_URL}/images"
+    logger.debug(f"Requesting processed images: GET {url} with params: {params}")
+
     try:
-        response = await client.get(f"{INGESTION_ORCHESTRATION_URL}/images/", params={"page": page, "limit": limit})
+        response = await client.get(url, params=params)
         response.raise_for_status()
-        return response.json() # Expected: {"images": [...], "total": ..., "page": ..., "limit": ...}
+        logger.debug("Successfully retrieved processed images.")
+        return response.json()
     except httpx.HTTPStatusError as e:
-        logger.error(f"HTTP error getting processed images: {e} - Response: {e.response.text}")
-        return {"error": str(e), "status_code": e.response.status_code, "detail": e.response.json() if e.response.content else None, "images": []}
+        logger.error(f"HTTP error getting processed images: {e.response.status_code} - {e.response.text}", exc_info=True)
+        return {"error": str(e), "detail": e.response.json() if e.response.content else None}
     except httpx.RequestError as e:
-        logger.error(f"Request error getting processed images: {e}")
-        return {"error": str(e), "status_code": None, "images": []}
+        logger.error(f"Request error getting processed images: {e}", exc_info=True)
+        return {"error": str(e)}
     except Exception as e:
-        logger.error(f"Unexpected error getting processed images: {e}")
-        return {"error": str(e), "images": []}
+        logger.critical(f"Unexpected error getting processed images: {e}", exc_info=True)
+        return {"error": str(e)}
 
 # --- New Qdrant-backed Endpoints (Sprint 08) ---
 
@@ -445,7 +464,7 @@ async def _test_main():
 
         # Use absolute path for ingestion to avoid issues with backend's CWD
         ingest_dir_absolute_path = os.path.abspath("test_images_to_ingest")
-        ingest_response = await ingest_directory(ingest_dir_absolute_path)
+        ingest_response = await start_ingestion(ingest_dir_absolute_path)
         print(f"Ingest Directory Response: {ingest_response}")
         
         if ingest_response and "job_id" in ingest_response and ingest_response.get("error") is None:

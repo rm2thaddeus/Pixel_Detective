@@ -3,7 +3,7 @@ import os # Added import
 # Add project root to sys.path to allow importing 'utils'
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
-from fastapi import FastAPI, HTTPException, APIRouter, Depends, Request # Added Depends, Request
+from fastapi import FastAPI, HTTPException, APIRouter, Depends, Request, BackgroundTasks # Added BackgroundTasks
 from fastapi.responses import JSONResponse # Added JSONResponse
 from fastapi.exceptions import RequestValidationError # Added RequestValidationError
 import httpx
@@ -18,6 +18,8 @@ from utils.metadata_extractor import extract_metadata # Import the new extractor
 import uuid # Added for generating UUIDs for point_id
 import hashlib # Added for image content hashing
 import diskcache
+import time # For logging timestamps
+import asyncio # Added for sleep in background task
 
 import logging
 
@@ -41,17 +43,34 @@ ML_INFERENCE_SERVICE_URL = os.environ.get("ML_INFERENCE_SERVICE_URL", "http://lo
 ML_INFERENCE_BATCH_SIZE = int(os.environ.get("ML_INFERENCE_BATCH_SIZE", 8)) # New config for batch size
 QDRANT_HOST = os.environ.get("QDRANT_HOST", "localhost") # Assuming Qdrant might run locally or in Docker
 QDRANT_PORT = int(os.environ.get("QDRANT_PORT", 6333))
-QDRANT_COLLECTION_NAME = os.environ.get("QDRANT_COLLECTION_NAME", "development test")
+QDRANT_COLLECTION_NAME = os.environ.get("QDRANT_COLLECTION_NAME", "development_test") # Corrected default
 # Define standard vector parameters for the collection (e.g., for ViT-B/32 CLIP model)
 QDRANT_VECTOR_SIZE = int(os.environ.get("QDRANT_VECTOR_SIZE", 512))
 QDRANT_DISTANCE_METRIC = Distance[os.environ.get("QDRANT_DISTANCE_METRIC", "Cosine").upper()]
 
 # Global Qdrant client instance
-qdrant_client: QdrantClient = None
+qdrant_client_global: Optional[QdrantClient] = None
 # Persistent cache for image hashes to embeddings and captions
-# Format: { "image_hash_sha256": {"embedding": [...], "caption": "...", "embedding_data": {...}, "caption_data": {...}} }
 DISKCACHE_DIR = os.environ.get("DISKCACHE_DIR", "./.diskcache")
 image_content_cache = diskcache.Cache(DISKCACHE_DIR)
+
+# In-memory job status database
+# Format: { "job_id": {"status": "pending/processing/completed/failed", "progress": 0.0-100.0, "logs": ["log message1", ...], "result": {}}}
+job_status_db: Dict[str, Dict[str, Any]] = {}
+
+def log_to_job(job_id: str, message: str, level: str = "INFO"):
+    """Helper to add a log message to a specific job's log list."""
+    if job_id in job_status_db:
+        timestamp = time.strftime('%Y-%m-%d %H:%M:%S')
+        log_entry = f"[{timestamp}] [{level.upper()}] {message}"
+        job_status_db[job_id]["logs"].append(log_entry)
+        # Also log to main logger for system-wide visibility
+        if level.upper() == "ERROR":
+            logger.error(f"Job {job_id}: {message}")
+        elif level.upper() == "WARNING":
+            logger.warning(f"Job {job_id}: {message}")
+        else:
+            logger.info(f"Job {job_id}: {message}")
 
 # --- Helper type for items to send to ML Service Batch Endpoint ---
 class MLBatchRequestItem(BaseModel):
@@ -64,40 +83,43 @@ async def process_batch_with_ml_service(
     client: httpx.AsyncClient,
     batch_items_to_ml: List[Tuple[str, str, str, str]], # hash, base64, filename, file_path
     processed_files_details: List[Dict],
-    failed_files_details: List[Dict]
+    failed_files_details: List[Dict],
+    job_id: str, # Added job_id for logging
+    qdrant_conn: QdrantClient, # Pass Qdrant client
+    collection_name: str, # Pass collection name
+    ml_service_url: str # Pass ML service URL
 ):
     if not batch_items_to_ml:
         return
 
-    logger.info(f"Sending batch of {len(batch_items_to_ml)} items to ML Inference Service...")
+    log_to_job(job_id, f"Sending batch of {len(batch_items_to_ml)} items to ML Inference Service...")
     ml_request_payload = {
         "images": [
-            MLBatchRequestItem(unique_id=item[0], image_base64=item[1], filename=item[2]).dict() 
+            MLBatchRequestItem(unique_id=item[0], image_base64=item[1], filename=item[2]).dict()
             for item in batch_items_to_ml
         ]
     }
 
     try:
         batch_ml_response = await client.post(
-            f"{ML_INFERENCE_SERVICE_URL}/api/v1/batch_embed_and_caption",
+            f"{ml_service_url}/api/v1/batch_embed_and_caption",
             json=ml_request_payload,
             timeout=60.0 # Potentially longer timeout for batch processing
         )
         batch_ml_response.raise_for_status()
         ml_results = batch_ml_response.json().get("results", [])
-        logger.info(f"Received {len(ml_results)} results from ML batch processing.")
+        log_to_job(job_id, f"Received {len(ml_results)} results from ML batch processing.")
 
-        # Create a dictionary for quick lookup of ML results by unique_id (image_hash)
         ml_results_map = {result["unique_id"]: result for result in ml_results}
 
         for image_hash, _, filename, file_path in batch_items_to_ml:
             ml_result = ml_results_map.get(image_hash)
-            
+
             if not ml_result or ml_result.get("error"):
                 error_detail = ml_result.get("error", "Unknown error from ML service batch response") if ml_result else "No result in ML service batch response"
-                logger.error(f"  Error for {filename} (hash: {image_hash}) from ML batch: {error_detail}")
+                log_to_job(job_id, f"Error for {filename} (hash: {image_hash}) from ML batch: {error_detail}", level="ERROR")
                 failed_files_details.append({"file": file_path, "error": error_detail, "details": "ML Batch Processing"})
-                continue # Skip to next item in our original batch_items_to_ml
+                continue
 
             embedding = ml_result.get("embedding")
             caption = ml_result.get("caption")
@@ -106,83 +128,201 @@ async def process_batch_with_ml_service(
             model_name_blip = ml_result.get("model_name_blip")
 
             if embedding is None or caption is None:
-                logger.error(f"  Missing embedding or caption for {filename} (hash: {image_hash}) in ML batch response.")
+                log_to_job(job_id, f"Missing embedding or caption for {filename} (hash: {image_hash}) in ML batch response.", level="ERROR")
                 failed_files_details.append({"file": file_path, "error": "Missing embedding or caption in ML batch response", "hash": image_hash})
                 continue
-            
-            # Construct embedding_data and caption_data as they would be from single calls, for cache consistency
-            # This might need adjustment based on what /batch_embed_and_caption actually returns per item
+
             embedding_data_for_cache = {
-                "filename": filename,
-                "embedding": embedding,
-                "embedding_shape": embedding_shape,
-                "model_name": model_name_clip, # Assuming these are part of BatchResultItem
-                "device_used": ml_result.get("device_used")
+                "filename": filename, "embedding": embedding, "embedding_shape": embedding_shape,
+                "model_name": model_name_clip, "device_used": ml_result.get("device_used")
             }
             caption_data_for_cache = {
-                "filename": filename,
-                "caption": caption,
-                "model_name": model_name_blip,
+                "filename": filename, "caption": caption, "model_name": model_name_blip,
                 "device_used": ml_result.get("device_used")
             }
-
-            # Store in persistent cache
             image_content_cache[image_hash] = {
-                "embedding_data": embedding_data_for_cache,
-                "caption_data": caption_data_for_cache
+                "embedding_data": embedding_data_for_cache, "caption_data": caption_data_for_cache
             }
-            logger.info(f"  Stored batch-processed embedding and caption for hash {image_hash} in persistent cache.")
+            log_to_job(job_id, f"Stored batch-processed embedding and caption for hash {image_hash} in persistent cache.")
 
-            # Proceed with metadata extraction and Qdrant storage for this item
             try:
-                logger.info(f"  Extracting metadata for batch-processed {filename}...")
+                log_to_job(job_id, f"Extracting metadata for batch-processed {filename}...")
                 comprehensive_metadata = extract_metadata(file_path)
-                logger.info(f"  Metadata extracted for {filename}: {comprehensive_metadata}")
-                
-                # Read image_bytes again for original_size_bytes - could optimize this by passing it along
+                log_to_job(job_id, f"Metadata extracted for {filename}: {comprehensive_metadata}")
+
                 async with aiofiles.open(file_path, "rb") as f_img_bytes:
                     image_bytes_for_size = await f_img_bytes.read()
 
-                if qdrant_client:
-                    point_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, file_path)) # Consistent ID generation
+                if qdrant_conn:
+                    point_id_str = str(uuid.uuid5(uuid.NAMESPACE_DNS, file_path))
                     qdrant_payload = comprehensive_metadata.copy()
-                    qdrant_payload["caption"] = caption
-                    qdrant_payload["original_size_bytes"] = len(image_bytes_for_size)
-                    qdrant_payload["full_path"] = file_path
-                    qdrant_payload["ml_embedding_model"] = model_name_clip
-                    qdrant_payload["ml_caption_model"] = model_name_blip
-                    if "filename" not in qdrant_payload: qdrant_payload["filename"] = filename
+                    qdrant_payload.update({
+                        "caption": caption, "original_size_bytes": len(image_bytes_for_size),
+                        "full_path": file_path, "ml_embedding_model": model_name_clip,
+                        "ml_caption_model": model_name_blip,
+                        "filename": qdrant_payload.get("filename", filename)
+                    })
                     qdrant_payload = {k: v for k, v in qdrant_payload.items() if v is not None}
 
-                    logger.info(f"  Upserting batch-processed point to Qdrant: {filename} (ID: {point_id})")
-                    qdrant_client.upsert(
-                        collection_name=QDRANT_COLLECTION_NAME, wait=True,
-                        points=[models.PointStruct(id=point_id, vector=embedding, payload=qdrant_payload)]
+                    log_to_job(job_id, f"Upserting batch-processed point to Qdrant: {filename} (ID: {point_id_str})")
+                    qdrant_conn.upsert(
+                        collection_name=collection_name, wait=True,
+                        points=[models.PointStruct(id=point_id_str, vector=embedding, payload=qdrant_payload)]
                     )
-                    logger.info(f"  Successfully stored batch-processed data for {filename} in Qdrant.")
+                    log_to_job(job_id, f"Successfully stored batch-processed data for {filename} in Qdrant.")
                     processed_files_details.append({
-                        "file": file_path, "embedding_info": embedding_shape,
-                        "caption": caption, "metadata": comprehensive_metadata, "source": "batch_ml"
+                        "file": file_path, "embedding_info": embedding_shape, "caption": caption,
+                        "metadata": comprehensive_metadata, "source": "batch_ml"
                     })
                 else:
-                    logger.warning(f"  Qdrant client not initialized. Skipping storage for batch-processed {filename}.")
+                    log_to_job(job_id, f"Qdrant client not initialized. Skipping storage for batch-processed {filename}.", level="WARNING")
                     failed_files_details.append({"file": file_path, "error": "Qdrant client not initialized (batch)"})
             except Exception as e_inner:
-                logger.error(f"  Error processing/storing item {filename} from batch: {e_inner}", exc_info=True)
+                log_to_job(job_id, f"Error processing/storing item {filename} from batch: {e_inner}", level="ERROR")
                 failed_files_details.append({"file": file_path, "error": str(e_inner), "details": "Post ML Batch Processing"})
 
     except httpx.HTTPStatusError as e_http:
-        logger.error(f"HTTP error calling ML batch service: {e_http.response.status_code} - {e_http.response.text}")
+        log_to_job(job_id, f"HTTP error calling ML batch service: {e_http.response.status_code} - {e_http.response.text}", level="ERROR")
         for _, _, filename, file_path in batch_items_to_ml:
             failed_files_details.append({"file": file_path, "error": f"ML Batch Service HTTP Error: {e_http.response.status_code}", "details": e_http.response.text})
     except httpx.RequestError as e_req:
-        logger.error(f"Request error calling ML batch service: {e_req}")
+        log_to_job(job_id, f"Request error calling ML batch service: {e_req}", level="ERROR")
         for _, _, filename, file_path in batch_items_to_ml:
             failed_files_details.append({"file": file_path, "error": f"ML Batch Service Request Error: {str(e_req)}"})
     except Exception as e_outer:
-        logger.error(f"Unexpected error during ML batch processing call: {e_outer}", exc_info=True)
+        log_to_job(job_id, f"Unexpected error during ML batch processing call: {e_outer}", level="ERROR")
         for _, _, filename, file_path in batch_items_to_ml:
             failed_files_details.append({"file": file_path, "error": f"ML Batch Service Unexpected Error: {str(e_outer)}"})
+
+# --- Worker function for background ingestion ---
+async def _run_ingestion_task(
+    directory_path: str,
+    job_id: str,
+    qdrant_conn_bg: QdrantClient,
+    ml_service_url_bg: str,
+    ml_batch_size_bg: int,
+    disk_cache_bg: diskcache.Cache,
+    collection_name_bg: str
+):
+    log_to_job(job_id, f"Background ingestion task started for directory: {directory_path}")
+    job_status_db[job_id]["status"] = "processing"
+    processed_files_details = []
+    failed_files_details = []
+    current_batch_to_ml_service: List[Tuple[str, str, str, str]] = []
+
+    try:
+        if not os.path.isdir(directory_path):
+            log_to_job(job_id, f"Directory not found: {directory_path}", level="ERROR")
+            job_status_db[job_id]["status"] = "failed"
+            job_status_db[job_id]["result"] = {"error": f"Directory not found: {directory_path}"}
+            return
+
+        all_files = os.listdir(directory_path)
+        total_files_to_scan = len(all_files)
+        job_status_db[job_id]["progressMax"] = total_files_to_scan # Store max for progress calculation
+        files_processed_count = 0
+
+        log_to_job(job_id, f"Scanning {total_files_to_scan} potential files in {directory_path}")
+
+        async with httpx.AsyncClient() as client:
+            for i, filename in enumerate(all_files):
+                files_processed_count +=1
+                job_status_db[job_id]["progress"] = (files_processed_count / total_files_to_scan) * 100 if total_files_to_scan > 0 else 0
+
+                file_path = os.path.join(directory_path, filename)
+                if os.path.isfile(file_path):
+                    if not filename.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.gif', '.dng')):
+                        log_to_job(job_id, f"Skipping non-image file: {file_path}")
+                        failed_files_details.append({"file": file_path, "error": "Skipped non-image file"})
+                        continue
+
+                    log_to_job(job_id, f"Processing file: {file_path} ({i+1}/{total_files_to_scan})")
+                    try:
+                        async with aiofiles.open(file_path, "rb") as f:
+                            image_bytes = await f.read()
+                        image_base64 = base64.b64encode(image_bytes).decode("utf-8")
+                        image_hash = hashlib.sha256(image_bytes).hexdigest()
+                        log_to_job(job_id, f"Image hash for {filename}: {image_hash}")
+
+                        cached_data = disk_cache_bg.get(image_hash)
+
+                        if cached_data:
+                            log_to_job(job_id, f"Cache hit for {filename} (hash: {image_hash}). Using cached embedding and caption.")
+                            embedding_data = cached_data["embedding_data"]
+                            caption_data = cached_data["caption_data"]
+                            log_to_job(job_id, f"Extracting metadata for cached {filename}...")
+                            comprehensive_metadata = extract_metadata(file_path)
+                            if qdrant_conn_bg:
+                                vector = embedding_data.get("embedding")
+                                caption = caption_data.get("caption")
+                                if vector is None:
+                                    raise ValueError("Cached embedding not found")
+
+                                point_id_str = str(uuid.uuid5(uuid.NAMESPACE_DNS, file_path))
+                                qdrant_payload = comprehensive_metadata.copy()
+                                qdrant_payload.update({
+                                    "caption": caption, "original_size_bytes": len(image_bytes),
+                                    "full_path": file_path,
+                                    "ml_embedding_model": embedding_data.get("model_name", os.environ.get("CLIP_MODEL_NAME", "ViT-B/32")),
+                                    "ml_caption_model": caption_data.get("model_name", os.environ.get("BLIP_MODEL_NAME", "Salesforce/blip-image-captioning-large")),
+                                    "filename": qdrant_payload.get("filename", filename)
+                                })
+                                qdrant_payload = {k: v for k, v in qdrant_payload.items() if v is not None}
+
+                                qdrant_conn_bg.upsert(
+                                    collection_name=collection_name_bg, wait=True,
+                                    points=[models.PointStruct(id=point_id_str, vector=vector, payload=qdrant_payload)]
+                                )
+                                log_to_job(job_id, f"Successfully stored cached data for {filename} in Qdrant.")
+                                processed_files_details.append({
+                                    "file": file_path, "embedding_info": embedding_data.get("embedding_shape", "N/A"),
+                                    "caption": caption, "metadata": comprehensive_metadata, "source": "cache"
+                                })
+                            else:
+                                log_to_job(job_id, "Qdrant client not initialized (cache)", level="WARNING")
+                                failed_files_details.append({"file": file_path, "error": "Qdrant client not initialized (cache)"})
+                        else:
+                            log_to_job(job_id, f"Cache miss for {filename} (hash: {image_hash}). Adding to ML batch queue.")
+                            current_batch_to_ml_service.append((image_hash, image_base64, filename, file_path))
+
+                            if len(current_batch_to_ml_service) >= ml_batch_size_bg:
+                                log_to_job(job_id, f"ML batch size reached ({ml_batch_size_bg}). Processing batch...")
+                                await process_batch_with_ml_service(client, current_batch_to_ml_service, processed_files_details, failed_files_details, job_id, qdrant_conn_bg, collection_name_bg, ml_service_url_bg)
+                                current_batch_to_ml_service.clear()
+                    except Exception as e:
+                        log_to_job(job_id, f"An unexpected error occurred while preparing {filename} for batching or processing cache: {e}", level="ERROR")
+                        failed_files_details.append({"file": file_path, "error": str(e), "details": "Pre-batch/Cache Processing"})
+                else:
+                    log_to_job(job_id, f"Skipping non-file item: {file_path} ({i+1}/{total_files_to_scan})")
+                # Brief sleep to allow other tasks, if any, and to make progress updates more granular in UI
+                await asyncio.sleep(0.01)
+
+
+            if current_batch_to_ml_service: # Process any remaining items
+                log_to_job(job_id, f"Processing remaining {len(current_batch_to_ml_service)} items in ML batch...")
+                await process_batch_with_ml_service(client, current_batch_to_ml_service, processed_files_details, failed_files_details, job_id, qdrant_conn_bg, collection_name_bg, ml_service_url_bg)
+                current_batch_to_ml_service.clear()
+
+        job_status_db[job_id]["status"] = "completed"
+        job_status_db[job_id]["progress"] = 100.0
+        final_message = f"Ingestion process completed for {directory_path}. Processed: {len(processed_files_details)}, Failed: {len(failed_files_details)}"
+        log_to_job(job_id, final_message)
+        job_status_db[job_id]["result"] = {
+            "message": final_message,
+            "directory": directory_path,
+            "processed_count": len(processed_files_details),
+            "failed_count": len(failed_files_details),
+            "processed_details": processed_files_details, # Optional: could be large
+            "failed_details": failed_files_details      # Optional: could be large
+        }
+
+    except Exception as e:
+        error_message = f"Critical error in ingestion task for job {job_id}, directory {directory_path}: {e}"
+        log_to_job(job_id, error_message, level="CRITICAL") # Use a higher level if defined, or ERROR
+        logger.exception(error_message) # Log full traceback to main logger
+        job_status_db[job_id]["status"] = "failed"
+        job_status_db[job_id]["result"] = {"error": str(e), "message": error_message}
+        job_status_db[job_id]["progress"] = job_status_db[job_id].get("progress", 0.0) # Keep last known progress
 
 @app.get("/")
 async def root():
@@ -190,235 +330,146 @@ async def root():
 
 @app.on_event("startup")
 async def startup_event():
-    global qdrant_client
+    global qdrant_client_global
     logger.info("Ingestion Orchestration Service starting up...")
-    
+
     logger.info(f"Expecting ML Inference Service at: {ML_INFERENCE_SERVICE_URL}")
     logger.info(f"Connecting to Qdrant at: {QDRANT_HOST}:{QDRANT_PORT}")
     try:
-        qdrant_client = QdrantClient(host=QDRANT_HOST, port=QDRANT_PORT, timeout=20) # Added timeout
+        qdrant_client_instance = QdrantClient(host=QDRANT_HOST, port=QDRANT_PORT, timeout=20)
         # Attach the Qdrant client to FastAPI app state for dependency injection without circular imports
-        app.state.qdrant_client = qdrant_client
+        # However, for background tasks, it's often simpler to pass globals if they are configured at startup
+        # and their state doesn't change per request in a way that background tasks would misuse.
+        # For this refactor, _run_ingestion_task will receive qdrant_client as an argument.
+        app.state.qdrant_client = qdrant_client_instance # For router dependencies
+        globals()['qdrant_client_global'] = qdrant_client_instance # For direct use if needed, and for passing to BG task
         logger.info(f"Successfully connected to Qdrant instance at {QDRANT_HOST}:{QDRANT_PORT}.")
 
-        # Check if collection exists
         try:
-            collection_info = qdrant_client.get_collection(collection_name=QDRANT_COLLECTION_NAME)
+            collection_info = qdrant_client_instance.get_collection(collection_name=QDRANT_COLLECTION_NAME)
             logger.info(f"Qdrant collection '{QDRANT_COLLECTION_NAME}' already exists. Details: {collection_info}")
-            # Optionally, verify vector_size and distance match QDRANT_VECTOR_SIZE, QDRANT_DISTANCE_METRIC
-            # If not, it could be an issue or require re-creation depending on policy.
-            # For now, we assume it's compatible if it exists.
-        except Exception as e: # Broad exception, specific Qdrant client error might be better
-            if "404" in str(e) or "not found" in str(e).lower(): # Heuristic for collection not found
+        except Exception as e:
+            if "404" in str(e) or "not found" in str(e).lower():
                 logger.info(f"Qdrant collection '{QDRANT_COLLECTION_NAME}' not found. Attempting to create it...")
                 try:
-                    qdrant_client.create_collection(
+                    qdrant_client_instance.create_collection(
                         collection_name=QDRANT_COLLECTION_NAME,
                         vectors_config=VectorParams(size=QDRANT_VECTOR_SIZE, distance=QDRANT_DISTANCE_METRIC)
                     )
-                    logger.info(f"Successfully created Qdrant collection '{QDRANT_COLLECTION_NAME}' with vector size {QDRANT_VECTOR_SIZE} and distance {QDRANT_DISTANCE_METRIC.value}")
+                    logger.info(f"Successfully created Qdrant collection '{QDRANT_COLLECTION_NAME}'")
                 except Exception as create_e:
                     logger.error(f"Failed to create Qdrant collection '{QDRANT_COLLECTION_NAME}': {create_e}", exc_info=True)
-                    # Decide if service should fail if collection can't be ensured
             else:
                 logger.error(f"Error checking Qdrant collection '{QDRANT_COLLECTION_NAME}': {e}", exc_info=True)
-
     except Exception as e:
         logger.error(f"Failed to connect to Qdrant or ensure collection: {e}", exc_info=True)
-        # Depending on policy, you might want to set qdrant_client to None or exit
-        # For now, it will be None if connection fails. get_qdrant_dependency will raise 503.
+        # qdrant_client_global will remain None if startup fails. Dependencies will handle this.
 
 @app.on_event("shutdown")
 async def shutdown_event():
     logger.info("Ingestion Orchestration Service shutting down...")
-    if qdrant_client:
-        try:
-            # qdrant_client.close() # Check Qdrant client documentation for a close method if available/needed
-            logger.info("Qdrant client closed (if applicable).")
-        except Exception as e:
-            logger.error(f"Error closing Qdrant client: {e}", exc_info=True)
-    await duplicates_on_shutdown() # Call the shutdown handler from duplicates router
+    # if qdrant_client_global: # qdrant_client_global is now accessed via app.state or passed directly
+    #     try:
+    #         # qdrant_client_global.close() # Check Qdrant client documentation
+    #         logger.info("Qdrant client closed (if applicable).")
+    #     except Exception as e:
+    #         logger.error(f"Error closing Qdrant client: {e}", exc_info=True)
+    await duplicates_on_shutdown()
 
-# Exception Handlers
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
     logger.error(f"Request validation error: {exc.errors()}")
-    return JSONResponse(
-        status_code=422,
-        content={"detail": exc.errors(), "body": exc.body},
-    )
+    return JSONResponse(status_code=422, content={"detail": exc.errors(), "body": exc.body})
 
 @app.exception_handler(Exception)
 async def generic_exception_handler(request: Request, exc: Exception):
     logger.error(f"Unhandled exception: {exc}", exc_info=True)
-    return JSONResponse(
-        status_code=500,
-        content={"detail": "Internal server error. Please check logs for more details."},
-    )
+    return JSONResponse(status_code=500, content={"detail": "Internal server error. Please check logs for more details."})
 
-# Placeholder for actual ingestion endpoint
 class IngestRequest(BaseModel):
     directory_path: str
 
-@v1_router.post("/ingest/") # Changed path from /ingest_directory and added to v1_router
-async def ingest_directory_v1(request: IngestRequest): # Renamed function for clarity
-    """
-    Receives a directory path, processes files, calls ML inference, 
-    and stores results in Qdrant.
-    """
-    logger.info(f"APIv1: Received request to ingest directory: {request.directory_path}")
+@v1_router.post("/ingest/")
+async def ingest_directory_v1(request: IngestRequest, background_tasks: BackgroundTasks, q_client: QdrantClient = Depends(get_qdrant_dependency)): # Use dependency for endpoint check
+    job_id = str(uuid.uuid4())
+    initial_log_message = f"Job {job_id} initiated for directory: {request.directory_path}"
     
-    processed_files_details = []
-    failed_files_details = []
-    current_batch_to_ml_service: List[Tuple[str, str, str, str]] = [] # hash, base64, filename, file_path
-
-    if not os.path.isdir(request.directory_path):
-        raise HTTPException(status_code=400, detail=f"Directory not found: {request.directory_path}")
-
-    all_files = os.listdir(request.directory_path)
-    total_files_to_scan = len(all_files)
-    
-    async with httpx.AsyncClient() as client: # Default timeout for individual calls, batch has its own
-        for i, filename in enumerate(all_files):
-            file_path = os.path.join(request.directory_path, filename)
-            if os.path.isfile(file_path):
-                # Check for image file extensions
-                if not filename.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.gif', '.dng')):
-                    logger.info(f"Skipping non-image file: {file_path}")
-                    failed_files_details.append({"file": file_path, "error": "Skipped non-image file"})
-                    continue
-
-                logger.info(f"Processing file: {file_path} ({i+1}/{total_files_to_scan})")
-                try:
-                    async with aiofiles.open(file_path, "rb") as f:
-                        image_bytes = await f.read()
-                    image_base64 = base64.b64encode(image_bytes).decode("utf-8")
-                    image_hash = hashlib.sha256(image_bytes).hexdigest()
-                    logger.info(f"  Image hash for {filename}: {image_hash}")
-
-                    cached_data = image_content_cache.get(image_hash)
-
-                    if cached_data:
-                        logger.info(f"  Cache hit for {filename} (hash: {image_hash}). Using cached embedding and caption.")
-                        embedding_data = cached_data["embedding_data"]
-                        caption_data = cached_data["caption_data"]
-                        # Metadata extraction and Qdrant storage for cached items (similar to single item processing)
-                        logger.info(f"  Extracting metadata for cached {filename}...")
-                        comprehensive_metadata = extract_metadata(file_path)
-                        if qdrant_client:
-                            vector = embedding_data.get("embedding")
-                            caption = caption_data.get("caption")
-                            if vector is None:
-                                raise ValueError("Cached embedding not found")
-
-                            point_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, file_path))
-                            qdrant_payload = comprehensive_metadata.copy()
-                            qdrant_payload["caption"] = caption
-                            qdrant_payload["original_size_bytes"] = len(image_bytes)
-                            qdrant_payload["full_path"] = file_path
-                            qdrant_payload["ml_embedding_model"] = embedding_data.get("model_name", os.environ.get("CLIP_MODEL_NAME", "ViT-B/32"))
-                            qdrant_payload["ml_caption_model"] = caption_data.get("model_name", os.environ.get("BLIP_MODEL_NAME", "Salesforce/blip-image-captioning-large"))
-                            if "filename" not in qdrant_payload: qdrant_payload["filename"] = filename
-                            qdrant_payload = {k: v for k, v in qdrant_payload.items() if v is not None}
-
-                            qdrant_client.upsert(
-                                collection_name=QDRANT_COLLECTION_NAME, wait=True,
-                                points=[models.PointStruct(id=point_id, vector=vector, payload=qdrant_payload)]
-                            )
-                            logger.info(f"  Successfully stored cached data for {filename} in Qdrant.")
-                            processed_files_details.append({
-                                "file": file_path, "embedding_info": embedding_data.get("embedding_shape", "N/A"),
-                                "caption": caption, "metadata": comprehensive_metadata, "source": "cache"
-                            })
-                        else:
-                            failed_files_details.append({"file": file_path, "error": "Qdrant client not initialized (cache)"})
-                    else:
-                        logger.info(f"  Cache miss for {filename} (hash: {image_hash}). Adding to ML batch queue.")
-                        current_batch_to_ml_service.append((image_hash, image_base64, filename, file_path))
-
-                        if len(current_batch_to_ml_service) >= ML_INFERENCE_BATCH_SIZE:
-                            logger.info(f"ML batch size reached ({ML_INFERENCE_BATCH_SIZE}). Processing batch...")
-                            await process_batch_with_ml_service(client, current_batch_to_ml_service, processed_files_details, failed_files_details)
-                            current_batch_to_ml_service.clear()
-                
-                except Exception as e: # Catch errors for individual file processing before batching
-                    logger.error(f"  An unexpected error occurred while preparing {filename} for batching or processing cache: {e}", exc_info=True)
-                    failed_files_details.append({"file": file_path, "error": str(e), "details": "Pre-batch/Cache Processing"})
-            else:
-                logger.info(f"Skipping non-file item: {file_path} ({i+1}/{total_files_to_scan})")
-
-        # Process any remaining items in the batch
-        if current_batch_to_ml_service:
-            logger.info(f"Processing remaining {len(current_batch_to_ml_service)} items in ML batch...")
-            await process_batch_with_ml_service(client, current_batch_to_ml_service, processed_files_details, failed_files_details)
-            current_batch_to_ml_service.clear()
-
-    logger.info(f"Ingestion process completed for {request.directory_path}. Processed: {len(processed_files_details)}, Failed: {len(failed_files_details)}")
-    return {
-        "message": f"Ingestion process completed for {request.directory_path}.", 
-        "directory": request.directory_path,
-        "processed_count": len(processed_files_details),
-        "failed_count": len(failed_files_details),
-        "processed_details": processed_files_details,
-        "failed_details": failed_files_details
+    job_status_db[job_id] = {
+        "status": "pending",
+        "progress": 0.0,
+        "logs": [f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [INFO] {initial_log_message}"],
+        "result": None,
+        "directory_path": request.directory_path, # Store for reference
+        "total_files": 0
     }
+    logger.info(f"APIv1: Queuing ingestion job {job_id} for directory: {request.directory_path}")
 
-# --- Placeholder Endpoints for API v1 ---
+    # Ensure qdrant_client_global is available for the background task
+    if qdrant_client_global is None:
+        error_msg = "Qdrant client not initialized globally. Cannot start background ingestion."
+        logger.error(error_msg)
+        # Log to a temporary job entry if possible, or just raise
+        job_status_db[job_id] = {
+            "status": "failed", "progress": 0.0, "logs": [f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [ERROR] {error_msg}"],
+            "result": {"error": error_msg}, "directory_path": request.directory_path
+        }
+        raise HTTPException(status_code=503, detail=error_msg)
+
+
+    background_tasks.add_task(
+        _run_ingestion_task,
+        directory_path=request.directory_path,
+        job_id=job_id,
+        qdrant_conn_bg=qdrant_client_global, # Pass the global/startup initialized client
+        ml_service_url_bg=ML_INFERENCE_SERVICE_URL,
+        ml_batch_size_bg=ML_INFERENCE_BATCH_SIZE,
+        disk_cache_bg=image_content_cache,
+        collection_name_bg=QDRANT_COLLECTION_NAME
+    )
+    
+    return {
+        "job_id": job_id,
+        "status": "pending",
+        "message": initial_log_message,
+        "details_url": f"/api/v1/ingest/status/{job_id}" # Helpful for direct API users
+    }
 
 class JobStatusResponse(BaseModel):
     job_id: str
     status: str
     progress: float
-    message: str
+    logs: List[str] # Changed 'message' to 'logs' for clarity and frontend expectation
+    result: Optional[Dict] = None
+    directory_path: Optional[str] = None
+    total_files: Optional[int] = None
 
 @v1_router.get("/ingest/status/{job_id}", response_model=JobStatusResponse)
 async def get_ingestion_status_v1(job_id: str):
     logger.info(f"APIv1: Received request for ingestion status for job_id: {job_id}")
-    # Placeholder logic: In a real scenario, you'd look up the job status
+    job_info = job_status_db.get(job_id)
+    if not job_info:
+        raise HTTPException(status_code=404, detail=f"Job with ID {job_id} not found.")
+    
+    # Ensure frontend compatibility: The frontend's background_loader currently expects
+    # log messages in a field called "message" or "details".
+    # We have 'logs' in job_info and in JobStatusResponse.
+    # For now, let's construct the 'message' field for the response if needed,
+    # or better, ensure frontend can read 'logs' (which is cleaner).
+    # The task breakdown mentioned: *Decision: Confirm if this field is sufficient or if a new logs: List[str] field is preferred...*
+    # We've opted for logs: List[str] in JobStatusResponse here.
+    # The frontend will need a minor adaptation if it strictly expects a single "message" string for logs.
+
     return JobStatusResponse(
         job_id=job_id,
-        status="processing", # Or "completed", "failed", "pending"
-        progress=50.0,      # Example progress
-        message=f"Status for job {job_id}: Placeholder - In progress"
+        status=job_info["status"],
+        progress=job_info.get("progress", 0.0),
+        logs=job_info["logs"],
+        result=job_info.get("result"),
+        directory_path=job_info.get("directory_path"),
+        total_files=job_info.get("total_files")
     )
 
-class SearchTextRequest(BaseModel): # Although GET, using BaseModel for clarity if params grow
-    query: str
-    top_k: int = 10
-
-class SearchResultItem(BaseModel):
-    path: str
-    score: float
-    caption: Optional[str] = None 
-
-@v1_router.get("/search/text/", response_model=List[SearchResultItem])
-async def search_images_by_text_v1(query: str, top_k: int = 10):
-    logger.info(f"APIv1: Received text search request: query='{query}', top_k={top_k}")
-    # Placeholder
-    return [
-        SearchResultItem(path="/example/image1.jpg", score=0.9, caption="Example image 1"),
-        SearchResultItem(path="/example/image2.png", score=0.85, caption="Example image 2")
-    ]
-
-# For POST /search/image/, we'd typically expect a file upload.
-# FastAPI handles this with File(...). For simplicity as a placeholder:
-class ImageSearchResponseItem(BaseModel):
-    path: str
-    score: float
-
-@v1_router.post("/search/image/", response_model=List[ImageSearchResponseItem])
-async def search_images_by_image_v1(top_k: int = 10): # Actual implementation would take image_file: UploadFile
-    logger.info(f"APIv1: Received image search request: top_k={top_k}. (File upload not processed in placeholder)")
-    # Placeholder
-    return [
-        ImageSearchResponseItem(path="/similar/imageA.jpg", score=0.92),
-        ImageSearchResponseItem(path="/similar/imageB.png", score=0.88)
-    ]
-
-# Placeholder for job status
-# In a real app, you would store job status in a DB or cache
-background_tasks_store = {}
-
+# ... (rest of the file: search endpoints, routers, uvicorn.run, etc.)
 # Include new routers into v1_router
 v1_router.include_router(search_router.router, prefix="/search", tags=["Qdrant Search Extensions"]) # Path from plan
 v1_router.include_router(images_router.router, prefix="/images", tags=["Qdrant Image Listing Extensions"]) # Path from plan

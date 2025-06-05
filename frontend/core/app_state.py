@@ -6,9 +6,10 @@ from enum import Enum
 from typing import List, Optional
 import streamlit as st
 import time
-from utils.logger import logger
+from utils.logger import get_logger
 from frontend.config import AppConfig, DEFAULT_IMAGES_PATH, DEFAULT_COLLECTION_NAME
 
+logger = get_logger(__name__)
 
 class AppState(Enum):
     """Core application states for the 3-screen flow"""
@@ -31,7 +32,11 @@ class AppStateManager:
         Initializes the core session state variables if they don't exist.
         This should be called once at the beginning of the app.
         """
-        logger.debug("Initializing AppStateManager session state...")
+        if 'session_state_initialized' in st.session_state:
+            # logger.debug("Session state already initialized.")
+            return
+
+        logger.debug("First-time initialization of session state.")
 
         # Core application state keys
         if 'app_config' not in st.session_state:
@@ -65,7 +70,8 @@ class AppStateManager:
         # UI Interaction states (e.g., expanded sections, modal visibility)
         # These are typically managed by the components that use them.
 
-        logger.info("Core session state initialization check complete via AppStateManager.")
+        st.session_state.session_state_initialized = True
+        logger.info("Core session state initialization complete.")
 
     @staticmethod
     def update_app_config(new_config_values: dict):
@@ -73,10 +79,12 @@ class AppStateManager:
         current_config = st.session_state.get('app_config', AppConfig())
         updated_config = current_config.update(**new_config_values)
         st.session_state.app_config = updated_config
+        logger.debug(f"Updated app_config with: {new_config_values}")
 
     @staticmethod
     def transition_to_loading(folder_path: str):
         """Transition from FAST_UI to LOADING"""
+        logger.info(f"Transitioning to LOADING state for folder: {folder_path}")
         st.session_state.app_state = AppState.LOADING
         st.session_state.folder_path = folder_path
         st.session_state.folder_selected = True
@@ -84,11 +92,13 @@ class AppStateManager:
     @staticmethod
     def transition_to_advanced():
         """Transition from LOADING to ADVANCED_UI"""
+        logger.info("Transitioning to ADVANCED_UI state.")
         st.session_state.app_state = AppState.ADVANCED_UI
         
     @staticmethod
     def transition_to_error(error_message: str, can_retry: bool = True):
         """Transition to ERROR state"""
+        logger.error(f"Transitioning to ERROR state: {error_message}")
         st.session_state.app_state = AppState.ERROR
         st.session_state.error_message = error_message
         st.session_state.can_retry = can_retry
@@ -96,6 +106,7 @@ class AppStateManager:
     @staticmethod
     def reset_to_fast_ui():
         """Reset app to initial state"""
+        logger.info("Resetting state to FAST_UI.")
         st.session_state.app_state = AppState.FAST_UI
         st.session_state.folder_selected = False
         st.session_state.ui_deps_loaded = False

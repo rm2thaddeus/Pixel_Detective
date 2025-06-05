@@ -36,6 +36,7 @@ Sprint 09 focuses on achieving application stability and robustness through comp
     -   Implement logic to initialize and connect to Qdrant at application startup (`app.py` or a core module).
     -   Modify backend services (`ingestion_orchestration_fastapi_app`, `ml_inference_fastapi_app`) to work with pre-configured/persistent Qdrant collection names instead of creating them on-the-fly for every operation, unless a new collection is explicitly being built.
     -   The `config.py` might need updating to store the default collection name or path for persistence.
+    -   **Note:** _Qdrant collections can become corrupted, especially during development or abrupt shutdowns. For production, implement a failsafe mechanism: regular backups, health checks, and automated restore._
 -   **Frontend (`app.py`, `screens/`, `components/`):
     -   Develop UI elements for prompting folder input if a collection doesn't exist.
     -   Integrate API calls for progress/log updates (potentially new endpoints or modifications to existing ones in `service_api.py` and backend FastAPI apps).
@@ -71,5 +72,6 @@ Sprint 09 focuses on achieving application stability and robustness through comp
 | Difficulties in testing persisted state         | Develop clear setup/teardown procedures for tests involving persistent data. Use dedicated test collections.                                                               |
 | "Folder Load" restoration uncovers deeper issues | Allocate buffer time for debugging. Use the `debugging.mdc` guidelines systematically. Involve backend and frontend expertise collaboratively.                            |
 | Performance issues with collection loading      | Profile loading times early. Investigate Qdrant optimization settings. Consider lazy loading or background loading for parts of the data if initial load is too slow.         |
+| **Qdrant collection/data corruption**           | **Implement regular automated backups, health checks, and an automated restore/failsafe mechanism for production. For development, manual reset is acceptable, but for scale-up, a robust recovery plan is required.** |
 
 </rewritten_file> 

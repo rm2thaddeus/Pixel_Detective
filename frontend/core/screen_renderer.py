@@ -10,6 +10,12 @@ from screens.advanced_ui_screen import render_advanced_ui_screen
 from core.background_loader import background_loader
 from styles.style_injector import inject_pixel_detective_styles
 from components.accessibility import AccessibilityEnhancer
+from frontend.screens.error_screen import render_error_screen
+from frontend.screens.advanced_ui_screen import AdvancedUIScreen
+from core import background_loader
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 # Helper to run async code in Streamlit. Required if calling async functions from sync Streamlit callbacks.
 # However, if the entire chain from main() is async, this might not be strictly needed everywhere,
@@ -26,6 +32,8 @@ class ScreenRenderer:
         AppStateManager.init_session_state()
         
         current_state = AppStateManager.get_current_state()
+        logger.debug(f"Rendering for current state: {current_state}")
+        
         folder_path = st.session_state.get('folder_path')
 
         # Check if FAST_UI has signaled to start loading
@@ -44,6 +52,7 @@ class ScreenRenderer:
 
                 # Start the background loading pipeline - it will create managers when needed
                 if not background_loader.progress.is_loading: # Avoid starting if already in progress (e.g. from error retry)
+                    logger.info(f"Starting background loading pipeline for: {folder_path}")
                     await background_loader.start_loading_pipeline(folder_path)
                     # --- BEGIN CRITICAL LOGGING ---
                     st.session_state.renderer_log.append(f"RENDERER: Called start_loading_pipeline for {folder_path}.")
@@ -51,6 +60,7 @@ class ScreenRenderer:
                 else:
                     # --- BEGIN CRITICAL LOGGING ---
                     st.session_state.renderer_log.append("RENDERER: Loading already in progress, not restarting.")
+                    logger.warning("Background loading is already in progress. Not starting a new pipeline.")
                     # --- END CRITICAL LOGGING ---
                 
                 current_state = AppState.LOADING # Update current_state for the next block
@@ -60,14 +70,17 @@ class ScreenRenderer:
                 st.session_state.trigger_loading = False # Consume trigger
 
         if current_state == AppState.FAST_UI:
+            logger.debug("Rendering FAST_UI screen.")
             await ScreenRenderer._render_fast_ui()
         elif current_state == AppState.LOADING:
+            logger.debug("Rendering LOADING screen.")
             # Ensure the loader is started if we directly land in LOADING state (e.g. after app restart with state preserved)
             # This is a safeguard, primary start is above.
             if folder_path and not background_loader.progress.is_loading and not AppStateManager.is_ready_for_advanced():
                 # --- BEGIN CRITICAL LOGGING ---
                 st.session_state.renderer_log = st.session_state.get('renderer_log', [])
                 st.session_state.renderer_log.append(f"RENDERER (SAFEGUARD): Starting loading pipeline for {folder_path}")
+                logger.info(f"Starting background loading pipeline from LOADING screen safeguard for: {folder_path}")
                 # --- END CRITICAL LOGGING ---
                 await background_loader.start_loading_pipeline(folder_path)
                 # --- BEGIN CRITICAL LOGGING ---
@@ -77,11 +90,14 @@ class ScreenRenderer:
                 # No rerun here, loading screen will handle it.
             await ScreenRenderer._render_loading()
         elif current_state == AppState.ADVANCED_UI:
+            logger.debug("Rendering ADVANCED_UI screen.")
             await ScreenRenderer._render_advanced_ui()
         elif current_state == AppState.ERROR:
+            logger.debug("Rendering ERROR screen.")
             await ScreenRenderer._render_error()
         else:
             # Fallback to fast UI
+            logger.warning(f"Unknown state '{current_state}', falling back to FAST_UI.")
             st.session_state.app_state = AppState.FAST_UI
             await ScreenRenderer._render_fast_ui()
     

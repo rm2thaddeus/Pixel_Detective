@@ -13,7 +13,7 @@ import json
 from datetime import datetime
 from components.visualization.latent_space import render_latent_space_tab
 from components.search.search_tabs import render_guessing_game_tab
-from components.sidebar.context_sidebar import render_sidebar
+from frontend.components.sidebar.context_sidebar import render_sidebar
 from frontend.components.accessibility import AccessibilityEnhancer
 
 
@@ -31,7 +31,7 @@ class AdvancedUIScreen:
         
         await AdvancedUIScreen._render_enhanced_header()
         await AdvancedUIScreen._render_sophisticated_tabs()
-        AdvancedUIScreen._render_contextual_sidebar()
+        await AdvancedUIScreen._render_contextual_sidebar()
         
         # Close animation wrapper
         st.markdown('</div>', unsafe_allow_html=True)
@@ -478,11 +478,11 @@ class AdvancedUIScreen:
                 st.info('Click the button above to start duplicate detection.')
     
     @staticmethod
-    def _render_contextual_sidebar():
+    async def _render_contextual_sidebar():
         """Enhanced contextual sidebar with smart features"""
         try:
             # Import and use the enhanced sidebar component
-            render_sidebar()
+            await render_sidebar()
             
         except ImportError as e:
             logger.warning(f"Sidebar component not available: {e}")

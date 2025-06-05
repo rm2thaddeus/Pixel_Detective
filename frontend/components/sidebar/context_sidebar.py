@@ -2,125 +2,105 @@ import streamlit as st
 import os
 # import random # random was not used
 from utils.logger import logger
-from core import service_api # Ensure this is imported
-import asyncio
+from frontend.core.background_loader import background_loader # Use the global instance
 from frontend.config import DEFAULT_IMAGES_PATH # Keep this for default folder
-from frontend.styles.style_injector import create_styled_button
+# from frontend.styles.style_injector import create_styled_button # Not used in this refactor
 from frontend.components.accessibility import AccessibilityEnhancer
 
-def render_sidebar():
+async def render_sidebar():
     """
     Render the sidebar components.
-    All backend operations are now routed through service_api.py.
+    All backend operations are now routed through background_loader, which uses service_api.py.
     """
     st.sidebar.header("🔧 Folder Processor")
     AccessibilityEnhancer.add_skip_navigation()
     
-    # Initialize session state keys if they don't exist
+    # Initialize session state for image_folder if it doesn't exist (used by text_input)
     if 'image_folder' not in st.session_state:
         st.session_state.image_folder = DEFAULT_IMAGES_PATH
-    if 'folder_processing_status' not in st.session_state:
-        st.session_state.folder_processing_status = "idle"
-    if 'merge_folder_status' not in st.session_state:
-        st.session_state.merge_folder_status = "idle"
-    if 'current_ingestion_job_id' not in st.session_state:
-        st.session_state.current_ingestion_job_id = None
-    if 'current_merge_job_id' not in st.session_state:
-        st.session_state.current_merge_job_id = None
 
+    # Main folder processing section
     try:
-        # Folder selection for processing
         current_folder = st.sidebar.text_input(
-            "📁 Folder to process", 
+            "📁 Folder to process/load", 
             value=st.session_state.image_folder, 
-            key="db_folder_main_processing"
+            key="db_folder_main_processing" 
         ).strip().strip('"')
-        st.session_state.image_folder = current_folder
-        
+        st.session_state.image_folder = current_folder # Keep updating this for the text input
+
         if not os.path.exists(current_folder) and current_folder:
             st.sidebar.error("Selected folder path does not exist locally!")
         
-        # Button to trigger backend processing for the selected folder
-        if st.sidebar.button("🚀 Process Selected Folder via Backend") and os.path.exists(current_folder):
-            st.session_state.folder_processing_status = "pending"
-            st.session_state.current_ingestion_job_id = None
-            try:
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                response_data = loop.run_until_complete(service_api.ingest_directory(current_folder))
-                loop.close()
-                if response_data and not response_data.get("error"):
-                    job_id = response_data.get("job_id")
-                    st.session_state.current_ingestion_job_id = job_id
-                    msg = response_data.get("message", "Ingestion process started.")
-                    logger.info(f"Backend ingestion successfully initiated for {current_folder}. Job ID: {job_id}. Message: {msg}")
-                    st.session_state.folder_processing_status = f"success: {msg}"
+        col1, col2 = st.sidebar.columns(2)
+        with col1:
+            if st.button("🚀 Process/Load Folder", key="process_folder_button"):
+                if os.path.exists(current_folder):
+                    logger.info(f"Process/Load Folder button clicked for: {current_folder}")
+                    # asyncio.create_task(background_loader.start_loading_pipeline(current_folder)) # Non-blocking
+                    await background_loader.start_loading_pipeline(current_folder) # Blocking for this sidebar render pass
+                    # st.experimental_rerun() # Rerun to reflect immediate pending state
                 else:
-                    error_msg = response_data.get("detail", response_data.get("error", "Unknown error from backend during ingestion initiation."))
-                    logger.error(f"Failed for {current_folder}. Error: {error_msg}")
-                    st.session_state.folder_processing_status = f"error: {error_msg}"
-                    st.session_state.current_ingestion_job_id = None
-            except Exception as e:
-                logger.error(f"Exception during ingestion initiation for {current_folder}: {e}", exc_info=True)
-                st.session_state.folder_processing_status = f"error: Exception - {str(e)}"
-                st.session_state.current_ingestion_job_id = None
+                    st.sidebar.error("Cannot process. Folder path is invalid.")
+        with col2:
+            if st.button("🔄 Reset Job", key="reset_job_button"):
+                logger.info("Reset Job button clicked.")
+                background_loader.reset_loading_state()
+                # st.experimental_rerun()
 
-        # Display status for the main folder processing
-        if st.session_state.folder_processing_status.startswith("pending"):
-            st.sidebar.info(f"🔄 Backend processing in progress for: {current_folder}...")
-        elif st.session_state.folder_processing_status.startswith("success"):
-            job_id_info = f"(Job ID: {st.session_state.current_ingestion_job_id})" if st.session_state.current_ingestion_job_id else ""
-            st.sidebar.success(f"✅ Backend processing initiated for {current_folder}. {job_id_info}. Check main screen or logs for completion status.")
-        elif st.session_state.folder_processing_status.startswith("error"):
-            st.sidebar.error(f"❌ Error processing {current_folder}: {st.session_state.folder_processing_status.split(': ', 1)[-1]}")
+
+        # Display status and logs using background_loader's properties
+        loader_status = background_loader.progress.status
+        loader_detail = background_loader.progress.current_detail
+        loader_error = background_loader.progress.error_message
+        loader_percent = background_loader.progress.percent_complete
+
+        if background_loader.progress.is_loading:
+            # If loading, try to update status. 
+            # This call should be quick and update session state for the next rerun.
+            try:
+                await background_loader.check_ingestion_status()
+                # Update local vars after check_ingestion_status, as it modifies session state
+                loader_status = background_loader.progress.status
+                loader_detail = background_loader.progress.current_detail
+                loader_error = background_loader.progress.error_message
+                loader_percent = background_loader.progress.percent_complete
+            except Exception as e:
+                logger.error(f"Error calling check_ingestion_status in sidebar: {e}", exc_info=True)
+                st.sidebar.warning("Could not refresh job status.")
+
+
+        if loader_status == "pending" or loader_status == "processing":
+            st.sidebar.info(f"🔄 Status: {loader_status.capitalize()} ({loader_percent:.0f}%)")
+            if loader_detail and loader_status == "processing": # Only show detail expander if there's something to show during processing
+                 with st.sidebar.expander("Show Details/Logs", expanded=True):
+                    st.text_area("Progress Details", value=loader_detail, height=200, disabled=True, key="bg_loader_detail_display")
+            elif loader_status == "pending" and loader_detail:
+                 st.sidebar.caption(loader_detail) # Show initial message if pending
+        elif loader_status == "completed":
+            st.sidebar.success(f"✅ Status: {loader_status.capitalize()} ({loader_percent:.0f}%)")
+            if loader_detail:
+                with st.sidebar.expander("Final Details/Summary", expanded=False):
+                    st.text_area("Completion Details", value=loader_detail, height=100, disabled=True, key="bg_loader_complete_display")
+        elif loader_status == "error":
+            st.sidebar.error(f"❌ Status: {loader_status.capitalize()}")
+            full_error_message = loader_error or loader_detail # Prioritize specific error_message
+            if full_error_message:
+                 with st.sidebar.expander("Error Details", expanded=True):
+                    st.error(full_error_message)
+        elif loader_status == "idle" and st.session_state.get("bg_loader_job_id") is None: # LOADING_JOB_ID_KEY from background_loader
+            st.sidebar.caption("Status: Idle. Select a folder and click 'Process/Load Folder'.")
         
-        # --- New folder merge ---
-        st.sidebar.markdown("---")
-        st.sidebar.subheader("➕ Merge Another Folder")
-        new_folder_to_merge = st.sidebar.text_input(
-            "📁 New folder to merge with backend data", 
-            value="", 
-            key="new_folder_to_merge_input"
-        ).strip().strip('"')
-
-        if not os.path.exists(new_folder_to_merge) and new_folder_to_merge:
-             st.sidebar.error("Merge folder path does not exist locally!")
-
-        if st.sidebar.button("🔗 Merge New Folder via Backend") and new_folder_to_merge and os.path.exists(new_folder_to_merge):
-            st.session_state.merge_folder_status = "pending"
-            st.session_state.current_merge_job_id = None
-            try:
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                response_data = loop.run_until_complete(service_api.ingest_directory(new_folder_to_merge))
-                loop.close()
-                if response_data and not response_data.get("error"):
-                    job_id = response_data.get("job_id")
-                    st.session_state.current_merge_job_id = job_id
-                    msg = response_data.get("message", "Merge process started.")
-                    logger.info(f"Backend merge successfully initiated for {new_folder_to_merge}. Job ID: {job_id}. Message: {msg}")
-                    st.session_state.merge_folder_status = f"success: {msg}"
-                else:
-                    error_msg = response_data.get("detail", response_data.get("error", "Unknown error from backend during merge initiation."))
-                    logger.error(f"Failed for {new_folder_to_merge}. Error: {error_msg}")
-                    st.session_state.merge_folder_status = f"error: {error_msg}"
-                    st.session_state.current_merge_job_id = None
-            except Exception as e:
-                logger.error(f"Exception during merge initiation for {new_folder_to_merge}: {e}", exc_info=True)
-                st.session_state.merge_folder_status = f"error: Exception - {str(e)}"
-                st.session_state.current_merge_job_id = None
-
-        # Display status for the merge folder processing
-        if st.session_state.merge_folder_status.startswith("pending"):
-            st.sidebar.info(f"🔄 Merging {new_folder_to_merge} in progress...")
-        elif st.session_state.merge_folder_status.startswith("success"):
-            job_id_info = f"(Job ID: {st.session_state.current_merge_job_id})" if st.session_state.current_merge_job_id else ""
-            st.sidebar.success(f"✅ Merge initiated for {new_folder_to_merge}. {job_id_info}. Check main screen or logs for completion.")
-        elif st.session_state.merge_folder_status.startswith("error"):
-            st.sidebar.error(f"❌ Error merging {new_folder_to_merge}: {st.session_state.merge_folder_status.split(': ', 1)[-1]}")
+        # Merge folder functionality can be re-evaluated or simplified.
+        # For now, focusing on the primary folder processing and log display.
+        # The current background_loader handles one job at a time.
+        # If merge is to be a separate concurrent job, background_loader would need changes
+        # or a second instance/mechanism.
+        # For simplicity, let's remove the merge UI for now to focus on the primary task.
+        # If merge is essentially "ingest another directory to the same collection",
+        # then the same "Process/Load Folder" button can be used with a different folder path.
 
         st.sidebar.markdown("---")
-        st.sidebar.info("✨ ML models and data are managed by backend services. All operations here trigger backend tasks.")
+        st.sidebar.info("✨ All data operations are managed by backend services.")
         
     except Exception as e:
         logger.error(f"Error in sidebar rendering: {e}", exc_info=True)
@@ -129,7 +109,21 @@ def render_sidebar():
 
     AccessibilityEnhancer.inject_accessibility_styles()
 
-    return current_folder
+    # The sidebar doesn't strictly need to return current_folder anymore unless app.py uses it directly from here.
+    # app.py might get the folder from st.session_state.image_folder directly if needed.
+    return st.session_state.get('image_folder', DEFAULT_IMAGES_PATH)
+
+# Note: The direct asyncio.run() calls previously in this file for service_api were problematic
+# in Streamlit's typical execution model. Using an async render_sidebar and relying on 
+# background_loader's async methods (which manage their own session state updates) is a cleaner approach,
+# assuming the calling context (e.g., in app.py) can await render_sidebar or manage an event loop.
+# If app.py is purely synchronous, further adjustments for running these async tasks might be needed,
+# potentially involving st.experimental_rerun() more strategically after task submissions.
+# The `asyncio.create_task` approach for `start_loading_pipeline` could make it non-blocking,
+# but then immediate feedback might require a quick `st.experimental_rerun()`.
+# For now, `await background_loader.start_loading_pipeline()` makes it blocking for the current
+# sidebar render pass, ensuring status is updated before the next element is drawn.
+# `await background_loader.check_ingestion_status()` also updates state for the current render.
 
 # Removed _background_process_folder, _background_merge_folder_with_backend,
 # _background_build_or_load_db, and _background_merge_folder as they are
