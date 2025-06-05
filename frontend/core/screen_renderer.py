@@ -3,17 +3,15 @@
 # 🎯 Mission: Seamless navigation with proper state management
 
 import streamlit as st
-from core.app_state import AppState, AppStateManager
-from screens.fast_ui_screen import render_fast_ui_screen
-from screens.loading_screen import render_loading_screen
-from screens.advanced_ui_screen import render_advanced_ui_screen
-from core.background_loader import background_loader
-from styles.style_injector import inject_pixel_detective_styles
-from components.accessibility import AccessibilityEnhancer
+from frontend.core.app_state import AppState, AppStateManager
+from frontend.screens.fast_ui_screen import render_fast_ui_screen
+from frontend.screens.loading_screen import render_loading_screen
+from frontend.screens.advanced_ui_screen import render_advanced_ui_screen, AdvancedUIScreen
 from frontend.screens.error_screen import render_error_screen
-from frontend.screens.advanced_ui_screen import AdvancedUIScreen
-from core import background_loader
+from frontend.core import background_loader
 from utils.logger import get_logger
+from frontend.styles.style_injector import inject_pixel_detective_styles
+from frontend.components.accessibility import AccessibilityEnhancer
 
 logger = get_logger(__name__)
 
@@ -116,8 +114,8 @@ class ScreenRenderer:
         try:
             await render_loading_screen()
         except Exception as e:
+            logger.critical("Error rendering Loading screen", exc_info=True)
             st.error(f"Error in Loading screen: {str(e)}")
-            st.exception(e)
             # Fallback to fast UI on error
             AppStateManager.reset_to_fast_ui()
     
@@ -134,66 +132,13 @@ class ScreenRenderer:
     @staticmethod
     async def _render_error():
         """Render error recovery screen"""
-        st.title("❌ Something Went Wrong")
-        
-        error_message = st.session_state.get('error_message', 'Unknown error occurred')
-        can_retry = st.session_state.get('can_retry', True)
-        
-        st.error(f"**Error:** {error_message}")
-        
-        if can_retry:
-            st.markdown("### 🔄 Recovery Options")
-            
-            col1, col2, col3 = st.columns(3)
-            
-            with col1:
-                if st.button("🔄 Try Again", type="primary"):
-                    folder_path_retry = st.session_state.get('folder_path', '')
-                    if folder_path_retry:
-                        AppStateManager.transition_to_loading(folder_path_retry)
-                        # 🚀 PERFORMANCE FIX: Let background loader create managers when needed
-                        # Start the background loading pipeline - it will create managers when needed
-                        if not background_loader.progress.is_loading:
-                             await background_loader.start_loading_pipeline(folder_path_retry)
-                        st.rerun()
-                    else:
-                        AppStateManager.reset_to_fast_ui()
-            
-            with col2:
-                if st.button("📁 Choose Different Folder"):
-                    AppStateManager.reset_to_fast_ui()
-                    st.rerun()
-            
-            with col3:
-                if st.button("ℹ️ Report Issue"):
-                    ScreenRenderer._show_error_report()
-        else:
-            st.markdown("### 🆘 Manual Recovery Required")
-            st.warning("This error requires manual intervention. Please restart the application.")
-            
-            if st.button("🔄 Restart Application"):
-                # Clear all session state
-                for key in list(st.session_state.keys()):
-                    del st.session_state[key]
-                st.rerun()
-        
-        # Show error details
-        with st.expander("🔍 Error Details", expanded=False):
-            st.markdown("**Error Message:**")
-            st.code(error_message)
-            
-            st.markdown("**Session State:**")
-            state_info = {
-                'app_state': str(st.session_state.get('app_state', 'Unknown')),
-                'loading_phase': str(st.session_state.get('loading_phase', 'None')),
-                'folder_path': st.session_state.get('folder_path', 'None'),
-                'ui_deps_loaded': st.session_state.get('ui_deps_loaded', False),
-                'models_loaded': st.session_state.get('models_loaded', False),
-                'database_ready': st.session_state.get('database_ready', False)
-            }
-            
-            for key, value in state_info.items():
-                st.text(f"{key}: {value}")
+        try:
+            render_error_screen()
+        except Exception as e:
+            logger.critical("Error rendering the ERROR screen itself!", exc_info=True)
+            # Failsafe error message if the error screen itself fails
+            st.error("A critical error occurred while trying to display the error page.")
+            st.exception(e)
     
     @staticmethod
     def _show_error_report():

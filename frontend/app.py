@@ -28,14 +28,14 @@ if not hasattr(st, '_page_config_set'):
     st._page_config_set = True
 
 # ===== IMPORT THE NEW ARCHITECTURE =====
-from core.screen_renderer import render_app 
+from frontend.core.screen_renderer import ScreenRenderer 
 
 # ===== MAIN APPLICATION =====
 async def main_async(): 
     """Main application with smart 3-screen UX flow"""
     try:
         # ScreenRenderer handles all UI rendering and state transitions
-        await render_app() 
+        await ScreenRenderer.render() 
         
     except Exception as e:
         # Emergency fallback
