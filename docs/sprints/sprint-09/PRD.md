@@ -20,16 +20,23 @@ Sprint 09 focuses on achieving application stability and robustness through comp
 - Clear error messages are shown for API failures. | Planned   | High     |
 | FR-09-04  | As a user, I want the "Folder Load" functionality to be fully restored and reliable.                        | - User can initiate folder loading/ingestion from the UI.
 - The process successfully calls the backend ingestion orchestration service.
+- The frontend correctly recognizes common image formats, including RAW types like .dng.
 - Images and metadata from the folder are correctly added to the Qdrant collection.
-- UI provides feedback on success, failure, and progress.          | Planned   | High     |
+- UI provides feedback on success, failure, and progress.          | In Progress | High     |
 | FR-09-05  | As a user, I want all application screens to behave consistently and reliably based on backend data.        | - All frontend screens correctly fetch and display data from the backend APIs (`service_api.py`).
+- Critical crashes on the Fast UI screen (e.g., `AttributeError`) have been resolved.
 - UI interactions (filtering, sorting, searching, etc.) accurately reflect backend state and capabilities.
-- Stale or incorrect data presentation is minimized.            | Planned   | Medium   |
+- Stale or incorrect data presentation is minimized.            | In Progress   | Medium   |
+| FR-09-06  | As a user, if the application crashes or encounters a critical error, I want to see a user-friendly error screen with recovery options. | - Critical frontend errors are caught gracefully.
+- An error screen (`error_screen.py`) is displayed instead of a blank page or a Streamlit traceback.
+- The screen shows the error message and offers options to "Try Again" or "Restart". | Done | High     |
 | NFR-09-01 | The application must undergo full functional testing to ensure all features work as expected.             | - A comprehensive test plan covering all user stories from Sprint 08 and 09 is executed.
 - All critical user flows are tested end-to-end.
 - Identified bugs are documented and prioritized for fixing.                                                                           | Planned   | High     |
 | NFR-09-02 | Qdrant collection loading at startup should be efficient.                                                   | - Time to check and load an existing Qdrant collection (e.g., 100k items) is within acceptable limits (e.g., <5 seconds).
 - Application remains responsive during the initial check/load.                                               | Planned   | Medium   |
+| NFR-09-03 | The frontend codebase must use a consistent and robust import strategy to prevent startup failures.        | - All local imports within the `frontend` module use absolute paths from the project root (e.g., `from frontend.core...`).
+- The application starts reliably without `ModuleNotFoundError` or `ImportError` issues. | Done | High     |
 
 ## 4. Technical Architecture
 -   **Qdrant Integration:**
@@ -38,6 +45,8 @@ Sprint 09 focuses on achieving application stability and robustness through comp
     -   The `config.py` might need updating to store the default collection name or path for persistence.
     -   **Note:** _Qdrant collections can become corrupted, especially during development or abrupt shutdowns. For production, implement a failsafe mechanism: regular backups, health checks, and automated restore._
 -   **Frontend (`app.py`, `screens/`, `components/`):
+    -   **Logging & Stability:** A centralized, configurable logger has been implemented in `utils/logger.py` and integrated across all core frontend modules. A strict absolute import strategy (e.g., `from frontend.core...`) has been enforced to resolve critical startup errors.
+    -   **Error Handling:** A new `screens/error_screen.py` module provides a user-friendly interface for critical frontend exceptions, offering recovery options.
     -   Develop UI elements for prompting folder input if a collection doesn't exist.
     -   Integrate API calls for progress/log updates (potentially new endpoints or modifications to existing ones in `service_api.py` and backend FastAPI apps).
     -   Review and refactor screen logic (e.g., in `screens/`) to align with API-driven data fetching and state management, ensuring they use `service_api.py` for all backend communications.
@@ -60,6 +69,7 @@ Sprint 09 focuses on achieving application stability and robustness through comp
     -   Test the full flow of collection creation from a user-specified folder.
     -   Ensure frontend interactions correctly trigger backend processes and reflect their state (including progress/logs).
     -   Validate the restored "Folder Load" functionality end-to-end.
+    -   Verify that critical frontend errors trigger the user-friendly error screen and that recovery options work as expected.
 -   **E2E Tests (Playwright):** Update existing tests and add new ones to cover all critical user flows with the new persistence and UI feedback mechanisms.
 -   **Manual Testing:** Comprehensive exploratory testing of all application features.
 -   **Performance Testing:** Specifically for Qdrant collection loading times and overall application responsiveness during startup and intensive operations.
@@ -70,7 +80,7 @@ Sprint 09 focuses on achieving application stability and robustness through comp
 | Complexity in Qdrant persistence logic          | Allocate dedicated time for research and prototyping in Week 1. Refer to Qdrant documentation and examples. Start with a basic file-based persistence for Qdrant if needed. |
 | UI updates for progress/logs become extensive   | Prioritize critical feedback paths first. Use existing UI patterns where possible. Phase implementation if necessary.                                                      |
 | Difficulties in testing persisted state         | Develop clear setup/teardown procedures for tests involving persistent data. Use dedicated test collections.                                                               |
-| "Folder Load" restoration uncovers deeper issues | Allocate buffer time for debugging. Use the `debugging.mdc` guidelines systematically. Involve backend and frontend expertise collaboratively.                            |
+| "Folder Load" restoration uncovers deeper issues | Allocate buffer time for debugging. Use the `debugging.mdc` guidelines systematically. Involve backend and frontend expertise collaboratively. **(Risk Realized & Mitigated: This risk occurred, leading to significant debugging of the application's startup sequence, import structure, and logging. The issues have been resolved, unblocking development.)**                            |
 | Performance issues with collection loading      | Profile loading times early. Investigate Qdrant optimization settings. Consider lazy loading or background loading for parts of the data if initial load is too slow.         |
 | **Qdrant collection/data corruption**           | **Implement regular automated backups, health checks, and an automated restore/failsafe mechanism for production. For development, manual reset is acceptable, but for scale-up, a robust recovery plan is required.** |
 

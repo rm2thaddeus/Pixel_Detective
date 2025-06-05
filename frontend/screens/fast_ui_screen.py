@@ -41,9 +41,6 @@ class FastUIScreen:
         
         # Close animation wrapper
         st.markdown('</div>', unsafe_allow_html=True)
-        
-        # Start background preparation when appropriate
-        FastUIScreen._start_background_preparation()
     
     @staticmethod
     def _render_welcome_header():
@@ -139,8 +136,8 @@ class FastUIScreen:
         if os.path.exists(folder_path) and os.path.isdir(folder_path):
             # Quick image count
             try:
-                files = os.listdir(folder_path)[:50]  # Check first 50 files
-                image_extensions = {'.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff', '.webp'}
+                files = os.listdir(folder_path) # Scan all files
+                image_extensions = {'.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff', '.webp', '.dng'}
                 image_count = sum(1 for f in files if any(f.lower().endswith(ext) for ext in image_extensions))
                 
                 if image_count > 0:
@@ -175,7 +172,7 @@ class FastUIScreen:
                             <div>
                                 <strong>No images found</strong> in this folder
                                 <div style="margin-top: 0.5rem; font-size: 0.875rem; opacity: 0.8;">
-                                    Try selecting a folder with .jpg, .png, or other image files
+                                    Try selecting a folder with supported image files (jpg, png, dng, etc.)
                                 </div>
                             </div>
                         </div>
@@ -249,15 +246,6 @@ class FastUIScreen:
         import time # Keep for the sleep if desired, or remove if rerun is enough
         time.sleep(0.1) # Small delay to allow UI update before rerun if needed, often not necessary.
         st.rerun()
-    
-    @staticmethod
-    def _start_background_preparation():
-        """Start loading heavy modules in background"""
-        if (not st.session_state.get('background_prep_started', False) and 
-            st.session_state.get('app_state', AppState.FAST_UI) == AppState.FAST_UI):
-            
-            st.session_state.background_prep_started = True
-            background_loader.start_background_preparation()
     
     @staticmethod
     def _render_minimal_sidebar():

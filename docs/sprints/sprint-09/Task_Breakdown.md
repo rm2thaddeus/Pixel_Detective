@@ -38,11 +38,51 @@ This section details the foundational work done on the frontend to prepare for r
     *   **`frontend/app.py`:**
         *   The main application entry point `main_async()` is already `async` and uses `asyncio.run()`, correctly handling the `async` rendering chain.
 
+4.  **Core Application Stability & Foundational Debugging:**
+    *   **Status:** Completed.
+    *   **Goal:** Resolve critical application startup failures to unblock all frontend development and testing.
+    *   **Details & Implementation Notes:**
+        *   **Centralized Logging Utility:**
+            *   Enhanced `utils/logger.py` to provide a standardized, configurable, and file-rotating logger for the entire application.
+            *   Integrated this logger across all core frontend modules (`app_state.py`, `screen_renderer.py`, `service_api.py`, `background_loader.py`) to provide rich, contextual debug information. Log level is configurable via `LOG_LEVEL` environment variable.
+        *   **Resolved Module Import Strategy:**
+            *   Systematically refactored all local imports within the `frontend` directory to use a consistent, absolute path from the project root (e.g., `from frontend.core...`).
+            *   This resolved persistent `ModuleNotFoundError` and `ImportError` exceptions that were preventing the application from starting.
+        *   **Implemented Graceful Error Handling UI:**
+            *   Created the missing `frontend/screens/error_screen.py` module.
+            *   Implemented `render_error_screen` to provide users with a clear error message and recovery options ("Try Again", "Restart") when a critical frontend exception occurs.
+            *   Integrated this error screen into the main application flow in `screen_renderer.py`.
+
 ---
 
-## II. Remaining Tasks to Complete Sprint 09
+## II. Completed Bug Fixes (Post-Stability)
 
-This section outlines the necessary backend development, final frontend integration touches, and testing required to complete the logging feature and other sprint goals.
+This section details bugs that were identified and fixed after the initial application stability was achieved, unblocking core functionality.
+
+1.  **BUG-09-01: `AttributeError` Crash on Fast UI Screen**
+    *   **Status:** Fixed.
+    *   **Symptom:** The app loaded but immediately showed an `AttributeError: 'BackgroundLoader' object has no attribute 'start_background_preparation'` on the home screen.
+    *   **Analysis:** The `FastUIScreen` was calling an obsolete method (`start_background_preparation`) left over from a previous architecture.
+    *   **Resolution:** Removed the obsolete method and its call from `frontend/screens/fast_ui_screen.py`, resolving the crash.
+
+2.  **BUG-09-02: DNG Image Files Not Recognized by Frontend**
+    *   **Status:** Fixed.
+    *   **Symptom:** When a user selected a folder for ingestion, any `.dng` files within it were ignored.
+    *   **Analysis:** The frontend's file discovery logic contained a hardcoded list of image extensions that was missing the `.dng` format.
+    *   **Resolution:** Added `.dng` to the set of recognized `image_extensions` in `frontend/screens/fast_ui_screen.py`, allowing them to be discovered and processed.
+
+---
+
+## III. Next Steps & Remaining Tasks
+
+With the critical startup and UI bugs resolved, the next step is to **perform a full end-to-end test of the primary user flow: folder ingestion.** This involves:
+1.  Launching the application.
+2.  Selecting a folder containing a mix of images (including `.dng` files).
+3.  Initiating the ingestion process.
+4.  Monitoring the logs in the UI to ensure the process completes successfully.
+5.  Verifying that the application transitions to the `Advanced UI` screen upon completion.
+
+This will validate the recent stability fixes and confirm that the frontend and backend are communicating correctly.
 
 ### A. Backend API and Logging Enhancements (Ingestion Service)
 
@@ -90,28 +130,4 @@ This section outlines the necessary backend development, final frontend integrat
     *   **Status:** Complete.
     *   **Goal:** Ensure logs from the backend are displayed clearly in the sidebar.
     *   **Details & Implementation Notes:**
-        *   `frontend/core/background_loader.py` (in `check_ingestion_status`) was updated to expect logs from `api_response.get("logs")` (a list of strings). It joins this list into a newline-separated string for display in the sidebar via `st.session_state[LOADING_DETAIL_KEY]`.
-
-### C. Restore and Test Other Core User Flows (As per Sprint Plan)
-
-*(Refer to `transition-to-sprint-09.md` for full details on these tasks. Focus now shifts heavily to testing and validation of the folder load and logging feature.)*
-
-1.  **TASK-09-01:** Restore "Folder Load" functionality (UI → API → backend).
-    *   **Status:** Backend and frontend plumbing is largely in place. Requires thorough end-to-end testing.
-    *   Ensure user feedback for errors (now enhanced with detailed logs).
-    *   Add/verify integration tests for this flow.
-2.  **TASK-09-02:** Expand integration tests for all major user flows (search, duplicate detection, random image, filtering).
-3.  **TASK-09-03:** Ensure all API endpoints are covered by unit and integration tests (especially the new job status and ingestion flow).
-4.  **TASK-09-04:** Add robust error handling and user feedback for all critical UI actions (detailed logs in sidebar contribute significantly).
-
-### D. Medium & Low Priority Tasks
-
-*(Refer to `transition-to-sprint-09.md`)*
--   **TASK-09-05:** Performance benchmarking (especially for ingestion).
--   **TASK-09-06:** UI polish and bug fixes identified during testing.
--   **TASK-09-07:** Documentation updates (API docs for new job endpoints, architecture diagrams if changed).
--   **TASK-09-08:** Cleanup of legacy modules.
-
----
-
-This breakdown should serve as a clear checklist for completing Sprint 09. 
+        *   `frontend/core/background_loader.py` (in `
