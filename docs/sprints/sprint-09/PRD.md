@@ -75,6 +75,11 @@ Sprint 09 focuses on achieving application stability and robustness through comp
     -   Verify that critical frontend errors trigger the user-friendly error screen and that recovery options work as expected.
 -   **E2E Tests (Playwright):** Update existing tests and add new ones to cover all critical user flows with the new persistence and UI feedback mechanisms.
 -   **Manual Testing:** Comprehensive exploratory testing of all application features.
+-   **Manual Smoke Test Setup:** Before running the frontend, ensure backend services are running without import errors using the correct module paths:
+    ```powershell
+    uvicorn backend.ml_inference_fastapi_app.main:app --reload --port 8001
+    uvicorn backend.ingestion_orchestration_fastapi_app.main:app --reload --port 8002
+    ```
 -   **Performance Testing:** Specifically for Qdrant collection loading times and overall application responsiveness during startup and intensive operations.
 
 ## 7. Risk Assessment
