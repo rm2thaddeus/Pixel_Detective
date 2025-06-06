@@ -52,6 +52,14 @@ This section details the foundational work done on the frontend to prepare for r
             *   Created the missing `frontend/screens/error_screen.py` module.
             *   Implemented `render_error_screen` to provide users with a clear error message and recovery options ("Try Again", "Restart") when a critical frontend exception occurs.
             *   Integrated this error screen into the main application flow in `screen_renderer.py`.
+        *   **Note:** _Qdrant collections can become corrupted..._
+  5.  **Qdrant Collection Management Flow:**
+      *   **Status:** Completed.
+      *   **Changes:**
+          - Removed collection selection UI from `frontend/screens/fast_ui_screen.py` to resolve `Event loop is closed` errors.
+          - Added collection list, create, select, and clear cache UI in `frontend/components/sidebar/context_sidebar.py`.
+          - Extended `frontend/core/service_api.py` with `get_collections()`, `create_collection()`, `select_collection()`, and `clear_collection_cache()` functions.
+          - Implemented backend FastAPI endpoints in `backend/ingestion_orchestration_fastapi_app/main.py` for `GET /api/v1/collections`, `POST /api/v1/collections`, `POST /api/v1/collections/select`, and `POST /api/v1/collections/cache/clear`.
 
 ---
 
@@ -70,6 +78,9 @@ This section details bugs that were identified and fixed after the initial appli
     *   **Symptom:** When a user selected a folder for ingestion, any `.dng` files within it were ignored.
     *   **Analysis:** The frontend's file discovery logic contained a hardcoded list of image extensions that was missing the `.dng` format.
     *   **Resolution:** Added `.dng` to the set of recognized `image_extensions` in `frontend/screens/fast_ui_screen.py`, allowing them to be discovered and processed.
+  3.  **BUG-09-03: Event loop closed on collection selection buttons**
+      *   **Symptom:** Clicking the collection selection or browse buttons caused `RuntimeError: Event loop is closed` in the Fast UI screen.
+      *   **Resolution:** Moved collection management UI into the async sidebar (`context_sidebar.py`) and removed async calls from `FastUIScreen.render()` to prevent loop closure errors.
 
 ---
 

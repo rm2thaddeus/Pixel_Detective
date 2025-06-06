@@ -5,8 +5,8 @@
 
 import streamlit as st
 import os
-from core import service_api
-from styles.style_injector import inject_pixel_detective_styles, create_styled_button, create_loading_spinner
+from frontend.core import service_api
+from frontend.styles.style_injector import inject_pixel_detective_styles, create_styled_button, create_loading_spinner
 from utils.logger import logger
 import asyncio
 import json

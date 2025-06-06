@@ -6,7 +6,7 @@ from frontend.core.background_loader import background_loader # Use the global i
 from frontend.config import DEFAULT_IMAGES_PATH # Keep this for default folder
 # from frontend.styles.style_injector import create_styled_button # Not used in this refactor
 from frontend.components.accessibility import AccessibilityEnhancer
-from core import service_api  # For collection cache management
+from frontend.core import service_api  # For collection cache management
 
 async def render_sidebar():
     """

@@ -43,9 +43,9 @@ class AppStateManager:
             st.session_state.app_config = AppConfig()
             logger.debug("Initialized 'app_config' in session state.")
 
-        if 'current_screen' not in st.session_state:
-            st.session_state.current_screen = "loading"  # Default to loading screen
-            logger.debug("Initialized 'current_screen' to 'loading'.")
+        if 'app_state' not in st.session_state:
+            st.session_state.app_state = AppState.FAST_UI  # Default to FAST_UI screen
+            logger.debug("Initialized 'app_state' to FAST_UI.")
         
         if 'folder_path' not in st.session_state: # Previously managed by LazySessionManager.init_folder_state()
             st.session_state.folder_path = None # Or some default like DEFAULT_IMAGES_PATH if appropriate

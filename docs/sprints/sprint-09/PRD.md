@@ -30,6 +30,10 @@ Sprint 09 focuses on achieving application stability and robustness through comp
 | FR-09-06  | As a user, if the application crashes or encounters a critical error, I want to see a user-friendly error screen with recovery options. | - Critical frontend errors are caught gracefully.
 - An error screen (`error_screen.py`) is displayed instead of a blank page or a Streamlit traceback.
 - The screen shows the error message and offers options to "Try Again" or "Restart". | Done | High     |
+| FR-09-07  | As a user, I want to select and manage Qdrant collections via the frontend sidebar.      | - UI displays a dropdown of available Qdrant collections.
++- Users can create new collections from the sidebar.
++- Users can select the active collection and clear its cache via sidebar controls.
++- Selection persists and updates the working collection across the app.   | Done   | High     |
 | NFR-09-01 | The application must undergo full functional testing to ensure all features work as expected.             | - A comprehensive test plan covering all user stories from Sprint 08 and 09 is executed.
 - All critical user flows are tested end-to-end.
 - Identified bugs are documented and prioritized for fixing.                                                                           | Planned   | High     |
@@ -50,6 +54,7 @@ Sprint 09 focuses on achieving application stability and robustness through comp
     -   Develop UI elements for prompting folder input if a collection doesn't exist.
     -   Integrate API calls for progress/log updates (potentially new endpoints or modifications to existing ones in `service_api.py` and backend FastAPI apps).
     -   Review and refactor screen logic (e.g., in `screens/`) to align with API-driven data fetching and state management, ensuring they use `service_api.py` for all backend communications.
+    -   **Qdrant Collection Management:** Moved collection selection, creation, and cache-clear UI into the async sidebar (`components/sidebar/context_sidebar.py`); updated `service_api.py` with `get_collections()`, `create_collection()`, `select_collection()`, and `clear_collection_cache()`; implemented corresponding FastAPI endpoints; and resolved async event loop errors by removing collection logic from the Fast UI screen.
 -   **Backend API (`ingestion_orchestration_fastapi_app`, `service_api.py`):
     -   The ingestion service might need an endpoint to check collection existence or create a collection if it doesn't exist, based on a user-provided path.
     -   APIs should provide more granular progress/status updates for long-running tasks if not already present.

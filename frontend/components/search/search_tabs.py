@@ -25,7 +25,7 @@ from utils.logger import logger
 # from components.task_orchestrator import submit as submit_task, is_running as is_task_running
 # from core.optimized_model_manager import OptimizedModelManager # REMOVED
 from streamlit_extras.switch_page_button import switch_page # Keep if used
-from core import service_api
+from frontend.core import service_api
 
 # Callbacks for metadata expansion (These are fine as local UI helpers)
 def _toggle_text_metadata(metadata_key):

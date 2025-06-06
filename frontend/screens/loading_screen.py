@@ -6,9 +6,9 @@
 
 import os
 import streamlit as st
-from core.app_state import AppStateManager, AppState
-from core.background_loader import background_loader, BackgroundLoaderProgress
-from styles.style_injector import (
+from frontend.core.app_state import AppStateManager, AppState
+from frontend.core.background_loader import background_loader, BackgroundLoaderProgress
+from frontend.styles.style_injector import (
     inject_pixel_detective_styles,
     create_hero_section,
     create_progress_bar,
@@ -16,10 +16,10 @@ from styles.style_injector import (
     create_loading_spinner,
     create_styled_container
 )
-from components.skeleton_screens import SkeletonScreens
+from frontend.components.skeleton_screens import SkeletonScreens
 import logging
 import asyncio
-from core import service_api
+from frontend.core import service_api
 from frontend.components.accessibility import AccessibilityEnhancer
 
 logger = logging.getLogger(__name__)

@@ -7,7 +7,7 @@ import asyncio # New import
 import os
 
 # Assuming service_api.py is in frontend.core
-from core import service_api
+from frontend.core import service_api
 # Assuming app_state.py is in frontend.core (AppStateManager might be used later for transitions)
 # from frontend.core.app_state import AppStateManager 
 from utils.logger import get_logger

@@ -8,7 +8,7 @@ import plotly.express as px
 import umap
 from sklearn.cluster import DBSCAN
 from utils.logger import logger
-from core import service_api
+from frontend.core import service_api
 import asyncio
 import os
 from frontend.styles.style_injector import create_loading_spinner

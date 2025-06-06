@@ -6,14 +6,14 @@
 import os
 import streamlit as st
 import sys
-from core.app_state import AppStateManager, AppState
-from core.background_loader import background_loader
-from styles.style_injector import (
+from frontend.core.app_state import AppStateManager, AppState
+from frontend.core.background_loader import background_loader
+from frontend.styles.style_injector import (
     inject_pixel_detective_styles,
     create_status_indicator
 )
+from frontend.core import service_api  # Qdrant collection management API
 from frontend.components.accessibility import AccessibilityEnhancer
-from core import service_api  # Qdrant collection management API
 
 # Import tkinter for file dialog
 try:
@@ -38,7 +38,7 @@ class FastUIScreen:
         
         FastUIScreen._render_welcome_header()
         FastUIScreen._render_simple_folder_selection()
-        FastUIScreen._render_minimal_sidebar()
+        await FastUIScreen._render_minimal_sidebar()
         
         # Close animation wrapper
         st.markdown('</div>', unsafe_allow_html=True)
@@ -249,62 +249,52 @@ class FastUIScreen:
         st.rerun()
     
     @staticmethod
-    def _render_minimal_sidebar():
-        """Minimal sidebar with only essential information"""
+    async def _render_minimal_sidebar():
+        """Sidebar showing backend health, collections, and folder info"""
         with st.sidebar:
-            # Simple status
-            st.markdown(
-                '''
-                <div class="pd-card" style="text-align: center; margin-bottom: 1.5rem;">
-                    <h3 style="color: var(--pd-primary); margin-bottom: 0.5rem;">🎯 Getting Started</h3>
-                    <div style="font-size: 0.875rem; color: var(--pd-text-secondary);">
-                        Select your image folder to begin
-                    </div>
-                </div>
-                ''',
-                unsafe_allow_html=True
+            st.header("🚦 Backend Status & Collections")
+            try:
+                collections = await service_api.get_collections()
+                st.success("Ingestion service reachable")
+            except Exception as e:
+                st.error(f"Ingestion service error: {e}")
+                collections = []
+            st.markdown("---")
+            st.subheader("📦 Qdrant Collections")
+            choice = st.selectbox(
+                "Select or create collection",
+                collections + ["<Create new…>"],
+                key="selected_collection"
             )
-            
-            # System status
-            if st.session_state.get('background_prep_started', False):
-                create_status_indicator("success", "System ready", True)
+            if choice == "<Create new…>":
+                new_name = st.text_input("New collection name", key="new_collection_name")
+                if st.button("Create Collection", key="create_collection_btn"):
+                    await service_api.create_collection(new_name)
+                    await service_api.select_collection(new_name)
+                    st.session_state.collection_name = new_name
+                    st.success(f"Created and selected '{new_name}'.")
+                    st.experimental_rerun()
             else:
-                create_status_indicator("info", "Preparing...", True)
-            
+                if st.button("Select Collection", key="select_collection_btn"):
+                    await service_api.select_collection(choice)
+                    st.session_state.collection_name = choice
+                    st.success(f"Selected '{choice}'.")
+                    st.experimental_rerun()
             st.markdown("---")
-            
-            # Current selection info
-            current_path = st.session_state.get('folder_path', '')
-            if current_path:
-                st.markdown("**📁 Selected folder:**")
-                st.code(current_path)
-                
-                # Quick folder info
-                if os.path.exists(current_path):
-                    try:
-                        files = os.listdir(current_path)[:20]
-                        image_extensions = {'.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff', '.webp'}
-                        image_count = sum(1 for f in files if any(f.lower().endswith(ext) for ext in image_extensions))
-                        st.success(f"🖼️ {image_count}+ images found")
-                    except:
-                        st.warning("⚠️ Cannot read folder")
-            
+            folder_path = st.session_state.get('folder_path', '')
+            if folder_path:
+                st.markdown(f"**Selected folder:** `{folder_path}`")
+            else:
+                st.markdown("Select a folder in the main area to proceed.")
             st.markdown("---")
-            
-            # Simple help
             with st.expander("💡 Need Help?"):
                 st.markdown(
-                    '''
-                    **How to use:**
-                    1. Click "Browse" to select your image folder
-                    2. Or type the folder path manually
-                    3. Click "Start Building" when ready
-                    
-                    **Tips:**
-                    - The app works with .jpg, .png, .gif, and other image formats
-                    - It will search all subfolders automatically
-                    - Make sure you have read access to the folder
-                    '''
+                    """
+                    **Usage Steps:**
+                    1. Ensure backend services are running.
+                    2. Select/Create a Qdrant collection.
+                    3. Choose an image folder and click Start.
+                    """
                 )
 
 
