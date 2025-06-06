@@ -120,6 +120,15 @@ We will break down the work into four phases. Each phase contains detailed, sequ
      ```
    - Wait for the browser to open and verify that the Fast UI screen (welcome header and folder input) appears without errors.
 
++   **Troubleshooting DNG Failures**
+   - If DNG decoding errors persist (e.g., "cannot identify image file <_io.BytesIO>"), confirm you've restarted the ML Inference Service after applying the rawpy/tempfile patch.
+     - Stop any running uvicorn processes (e.g., Ctrl+C) and re-run with:
+       ```powershell
+       uvicorn backend.ml_inference_fastapi_app.main:app --reload --port 8001
+       ```
+     - Check the service logs for lines containing `NamedTemporaryFile` to verify the patch is loaded.
+   - Retry ingestion once ML logs show the tempfile-based DNG decoding path.
+
 2. **Select a folder and start ingestion**
    - On the Fast UI screen, click the 📁 **Browse** button and choose a folder containing at least one image (.jpg, .png, .dng).
    - Alternatively, type the full folder path into the text box and press Enter.
