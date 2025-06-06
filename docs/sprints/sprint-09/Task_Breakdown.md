@@ -94,7 +94,7 @@ We will break down the work into four phases. Each phase contains detailed, sequ
 2. **Select a folder and start ingestion**
    - On the Fast UI screen, click the 📁 **Browse** button and choose a folder containing at least one image (.jpg, .png, .dng).
    - Alternatively, type the full folder path into the text box and press Enter.
-   - Verify that the green “Found X+ images” message appears, then click **🚀 Start Building Your Image Search Engine**.
+   - Verify that the green "Found X+ images" message appears, then click **🚀 Start Building Your Image Search Engine**.
    - Confirm that the app transitions to the loading screen within a few seconds.
 
 3. **Monitor logs and progress**
@@ -109,13 +109,13 @@ We will break down the work into four phases. Each phase contains detailed, sequ
 
 5. **Document failures**
    - If any of the above steps fail, capture screenshots or copy-paste errors.
-   - Create a new GitHub issue or add a note in this file under a “Known Issues” subsection for follow-up.
+   - Create a new GitHub issue or add a note in this file under a "Known Issues" subsection for follow-up.
 
 ### Phase 2: Frontend Fixes & UI Restoration
 
 #### A. Fast UI Screen (`frontend/screens/fast_ui_screen.py`)
 
-1. **Re-attach the “Start” trigger**
+1. **Re-attach the "Start" trigger**
    - Open `frontend/screens/fast_ui_screen.py`.
    - Locate the button definition:
      ```python
@@ -129,8 +129,8 @@ We will break down the work into four phases. Each phase contains detailed, sequ
      ```
    - Remove or comment out any direct calls to `_start_processing`.
 
-2. **Add a “Merge Folder” button**
-   - Immediately below the “Start” button, add:
+2. **Add a "Merge Folder" button**
+   - Immediately below the "Start" button, add:
      ```python
      if st.button("🔄 Merge New Images", key="merge_btn", use_container_width=True):
          st.session_state.merge_folder_path = folder_path
@@ -173,7 +173,7 @@ We will break down the work into four phases. Each phase contains detailed, sequ
          st.warning(f"Warning: Failed to fetch status update: {e}")
      ```
 
-3. **Add a “Retry” button on error**
+3. **Add a "Retry" button on error**
    - In `_handle_completion_or_errors()`, under the error case:
      ```python
      if loader_status == "error":
@@ -248,6 +248,15 @@ async def merge_folder(directory_path: str):
 #### C. (Optional) Persistent Job State Storage
 
 - Consider replacing the in-memory `job_status_db` with DiskCache or Redis so job progress survives service restarts.
+
+#### D. Refactor Default Collection Creation
+
+4. **Remove or parameterize automatic default collection creation**
+   - Open `backend/ingestion_orchestration_fastapi_app/main.py`.
+   - In the `startup_event` function, locate the block that checks for and creates `QDRANT_COLLECTION_NAME` (default `development_test`).
+   - Remove or modify this logic so the service does not auto-create a hardcoded collection on startup.
+   - Ensure collection creation happens only via the new API endpoints (`/collections` and `/collections/create`) or through the UI.
+   - Add or update tests in `backend/tests/` to verify that no default collection is created on startup without an explicit API call.
 
 ### Phase 4: Testing & Documentation
 

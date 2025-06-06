@@ -6,6 +6,7 @@ from frontend.core.background_loader import background_loader # Use the global i
 from frontend.config import DEFAULT_IMAGES_PATH # Keep this for default folder
 # from frontend.styles.style_injector import create_styled_button # Not used in this refactor
 from frontend.components.accessibility import AccessibilityEnhancer
+from core import service_api  # For collection cache management
 
 async def render_sidebar():
     """
@@ -15,6 +16,25 @@ async def render_sidebar():
     st.sidebar.header("🔧 Folder Processor")
     AccessibilityEnhancer.add_skip_navigation()
     
+    # Qdrant Collection Selection
+    try:
+        collections = await service_api.get_collections()
+        choice = st.sidebar.selectbox("🗃️ Select Qdrant Collection", collections + ["<Create new…>"], key="selected_collection")
+        if choice == "<Create new…>":
+            new_name = st.sidebar.text_input("New collection name", key="new_collection_name")
+            if st.sidebar.button("Create Collection", key="create_collection_btn"):
+                await service_api.create_collection(new_name)
+                await service_api.select_collection(new_name)
+                st.sidebar.success(f"Created and selected '{new_name}'.")
+                st.experimental_rerun()
+        else:
+            if st.sidebar.button("Select Collection", key="select_collection_btn"):
+                await service_api.select_collection(choice)
+                st.sidebar.success(f"Selected '{choice}'.")
+                st.experimental_rerun()
+    except Exception as e:
+        st.sidebar.error(f"Could not load collections: {e}")
+
     # Initialize session state for image_folder if it doesn't exist (used by text_input)
     if 'image_folder' not in st.session_state:
         st.session_state.image_folder = DEFAULT_IMAGES_PATH
@@ -101,6 +121,14 @@ async def render_sidebar():
 
         st.sidebar.markdown("---")
         st.sidebar.info("✨ All data operations are managed by backend services.")
+        
+        # Button to clear disk cache for the selected collection
+        if st.sidebar.button("🗑️ Clear Collection Cache", key="clear_cache_btn"):
+            try:
+                result = await service_api.clear_collection_cache()
+                st.sidebar.success(f"Cleared cache for '{result['cache_cleared_for']}'.")
+            except Exception as e:
+                st.sidebar.error(f"Failed to clear cache: {e}")
         
     except Exception as e:
         logger.error(f"Error in sidebar rendering: {e}", exc_info=True)

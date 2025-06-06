@@ -44,6 +44,7 @@ ML_INFERENCE_BATCH_SIZE = int(os.environ.get("ML_INFERENCE_BATCH_SIZE", 8)) # Ne
 QDRANT_HOST = os.environ.get("QDRANT_HOST", "localhost") # Assuming Qdrant might run locally or in Docker
 QDRANT_PORT = int(os.environ.get("QDRANT_PORT", 6333))
 QDRANT_COLLECTION_NAME = os.environ.get("QDRANT_COLLECTION_NAME", "development_test") # Corrected default
+active_collection_name = QDRANT_COLLECTION_NAME  # Global active collection that can be changed via API
 # Define standard vector parameters for the collection (e.g., for ViT-B/32 CLIP model)
 QDRANT_VECTOR_SIZE = int(os.environ.get("QDRANT_VECTOR_SIZE", 512))
 QDRANT_DISTANCE_METRIC = Distance[os.environ.get("QDRANT_DISTANCE_METRIC", "Cosine").upper()]
@@ -415,16 +416,18 @@ async def ingest_directory_v1(request: IngestRequest, background_tasks: Backgrou
         }
         raise HTTPException(status_code=503, detail=error_msg)
 
-
+    # Use a per-collection cache directory
+    collection_cache_dir = os.path.join(DISKCACHE_DIR, active_collection_name)
+    collection_cache = diskcache.Cache(collection_cache_dir)
     background_tasks.add_task(
         _run_ingestion_task,
         directory_path=request.directory_path,
         job_id=job_id,
-        qdrant_conn_bg=qdrant_client_global, # Pass the global/startup initialized client
+        qdrant_conn_bg=qdrant_client_global,
         ml_service_url_bg=ML_INFERENCE_SERVICE_URL,
         ml_batch_size_bg=ML_INFERENCE_BATCH_SIZE,
-        disk_cache_bg=image_content_cache,
-        collection_name_bg=QDRANT_COLLECTION_NAME
+        disk_cache_bg=collection_cache,
+        collection_name_bg=active_collection_name
     )
     
     return {
@@ -475,6 +478,40 @@ v1_router.include_router(search_router.router, prefix="/search", tags=["Qdrant S
 v1_router.include_router(images_router.router, prefix="/images", tags=["Qdrant Image Listing Extensions"]) # Path from plan
 v1_router.include_router(duplicates_router.router, prefix="/duplicates", tags=["Qdrant Duplicate Detection Extensions"]) # Path from plan
 v1_router.include_router(random_router.router, prefix="/random", tags=["Qdrant Random Image Extensions"]) # Path from plan
+
+# --- Qdrant Collection Management Endpoints ---
+class CollectionNameRequest(BaseModel):
+    collection_name: str
+
+@v1_router.get("/collections", response_model=List[str])
+async def list_collections(q_client: QdrantClient = Depends(get_qdrant_dependency)):
+    """List all Qdrant collections"""
+    collections_info = q_client.get_collections().collections
+    return [c.name for c in collections_info]
+
+@v1_router.post("/collections", response_model=Dict[str, str])
+async def create_collection(req: CollectionNameRequest, q_client: QdrantClient = Depends(get_qdrant_dependency)):
+    """Create a new Qdrant collection with default vector params"""
+    q_client.create_collection(
+        collection_name=req.collection_name,
+        vectors_config=VectorParams(size=QDRANT_VECTOR_SIZE, distance=QDRANT_DISTANCE_METRIC)
+    )
+    return {"collection": req.collection_name}
+
+@v1_router.post("/collections/select", response_model=Dict[str, str])
+async def select_collection(req: CollectionNameRequest):
+    """Select the active Qdrant collection for future operations"""
+    global active_collection_name
+    active_collection_name = req.collection_name
+    return {"selected_collection": active_collection_name}
+
+@v1_router.post("/collections/cache/clear", response_model=Dict[str, str])
+async def clear_collection_cache():
+    """Clear the disk cache for the currently active Qdrant collection."""
+    cache_dir = os.path.join(DISKCACHE_DIR, active_collection_name)
+    cache = diskcache.Cache(cache_dir)
+    cache.clear()
+    return {"cache_cleared_for": active_collection_name}
 
 # Include the v1 router in the main app
 app.include_router(v1_router)

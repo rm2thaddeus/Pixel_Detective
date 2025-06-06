@@ -486,5 +486,41 @@ async def _test_main():
     else:
         print("Skipping direct API call tests as 'test_image.jpg' not found.")
 
+async def get_collections():
+    """Retrieve list of Qdrant collections from the backend."""
+    client = get_async_client()
+    response = await client.get(f"{INGESTION_ORCHESTRATION_URL}/collections")
+    response.raise_for_status()
+    return response.json()
+
+async def create_collection(collection_name: str):
+    """Create a new Qdrant collection via the backend."""
+    client = get_async_client()
+    response = await client.post(
+        f"{INGESTION_ORCHESTRATION_URL}/collections",
+        json={"collection_name": collection_name}
+    )
+    response.raise_for_status()
+    return response.json()
+
+async def select_collection(collection_name: str):
+    """Select the active Qdrant collection for future operations."""
+    client = get_async_client()
+    response = await client.post(
+        f"{INGESTION_ORCHESTRATION_URL}/collections/select",
+        json={"collection_name": collection_name}
+    )
+    response.raise_for_status()
+    return response.json()
+
+async def clear_collection_cache():
+    """Clear the disk cache for the currently active Qdrant collection via the backend."""
+    client = get_async_client()
+    response = await client.post(
+        f"{INGESTION_ORCHESTRATION_URL}/collections/cache/clear"
+    )
+    response.raise_for_status()
+    return response.json()
+
 if __name__ == '__main__':
     asyncio.run(_test_main()) 

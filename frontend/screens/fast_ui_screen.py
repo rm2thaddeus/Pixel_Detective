@@ -13,6 +13,7 @@ from styles.style_injector import (
     create_status_indicator
 )
 from frontend.components.accessibility import AccessibilityEnhancer
+from core import service_api  # Qdrant collection management API
 
 # Import tkinter for file dialog
 try:

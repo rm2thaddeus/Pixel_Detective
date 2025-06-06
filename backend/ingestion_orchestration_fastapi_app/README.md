@@ -1,14 +1,42 @@
 # Ingestion Orchestration FastAPI App
 
 ## Prerequisites
-- **Qdrant vector database** running on port 6333:
-  ```bash
-  docker run -p 6333:6333 qdrant/qdrant:latest
-  ```
-- **ML Inference Service** running on port 8001:
-  ```bash
-  uvicorn backend.ml_inference_fastapi_app.main:app --host 0.0.0.0 --port 8001
-  ```
+
+1. **Qdrant vector database**:
+   - **Docker (Linux/macOS)**:
+     ```bash
+     docker run -p 6333:6333 -p 6334:6334 \
+       -v "$(pwd)/qdrant_storage:/qdrant/storage:z" \
+       qdrant/qdrant:latest
+     ```
+   - **Docker (Windows PowerShell)**:
+     ```powershell
+     docker run -p 6333:6333 -p 6334:6334 `
+       -v "${PWD}/qdrant_storage:/qdrant/storage:z" `
+       qdrant/qdrant:latest
+     ```
+   - **Docker (Windows CMD)**:
+     ```cmd
+     docker run -p 6333:6333 -p 6334:6334 -v %cd%/qdrant_storage:/qdrant/storage:z qdrant/qdrant:latest
+     ```
+   - **Python client (Local Mode)**:
+     ```bash
+     pip install qdrant-client
+     python - <<EOF
+     from qdrant_client import QdrantClient, models
+     client = QdrantClient(url="http://localhost:6333")
+     if not client.get_collections().collections:
+         client.create_collection(
+             collection_name="development_test",
+             vectors_config=models.VectorParams(size=512, distance=models.Distance.COSINE)
+         )
+     EOF
+     ```
+
+2. **ML Inference Service** running on port 8001:
+   ```bash
+   uvicorn backend.ml_inference_fastapi_app.main:app --host 0.0.0.0 --port 8001
+   ```
 
 ## Overview
 This service handles ingestion orchestration, metadata extraction, and communication with Qdrant and the ML inference service.
