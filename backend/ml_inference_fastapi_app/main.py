@@ -11,6 +11,7 @@ import logging
 import numpy as np
 import io # For handling bytes as files for PIL
 import base64
+import tempfile  # Added for DNG temp file handling
 from typing import Dict, Any, Tuple, List, Optional
 
 # Configure basic logging
@@ -138,11 +139,18 @@ async def embed_image_endpoint_v1(request: EmbedRequest = Body(...)):
     try:
         image_bytes = base64.b64decode(request.image_base64)
         
-        # Handle DNG separately using rawpy for proper decoding
+        # Handle DNG separately using rawpy on a temporary file
         if request.filename.lower().endswith('.dng'):
-            with rawpy.imread(io.BytesIO(image_bytes)) as raw:
-                rgb = raw.postprocess()
-            image = Image.fromarray(rgb).convert("RGB")
+            with tempfile.NamedTemporaryFile(suffix='.dng', delete=False) as tmp:
+                tmp.write(image_bytes)
+                tmp.flush()
+                tmp_path = tmp.name
+            try:
+                with rawpy.imread(tmp_path) as raw:
+                    rgb = raw.postprocess()
+                image = Image.fromarray(rgb).convert("RGB")
+            finally:
+                os.remove(tmp_path)
         else:
             image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
 
@@ -178,11 +186,18 @@ async def caption_image_endpoint_v1(request: CaptionRequest = Body(...)):
 
     try:
         image_bytes = base64.b64decode(request.image_base64)
-        # Handle DNG in caption endpoint with rawpy
+        # Handle DNG in caption endpoint using rawpy on a temp file
         if request.filename.lower().endswith('.dng'):
-            with rawpy.imread(io.BytesIO(image_bytes)) as raw:
-                rgb = raw.postprocess()
-            image = Image.fromarray(rgb).convert("RGB")
+            with tempfile.NamedTemporaryFile(suffix='.dng', delete=False) as tmp:
+                tmp.write(image_bytes)
+                tmp.flush()
+                tmp_path = tmp.name
+            try:
+                with rawpy.imread(tmp_path) as raw:
+                    rgb = raw.postprocess()
+                image = Image.fromarray(rgb).convert("RGB")
+            finally:
+                os.remove(tmp_path)
         else:
             image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
 
@@ -251,11 +266,18 @@ async def batch_embed_and_caption_endpoint_v1(request: BatchEmbedAndCaptionReque
     for i, item in enumerate(request.images):
         try:
             image_bytes = base64.b64decode(item.image_base64)
-            # DNG handling for batch; use rawpy if needed
+            # DNG handling for batch; write to temp file for rawpy
             if item.filename.lower().endswith('.dng'):
-                with rawpy.imread(io.BytesIO(image_bytes)) as raw:
-                    rgb = raw.postprocess()
-                pil_img = Image.fromarray(rgb).convert("RGB")
+                with tempfile.NamedTemporaryFile(suffix='.dng', delete=False) as tmp:
+                    tmp.write(image_bytes)
+                    tmp.flush()
+                    tmp_path = tmp.name
+                try:
+                    with rawpy.imread(tmp_path) as raw:
+                        rgb = raw.postprocess()
+                    pil_img = Image.fromarray(rgb).convert("RGB")
+                finally:
+                    os.remove(tmp_path)
             else:
                 pil_img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
             pil_images.append(pil_img)

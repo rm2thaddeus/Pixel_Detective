@@ -18,11 +18,7 @@ Sprint 09 focuses on achieving application stability and robustness through comp
 | FR-09-03  | As a developer/user, I want improved frontend feedback for backend processes.                               | - Frontend screens utilize new/existing APIs to display progress for long-running operations (e.g., folder ingestion, search, duplicate detection).
 - Relevant logs or status messages from the backend are displayed in the UI where appropriate.
 - Clear error messages are shown for API failures. | Planned   | High     |
-| FR-09-04  | As a user, I want the "Folder Load" functionality to be fully restored and reliable.                        | - User can initiate folder loading/ingestion from the UI.
-- The process successfully calls the backend ingestion orchestration service.
-- The frontend correctly recognizes common image formats, including RAW types like .dng.
-- Images and metadata from the folder are correctly added to the Qdrant collection.
-- UI provides feedback on success, failure, and progress.          | In Progress | High     |
+| FR-09-04  | As a user, I want the "Folder Load" functionality to be fully restored and reliable.                        | Done        | High     |
 | FR-09-05  | As a user, I want all application screens to behave consistently and reliably based on backend data.        | - All frontend screens correctly fetch and display data from the backend APIs (`service_api.py`).
 - Critical crashes on the Fast UI screen (e.g., `AttributeError`) have been resolved.
 - UI interactions (filtering, sorting, searching, etc.) accurately reflect backend state and capabilities.
@@ -51,13 +47,15 @@ Sprint 09 focuses on achieving application stability and robustness through comp
 -   **Frontend (`app.py`, `screens/`, `components/`):
     -   **Logging & Stability:** A centralized, configurable logger has been implemented in `utils/logger.py` and integrated across all core frontend modules. A strict absolute import strategy (e.g., `from frontend.core...`) has been enforced to resolve critical startup errors.
     -   **Error Handling:** A new `screens/error_screen.py` module provides a user-friendly interface for critical frontend exceptions, offering recovery options.
+    -   **UI Rerun Stability:** Replaced deprecated Streamlit API calls (`st.experimental_rerun()`) with `st.rerun()` across all UI modules to ensure reliable state transitions.
     -   Develop UI elements for prompting folder input if a collection doesn't exist.
     -   Integrate API calls for progress/log updates (potentially new endpoints or modifications to existing ones in `service_api.py` and backend FastAPI apps).
     -   Review and refactor screen logic (e.g., in `screens/`) to align with API-driven data fetching and state management, ensuring they use `service_api.py` for all backend communications.
     -   **Qdrant Collection Management:** Moved collection selection, creation, and cache-clear UI into the async sidebar (`components/sidebar/context_sidebar.py`); updated `service_api.py` with `get_collections()`, `create_collection()`, `select_collection()`, and `clear_collection_cache()`; implemented corresponding FastAPI endpoints; and resolved async event loop errors by removing collection logic from the Fast UI screen.
--   **Backend API (`ingestion_orchestration_fastapi_app`, `service_api.py`):
+-   **Backend API (`ingestion_orchestration_fastapi_app`, `ml_inference_fastapi_app`, `service_api.py`):
     -   The ingestion service might need an endpoint to check collection existence or create a collection if it doesn't exist, based on a user-provided path.
     -   APIs should provide more granular progress/status updates for long-running tasks if not already present.
+    -   **ML Inference DNG Support:** Updated ML Inference Service to properly decode RAW `.dng` images using `rawpy`, resolving PIL decoding errors during embedding and captioning.
 
 ## 5. Implementation Timeline
 | Week   | Milestones                                                                                                                               |

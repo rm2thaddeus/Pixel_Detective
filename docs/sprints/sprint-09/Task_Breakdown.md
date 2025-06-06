@@ -82,6 +82,16 @@ This section details bugs that were identified and fixed after the initial appli
       *   **Symptom:** Clicking the collection selection or browse buttons caused `RuntimeError: Event loop is closed` in the Fast UI screen.
       *   **Resolution:** Moved collection management UI into the async sidebar (`context_sidebar.py`) and removed async calls from `FastUIScreen.render()` to prevent loop closure errors.
 
+4.  **BUG-09-04: Streamlit Rerun Deprecation Errors**
+    *   **Status:** Fixed.
+    *   **Symptom:** UI crashed with `AttributeError: module 'streamlit' has no attribute 'experimental_rerun'` when creating or selecting collections and paging.
+    *   **Resolution:** Replaced all deprecated `st.experimental_rerun()` calls with the supported `st.rerun()` API across Fast UI, Advanced UI, sidebar, and visualization components.
+
+5.  **BUG-09-05: ML Inference DNG Decoding Failures**
+    *   **Status:** Fixed.
+    *   **Symptom:** The ML inference service failed to process raw `.dng` files with `cannot identify image file` errors, stalling ingestion at ~20%.
+    *   **Resolution:** Integrated `rawpy` decoding for `.dng` images in `ml_inference_fastapi_app` for embed, caption, and batch endpoints, ensuring correct RGB conversion before model processing.
+
 ---
 
 ## III. Next Steps & Remaining Tasks
