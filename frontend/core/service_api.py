@@ -427,6 +427,77 @@ async def get_all_vectors_for_latent_space():
 # - Advanced search filters
 # - User preferences, etc.
 
+# --- Qdrant Collection Management Endpoints (Sprint 09) ---
+async def get_collection_status():
+    """
+    Checks if a Qdrant collection exists.
+    Corresponds to GET /api/v1/collection/status in the backend.
+    """
+    client = get_async_client()
+    url = f"{INGESTION_ORCHESTRATION_URL}/collection/status"
+    logger.debug(f"GET {url}")
+    try:
+        response = await client.get(url)
+        response.raise_for_status()
+        return response.json()
+    except httpx.HTTPStatusError as e:
+        logger.error(f"HTTP error getting collection status: {e} - Response: {e.response.text}")
+        return {"error": str(e), "status_code": e.response.status_code, "detail": e.response.json() if e.response.content else None}
+    except httpx.RequestError as e:
+        logger.error(f"Request error getting collection status: {e}")
+        return {"error": str(e), "status_code": None}
+    except Exception as e:
+        logger.error(f"Unexpected error getting collection status: {e}")
+        return {"error": str(e)}
+
+async def create_collection(directory_path: str):
+    """
+    Creates a new Qdrant collection from a folder of images.
+    Corresponds to POST /api/v1/collection/create in the backend.
+    """
+    client = get_async_client()
+    payload = {"directory_path": directory_path}
+    url = f"{INGESTION_ORCHESTRATION_URL}/collection/create"
+    logger.info(f"Requesting collection creation for folder: {directory_path}")
+    logger.debug(f"POST {url} with payload: {payload}")
+    try:
+        response = await client.post(url, json=payload)
+        response.raise_for_status()
+        return response.json()
+    except httpx.HTTPStatusError as e:
+        logger.error(f"HTTP error creating collection: {e} - Response: {e.response.text}", exc_info=True)
+        return {"error": str(e), "status_code": e.response.status_code, "detail": e.response.json() if e.response.content else None}
+    except httpx.RequestError as e:
+        logger.error(f"Request error creating collection: {e}", exc_info=True)
+        return {"error": str(e), "status_code": None}
+    except Exception as e:
+        logger.error(f"Unexpected error creating collection: {e}", exc_info=True)
+        return {"error": str(e)}
+
+async def merge_folder(directory_path: str):
+    """
+    Merges a new folder of images into the existing Qdrant collection.
+    Corresponds to POST /api/v1/ingest/merge in the backend.
+    """
+    client = get_async_client()
+    payload = {"directory_path": directory_path}
+    url = f"{INGESTION_ORCHESTRATION_URL}/ingest/merge"
+    logger.info(f"Requesting merge for folder: {directory_path}")
+    logger.debug(f"POST {url} with payload: {payload}")
+    try:
+        response = await client.post(url, json=payload)
+        response.raise_for_status()
+        return response.json()
+    except httpx.HTTPStatusError as e:
+        logger.error(f"HTTP error merging folder: {e} - Response: {e.response.text}", exc_info=True)
+        return {"error": str(e), "status_code": e.response.status_code, "detail": e.response.json() if e.response.content else None}
+    except httpx.RequestError as e:
+        logger.error(f"Request error merging folder: {e}", exc_info=True)
+        return {"error": str(e), "status_code": None}
+    except Exception as e:
+        logger.error(f"Unexpected error merging folder: {e}", exc_info=True)
+        return {"error": str(e)}
+
 async def _test_main():
     print("Testing service_api.py (ensure backend services are running)")
     
@@ -492,16 +563,6 @@ async def get_collections():
     """Retrieve list of Qdrant collections from the backend."""
     client = get_async_client()
     response = await client.get(f"{INGESTION_ORCHESTRATION_URL}/collections")
-    response.raise_for_status()
-    return response.json()
-
-async def create_collection(collection_name: str):
-    """Create a new Qdrant collection via the backend."""
-    client = get_async_client()
-    response = await client.post(
-        f"{INGESTION_ORCHESTRATION_URL}/collections",
-        json={"collection_name": collection_name}
-    )
     response.raise_for_status()
     return response.json()
 
