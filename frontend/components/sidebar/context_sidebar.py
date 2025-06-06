@@ -26,12 +26,12 @@ async def render_sidebar():
                 await service_api.create_collection(new_name)
                 await service_api.select_collection(new_name)
                 st.sidebar.success(f"Created and selected '{new_name}'.")
-                st.experimental_rerun()
+                st.rerun()
         else:
             if st.sidebar.button("Select Collection", key="select_collection_btn"):
                 await service_api.select_collection(choice)
                 st.sidebar.success(f"Selected '{choice}'.")
-                st.experimental_rerun()
+                st.rerun()
     except Exception as e:
         st.sidebar.error(f"Could not load collections: {e}")
 

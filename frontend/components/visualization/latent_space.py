@@ -226,5 +226,5 @@ def render_latent_space_tab():
         st.error(f"Error during visualization computation: {st.session_state.get('latent_space_viz_error_message', 'Unknown error')}")
         if st.button("Retry Computation"):
              st.session_state.latent_space_viz_status = "idle"
-             st.experimental_rerun()
+             st.rerun()
     # No specific message if idle and data is loaded, button prompts to compute. 

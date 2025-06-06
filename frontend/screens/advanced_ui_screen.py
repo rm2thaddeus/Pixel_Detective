@@ -193,13 +193,13 @@ class AdvancedUIScreen:
                             with col1:
                                 if st.button("⬅️ Prev", disabled=page <= 1, key="search_prev_page"):
                                     st.session_state['search_page'] = max(1, page - 1)
-                                    st.experimental_rerun()
+                                    st.rerun()
                             with col2:
                                 st.markdown(f"Page **{page}** of **{total_pages}**")
                             with col3:
                                 if st.button("Next ➡️", disabled=page >= total_pages, key="search_next_page"):
                                     st.session_state['search_page'] = min(total_pages, page + 1)
-                                    st.experimental_rerun()
+                                    st.rerun()
                         else:
                             st.error(f"Search error: {result.get('error', 'Unknown error')}")
                     except Exception as e:

@@ -138,15 +138,13 @@ async def embed_image_endpoint_v1(request: EmbedRequest = Body(...)):
     try:
         image_bytes = base64.b64decode(request.image_base64)
         
-        # Handle DNG separately if needed, though PIL might handle some via libraries
-        # For simplicity, assuming PIL can handle common formats from bytes.
-        # If specific DNG handling from clip_model.py (rawpy) is strictly needed for all DNGs:
-        # if request.filename.lower().endswith('.dng'):
-        #     with rawpy.imread(io.BytesIO(image_bytes)) as raw:
-        #         rgb = raw.postprocess()
-        #     image = Image.fromarray(rgb).convert("RGB")
-        # else:
-        image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+        # Handle DNG separately using rawpy for proper decoding
+        if request.filename.lower().endswith('.dng'):
+            with rawpy.imread(io.BytesIO(image_bytes)) as raw:
+                rgb = raw.postprocess()
+            image = Image.fromarray(rgb).convert("RGB")
+        else:
+            image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
 
         image_input = clip_preprocess_instance(image).unsqueeze(0).to(device)
         
@@ -180,7 +178,13 @@ async def caption_image_endpoint_v1(request: CaptionRequest = Body(...)):
 
     try:
         image_bytes = base64.b64decode(request.image_base64)
-        image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+        # Handle DNG in caption endpoint with rawpy
+        if request.filename.lower().endswith('.dng'):
+            with rawpy.imread(io.BytesIO(image_bytes)) as raw:
+                rgb = raw.postprocess()
+            image = Image.fromarray(rgb).convert("RGB")
+        else:
+            image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
 
         # BLIP doesn't typically use a conditional prompt string unless you want to guide it.
         # For general captioning, an empty prompt or task-specific default is fine.
@@ -247,9 +251,13 @@ async def batch_embed_and_caption_endpoint_v1(request: BatchEmbedAndCaptionReque
     for i, item in enumerate(request.images):
         try:
             image_bytes = base64.b64decode(item.image_base64)
-            # DNG handling - simplified, assuming PIL can handle it from bytes or we rely on general format support
-            # For more robust DNG, rawpy logic would be here as in single endpoints.
-            pil_img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+            # DNG handling for batch; use rawpy if needed
+            if item.filename.lower().endswith('.dng'):
+                with rawpy.imread(io.BytesIO(image_bytes)) as raw:
+                    rgb = raw.postprocess()
+                pil_img = Image.fromarray(rgb).convert("RGB")
+            else:
+                pil_img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
             pil_images.append(pil_img)
             processed_indices.append(i) # Store original index
             request_items_for_processing.append(item) # Store corresponding request item

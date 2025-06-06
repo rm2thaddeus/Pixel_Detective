@@ -23,8 +23,10 @@ ML_INFERENCE_URL = os.getenv("ML_INFERENCE_SERVICE_URL", "http://localhost:8001/
 INGESTION_ORCHESTRATION_URL = os.getenv("INGESTION_ORCHESTRATION_SERVICE_URL", "http://localhost:8002/api/v1") # Assuming 8002 for ingestion
 
 # Cached HTTPX client
-@st.cache_resource
 def get_async_client():
+    """
+    Returns a new HTTPX AsyncClient to ensure fresh event loop context for each call.
+    """
     return httpx.AsyncClient(timeout=30.0) # Increased timeout for potentially long operations
 
 # --- ML Inference Service Endpoints ---

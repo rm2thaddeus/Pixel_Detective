@@ -8,7 +8,7 @@ from frontend.screens.fast_ui_screen import render_fast_ui_screen
 from frontend.screens.loading_screen import render_loading_screen
 from frontend.screens.advanced_ui_screen import render_advanced_ui_screen, AdvancedUIScreen
 from frontend.screens.error_screen import render_error_screen
-from frontend.core import background_loader
+from frontend.core.background_loader import background_loader
 from utils.logger import get_logger
 from frontend.styles.style_injector import inject_pixel_detective_styles
 from frontend.components.accessibility import AccessibilityEnhancer

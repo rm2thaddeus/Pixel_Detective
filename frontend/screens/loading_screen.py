@@ -571,26 +571,10 @@ class LoadingScreen:
             
             st.markdown("---")
             
-            # Enhanced current phase display
-            st.markdown("### 🔄 What's Happening")
-            
-            current_phase = progress_data.current_phase
-            if current_phase == "FOLDER_SCAN":
-                create_status_indicator("info", "Exploring your photo collection", True)
-                st.markdown("Finding all your amazing images...")
-            elif current_phase == "MODEL_INIT":
-                create_status_indicator("info", "Teaching AI about images", True)
-                st.markdown("Loading super-smart vision...")
-            elif current_phase == "DB_BUILD":
-                create_status_indicator("info", "Building your search engine", True)
-                st.markdown("Making magic connections...")
-            elif current_phase == "READY":
-                create_status_indicator("success", "Ready for exploration!", True)
-                st.markdown("Everything is perfect!")
-            else:
-                create_status_indicator("info", "Preparing your workspace", True)
-                st.markdown("Getting everything ready...")
-            
+            # Simplified status display
+            st.markdown("### 🔄 Status Details")
+            st.text(f"Status: {progress_data.status}")
+            st.text(f"Detail: {progress_data.current_detail}")
             st.markdown("---")
             
             # Enhanced time estimation
