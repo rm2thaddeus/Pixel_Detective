@@ -100,6 +100,14 @@ We will break down the work into four phases. Each phase contains detailed, sequ
 
 ### Phase 1: End-to-End Smoke Testing & Triage
 
++0. **Start Backend Services:** Ensure both backend services are running before testing the frontend:
+  - In a terminal at the project root, run:
+    ```powershell
+    uvicorn backend.ml_inference_fastapi_app.main:app --reload --port 8001
+    uvicorn backend.ingestion_orchestration_fastapi_app.main:app --reload --port 8002
+    ```
+  - Confirm no `ModuleNotFoundError` occurs (use dot-notation for module paths).
+
 1. **Launch the application**
    - Open a new terminal.
    - Change directory to the frontend folder:
