@@ -75,59 +75,200 @@ This section details bugs that were identified and fixed after the initial appli
 
 ## III. Next Steps & Remaining Tasks
 
-With the critical startup and UI bugs resolved, the next step is to **perform a full end-to-end test of the primary user flow: folder ingestion.** This involves:
-1.  Launching the application.
-2.  Selecting a folder containing a mix of images (including `.dng` files).
-3.  Initiating the ingestion process.
-4.  Monitoring the logs in the UI to ensure the process completes successfully.
-5.  Verifying that the application transitions to the `Advanced UI` screen upon completion.
+We will break down the work into four phases. Each phase contains detailed, sequential steps with file paths and example commands. Follow each step carefully, and check your work before moving on.
 
-This will validate the recent stability fixes and confirm that the frontend and backend are communicating correctly.
+### Phase 1: End-to-End Smoke Testing & Triage
 
-### A. Backend API and Logging Enhancements (Ingestion Service)
+1. **Launch the application**
+   - Open a new terminal.
+   - Change directory to the frontend folder:
+     ```bash
+     cd /c:/Users/aitor/OneDrive/Escritorio/Vibe Coding/frontend
+     ```
+   - Run the Streamlit app:
+     ```bash
+     streamlit run app.py
+     ```
+   - Wait for the browser to open and verify that the Fast UI screen (welcome header and folder input) appears without errors.
 
-> **Note:** Qdrant collections can become corrupted (e.g., due to abrupt shutdowns or disk issues). For development, manual reset is acceptable, but for production/scale-up, a failsafe mechanism should be implemented: regular automated backups, health checks, and automated restore/recovery scripts.
+2. **Select a folder and start ingestion**
+   - On the Fast UI screen, click the 📁 **Browse** button and choose a folder containing at least one image (.jpg, .png, .dng).
+   - Alternatively, type the full folder path into the text box and press Enter.
+   - Verify that the green “Found X+ images” message appears, then click **🚀 Start Building Your Image Search Engine**.
+   - Confirm that the app transitions to the loading screen within a few seconds.
 
-1.  **Task: Implement Real Job Management & Background Processing for Ingestion**
-    *   **Status:** Substantially complete.
-    *   **Goal:** `/api/v1/ingest/` endpoint should initiate folder ingestion as a non-blocking background task and return a `job_id`.
-    *   **Details & Implementation Notes:**
-        *   Modified `ingest_directory_v1` in `backend/ingestion_orchestration_fastapi_app/main.py` to use FastAPI's `BackgroundTasks`.
-        *   Generates a unique `job_id` for each ingestion request.
-        *   Initial job status (e.g., "pending", progress, initial log) is stored in the in-memory `job_status_db`.
-        *   The core ingestion logic moved to `_run_ingestion_task` and scheduled in the background.
-        *   The endpoint now immediately returns the `job_id` and initial status.
+3. **Monitor logs and progress**
+   - On the loading screen, verify that the progress bar moves and the status message updates.
+   - Expand the **Loading Details/Logs** section and confirm you see timestamped log entries.
+   - Ensure no unexpected errors (red messages). If errors appear, note the exact error text and file/line references.
 
-2.  **Task: Implement Persistent Job State Storage (Status, Progress, Logs)**
-    *   **Status:** Partially complete (in-memory storage implemented).
-    *   **Goal:** Store status, progress percentage, and detailed log messages for each ingestion job.
-    *   **Details & Implementation Notes:**
-        *   An in-memory dictionary `job_status_db` in `backend/ingestion_orchestration_fastapi_app/main.py` is used for job state.
-        *   The background ingestion task (`_run_ingestion_task`) updates this store with:
-            *   Current status (e.g., "processing", "completed", "failed").
-            *   Progress percentage.
-            *   A list of log messages (strings) detailing its operations and any errors, using the `log_to_job` helper.
-        *   *Consideration for future sprints: For production, replace in-memory storage with a more robust solution like Redis if service instances might be restarted or scaled.*
+4. **Verify Advanced UI transition**
+   - After progress reaches 100%, confirm that the **🎉 Loading Complete!** banner appears briefly.
+   - The app should automatically switch to the Advanced UI screen.
+   - Verify that the search interface loads and is ready for queries.
 
-3.  **Task: Enhance Ingestion Task Logging**
-    *   **Status:** Substantially complete.
-    *   **Goal:** The ingestion background task should capture detailed operational logs.
-    *   **Details & Implementation Notes:**
-        *   The `_run_ingestion_task` and its helper `process_batch_with_ml_service` in `backend/ingestion_orchestration_fastapi_app/main.py` now use the `log_to_job` helper.
-        *   Log messages (timestamped and with level) are collected in `job_status_db[job_id]["logs"]`.
+5. **Document failures**
+   - If any of the above steps fail, capture screenshots or copy-paste errors.
+   - Create a new GitHub issue or add a note in this file under a “Known Issues” subsection for follow-up.
 
-4.  **Task: Update `/ingest/status/{job_id}` Endpoint for Real Data**
-    *   **Status:** Substantially complete.
-    *   **Goal:** `/api/v1/ingest/status/{job_id}` endpoint should return actual status, progress, and detailed logs.
-    *   **Details & Implementation Notes:**
-        *   Modified `get_ingestion_status_v1` in `backend/ingestion_orchestration_fastapi_app/main.py` to retrieve job information from `job_status_db`.
-        *   Populates the `JobStatusResponse` model, which now returns `logs: List[str]` containing the collected log messages. Other fields include `status`, `progress`, `result`, `directory_path`, and `total_files`.
-        *   Handles cases where the `job_id` is not found (returns 404).
+### Phase 2: Frontend Fixes & UI Restoration
 
-### B. Frontend Polish & Final Integration
+#### A. Fast UI Screen (`frontend/screens/fast_ui_screen.py`)
 
-1.  **Task: Adapt Frontend Log Display (If Necessary)**
-    *   **Status:** Complete.
-    *   **Goal:** Ensure logs from the backend are displayed clearly in the sidebar.
-    *   **Details & Implementation Notes:**
-        *   `frontend/core/background_loader.py` (in `
+1. **Re-attach the “Start” trigger**
+   - Open `frontend/screens/fast_ui_screen.py`.
+   - Locate the button definition:
+     ```python
+     if st.button("🚀 Start Building Your Image Search Engine", key="start_btn"):
+         FastUIScreen._start_processing(folder_path)
+     ```
+   - Replace the call to `_start_processing` with:
+     ```python
+     st.session_state.trigger_loading = True
+     st.rerun()
+     ```
+   - Remove or comment out any direct calls to `_start_processing`.
+
+2. **Add a “Merge Folder” button**
+   - Immediately below the “Start” button, add:
+     ```python
+     if st.button("🔄 Merge New Images", key="merge_btn", use_container_width=True):
+         st.session_state.merge_folder_path = folder_path
+         st.session_state.trigger_merge = True
+         st.rerun()
+     ```
+
+3. **Prompt for collection existence**
+   - In `FastUIScreen.render()` (or `app.py` before screen render), insert:
+     ```python
+     status = await service_api.get_collection_status()
+     if not status.get("exists", False):
+         st.warning("Qdrant collection not found. Create a new collection from this folder below.")
+     ```
+   - Add a text input and **Create Collection** button that sets:
+     ```python
+     st.session_state.trigger_create = True
+     st.session_state.create_folder_path = folder_input_value
+     st.rerun()
+     ```
+
+#### B. Loading / Progress Screen (`frontend/screens/loading_screen.py`)
+
+1. **Render full log history**
+   - Open `frontend/screens/loading_screen.py`.
+   - After displaying the progress bar, add:
+     ```python
+     with st.expander("📜 All Logs", expanded=False):
+         all_logs = st.session_state.get("bg_loader_all_logs", [])
+         st.text_area("Backend Logs", "\n".join(all_logs), height=200)
+     ```
+   - In `BackgroundLoader.check_ingestion_status()`, append each new log message into `st.session_state["bg_loader_all_logs"]`.
+
+2. **Display transient polling errors**
+   - Wrap the `await background_loader.check_ingestion_status()` call in `render()` with:
+     ```python
+     try:
+         await background_loader.check_ingestion_status()
+     except Exception as e:
+         st.warning(f"Warning: Failed to fetch status update: {e}")
+     ```
+
+3. **Add a “Retry” button on error**
+   - In `_handle_completion_or_errors()`, under the error case:
+     ```python
+     if loader_status == "error":
+         if st.button("🔄 Retry Ingestion"):
+             await background_loader.start_loading_pipeline(st.session_state.folder_path)
+         return
+     ```
+
+#### C. Contextual Sidebar (`frontend/components/sidebar/context_sidebar.py`)
+
+1. **Expander for full logs**
+   - In the sidebar render function, after the status indicator:
+     ```python
+     with st.expander("📜 Show All Logs"):
+         logs = st.session_state.get("bg_loader_all_logs", [])
+         st.text("\n".join(logs))
+     ```
+
+2. **Re-add Merge UI**
+   - If `st.session_state.database_built` is `True`, add:
+     ```python
+     if st.button("🔄 Merge Additional Images", use_container_width=True):
+         st.session_state.merge_folder_path = st.session_state.folder_path
+         st.session_state.trigger_merge = True
+         st.rerun()
+     ```
+
+### Phase 3: Service-API & Backend Endpoint Work
+
+#### A. Extend `frontend/core/service_api.py`
+
+Add these async functions at the bottom of the file:
+```python
+async def get_collection_status():
+    response = await get_async_client().get(
+        f"{INGESTION_ORCHESTRATION_URL}/collection/status"
+    )
+    response.raise_for_status()
+    return response.json()
+
+async def create_collection(directory_path: str):
+    return await get_async_client().post(
+        f"{INGESTION_ORCHESTRATION_URL}/collection/create",
+        json={"directory_path": directory_path},
+    )
+
+async def merge_folder(directory_path: str):
+    return await get_async_client().post(
+        f"{INGESTION_ORCHESTRATION_URL}/ingest/merge",
+        json={"directory_path": directory_path},
+    )
+```
+
+#### B. New FastAPI Routes (`backend/ingestion_orchestration_fastapi_app/main.py`)
+
+1. **GET /api/v1/collection/status**
+    ```python
+    @v1_router.get("/collection/status")
+    async def collection_status(
+        q_client: QdrantClient = Depends(get_qdrant_dependency)
+    ):
+        exists = await q_client.has_collection(QDRANT_COLLECTION_NAME)
+        return {"exists": exists}
+    ```
+
+2. **POST /api/v1/collection/create**
+    - Mirror `/ingest` logic but force creation of a new collection.
+
+3. **POST /api/v1/ingest/merge**
+    - Add a new endpoint that calls `_run_ingestion_task` with a merge flag.
+
+#### C. (Optional) Persistent Job State Storage
+
+- Consider replacing the in-memory `job_status_db` with DiskCache or Redis so job progress survives service restarts.
+
+### Phase 4: Testing & Documentation
+
+1. **Unit & Integration Tests**
+   - Create pytest tests under `backend/tests/` for:
+     - `/collection/status`
+     - `/collection/create`
+     - `/ingest/merge`
+   - Use `pytest-asyncio` to mock FastAPI dependencies and Qdrant client.
+
+2. **Playwright E2E Tests**
+   - In `frontend/tests/playwright/`, automate the main user flow:
+     1. Launch the app.
+     2. Select a folder.
+     3. Click "Start".
+     4. Wait for Advanced UI screen.
+
+3. **Documentation Updates**
+   - Update `docs/sprints/sprint-09/PRD.md` in the "Requirements Matrix" and "Technical Architecture" sections.
+   - Add a new entry in `docs/CHANGELOG.md` summarizing:
+     - Restored Fast UI triggers
+     - Added Merge endpoint and UI
+     - Extended service API
+     - Full logs in UI
