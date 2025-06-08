@@ -17,6 +17,9 @@ from qdrant_client.http.models import Distance, VectorParams # For collection cr
 from utils.metadata_extractor import extract_metadata # Import the new extractor
 import uuid # Added for generating UUIDs for point_id
 import hashlib # Added for image content hashing
+import rawpy # Decode DNG upstream
+from PIL import Image # For DNG->RGB conversion
+import io # For encoding PIL images to bytes
 import diskcache
 import time # For logging timestamps
 import asyncio # Added for sleep in background task
@@ -94,12 +97,28 @@ async def process_batch_with_ml_service(
         return
 
     log_to_job(job_id, f"Sending batch of {len(batch_items_to_ml)} items to ML Inference Service...")
-    ml_request_payload = {
-        "images": [
-            MLBatchRequestItem(unique_id=item[0], image_base64=item[1], filename=item[2]).dict()
-            for item in batch_items_to_ml
-        ]
-    }
+    # Prepare images, decoding DNG locally and converting to PNG where needed
+    images_payload = []
+    for image_hash, image_b64, filename, file_path in batch_items_to_ml:
+        # If raw DNG file, decode and re-encode as PNG
+        if file_path.lower().endswith('.dng'):
+            try:
+                with rawpy.imread(file_path) as raw:
+                    rgb = raw.postprocess()
+                img = Image.fromarray(rgb).convert('RGB')
+                buf = io.BytesIO()
+                img.save(buf, format='PNG')
+                new_b64 = base64.b64encode(buf.getvalue()).decode('utf-8')
+            except Exception as e:
+                log_to_job(job_id, f"Error decoding DNG {filename} upstream: {e}", level="ERROR")
+                # Fall back to original bytes
+                new_b64 = image_b64
+        else:
+            new_b64 = image_b64
+        images_payload.append(
+            MLBatchRequestItem(unique_id=image_hash, image_base64=new_b64, filename=filename).dict()
+        )
+    ml_request_payload = {"images": images_payload}
 
     try:
         batch_ml_response = await client.post(

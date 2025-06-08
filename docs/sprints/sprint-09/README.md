@@ -4,20 +4,13 @@
 
 **Status:** Planned
 
-**Theme:** Recovery, Robustness, and Feature Enhancement
+**Theme:** Backend Validation & Streamlit Removal
 
 **Primary Goals:**
--   **Full Application Testing:** Conduct comprehensive testing of all existing application functionalities.
--   **Persistent Qdrant Collections:**
-    -   Implement loading of Qdrant collections at application startup.
-    -   Develop a mechanism to check if a collection has already been created.
-    -   If a collection does not exist, prompt the user to specify a folder to build/load the collection from (e.g., via a button or text input).
--   **Frontend-Backend Alignment:**
-    -   Reassess and update how each frontend screen behaves based on current backend API capabilities.
-    -   Integrate new backend APIs to display logs, progress indicators, and other relevant information in the frontend.
--   **Restore Critical Functionality:** Ensure the "Folder Load" feature is fully operational and robust.
--   **API Stability:** Solidify the API-driven architecture, ensuring all UI interactions are seamlessly handled via API calls.
--   **Error Handling & Test Coverage:** Improve error handling mechanisms across the application and expand test coverage (unit, integration, E2E).
+- Fully test and validate backend ingestion pipeline for all image formats (.jpg, .png, .dng, .heic).
+- Ingest images, metadata, embeddings, and captions into Qdrant; verify vector storage and search functionality.
+- Explore local Qdrant deployment: build collections locally while retaining original image file locations.
+- Perform final cleanup by removing all Streamlit UI components and dependencies.
 
 ## 2. Key Deliverables (To be defined in PRD.md)
 

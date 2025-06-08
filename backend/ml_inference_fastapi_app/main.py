@@ -13,6 +13,7 @@ import io # For handling bytes as files for PIL
 import base64
 import tempfile  # Added for DNG temp file handling
 from typing import Dict, Any, Tuple, List, Optional
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # Configure basic logging
 logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO").upper())
@@ -156,9 +157,10 @@ async def embed_image_endpoint_v1(request: EmbedRequest = Body(...)):
 
         image_input = clip_preprocess_instance(image).unsqueeze(0).to(device)
         
-        with torch.no_grad():
-            image_features = clip_model_instance.encode_image(image_input)
-            image_features /= image_features.norm(dim=-1, keepdim=True)
+        with torch.inference_mode():
+            with torch.cuda.amp.autocast(enabled=(device.type == "cuda")):
+                image_features = clip_model_instance.encode_image(image_input)
+                image_features /= image_features.norm(dim=-1, keepdim=True)
         
         embedding = image_features.cpu().numpy().squeeze().tolist() # tolist for JSON
         
@@ -206,9 +208,9 @@ async def caption_image_endpoint_v1(request: CaptionRequest = Body(...)):
         # inputs = blip_processor_instance(image, return_tensors="pt").to(device) # Simple case
         inputs = blip_processor_instance(images=image, text=None, return_tensors="pt").to(device)
 
-
-        with torch.no_grad():
-            output_ids = blip_model_instance.generate(**inputs, max_length=75) # Added max_length
+        with torch.inference_mode():
+            with torch.cuda.amp.autocast(enabled=(device.type == "cuda")):
+                output_ids = blip_model_instance.generate(**inputs, max_length=75) # Added max_length
         
         caption = blip_processor_instance.decode(output_ids[0], skip_special_tokens=True)
         
@@ -246,6 +248,13 @@ class BatchResultItem(BaseModel):
 class BatchEmbedAndCaptionResponse(BaseModel):
     results: List[BatchResultItem]
 
+def log_cuda_memory(stage: str):
+    """Log current CUDA memory usage."""
+    if torch.cuda.is_available():
+        alloc = torch.cuda.memory_allocated() / 1024**2
+        res = torch.cuda.memory_reserved() / 1024**2
+        logging.getLogger(__name__).info(f"{stage} - GPU allocated: {alloc:.2f} MB, reserved: {res:.2f} MB")
+
 # --- Batch Processing Endpoint ---
 @v1_router.post("/batch_embed_and_caption", response_model=BatchEmbedAndCaptionResponse)
 async def batch_embed_and_caption_endpoint_v1(request: BatchEmbedAndCaptionRequest = Body(...)):
@@ -258,7 +267,12 @@ async def batch_embed_and_caption_endpoint_v1(request: BatchEmbedAndCaptionReque
         return BatchEmbedAndCaptionResponse(results=[])
 
     logger.info(f"Received batch request for {len(request.images)} images.")
+    # Log memory before processing this batch
+    log_cuda_memory("Before batch processing")
 
+    # Generate a reusable temp file path for DNG decoding
+    dng_tmp_path = tempfile.NamedTemporaryFile(suffix='.dng', delete=False).name
+    
     pil_images = []
     processed_indices = [] # Keep track of indices of successfully preprocessed images
     request_items_for_processing = [] # Store corresponding request items
@@ -268,16 +282,13 @@ async def batch_embed_and_caption_endpoint_v1(request: BatchEmbedAndCaptionReque
             image_bytes = base64.b64decode(item.image_base64)
             # DNG handling for batch; write to temp file for rawpy
             if item.filename.lower().endswith('.dng'):
-                with tempfile.NamedTemporaryFile(suffix='.dng', delete=False) as tmp:
-                    tmp.write(image_bytes)
-                    tmp.flush()
-                    tmp_path = tmp.name
-                try:
-                    with rawpy.imread(tmp_path) as raw:
-                        rgb = raw.postprocess()
-                    pil_img = Image.fromarray(rgb).convert("RGB")
-                finally:
-                    os.remove(tmp_path)
+                # Write bytes to reusable temp file path
+                with open(dng_tmp_path, 'wb') as f:
+                    f.write(image_bytes)
+                    f.flush()
+                with rawpy.imread(dng_tmp_path) as raw:
+                    rgb = raw.postprocess()
+                pil_img = Image.fromarray(rgb).convert("RGB")
             else:
                 pil_img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
             pil_images.append(pil_img)
@@ -294,74 +305,74 @@ async def batch_embed_and_caption_endpoint_v1(request: BatchEmbedAndCaptionReque
     # Filter out items that failed preprocessing for model inference
     if not pil_images: # All images failed preprocessing
         logger.warning("All images in batch failed preprocessing. Returning empty results for model inference part.")
+        # Clean up temporary DNG file
+        os.remove(dng_tmp_path)
         # Errors for failed preprocessing items are already in batch_results
         return BatchEmbedAndCaptionResponse(results=batch_results)
 
-    # Get CLIP embeddings for successfully preprocessed images
+    # Get CLIP embeddings for successfully preprocessed images with dynamic batch sizing
     clip_embeddings = []
     if clip_model_instance and clip_preprocess_instance:
-        # Preprocess all images for CLIP together if possible (check clip_preprocess_instance type)
-        # Assuming clip_preprocess_instance can take a list of PIL images or individual application
-        try:
-            # This part needs to be careful with how clip_preprocess_instance handles a list
-            # If it expects individual images, loop here. If it can batch, then batch.
-            # For simplicity, let's assume individual preprocessing for now, then stack.
-            image_inputs_clip = torch.stack([clip_preprocess_instance(img) for img in pil_images]).to(device)
-            with torch.no_grad():
-                image_features = clip_model_instance.encode_image(image_inputs_clip)
-                image_features /= image_features.norm(dim=-1, keepdim=True)
-            clip_embeddings = image_features.cpu().numpy()
-        except Exception as e:
-            logger.error(f"Error during CLIP batch embedding: {e}")
-            # Mark all items in this batch as errored for CLIP part
-            for idx, original_batch_idx in enumerate(processed_indices):
-                req_item = request_items_for_processing[idx]
-                # Find if this item already has an error, if so, append. If not, create.
-                found_result = next((r for r in batch_results if r.unique_id == req_item.unique_id), None)
-                if found_result:
-                    found_result.error = (found_result.error + "; CLIP embedding failed: " + str(e)) if found_result.error else "CLIP embedding failed: " + str(e)
-                else: # Should not happen if preprocessing errors are handled by adding to batch_results first
-                    batch_results.append(BatchResultItem(unique_id=req_item.unique_id, filename=req_item.filename, error="CLIP embedding failed: " + str(e)))
+        bs_clip = len(pil_images)
+        while True:
+            try:
+                clip_embeddings = []
+                for i in range(0, len(pil_images), bs_clip):
+                    sub_imgs = pil_images[i:i+bs_clip]
+                    inputs_clip = torch.stack([clip_preprocess_instance(img) for img in sub_imgs]).to(device)
+                    with torch.inference_mode():
+                        with torch.cuda.amp.autocast(enabled=(device.type == "cuda")):
+                            feats = clip_model_instance.encode_image(inputs_clip)
+                            feats /= feats.norm(dim=-1, keepdim=True)
+                    clip_embeddings.extend(feats.cpu().numpy())
+                log_cuda_memory("After CLIP embedding batch")
+                break
+            except RuntimeError as e:
+                if "out of memory" in str(e):
+                    torch.cuda.empty_cache()
+                    if bs_clip <= 1:
+                        logger.error("Cannot reduce CLIP batch size below 1 due to OOM.")
+                        raise HTTPException(status_code=500, detail="CLIP embedding OOM even with batch size 1")
+                    bs_clip = max(1, bs_clip // 2)
+                    logger.warning(f"CLIP OOM; reducing batch size to {bs_clip} and retrying.")
+                else:
+                    raise
     else:
         logger.warning("CLIP model not available for batch processing.")
-        # Add error to all items that were successfully preprocessed but can't get embedding
-        for idx, original_batch_idx in enumerate(processed_indices):
-            req_item = request_items_for_processing[idx]
-            found_result = next((r for r in batch_results if r.unique_id == req_item.unique_id), None)
-            if found_result:
-                 found_result.error = (found_result.error + "; CLIP model unavailable") if found_result.error else "CLIP model unavailable"
-            else:
-                 batch_results.append(BatchResultItem(unique_id=req_item.unique_id, filename=req_item.filename, error="CLIP model unavailable"))
+        for req_item in request_items_for_processing:
+            batch_results.append(BatchResultItem(unique_id=req_item.unique_id, filename=req_item.filename, error="CLIP model unavailable"))
 
-    # Get BLIP captions for successfully preprocessed images
-    blip_captions = [None] * len(pil_images)
+    # Get BLIP captions for successfully preprocessed images with dynamic batch sizing
+    blip_captions = []
     if blip_model_instance and blip_processor_instance:
-        try:
-            # BLIP usually processes one by one for captioning in a loop or small batches
-            for i, img in enumerate(pil_images):
-                inputs = blip_processor_instance(images=img, text=None, return_tensors="pt").to(device)
-                with torch.no_grad():
-                    output_ids = blip_model_instance.generate(**inputs, max_length=75)
-                blip_captions[i] = blip_processor_instance.decode(output_ids[0], skip_special_tokens=True).strip()
-        except Exception as e:
-            logger.error(f"Error during BLIP batch captioning: {e}")
-            # Mark all items as errored for BLIP part
-            for idx, original_batch_idx in enumerate(processed_indices):
-                req_item = request_items_for_processing[idx]
-                found_result = next((r for r in batch_results if r.unique_id == req_item.unique_id), None)
-                if found_result:
-                    found_result.error = (found_result.error + "; BLIP captioning failed: " + str(e)) if found_result.error else "BLIP captioning failed: " + str(e)
+        bs_blip = len(pil_images)
+        while True:
+            try:
+                blip_captions = []
+                for i in range(0, len(pil_images), bs_blip):
+                    sub_imgs = pil_images[i:i+bs_blip]
+                    inputs_blip = blip_processor_instance(images=sub_imgs, text=None, return_tensors="pt").to(device)
+                    with torch.inference_mode():
+                        with torch.cuda.amp.autocast(enabled=(device.type == "cuda")):
+                            output_ids_batch = blip_model_instance.generate(**inputs_blip, max_length=75)
+                    for ids in output_ids_batch:
+                        blip_captions.append(blip_processor_instance.decode(ids, skip_special_tokens=True).strip())
+                log_cuda_memory("After BLIP captioning batch")
+                break
+            except RuntimeError as e:
+                if "out of memory" in str(e):
+                    torch.cuda.empty_cache()
+                    if bs_blip <= 1:
+                        logger.error("Cannot reduce BLIP batch size below 1 due to OOM.")
+                        raise HTTPException(status_code=500, detail="BLIP captioning OOM even with batch size 1")
+                    bs_blip = max(1, bs_blip // 2)
+                    logger.warning(f"BLIP OOM; reducing batch size to {bs_blip} and retrying.")
                 else:
-                    batch_results.append(BatchResultItem(unique_id=req_item.unique_id, filename=req_item.filename, error="BLIP captioning failed: " + str(e)))
+                    raise
     else:
         logger.warning("BLIP model not available for batch processing.")
-        for idx, original_batch_idx in enumerate(processed_indices):
-            req_item = request_items_for_processing[idx]
-            found_result = next((r for r in batch_results if r.unique_id == req_item.unique_id), None)
-            if found_result:
-                 found_result.error = (found_result.error + "; BLIP model unavailable") if found_result.error else "BLIP model unavailable"
-            else:
-                 batch_results.append(BatchResultItem(unique_id=req_item.unique_id, filename=req_item.filename, error="BLIP model unavailable"))
+        for req_item in request_items_for_processing:
+            batch_results.append(BatchResultItem(unique_id=req_item.unique_id, filename=req_item.filename, error="BLIP model unavailable"))
 
     # Combine results
     # Iterate through the successfully preprocessed items and update/add to batch_results
@@ -418,6 +429,12 @@ async def batch_embed_and_caption_endpoint_v1(request: BatchEmbedAndCaptionReque
 
 
     logger.info(f"Batch processing completed. Returning {len(batch_results)} results.")
+    # Ensure DNG temp file is removed
+    try:
+        os.remove(dng_tmp_path)
+    except Exception:
+        pass
+    log_cuda_memory("End of batch processing")
     return BatchEmbedAndCaptionResponse(results=batch_results)
 
 app.include_router(v1_router) # Add the v1 router to the main app

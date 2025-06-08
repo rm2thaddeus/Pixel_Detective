@@ -1,162 +1,126 @@
-# 🚀 Transition to Sprint 09: Project Plan
+# 🚀 Transition to Sprint 09: Backend Validation & Streamlit Removal
 
 ## 1. Sprint Theme & Goals
 **Theme:**  
-> **Recovery and Robustness:** Restore all core user flows (especially "folder load"), ensure API-driven architecture is stable, and improve error handling and test coverage.
+> **Backend Validation & Streamlit Removal**
 
 **Primary Goals:**
-- Restore and robustly test all critical features broken or degraded by the recent refactor.
-- Ensure seamless UI → API → backend roundtrip for all user actions.
-- Add/restore user feedback for errors and edge cases.
-- Strengthen integration and end-to-end testing.
-
----
+- Fully test the backend ingestion pipeline with all image formats and comprehensive Qdrant integration.
+- Ingest all images, metadata, embeddings, and captions into Qdrant; verify vector storage and search functionality.
+- Explore and document local Qdrant deployment: build collections locally, maintaining original image file locations.
+- Final cleanup: remove all Streamlit UI code, dependencies, and related configurations.
 
 ## 2. Backlog Refinement
 
 ### High Priority
-- **TASK-09-01:** Restore "Folder Load" functionality (UI → API → backend).
-  - Diagnose and fix the broken flow.
-  - Ensure user feedback for errors.
-  - Add integration tests for this flow.
-- **TASK-09-02:** Expand integration tests for all major user flows (search, duplicate detection, random image, filtering).
-- **TASK-09-03:** Ensure all API endpoints are covered by unit and integration tests.
-- **TASK-09-04:** Add robust error handling and user feedback for all critical UI actions.
+- **TASK-09-01:** Test ingestion pipeline for .jpg, .png, .dng, .heic formats. Note: **.dng testing completed**, .jpg/.png/.heic still pending.
+- **TASK-09-02:** Validate metadata, embeddings, and captions ingestion into Qdrant collections. ✅ **DNG files validated successfully.**
+- **TASK-09-03:** Deploy and configure Qdrant locally; ingest collections locally without moving original files. Note: Qdrant running in Docker, empty collection created. ✅
+- **TASK-09-04:** Remove all Streamlit modules and dependencies from the codebase. (Pending cleanup)
+- **TASK-09-13:** Integrate mixed-precision inference (FP16) using `torch.cuda.amp.autocast` and `torch.inference_mode()` in ML inference service.
+- **TASK-09-14:** Refactor `/batch_embed_and_caption` to batch BLIP `generate()` calls instead of per-image threading for better GPU utilization.
+- **TASK-09-15:** Implement dynamic batch sizing by probing available GPU memory at startup and adjusting batch sizes accordingly. ✅ **Implemented in `main.py`, falls back on OOM reduction.**
+- **TASK-09-16:** Decouple raw DNG decoding from inference: migrate DNG→RGB conversion to ingestion pipeline; serve only JPEG/PNG inputs.
+- **TASK-09-17:** Export CLIP & BLIP models to TorchScript/ONNX and integrate static graph inference; benchmark performance.
+- **TASK-09-18:** Develop benchmarking scripts and integrate performance regression tests into CI (smoke tests).
 
 ### Medium Priority
-- **TASK-09-05:** Performance benchmarking of key endpoints and flows.
-- **TASK-09-06:** UI polish and bug fixes identified during Sprint 08/09 testing.
+- **TASK-09-05:** Integrate parallel BLIP captioning in the ML inference FastAPI endpoint using ThreadPoolExecutor. ✅ **Implemented in `main.py`.**
+- **TASK-09-06:** Add GPU memory logging at key stages (before/after CLIP and BLIP) using torch.cuda API. ✅ **Logging active in batch endpoint.**
+- **TASK-09-07:** Refactor DNG file handling to reuse a single temporary file or support in-memory rawpy decoding. ✅ **Reused temp file for DNG decoding.**
+- **TASK-09-08:** Dynamically tune ML inference batch size based on available GPU memory. (Pending implementation)
+- **TASK-09-09:** Develop integration tests for ingestion and Qdrant API endpoints. (Pending)
+- **TASK-09-10:** Document local Qdrant setup and backend testing procedures. (Pending)
 
 ### Low Priority
-- **TASK-09-07:** Documentation updates (API docs, architecture diagrams, changelogs).
-- **TASK-09-08:** Cleanup of legacy modules and code.
-
----
+- **TASK-09-11:** Update project documentation (README, CHANGELOG) to reflect Streamlit removal. (Pending)
+- **TASK-09-12:** Clean up legacy assets and UI code remnants. (Pending)
 
 ## 3. Key Action Items
 
-- **A. Diagnose and Fix "Folder Load"**
-  - Trace the UI action to the backend.
-  - Ensure the API endpoint exists and is reachable.
-  - Add error handling and user feedback.
-  - Write integration tests for this flow.
-
-- **B. Test All Major Flows**
-  - Manual and automated (integration/E2E) testing for:
-    - Search
-    - Duplicate detection
-    - Random image
-    - Filtering
-
-- **C. Error Handling**
-  - Ensure all user actions provide clear feedback on failure.
-  - Log errors for debugging.
-
-- **D. Documentation**
-  - Update `/docs/sprints/sprint-09/transition-to-sprint-09.md` (or similar).
-  - Update `/docs/CHANGELOG.md` with major changes and fixes.
-
----
+1. Verify backend ingestion service supports all image formats and log any failures.
+2. Configure Qdrant locally and perform ingestion tests.
+3. Remove Streamlit-related files and dependencies.
+4. Run full smoke tests against backend APIs.
+5. Document outcomes and update sprint artifacts.
 
 ## 4. Sprint Rituals & Standards
 
-- **Daily Standups:** Focus on blockers for recovery tasks.
-- **Code Reviews:** Emphasize test coverage and error handling.
-- **Demo/Review:** Show restored flows and improved robustness.
+- **Daily Standups:** Focus on backend testing progress and cleanup blockers.
+- **Code Reviews:** Emphasize testing, logging, and removal of obsolete code.
+- **Demo/Review:** Demonstrate successful ingestion into Qdrant and confirm absence of Streamlit components. 
 
----
+## 5. Performance Comparison
 
-## 5. Detailed Task List: Frontend-Backend Integration User Stories
+**Test:** DNG ingestion for 25 files from `C:/Users/aitor/OneDrive/Escritorio/dng test`
 
-Based on the primary goals, we need to ensure the following user flows are fully restored and robust, with clear UI-API-Backend communication and error handling.
+- **Baseline (pre-optimizations):** ~160 seconds (model load + per-image temp-file creation + sequential BLIP + HTTP round-trips)
+- **Post-optimizations:** 150.5 seconds (temp-file reuse + parallel BLIP captioning)
+- **Task-09-13 (Mixed-Precision Inference):** 16.98 seconds (FP16 + `torch.inference_mode()` + `torch.cuda.amp.autocast`)
+- **Improvement vs Post-Optimizations:** ~89% (~133.5s faster)
+- **Observation:** Mixed precision dramatically reduces GPU compute time; raw DNG decoding remains a noticeable overhead—Task-09-16 (DNG offload) will yield further gains.
+- **Task-09-14 (Batched BLIP Generation):** 111.91 seconds (25/25 images successfully embedded & captioned)
+- **Task-09-15 (Dynamic Batch Sizing):** 111.91 seconds (no change; full batch fit available memory, but dynamic sizing protects against OOM on larger inputs)
+- **Improvement vs Post-Optimizations:** ~26% (~38.6s faster)
+- **Observation:** Batching and mixed-precision yield solid gains; raw DNG decoding still dominates end-to-end inference—Task-09-16 (DNG offload) will yield further gains.
+- **Task-09-16 (Ingestion into Qdrant `optimization_test`):** 185.45 seconds to ingest 25 images (0 failures), ~16% slower than baseline due to orchestration overhead.
+- **MVP CLI (legacy):** Attempted to run `scripts/mvp_app.py` against the same directory but encountered `ModuleNotFoundError: No module named 'models.clip_model'`, so we cannot produce comparable metrics until the CLI imports are adapted or legacy modules are restored.
 
-### Core User Flows (High Priority)
+## 6. Performance Optimization Roadmap
 
-**Flow: Folder Load**
--   **User Story:** As a user, I want to select a folder in the UI and see its image contents displayed, so that I can browse my image collection.
-    -   **Details:**
-        -   UI component allows user to select a folder path.
-        -   Frontend sends the selected folder path to the backend API's folder loading endpoint.
-        -   Backend processes the path, reads image files (or relevant data), and handles potential file system errors (permissions, invalid path).
-        -   API returns a list of image data (paths, metadata) or a clear error message if loading fails.
-        -   Frontend receives the data and displays image previews/information.
-        -   Frontend displays user-friendly error messages for API failures, invalid paths, or backend processing issues.
+Follow these step-by-step tasks to unlock maximum throughput and low latency in the ML inference pipeline. Record benchmarks before and after each step:
 
-**Flow: Search**
--   **User Story:** As a user, I want to enter a search query in the UI and see matching images displayed, so that I can quickly find specific images in my loaded collection.
-    -   **Details:**
-        -   UI provides a search input field.
-        -   Frontend sends the search query to the backend API's search endpoint.
-        -   Backend performs the search within the currently loaded image data.
-        -   API returns a list of image data that matches the query or indicates no results found.
-        -   Frontend receives the search results and updates the displayed images.
-        -   Frontend handles potential API errors during the search request and provides feedback.
+```mermaid
+graph LR
+  A["Client Request"] --> B["FastAPI ML Inference Service"]
+  B --> C{"Check File Type"}
+  C -->|".dng"| D["Rawpy Decode"]
+  C -->|".jpg/.png"| E["PIL Decode"]
+  D --> E
+  E --> F["CLIP Preprocess & Embed"]
+  E --> I["BLIP Preprocess"]
+  F --> G["Normalize & Return Embedding"]
+  G --> H["Response: Embedding"]
+  I --> J["BLIP Generate & Decode"]
+  J --> K["Response: Caption"]
 
-**Flow: Duplicate Detection**
--   **User Story:** As a user, I want to initiate duplicate detection from the UI and see groups of duplicate images, so that I can manage my storage space.
-    -   **Details:**
-        -   UI element (button/menu item) triggers duplicate detection.
-        -   Frontend sends a request to the backend API's duplicate detection endpoint.
-        -   Backend initiates the duplicate detection process.
-        -   API provides updates on the detection progress (if applicable) and returns the results, grouped by duplicate sets.
-        -   Frontend receives the results and displays the duplicate groups clearly.
-        -   Frontend provides feedback during the potentially long-running detection process and handles errors if the process fails.
+  subgraph Performance Optimizations
+    O1["Mixed Precision & AMP"]
+    O2["Batched BLIP Generation"]
+    O3["Dynamic Batch Sizing"]
+    O4["DNG Offload"]
+    O5["TorchScript/ONNX Export"]
+    O6["Benchmark Automation"]
+  end
 
-**Flow: Random Image**
--   **User Story:** As a user, I want to request a random image from the loaded collection via the UI, so that I can serendipitously discover images.
-    -   **Details:**
-        -   UI element (button) triggers a random image request.
-        -   Frontend sends a request to the backend API's random image endpoint.
-        -   Backend selects a random image from the available data.
-        -   API returns the selected image data.
-        -   Frontend receives and displays the random image.
-        -   Frontend handles errors, such as requesting a random image from an empty collection.
+  B -.-> O1
+  B -.-> O2
+  B -.-> O3
+  B -.-> O4
+  B -.-> O5
+  B -.-> O6
+```
 
-**Flow: Filtering**
--   **User Story:** As a user, I want to apply filters (e.g., by tag, date, size) in the UI and see only the images that match, so that I can refine my view of the collection.
-    -   **Details:**
-        -   UI provides filtering options.
-        -   Frontend sends the selected filter criteria to the backend API's filtering endpoint.
-        -   Backend applies the filters to the currently loaded image data.
-        -   API returns the filtered list of image data.
-        -   Frontend receives the filtered results and updates the displayed images.
-        -   Frontend handles potential errors during the filtering request or if invalid filters are applied.
+1. Create a performance branch: `perf/optimize-inference`.
+2. Baseline: run `/backend/scripts/benchmark.py` to collect latency and throughput metrics.
+3. TASK-09-13: Enable `torch.inference_mode()` and wrap model calls in `torch.cuda.amp.autocast()`; rerun benchmarks.
+4. TASK-09-14: Refactor `/batch_embed_and_caption` to batch BLIP `generate()` calls; rerun benchmarks.
+5. TASK-09-15: Add GPU memory probing on startup (`torch.cuda.memory_reserved()`), dynamically adjust batch sizes; rerun.
+6. TASK-09-16: Migrate DNG→RGB conversion to ingestion service; update inference endpoints; rerun.
+7. TASK-09-17: Export models to TorchScript and ONNX; integrate and benchmark.
+8. TASK-09-18: Integrate benchmarks into CI as smoke tests (e.g., GitHub Actions workflow).
+9. Document all results in `docs/benchmarks.md`. 
 
-### Backend API and Logging Enhancements (Ingestion Service) - NEW
+## 7. Ingestion Orchestrator Optimization Roadmap
 
-**Goal:** Enable the backend to provide detailed, real-time progress and logs for ingestion jobs, consumable by the frontend.
+After ML inference is optimized, focus on reducing ingestion orchestration overhead. Record benchmarks before and after:
 
-**Task: Implement Real Job Management & Background Processing for Ingestion**
--   **User Story:** As a backend developer, I want the `/api/v1/ingest/` endpoint to initiate folder ingestion as a background task and return a `job_id` immediately, so that the API is non-blocking.
-    -   **Details:**
-        -   Modify `ingest_directory_v1` (or its equivalent) to use FastAPI's `BackgroundTasks` or a similar mechanism.
-        -   Generate a unique `job_id` for each ingestion request.
-        -   Store initial job status (e.g., "pending") associated with the `job_id`.
+1. TASK-09-19: Replace per-point upsert with bulk-upsert API calls to Qdrant.
+2. TASK-09-20: Parallelize metadata extraction & file reads (e.g., use asyncio/aiofiles or ThreadPoolExecutor).
+3. TASK-09-21: Coalesce multiple smaller ML batches into larger aggregated batches to reduce scheduling overhead.
+4. Re-run `/backend/scripts/ingest_benchmark.py` to measure end-to-end ingestion latency and document results.
 
-**Task: Implement Persistent Job State Storage (Status, Progress, Logs)**
--   **User Story:** As a backend developer, I want to store the status, progress percentage, and detailed log messages for each ingestion job, so that this information can be retrieved later.
-    -   **Details:**
-        -   Choose a storage mechanism for job state (e.g., in-memory dictionary for simplicity, Redis for scalability).
-        -   The background ingestion task must update this store with:
-            -   Current status (e.g., "processing", "completed", "failed").
-            -   Progress percentage (e.g., based on files processed / total files).
-            -   A list of log messages (strings) detailing its operations and any errors.
-
-**Task: Enhance Ingestion Task Logging**
--   **User Story:** As a backend developer, I want the ingestion background task to capture detailed operational logs (e.g., file being processed, ML service calls, errors), so that users can see fine-grained progress.
-    -   **Details:**
-        -   Leverage existing `logger` calls within the ingestion logic.
-        -   Ensure these log messages are collected and associated with the correct `job_id` in the persistent job state.
-        -   Logs should include timestamps and clear descriptions of actions or errors.
-
-**Task: Update `/ingest/status/{job_id}` Endpoint for Real Data**
--   **User Story:** As a backend developer, I want the `/api/v1/ingest/status/{job_id}` endpoint to return the actual status, progress, and detailed logs for the specified job, so that the frontend can display this information.
-    -   **Details:**
-        -   Modify `get_ingestion_status_v1` to retrieve job information from the persistent store using the `job_id`.
-        -   Populate the `JobStatusResponse` model:
-            -   `status` with the current job status.
-            -   `progress` with the current progress percentage.
-            -   `message` field should contain the collected log messages (e.g., as a newline-separated string or a JSON string representing a list of logs). Consider adding a new `logs: List[str]` field if more structured logs are preferred, but update frontend accordingly.
-        -   Handle cases where the `job_id` is not found.
-
-This detailed list will help guide the implementation and testing efforts for Sprint 09. 
+1. TASK-09-19: Bulk-upsert points in ingestion orchestration service to minimize per-point HTTP calls to Qdrant.
+2. TASK-09-20: Parallelize metadata extraction and disk I/O in ingestion orchestration to speed file pre-processing.
+3. TASK-09-21: Aggregate multiple ML batches into larger batches in ingestion orchestrator to reduce overhead.
+4. Re-run `/backend/scripts/ingest_benchmark.py` to measure end-to-end ingestion latency and document results. 
