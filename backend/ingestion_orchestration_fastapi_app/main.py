@@ -51,6 +51,7 @@ active_collection_name = QDRANT_COLLECTION_NAME  # Global active collection that
 # Define standard vector parameters for the collection (e.g., for ViT-B/32 CLIP model)
 QDRANT_VECTOR_SIZE = int(os.environ.get("QDRANT_VECTOR_SIZE", 512))
 QDRANT_DISTANCE_METRIC = Distance[os.environ.get("QDRANT_DISTANCE_METRIC", "Cosine").upper()]
+QDRANT_UPSERT_BATCH_SIZE = int(os.environ.get("QDRANT_UPSERT_BATCH_SIZE", 32))
 
 # Global Qdrant client instance
 qdrant_client_global: Optional[QdrantClient] = None
@@ -81,6 +82,18 @@ class MLBatchRequestItem(BaseModel):
     unique_id: str # Typically image_hash
     image_base64: str
     filename: str
+
+# --- Internal async helper to upsert a list of points to Qdrant without
+# blocking the main event loop ---
+async def _upsert_points(q_client: QdrantClient, collection: str, points: List[models.PointStruct]):
+    if not points:
+        return
+    await asyncio.to_thread(
+        q_client.upsert,
+        collection_name=collection,
+        wait=True,
+        points=points,
+    )
 
 # --- Helper function to process a batch with ML Service and update DB/Cache ---
 async def process_batch_with_ml_service(
@@ -132,6 +145,7 @@ async def process_batch_with_ml_service(
 
         ml_results_map = {result["unique_id"]: result for result in ml_results}
 
+        qdrant_points: List[models.PointStruct] = []
         for image_hash, _, filename, file_path in batch_items_to_ml:
             ml_result = ml_results_map.get(image_hash)
 
@@ -184,12 +198,10 @@ async def process_batch_with_ml_service(
                     })
                     qdrant_payload = {k: v for k, v in qdrant_payload.items() if v is not None}
 
-                    log_to_job(job_id, f"Upserting batch-processed point to Qdrant: {filename} (ID: {point_id_str})")
-                    qdrant_conn.upsert(
-                        collection_name=collection_name, wait=True,
-                        points=[models.PointStruct(id=point_id_str, vector=embedding, payload=qdrant_payload)]
+                    log_to_job(job_id, f"Queueing point for Qdrant upsert: {filename} (ID: {point_id_str})")
+                    qdrant_points.append(
+                        models.PointStruct(id=point_id_str, vector=embedding, payload=qdrant_payload)
                     )
-                    log_to_job(job_id, f"Successfully stored batch-processed data for {filename} in Qdrant.")
                     processed_files_details.append({
                         "file": file_path, "embedding_info": embedding_shape, "caption": caption,
                         "metadata": comprehensive_metadata, "source": "batch_ml"
@@ -201,6 +213,9 @@ async def process_batch_with_ml_service(
                 log_to_job(job_id, f"Error processing/storing item {filename} from batch: {e_inner}", level="ERROR")
                 failed_files_details.append({"file": file_path, "error": str(e_inner), "details": "Post ML Batch Processing"})
 
+        if qdrant_points:
+            await _upsert_points(qdrant_conn, collection_name, qdrant_points)
+            log_to_job(job_id, f"Upserted {len(qdrant_points)} points to Qdrant in bulk")
     except httpx.HTTPStatusError as e_http:
         log_to_job(job_id, f"HTTP error calling ML batch service: {e_http.response.status_code} - {e_http.response.text}", level="ERROR")
         for _, _, filename, file_path in batch_items_to_ml:
@@ -229,6 +244,7 @@ async def _run_ingestion_task(
     processed_files_details = []
     failed_files_details = []
     current_batch_to_ml_service: List[Tuple[str, str, str, str]] = []
+    qdrant_points_batch: List[models.PointStruct] = []
 
     try:
         if not os.path.isdir(directory_path):
@@ -289,11 +305,14 @@ async def _run_ingestion_task(
                                 })
                                 qdrant_payload = {k: v for k, v in qdrant_payload.items() if v is not None}
 
-                                qdrant_conn_bg.upsert(
-                                    collection_name=collection_name_bg, wait=True,
-                                    points=[models.PointStruct(id=point_id_str, vector=vector, payload=qdrant_payload)]
+                                qdrant_points_batch.append(
+                                    models.PointStruct(id=point_id_str, vector=vector, payload=qdrant_payload)
                                 )
-                                log_to_job(job_id, f"Successfully stored cached data for {filename} in Qdrant.")
+                                if len(qdrant_points_batch) >= QDRANT_UPSERT_BATCH_SIZE:
+                                    await _upsert_points(qdrant_conn_bg, collection_name_bg, qdrant_points_batch)
+                                    log_to_job(job_id, f"Bulk upserted {len(qdrant_points_batch)} cached points")
+                                    qdrant_points_batch.clear()
+                                log_to_job(job_id, f"Queued cached data for {filename} for Qdrant upsert.")
                                 processed_files_details.append({
                                     "file": file_path, "embedding_info": embedding_data.get("embedding_shape", "N/A"),
                                     "caption": caption, "metadata": comprehensive_metadata, "source": "cache"
@@ -322,6 +341,11 @@ async def _run_ingestion_task(
                 log_to_job(job_id, f"Processing remaining {len(current_batch_to_ml_service)} items in ML batch...")
                 await process_batch_with_ml_service(client, current_batch_to_ml_service, processed_files_details, failed_files_details, job_id, qdrant_conn_bg, collection_name_bg, ml_service_url_bg)
                 current_batch_to_ml_service.clear()
+
+        if qdrant_points_batch:
+            await _upsert_points(qdrant_conn_bg, collection_name_bg, qdrant_points_batch)
+            log_to_job(job_id, f"Bulk upserted {len(qdrant_points_batch)} cached points at end")
+            qdrant_points_batch.clear()
 
         job_status_db[job_id]["status"] = "completed"
         job_status_db[job_id]["progress"] = 100.0

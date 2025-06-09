@@ -41,6 +41,10 @@
 ## Overview
 This service handles ingestion orchestration, metadata extraction, and communication with Qdrant and the ML inference service.
 
+### Environment Variables
+
+- `QDRANT_UPSERT_BATCH_SIZE` – number of points to send to Qdrant in a single bulk upsert. Default: `32`.
+
 ## How to Start
 
 1. **Install dependencies:**

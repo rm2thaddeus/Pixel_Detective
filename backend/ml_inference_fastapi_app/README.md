@@ -36,6 +36,7 @@ This service provides image embedding and captioning endpoints using CLIP and BL
   - macOS/Linux: `export DEVICE_PREFERENCE=cpu`
 - `LOG_LEVEL` (default: `INFO`): e.g., `DEBUG`, `INFO`, `WARNING`
 - `PORT` (default: `8001`): port number for the service
+- Internally the service offloads heavy GPU operations to background threads so multiple requests can run concurrently.
 
 ## Running the Service
 

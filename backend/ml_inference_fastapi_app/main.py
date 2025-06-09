@@ -14,6 +14,7 @@ import base64
 import tempfile  # Added for DNG temp file handling
 from typing import Dict, Any, Tuple, List, Optional
 from concurrent.futures import ThreadPoolExecutor, as_completed
+import asyncio
 
 # Configure basic logging
 logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO").upper())
@@ -74,6 +75,19 @@ async def _load_blip_model_internal(model_name: str, target_device: torch.device
     except Exception as e:
         logger.error(f"Error loading BLIP model ({model_name}): {e}", exc_info=True)
         raise # Re-raise to be caught by startup event
+
+# --- Heavy compute helper functions to allow asyncio offloading ---
+def _encode_clip(tensor: torch.Tensor) -> torch.Tensor:
+    with torch.inference_mode():
+        with torch.cuda.amp.autocast(enabled=(device.type == "cuda")):
+            feats = clip_model_instance.encode_image(tensor)
+            feats /= feats.norm(dim=-1, keepdim=True)
+    return feats
+
+def _generate_blip(inputs: Dict[str, torch.Tensor]) -> torch.Tensor:
+    with torch.inference_mode():
+        with torch.cuda.amp.autocast(enabled=(device.type == "cuda")):
+            return blip_model_instance.generate(**inputs, max_length=75)
 
 # --- FastAPI Lifecycle Events ---
 @app.on_event("startup")
@@ -156,22 +170,22 @@ async def embed_image_endpoint_v1(request: EmbedRequest = Body(...)):
             image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
 
         image_input = clip_preprocess_instance(image).unsqueeze(0).to(device)
-        
-        with torch.inference_mode():
-            with torch.cuda.amp.autocast(enabled=(device.type == "cuda")):
-                image_features = clip_model_instance.encode_image(image_input)
-                image_features /= image_features.norm(dim=-1, keepdim=True)
+
+        image_features = await asyncio.to_thread(_encode_clip, image_input)
         
         embedding = image_features.cpu().numpy().squeeze().tolist() # tolist for JSON
-        
+
         logger.info(f"Successfully embedded image: {request.filename or 'untitled'}")
-        return {
+        response = {
             "filename": request.filename,
             "embedding": embedding,
             "embedding_shape": list(np.array(embedding).shape),
             "model_name": CLIP_MODEL_NAME_CONFIG,
             "device_used": str(device)
         }
+        if device.type == "cuda":
+            torch.cuda.empty_cache()
+        return response
     except Exception as e:
         logger.error(f"Error processing image for embedding ({request.filename or 'untitled'}): {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to embed image: {str(e)}")
@@ -208,19 +222,20 @@ async def caption_image_endpoint_v1(request: CaptionRequest = Body(...)):
         # inputs = blip_processor_instance(image, return_tensors="pt").to(device) # Simple case
         inputs = blip_processor_instance(images=image, text=None, return_tensors="pt").to(device)
 
-        with torch.inference_mode():
-            with torch.cuda.amp.autocast(enabled=(device.type == "cuda")):
-                output_ids = blip_model_instance.generate(**inputs, max_length=75) # Added max_length
+        output_ids = await asyncio.to_thread(_generate_blip, inputs)
         
         caption = blip_processor_instance.decode(output_ids[0], skip_special_tokens=True)
         
         logger.info(f"Successfully captioned image: {request.filename or 'untitled'}")
-        return {
+        response = {
             "filename": request.filename,
             "caption": caption.strip(),
             "model_name": BLIP_MODEL_NAME_CONFIG,
             "device_used": str(device)
         }
+        if device.type == "cuda":
+            torch.cuda.empty_cache()
+        return response
     except Exception as e:
         logger.error(f"Error processing image for captioning ({request.filename or 'untitled'}): {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to caption image: {str(e)}")
@@ -320,10 +335,7 @@ async def batch_embed_and_caption_endpoint_v1(request: BatchEmbedAndCaptionReque
                 for i in range(0, len(pil_images), bs_clip):
                     sub_imgs = pil_images[i:i+bs_clip]
                     inputs_clip = torch.stack([clip_preprocess_instance(img) for img in sub_imgs]).to(device)
-                    with torch.inference_mode():
-                        with torch.cuda.amp.autocast(enabled=(device.type == "cuda")):
-                            feats = clip_model_instance.encode_image(inputs_clip)
-                            feats /= feats.norm(dim=-1, keepdim=True)
+                    feats = await asyncio.to_thread(_encode_clip, inputs_clip)
                     clip_embeddings.extend(feats.cpu().numpy())
                 log_cuda_memory("After CLIP embedding batch")
                 break
@@ -352,9 +364,7 @@ async def batch_embed_and_caption_endpoint_v1(request: BatchEmbedAndCaptionReque
                 for i in range(0, len(pil_images), bs_blip):
                     sub_imgs = pil_images[i:i+bs_blip]
                     inputs_blip = blip_processor_instance(images=sub_imgs, text=None, return_tensors="pt").to(device)
-                    with torch.inference_mode():
-                        with torch.cuda.amp.autocast(enabled=(device.type == "cuda")):
-                            output_ids_batch = blip_model_instance.generate(**inputs_blip, max_length=75)
+                    output_ids_batch = await asyncio.to_thread(_generate_blip, inputs_blip)
                     for ids in output_ids_batch:
                         blip_captions.append(blip_processor_instance.decode(ids, skip_special_tokens=True).strip())
                 log_cuda_memory("After BLIP captioning batch")
@@ -435,6 +445,8 @@ async def batch_embed_and_caption_endpoint_v1(request: BatchEmbedAndCaptionReque
     except Exception:
         pass
     log_cuda_memory("End of batch processing")
+    if device.type == "cuda":
+        torch.cuda.empty_cache()
     return BatchEmbedAndCaptionResponse(results=batch_results)
 
 app.include_router(v1_router) # Add the v1 router to the main app
