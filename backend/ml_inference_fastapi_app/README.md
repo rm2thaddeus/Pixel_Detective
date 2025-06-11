@@ -1,85 +1,128 @@
-# ML Inference FastAPI App
+# ML Inference FastAPI Service
 
-## Overview
-This service provides image embedding and captioning endpoints using CLIP and BLIP models. It is required by the ingestion orchestration service.
+This service provides high-performance, GPU-accelerated machine learning model inference for image embedding and captioning. It is designed to be a backend dependency for other services that need to understand image content, such as the `ingestion_orchestration_fastapi_app`.
 
-## Requirements
-- Python 3.8 or higher
-- Optional: GPU with CUDA support and compatible PyTorch
-- Internet connection for downloading model weights
+## Architecture
 
-## Setup & Installation
-1. Navigate to this folder:
-   ```bash
-   cd backend/ml_inference_fastapi_app
-   ```
-2. (Optional) Create and activate a virtual environment:
-   - Windows (PowerShell):
-     ```powershell
-     python -m venv venv
-     .\venv\Scripts\Activate.ps1
-     ```
-   - macOS/Linux:
-     ```bash
-     python3 -m venv venv
-     source venv/bin/activate
-     ```
-3. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
+The service loads state-of-the-art ML models (OpenAI's CLIP and Salesforce's BLIP) into GPU memory at startup for low-latency responses. It exposes endpoints for processing single images or, for maximum efficiency, batches of images. All heavy I/O and CPU-bound preprocessing tasks are offloaded to a thread pool to keep the server responsive.
 
-## Configuration
-- `DEVICE_PREFERENCE` (default: `cuda`): choose `cuda` or `cpu`
-  - Windows CMD: `set DEVICE_PREFERENCE=cpu`
-  - PowerShell: `$Env:DEVICE_PREFERENCE = 'cpu'`
-  - macOS/Linux: `export DEVICE_PREFERENCE=cpu`
-- `LOG_LEVEL` (default: `INFO`): e.g., `DEBUG`, `INFO`, `WARNING`
-- `PORT` (default: `8001`): port number for the service
-- Internally the service offloads heavy GPU operations to background threads so multiple requests can run concurrently.
+```mermaid
+graph TD
+    subgraph "Client Service (e.g., Ingestion Orchestrator)"
+        Client -- "POST /api/v1/batch_embed_and_caption" --> A
+    end
 
-## Running the Service
+    subgraph "ML Inference Service (localhost:8001)"
+        A[FastAPI App] -- "1. Receives Batch Request" --> B{Parallel Preprocessing}
+        B -- "2. Decode & Prep Images Concurrently" --> C(Thread Pool)
+        C -- "3. Prepared PIL Images" --> D{Batch Inference}
+        D -- "4. Run CLIP Model on GPU" --> E[Get Embeddings]
+        D -- "5. Run BLIP Model on GPU" --> F[Get Captions]
+        E & F -- "6. Consolidate Results" --> G[Construct Response]
+        G -- "7. Return Embeddings & Captions" --> Client
+    end
 
-**Development Mode** (auto-reload on code changes):
-```bash
-uvicorn main:app --reload --host 0.0.0.0 --port 8001
+    subgraph "Underlying Tech"
+        H[PyTorch] -- "Manages Models" --> I{GPU}
+        J[Transformers]
+        K[CLIP]
+    end
+
+    style Client fill:#cce5ff,stroke:#333,stroke-width:2px
+    style I fill:#d5f5e3,stroke:#333,stroke-width:2px
 ```
 
-**Production Mode**:
+### How It Works
+
+1.  **Model Loading**: On startup, the service loads the specified CLIP and BLIP models onto the configured device (e.g., `cuda`).
+2.  **API Request**: A client sends a batch of images (as base64-encoded strings) to the `/api/v1/batch_embed_and_caption` endpoint.
+3.  **Parallel Preprocessing**: The service immediately offloads the decoding and preprocessing of all images in the batch to a concurrent thread pool. This prevents the server from blocking and is the key to its high throughput.
+4.  **Batched Inference**: Once all images are prepared, they are collated into tensors and sent to the models on the GPU in a single pass.
+    *   First, the CLIP model generates a vector embedding for each image.
+    *   Second, the BLIP model generates a descriptive text caption for each image.
+5.  **Response**: The embeddings and captions are packaged into a JSON response and sent back to the client.
+
+## How to Run the Service
+
+### Prerequisites
+
+1.  **NVIDIA GPU & CUDA**: For GPU acceleration, an NVIDIA graphics card with the appropriate CUDA toolkit installed is required.
+2.  **Python 3.9+**: With `pip` for installing packages.
+
+### Step-by-Step Guide
+
+1.  **Install Python Packages**: Install the required Python libraries from the `requirements.txt` file. It is highly recommended to do this in a virtual environment.
+
+    ```bash
+    pip install -r backend/ml_inference_fastapi_app/requirements.txt
+    ```
+
+2.  **Start the Service**: In a terminal, start the ML inference service using Uvicorn.
+
+    ```bash
+    # For development (with auto-reload)
+    uvicorn backend.ml_inference_fastapi_app.main:app --host 0.0.0.0 --port 8001 --reload
+
+    # For production
+    uvicorn backend.ml_inference_fastapi_app.main:app --host 0.0.0.0 --port 8001
+    ```
+
+## API Endpoints
+
+All endpoints are prefixed with `/api/v1`.
+
+### Main Batch Endpoint
+
+This is the primary and most efficient endpoint for the service.
+
+**1. Get Embeddings and Captions for a Batch of Images**
 ```bash
-python main.py
+# Example with two images. The base64 strings are truncated for brevity.
+curl -X POST -H "Content-Type: application/json" -d '{
+  "images": [
+    {
+      "unique_id": "image_001.jpg",
+      "image_base64": "/9j/4AAQSkZJRgABAQAAAQABAAD...",
+      "filename": "image_001.jpg"
+    },
+    {
+      "unique_id": "photo_archive/image_002.png",
+      "image_base64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=",
+      "filename": "image_002.png"
+    }
+  ]
+}' http://localhost:8001/api/v1/batch_embed_and_caption
 ```
-> By default, `python main.py` runs Uvicorn on `0.0.0.0:${PORT}` with reload disabled.
 
-## Quickstart Examples
+-   **Response**: The service will return a list of results, one for each image, containing the embedding and caption, or an error if processing for that specific image failed.
 
-- **Health Check**:
-  ```bash
-  curl http://localhost:8001/
-  ```
+### Single Image Endpoints (for Debugging/Testing)
 
-- **Embed an Image**:
-  ```bash
-  curl -X POST http://localhost:8001/api/v1/embed \
-    -H "Content-Type: application/json" \
-    -d '{"image_base64":"<BASE64_IMAGE>","filename":"test.jpg"}'
-  ```
+**2. Get Embedding for a Single Image**
+```bash
+curl -X POST -H "Content-Type: application/json" -d '{
+  "image_base64": "/9j/4AAQSkZJRgABAQAAAQABAAD...",
+  "filename": "image_001.jpg"
+}' http://localhost:8001/api/v1/embed
+```
 
-- **Caption an Image**:
-  ```bash
-  curl -X POST http://localhost:8001/api/v1/caption \
-    -H "Content-Type: application/json" \
-    -d '{"image_base64":"<BASE64_IMAGE>","filename":"test.jpg"}'
-  ```
+**3. Get Caption for a Single Image**
+```bash
+curl -X POST -H "Content-Type: application/json" -d '{
+  "image_base64": "/9j/4AAQSkZJRgABAQAAAQABAAD...",
+  "filename": "image_001.jpg"
+}' http://localhost:8001/api/v1/caption
+```
 
-## Troubleshooting
-- If models fail to load at startup, review logs and verify `CLIP_MODEL_NAME` and `BLIP_MODEL_NAME` environment variables.
-- For CUDA issues, force CPU by setting `DEVICE_PREFERENCE=cpu`.
-- If port `8001` is in use, set `PORT` to an available port.
+## Environment Variables
 
-## Notes
-- The service runs on port **8001** by default.
-- This service must be running before starting the ingestion orchestration app.
+The service can be configured using the following environment variables:
+
+-   `CLIP_MODEL_NAME`: The name of the OpenAI CLIP model to use. (Default: `ViT-B/32`)
+-   `BLIP_MODEL_NAME`: The name of the Salesforce BLIP model from Hugging Face. (Default: `Salesforce/blip-image-captioning-large`)
+-   `DEVICE_PREFERENCE`: The device to run the models on. Can be `cuda` or `cpu`. (Default: `cuda`)
+-   `LOG_LEVEL`: The logging level for the application. (Default: `INFO`)
+-   `PORT`: The port on which the service will run. (Default: `8001`)
 
 ---
 

@@ -27,6 +27,9 @@ from functools import partial # Import partial for to_thread
 
 import logging
 
+# --- Configuration ---
+IMG_RESIZE_MAX_DIM = int(os.environ.get("IMG_RESIZE_MAX_DIM", 1024)) # Max dimension for resizing
+
 # Configure basic logging - Uvicorn might override this, but good for standalone potential
 logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO").upper())
 logger = logging.getLogger(__name__)
@@ -103,6 +106,24 @@ class MLBatchRequestItem(BaseModel):
     image_base64: str
     filename: str
 
+# --- New Helper function for resizing images ---
+def _resize_image(image_bytes: bytes, max_dim: int) -> bytes:
+    """
+    Resizes an image to have its largest dimension be `max_dim`, preserving aspect ratio.
+    """
+    try:
+        with Image.open(io.BytesIO(image_bytes)) as img:
+            if max(img.width, img.height) > max_dim:
+                img.thumbnail((max_dim, max_dim), Image.Resampling.LANCZOS)
+            
+            buf = io.BytesIO()
+            # Save as PNG to handle transparency and avoid JPEG artifacts
+            img.save(buf, format='PNG')
+            return buf.getvalue()
+    except Exception as e:
+        logger.warning(f"Could not resize image, returning original. Error: {e}", exc_info=True)
+        return image_bytes
+
 # --- Internal async helper to upsert a list of points to Qdrant without
 # blocking the main event loop ---
 async def _upsert_points(q_client: QdrantClient, collection: str, points: List[models.PointStruct]):
@@ -130,12 +151,13 @@ async def process_batch_with_ml_service(
         return
 
     log_to_job(job_id, f"Sending batch of {len(batch_items_to_ml)} items to ML Inference Service...")
-    # Prepare images, decoding DNG locally and converting to PNG where needed
+    # Prepare images, decoding DNG locally, resizing, and converting to PNG where needed
     images_payload = []
     for image_hash, image_b64, filename, file_path in batch_items_to_ml:
-        # If raw DNG file, decode and re-encode as PNG
-        if file_path.lower().endswith('.dng'):
-            try:
+        try:
+            current_bytes = base64.b64decode(image_b64)
+            # If raw DNG file, decode and re-encode as PNG
+            if file_path.lower().endswith('.dng'):
                 # Use to_thread to avoid blocking the event loop with rawpy
                 raw_decode_func = partial(rawpy.imread, file_path)
                 with await asyncio.to_thread(raw_decode_func) as raw:
@@ -144,16 +166,28 @@ async def process_batch_with_ml_service(
                 buf = io.BytesIO()
                 # Use to_thread for the potentially slow save operation
                 await asyncio.to_thread(img.save, buf, format='PNG')
-                new_b64 = base64.b64encode(buf.getvalue()).decode('utf-8')
-            except Exception as e:
-                log_to_job(job_id, f"Error decoding DNG {filename} upstream: {e}", level="ERROR")
-                # Fall back to original bytes
-                new_b64 = image_b64
-        else:
-            new_b64 = image_b64
-        images_payload.append(
-            MLBatchRequestItem(unique_id=image_hash, image_base64=new_b64, filename=filename).dict()
-        )
+                current_bytes = buf.getvalue()
+            
+            # --- Image Resizing Step ---
+            # Offload resizing to a thread to keep the event loop non-blocked
+            resized_bytes = await asyncio.to_thread(_resize_image, current_bytes, IMG_RESIZE_MAX_DIM)
+            final_b64 = base64.b64encode(resized_bytes).decode('utf-8')
+            # -------------------------
+
+            images_payload.append(
+                MLBatchRequestItem(unique_id=image_hash, image_base64=final_b64, filename=filename).dict()
+            )
+        except Exception as e:
+            log_to_job(job_id, f"Error preparing image {filename} for ML service: {e}", level="ERROR")
+            # Add to failed files and skip this image
+            failed_files_details.append({"file": file_path, "error": f"Failed during prep/resize: {e}"})
+            continue # Move to the next image
+
+    # Ensure there's still a payload to send after potential prep failures
+    if not images_payload:
+        log_to_job(job_id, "No images left to process after preparation/resizing step.", level="WARNING")
+        return
+
     ml_request_payload = {"images": images_payload}
 
     try:
