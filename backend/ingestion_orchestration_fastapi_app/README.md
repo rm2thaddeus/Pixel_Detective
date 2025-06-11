@@ -95,8 +95,11 @@ You must create and select a collection before you can ingest any images.
 
 **1. Create a Collection**
 ```bash
-# Creates a new collection named "my_photo_collection"
+# Creates a new collection named "my_photo_collection" with default vector parameters
 curl -X POST -H "Content-Type: application/json" -d '{"collection_name": "my_photo_collection"}' http://localhost:8002/api/v1/collections
+
+# Creates a new collection with specific vector parameters
+curl -X POST -H "Content-Type: application/json" -d '{"collection_name": "my_other_photos", "vector_size": 768, "distance": "Euclid"}' http://localhost:8002/api/v1/collections
 ```
 
 **2. List All Collections**
@@ -133,6 +136,33 @@ Use the `job_id` returned from the previous command.
 # Checks the status of a specific job
 curl http://localhost:8002/api/v1/ingest/status/your-job-id-here
 ```
+The `result` field in the response will be populated when the job is `completed` or `failed`. For a successful job, it will contain a structured report:
+```json
+{
+    "result": {
+        "total_processed": 50,
+        "total_failed": 2,
+        "total_from_cache": 10,
+        "processed_files": [
+            {
+                "file": "C:/Users/YourUser/Pictures/MyVacation/image1.jpg",
+                "source": "batch_ml",
+                "details": {
+                    "caption": "a sandy beach with blue water",
+                    "full_path": "..." 
+                }
+            }
+        ],
+        "failed_files": [
+            {
+                "file": "C:/Users/YourUser/Pictures/MyVacation/unsupported.gif",
+                "error": "Skipped non-image file",
+                "details": "File type not supported"
+            }
+        ]
+    }
+}
+```
 
 ### Cache Management
 
@@ -156,8 +186,6 @@ The service can be configured using the following environment variables:
 
 ## Potential Next Steps
 
--   **Resolve Dependency Mismatch**: The `qdrant-client` version should be updated in `requirements.txt` to better align with the Qdrant server version used in `docker-compose.yml` to resolve the version mismatch warning on startup.
 -   **Authentication**: Secure the API endpoints with a simple API key or a more robust OAuth2 implementation.
--   **Flexible Collection Creation**: Allow users to specify vector parameters (size, distance) in the `POST /collections` request body instead of relying on global environment variables.
 -   **More Robust Error Handling**: Improve error reporting within ingestion jobs. If an image fails, provide more detailed reasons in the job status logs.
 -   **Add a UI**: This service is a perfect backend for a web-based user interface that would allow users to manage collections and trigger ingestion jobs without using `curl`.

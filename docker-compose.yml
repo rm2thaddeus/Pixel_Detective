@@ -53,7 +53,7 @@ services:
 #      - vibe_net
 
   qdrant_db:
-    image: qdrant/qdrant:v1.3.0
+    image: qdrant/qdrant:latest
     ports:
       - "6333:6333"
       - "6334:6334"
