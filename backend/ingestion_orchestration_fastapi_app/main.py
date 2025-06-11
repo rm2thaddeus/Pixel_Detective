@@ -23,6 +23,7 @@ import io # For encoding PIL images to bytes
 import diskcache
 import time # For logging timestamps
 import asyncio # Added for sleep in background task
+from functools import partial # Import partial for to_thread
 
 import logging
 
@@ -46,7 +47,7 @@ ML_INFERENCE_SERVICE_URL = os.environ.get("ML_INFERENCE_SERVICE_URL", "http://lo
 ML_INFERENCE_BATCH_SIZE = int(os.environ.get("ML_INFERENCE_BATCH_SIZE", 8)) # New config for batch size
 QDRANT_HOST = os.environ.get("QDRANT_HOST", "localhost") # Assuming Qdrant might run locally or in Docker
 QDRANT_PORT = int(os.environ.get("QDRANT_PORT", 6333))
-QDRANT_COLLECTION_NAME = os.environ.get("QDRANT_COLLECTION_NAME", "development_test") # Corrected default
+QDRANT_COLLECTION_NAME = os.environ.get("QDRANT_COLLECTION_NAME", "") # Corrected default
 active_collection_name = QDRANT_COLLECTION_NAME  # Global active collection that can be changed via API
 # Define standard vector parameters for the collection (e.g., for ViT-B/32 CLIP model)
 QDRANT_VECTOR_SIZE = int(os.environ.get("QDRANT_VECTOR_SIZE", 512))
@@ -116,11 +117,14 @@ async def process_batch_with_ml_service(
         # If raw DNG file, decode and re-encode as PNG
         if file_path.lower().endswith('.dng'):
             try:
-                with rawpy.imread(file_path) as raw:
+                # Use to_thread to avoid blocking the event loop with rawpy
+                raw_decode_func = partial(rawpy.imread, file_path)
+                with await asyncio.to_thread(raw_decode_func) as raw:
                     rgb = raw.postprocess()
                 img = Image.fromarray(rgb).convert('RGB')
                 buf = io.BytesIO()
-                img.save(buf, format='PNG')
+                # Use to_thread for the potentially slow save operation
+                await asyncio.to_thread(img.save, buf, format='PNG')
                 new_b64 = base64.b64encode(buf.getvalue()).decode('utf-8')
             except Exception as e:
                 log_to_job(job_id, f"Error decoding DNG {filename} upstream: {e}", level="ERROR")
@@ -181,7 +185,8 @@ async def process_batch_with_ml_service(
 
             try:
                 log_to_job(job_id, f"Extracting metadata for batch-processed {filename}...")
-                comprehensive_metadata = extract_metadata(file_path)
+                # Offload metadata extraction to a thread
+                comprehensive_metadata = await asyncio.to_thread(extract_metadata, file_path)
                 log_to_job(job_id, f"Metadata extracted for {filename}: {comprehensive_metadata}")
 
                 async with aiofiles.open(file_path, "rb") as f_img_bytes:
@@ -287,7 +292,8 @@ async def _run_ingestion_task(
                             embedding_data = cached_data["embedding_data"]
                             caption_data = cached_data["caption_data"]
                             log_to_job(job_id, f"Extracting metadata for cached {filename}...")
-                            comprehensive_metadata = extract_metadata(file_path)
+                            # Offload metadata extraction to a thread for cached items as well
+                            comprehensive_metadata = await asyncio.to_thread(extract_metadata, file_path)
                             if qdrant_conn_bg:
                                 vector = embedding_data.get("embedding")
                                 caption = caption_data.get("caption")
@@ -333,8 +339,6 @@ async def _run_ingestion_task(
                         failed_files_details.append({"file": file_path, "error": str(e), "details": "Pre-batch/Cache Processing"})
                 else:
                     log_to_job(job_id, f"Skipping non-file item: {file_path} ({i+1}/{total_files_to_scan})")
-                # Brief sleep to allow other tasks, if any, and to make progress updates more granular in UI
-                await asyncio.sleep(0.01)
 
 
             if current_batch_to_ml_service: # Process any remaining items
@@ -388,36 +392,13 @@ async def startup_event():
         app.state.qdrant_client = qdrant_client_instance # For router dependencies
         globals()['qdrant_client_global'] = qdrant_client_instance # For direct use if needed, and for passing to BG task
         logger.info(f"Successfully connected to Qdrant instance at {QDRANT_HOST}:{QDRANT_PORT}.")
-
-        try:
-            collection_info = qdrant_client_instance.get_collection(collection_name=QDRANT_COLLECTION_NAME)
-            logger.info(f"Qdrant collection '{QDRANT_COLLECTION_NAME}' already exists. Details: {collection_info}")
-        except Exception as e:
-            if "404" in str(e) or "not found" in str(e).lower():
-                logger.info(f"Qdrant collection '{QDRANT_COLLECTION_NAME}' not found. Attempting to create it...")
-                try:
-                    qdrant_client_instance.create_collection(
-                        collection_name=QDRANT_COLLECTION_NAME,
-                        vectors_config=VectorParams(size=QDRANT_VECTOR_SIZE, distance=QDRANT_DISTANCE_METRIC)
-                    )
-                    logger.info(f"Successfully created Qdrant collection '{QDRANT_COLLECTION_NAME}'")
-                except Exception as create_e:
-                    logger.error(f"Failed to create Qdrant collection '{QDRANT_COLLECTION_NAME}': {create_e}", exc_info=True)
-            else:
-                logger.error(f"Error checking Qdrant collection '{QDRANT_COLLECTION_NAME}': {e}", exc_info=True)
     except Exception as e:
-        logger.error(f"Failed to connect to Qdrant or ensure collection: {e}", exc_info=True)
+        logger.error(f"Failed to connect to Qdrant: {e}", exc_info=True)
         # qdrant_client_global will remain None if startup fails. Dependencies will handle this.
 
 @app.on_event("shutdown")
 async def shutdown_event():
     logger.info("Ingestion Orchestration Service shutting down...")
-    # if qdrant_client_global: # qdrant_client_global is now accessed via app.state or passed directly
-    #     try:
-    #         # qdrant_client_global.close() # Check Qdrant client documentation
-    #         logger.info("Qdrant client closed (if applicable).")
-    #     except Exception as e:
-    #         logger.error(f"Error closing Qdrant client: {e}", exc_info=True)
     await duplicates_on_shutdown()
 
 @app.exception_handler(RequestValidationError)
@@ -435,6 +416,9 @@ class IngestRequest(BaseModel):
 
 @v1_router.post("/ingest/")
 async def ingest_directory_v1(request: IngestRequest, background_tasks: BackgroundTasks, q_client: QdrantClient = Depends(get_qdrant_dependency)): # Use dependency for endpoint check
+    if not active_collection_name:
+        raise HTTPException(status_code=400, detail="No collection selected. Please select a collection first using the /api/v1/collections/select endpoint.")
+    
     job_id = str(uuid.uuid4())
     initial_log_message = f"Job {job_id} initiated for directory: {request.directory_path}"
     
@@ -540,6 +524,27 @@ async def create_collection(req: CollectionNameRequest, q_client: QdrantClient =
         vectors_config=VectorParams(size=QDRANT_VECTOR_SIZE, distance=QDRANT_DISTANCE_METRIC)
     )
     return {"collection": req.collection_name}
+
+@v1_router.delete("/collections/{collection_name}", response_model=Dict[str, Any])
+async def delete_collection(collection_name: str, q_client: QdrantClient = Depends(get_qdrant_dependency)):
+    """Delete a Qdrant collection by name."""
+    try:
+        result = q_client.delete_collection(collection_name=collection_name)
+        if result:
+            # If the collection was active, reset the active_collection_name
+            global active_collection_name
+            if active_collection_name == collection_name:
+                active_collection_name = ""
+                logger.info(f"Active collection '{collection_name}' was deleted. Active collection has been reset.")
+            return {"status": "success", "message": f"Collection '{collection_name}' deleted successfully."}
+        else:
+            # This case might indicate the operation was accepted but execution is pending, or it failed silently.
+            # Qdrant's delete_collection returns True on success, so False might mean it didn't exist or another issue.
+            raise HTTPException(status_code=404, detail=f"Collection '{collection_name}' could not be deleted or was not found.")
+    except Exception as e:
+        # Catching potential exceptions from the client, e.g., if Qdrant is down or responds with an error.
+        logger.error(f"Error deleting collection '{collection_name}': {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
 
 @v1_router.post("/collections/select", response_model=Dict[str, str])
 async def select_collection(req: CollectionNameRequest):

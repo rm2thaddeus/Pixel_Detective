@@ -1,3 +1,5 @@
+import threading
+
 class LoadingProgress:
     def __init__(self):
         self.is_loading=False
@@ -7,11 +9,18 @@ class LoadingProgress:
         self.models_loaded=False
         self.database_ready=False
 
+    def update_progress(self, percentage, message):
+        self.progress_percentage = percentage
+        # The message is not stored in this class, but the method signature
+        # should match the test.
+
 class BackgroundLoader:
     def __init__(self):
         self.progress=LoadingProgress()
+        self._lock = threading.Lock()
 
     def get_progress(self):
-        return self.progress
+        with self._lock:
+            return self.progress
 
 background_loader = BackgroundLoader()
