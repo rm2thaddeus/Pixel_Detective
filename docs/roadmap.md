@@ -63,81 +63,98 @@ This roadmap outlines the development priorities for Pixel Detective, organized 
 
 ---
 
-## 🚀 **Sprint 09: Recovery, Robustness & Testing**
-*Priority: Critical - Restore core functionality and ensure system stability*
-*Timeline: Approx. 2-3 weeks (estimate)*
-*Theme: **Recovery and Robustness:** Restore all core user flows (especially "folder load"), ensure API-driven architecture is stable, and improve error handling and test coverage.*
+## ✅ **Sprint 09 COMPLETED: Backend Validation, GPU Optimisation & Streamlit Removal**
+*Status: Successfully completed - The backend is now feature-complete, highly optimized, and fully decoupled.*
 
-### **Sprint Goals**
-- **CRITICAL: Restore "Folder Load" functionality** - Diagnose and fix the UI → API → backend flow.
-- Achieve high confidence in system stability and correctness through comprehensive testing.
-- Complete all pending development tasks from Sprint 08, primarily the duplicate detection backend.
-- Update all key project documentation to reflect the current state of the application.
-- Perform final polish and address any critical/high-priority bugs identified.
+### **Sprint Achievements** ✅
+- **High-Performance Backend**: Refactored the ML inference and ingestion services for significant performance gains (~89% on key benchmarks) by implementing dynamic batching, GPU optimization, and asynchronous processing.
+- **Robust Vector Storage**: Fully integrated Qdrant for persistent, scalable vector storage.
+- **Legacy UI Deprecation**: Completely removed the original Streamlit frontend, eliminating a significant amount of legacy code and preparing the project for a modern UI framework.
+- **Documentation Overhaul**: Updated all backend architecture documents, developer roadmaps, and sprint-level documentation to reflect the current state of the project.
+- **Codebase Cleanup**: Removed obsolete directories (`frontend`, `screens`, etc.) and enhanced `.gitignore` to keep the repository clean.
 
-### **Key Tasks (Prioritized from `docs/sprints/sprint-09/transition-to-sprint-09.md`)**
-
-#### **Week 1: Critical Recovery & Core Testing**
-- **Recovery & Core Functionality Finalization**
-  - [ ] **TASK-09-01 (P0): Restore "Folder Load" functionality (UI → API → backend).**
-    - [ ] Diagnose and fix the broken flow.
-    - [ ] Ensure user feedback for errors.
-    - [ ] Add integration tests for this flow.
-  - [ ] TASK-08-02-02: Full implementation of duplicate detection algorithm (backend).
-- **Targeted Integration Testing**
-  - [ ] TASK-08-02-05: Develop integration tests for duplicate detection flow (UI to backend).
-  - [ ] TASK-08-06-01: Expand integration tests for full UI → API → Qdrant roundtrip (validate against key S08 features).
-
-#### **Week 1-2: Broader Testing & API Validation**
-- **Unit & Integration Testing (API Focus)**
-  - [ ] TASK-08-01-04: Write unit tests for `/api/v1/search` and `/api/v1/images` endpoints.
-  - [ ] TASK-08-03-05: Write unit and integration tests for random image endpoint and UI component.
-  - [ ] TASK-08-04-04: Write tests for filter logic and UI behavior under edge cases.
-- **End-to-End & Negative Testing**
-  - [ ] TASK-08-06-02: Develop end-to-end tests with Playwright for critical user flows (search, duplicates, random, filtering, **folder load post-fix**).
-  - [ ] TASK-08-06-03: Add negative tests for invalid parameters and no-data scenarios.
-- **Error Handling**
-  - [ ] TASK-09-04 (New): Add robust error handling and user feedback for all critical UI actions, especially around folder processing and API interactions.
-
-#### **Week 2-3: Performance, Documentation & Polish**
-- **Performance & Stability**
-  - [ ] TASK-08-06-04: Benchmark performance of key endpoints (`pytest-benchmark`, `nsys`).
-  - [ ] TASK-09-06 (New): Address any remaining UI polish or minor bug fixes identified during S09 testing.
-- **Documentation Overhaul (Post-Recovery)**
-  - [ ] TASK-09-07 (New): Update `README.md` (project root) reflecting current status and S09 focus.
-  - [ ] TASK-09-07 (New): Update `docs/architecture.md` to detail S08 FastAPI/Qdrant architecture and new UI-API interaction patterns.
-  - [ ] TASK-09-07 (New): Update/Auto-generate Swagger/OpenAPI docs for Sprint 08 APIs.
-  - [ ] TASK-09-07 (New): Update `CHANGELOG.md` for Sprint 08 release and Sprint 09 recovery efforts.
-- **Cleanup (Low Priority - If time permits)**
-  - [ ] TASK-09-08 (New): Review legacy modules (`core/fast_startup_manager.py`, `utils/embedding_cache.py`).
-  - [ ] TASK-09-08 (New): Review `scripts/mvp_app.py` for cleanup.
+### **Completed Deliverables** ✅
+- [x] A feature-complete, high-performance, and stable backend.
+- [x] The removal of the entire legacy `frontend` directory.
+- [x] A comprehensive suite of up-to-date documentation for the backend architecture and Sprint 09.
+- [x] A clean and well-organized repository, ready for the next phase of development.
 
 ---
 
-## 🎯 **Sprint 09 Success Criteria**
+## 🚀 **Sprint 10: Critical UI Refactor**
+*Priority: Critical - Implement the new user-facing application.*
+*Timeline: Approx. 3-4 weeks (estimate)*
+*Theme: **Building a Modern Frontend:** Create a fast, responsive, and feature-rich user interface using Next.js, TypeScript, and Chakra UI.*
+
+### **Sprint Goals**
+- Deliver a fully functional web application that connects to the existing high-performance backend.
+- Implement all core user flows, including project creation, log streaming, search, and data visualization.
+- Establish a robust, component-based architecture for the frontend that is maintainable and scalable.
+- Create a comprehensive end-to-end test suite to ensure application reliability.
+- Prepare the application for modern deployment workflows on a platform like Vercel.
+
+### **Key Tasks (From `docs/sprints/critical-ui-refactor/technical-implementation-plan.md`)**
+
+#### **Week 1: Project Setup & Core UI**
+- **Project Initialization & Tooling**
+  - [ ] Initialize Next.js project with TypeScript, ESLint, and Prettier.
+  - [ ] Set up Chakra UI for the component library.
+  - [ ] Configure project structure, including directories for `components`, `pages`, `hooks`, and `lib`.
+- **Core Components & Layout**
+  - [ ] Build the main application shell, including the sidebar and main content area.
+  - [ ] Implement the core `ProjectSelector` and `LogStream` components.
+  - [ ] Set up WebSocket connection for real-time log streaming from the backend.
+
+#### **Week 2: Feature Implementation**
+- **Search & Filtering**
+  - [ ] Implement the main search bar and results display.
+  - [ ] Build out the advanced filtering and sorting sidebar.
+  - [ ] Integrate with the backend search and image list APIs.
+- **Data Visualization**
+  - [ ] Implement the image grid and detail views.
+  - [ ] Connect to backend endpoints for displaying image metadata and other details.
+
+#### **Week 3: Testing & Polish**
+- **Testing**
+  - [ ] Write unit tests for critical hooks and utility functions.
+  - [ ] Develop end-to-end tests with Playwright/Cypress for key user flows (project creation, search, etc.).
+- **UI Polish**
+  - [ ] Refine component styling and ensure a consistent and polished user experience.
+  - [ ] Implement loading states, error boundaries, and user feedback mechanisms.
+
+#### **Week 4: Documentation & Deployment Prep**
+- **Documentation**
+  - [ ] Write documentation for the new frontend architecture and components.
+  - [ ] Update the main project `README.md` with instructions for running the full-stack application.
+- **Deployment**
+  - [ ] Prepare the application for deployment on Vercel.
+  - [ ] Set up environment variables and build configurations for production.
+
+---
+
+## 🎯 **Sprint 10 Success Criteria**
 
 ### **Quality & Stability Targets**
-- [ ] **"Folder Load" Restored**: Functionality is fully restored and verified with integration tests.
-- [ ] **Test Coverage**: Significant increase in unit, integration, and E2E test coverage for S08 features and "folder load".
-- [ ] **Duplicate Detection**: Backend algorithm implemented and validated.
-- [ ] **Bug Resolution**: All critical/high priority bugs identified during S09 (including regressions) are resolved.
-- [ ] **Documentation**: Key project documents (`README.md`, `architecture.md`, `CHANGELOG.md`, API docs) are accurate and up-to-date post-recovery.
+- [ ] **Functional UI**: All features described in the [PRD](./sprints/critical-ui-refactor/PRD.md) are implemented and functional.
+- [ ] **Test Coverage**: High E2E test coverage for all critical user paths.
+- [ ] **Component Reusability**: A clean and well-documented component library is established.
+- [ ] **Bug Resolution**: No critical or high-priority bugs are present at the end of the sprint.
 
 ### **Performance Targets**
-- [ ] **API Latency**: Key S08 endpoints (search, list) meet <200ms average response target under benchmark conditions.
-- [ ] **UI Responsiveness**: Maintain >30 FPS during typical user interactions, especially during/after folder operations.
+- [ ] **Page Load Speed**: Fast initial page loads (leveraging Next.js SSR/SSG).
+- [ ] **UI Responsiveness**: A smooth and responsive user experience with no jank.
 
 --- 
 
-## 📅 **Future Sprints (Post Sprint 09)**
+## 📅 **Future Sprints (Post Sprint 10)**
 
-Planning for Sprint 10 and beyond will commence after the successful completion and review of Sprint 09. Future work may include:
-- Further Enterprise CLI enhancements.
-- Advanced AI-driven features or model updates.
-- Scalability improvements for larger datasets or user loads (e.g., Qdrant clustering, cloud deployment patterns).
-- User-requested features and enhancements based on feedback.
+Planning for Sprint 11 and beyond will commence after the successful completion of the Critical UI Refactor. Future work may include:
+- Advanced AI-driven features (e.g., real-time model interaction).
+- User accounts and multi-user collaboration features.
+- Cloud deployment and managed service offerings.
+- Further enhancements based on user feedback.
 
---- 
+---
 
 ## 🏆 **Long-term Vision (3+ Months)**
 
