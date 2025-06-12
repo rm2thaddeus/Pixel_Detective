@@ -1,83 +1,83 @@
 # Vibe Coding - ML Inference Service Prioritized Next Steps
 
-## 1. Executive Summary
+*Document version: 2025-06-12*
 
-This document outlines a prioritized plan to enhance the `ml_inference_fastapi_app`. The focus is on improving **GPU memory management, security, and concurrency control**, based on an analysis of the current implementation.
-
-Following the recent refactor to parallelize image preprocessing, the most critical performance bottleneck has been resolved. The next steps address the remaining architectural weaknesses to make the service more robust, secure, and efficient for production use.
-
-The key findings are:
-- **High Idle Memory Usage**: The BLIP model for captioning is loaded eagerly at startup, consuming significant GPU memory even when not in use.
-- **Security Gap**: The API endpoints are unsecured, allowing any service on the network to make requests.
-- **Concurrency Risk**: While individual model calls are atomic, there is no mechanism to prevent multiple API requests from attempting to use the GPU simultaneously, risking out-of-memory (OOM) errors.
-
-The following plan addresses these points in order of priority.
+This roadmap complements `backend/DEVELOPER_ROADMAP.md` and drills into the **ML Inference Service** (`backend/ml_inference_fastapi_app`). Items are triaged by *wall-time impact per 25-image batch*.
 
 ---
 
-## 2. Priority 1: High - GPU Memory Optimization
+## 1. Status Snapshot
 
-### Task 2.1: Implement Lazy Loading for BLIP Model
+| Stage | Time (s) | Notes |
+|-------|---------|-------|
+| Decode & preprocess | **15.4** | 8 CPU threads (`ThreadPoolExecutor`) |
+| CLIP fp16 encode | **39.7** | Batch size 25, GPU safe 471 |
+| BLIP load & caption | **~7** | One-off per process |
+| **Total** | **55.1** | For 25 DNG images |
 
-- **Justification**: The BLIP model is only needed for the captioning-related functions. Eagerly loading it at startup reserves a large amount of VRAM that could be better used by CLIP for processing larger batches or for other processes on the machine. Lazy-loading will ensure it's only placed on the GPU when a captioning request is actually made.
-- **File to Modify**: `backend/ml_inference_fastapi_app/main.py`
-- **Action**:
-    1.  Modify the `startup_event` to only load the CLIP model.
-    2.  Create a new dependency or helper function (e.g., `get_blip_model()`).
-    3.  Inside this function, check if the global `blip_model_instance` is `None`. If it is, load the model and processor from Hugging Face and store them in the global variables.
-    4.  In all endpoints that use BLIP (`/caption`, `/batch_embed_and_caption`), `yield` or `await` this new function to ensure the model is loaded before use.
-    5.  (Optional) Add logic to offload the BLIP model from memory after a period of inactivity.
+Target: **≤ 30 s** per 25 images (another ~45 % cut).
 
 ---
 
-## 3. Priority 2: High - Security
+## 2. 🔴 Critical (next sprint)
 
-### Task 3.1: Secure Service-to-Service API with an API Key
+1. **Caption-optional mode**  
+   *Why*: BLIP adds ~7 s fixed + GPU time. Not always needed for vector search.  
+   *What*: Honour `DISABLE_CAPTIONS=1`; in that mode return `caption=None` quickly.  
+   *How*:  
+   • Wrap BLIP branch in `if not os.getenv("DISABLE_CAPTIONS"):`.  
+   • Adjust Pydantic response (caption may be null).  
+   *Gain*: **7–10 s** (≈ 15 %).  
+   *Touched*: `main.py` (`batch_embed_and_caption`, single-image `/caption`).
 
-- **Justification**: The inference endpoints should not be open to the public network. A simple, shared API key provides a necessary layer of authentication, ensuring that only trusted clients (like the Ingestion Orchestration Service) can use its resources.
-- **Files to Modify**:
-    - `backend/ml_inference_fastapi_app/main.py` (to check for the key)
-    - `backend/ingestion_orchestration_fastapi_app/main.py` and `dependencies.py` (to send the key)
-- **Action**:
-    1.  **In the ML Service (`ml_inference_fastapi_app`)**:
-        -   Define a `SECRET_API_KEY` loaded from an environment variable.
-        -   Create a FastAPI dependency that requires an `x-api-key` header and validates it against the secret.
-        -   Protect all v1 routes with this dependency.
-    2.  **In the Ingestion Service (`ingestion_orchestration_fastapi_app`)**:
-        -   Load the same `SECRET_API_KEY` from an environment variable.
-        -   Modify the `httpx` client logic to include `headers={"x-api-key": THE_SECRET_KEY}` in all requests to the ML service.
+2. **Multipart / streaming uploads**  
+   *Why*: JSON+Base64 inflates payload 33 %, costs encode/decode CPU.  
+   *What*: New `/batch_embed_and_caption_multipart` accepting `multipart/form-data` (`files[]`).  
+   *Client*: change orchestrator's `_send_batch_to_ml_service`.  
+   *Gain*: **2–3 s** for 25 images; larger for big jobs.
+
+3. **Pinned memory tensors + `torch.compile`**  
+   *Why*: Reduce host→GPU copy & kernel overhead.  
+   *What*:  
+   • When stacking tensors: `torch.stack(..., pin_memory=True).to(device, non_blocking=True)`.  
+   • After CLIP load: `clip_model_instance = torch.compile(clip_model_instance, mode="reduce-overhead")`.  
+   *Gain*: **10–15 %** of CLIP time (~4 s).
 
 ---
 
-## 4. Priority 3: Medium - Robustness
+## 3. 🟠 High
 
-### Task 4.1: Implement a GPU Lock for Concurrency Control
+4. **Metadata extractor fast-path for DNG**  
+   Skip PIL attempt to avoid `cannot identify image` exceptions.  
+   *Files*: `utils/metadata_extractor.py`.  
+   *Gain*: 1–2 s + quieter logs.
 
-- **Justification**: Without a locking mechanism, two separate, concurrent calls to the batch endpoint could each try to load a full batch of images onto the GPU, leading to a race condition and a likely OOM error. An `asyncio.Lock` ensures that only one inference task can access the GPU at a time.
-- **File to Modify**: `backend/ml_inference_fastapi_app/main.py`
-- **Action**:
-    1.  Create a global `asyncio.Lock` instance (e.g., `gpu_lock = asyncio.Lock()`).
-    2.  In the `batch_embed_and_caption_endpoint_v1` function, wrap the model inference sections (the calls to `_encode_clip` and `_generate_blip`) in an `async with gpu_lock:` block.
-    3.  This will ensure that even if multiple requests are preprocessing images in parallel, only one will proceed to the GPU-intensive step at a time, preventing memory clashes.
+5. **Dynamic batch utilisation**  
+   Use `min(safe_batch, 256)` to keep GPU >50 % utilised on small jobs without risking OOM on large ones.
 
-  **Conceptual Code Change:**
-  ```python
-  # In backend/ml_inference_fastapi_app/main.py
+---
 
-  gpu_lock = asyncio.Lock()
+## 4. 🟡 Medium / Research
 
-  @v1_router.post("/batch_embed_and_caption", ...)
-  async def batch_embed_and_caption_endpoint_v1(request: ...):
-      # ... parallel preprocessing ...
+6. **Bits-and-Bytes 8-bit BLIP**  
+   Cut VRAM & caption latency 30 %.
 
-      async with gpu_lock:
-          # --- CLIP Embeddings ---
-          # ... inference logic ...
+7. **CLIP ONNX / TensorRT**  
+   Encoder speed-up 1.3–1.6×; requires export & CUDA 11.8 toolchain.
 
-          # --- BLIP Captions ---
-          # ... inference logic ...
+8. **gRPC or HTTP/2 streaming responses**  
+   Overlap network, inference and DB upsert.
 
-      # ... combine results ...
-  ```
+---
 
-</rewritten_file> 
+## 5. Task Breakdown & Estimates
+
+| ID | Task | Effort | Owner |
+|----|------|--------|-------|
+| C-1 | Caption-optional env flag | 0.5 d | Backend | 
+| C-2 | Multipart endpoint + client | 3 d | Backend | 
+| C-3 | `torch.compile` & pin-mem | 0.5 d | AI Engineer | 
+| H-4 | Metadata fast-path | 0.25 d | Backend | 
+| H-5 | Batch size heuristic | 0.25 d | Backend | 
+
+*After critical items we expect total time **≈ 25–30 s** per 25 images, matching the stretch goal.* 

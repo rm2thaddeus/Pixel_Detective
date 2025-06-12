@@ -13,52 +13,38 @@ The following plan addresses these points in order of priority.
 
 ---
 
-## Status Update – 2025-06-12
+## Status Update – 2025-06-12 (post-optimisation)
 
-The RAW-filename bug has been fixed and the pipeline successfully processed 25 DNG images in ~111 s (down from >170 s with 100 % failures).  Logs show that the ML service currently receives four requests of 8, 8, 8 and 1 images respectively, and each GPU inference call takes ≈11 s.  
+The first optimisation wave (larger batch size, RAW passthrough, threaded SHA-256) cut end-to-end ingestion time from **110.78 s → 64.71 s** for 25 DNG images (≈ 1.7× faster). The ML service now finishes the single 25-image batch in **55.15 s** (15.4 s decode + 39.7 s inference).
 
-Key findings after the latest run:
-
-* **Decoding Parallelisation is already implemented** in `ml_inference_fastapi_app` via a `ThreadPoolExecutor`; therefore the old Task 1.1 is now **✔ Completed**.
-* **Main bottleneck** is now the *small batch size* (8) chosen by the ingestion service compared to the safe GPU batch size (≈471) probed by the ML service.
-* **Redundant DNG → PNG conversion** is still happening in the ingestion service; ML service can decode RAW directly, so we are double-decoding every file.
-
-We therefore revise the roadmap below.
+All tasks in **Priority 1** are now **✔ Completed**.  Remaining opportunities are listed below.
 
 ---
 
-## 2. Priority 1: Critical — Performance & Robustness
+## 2. Priority 1 (New) — Quick-Win Performance Ideas
 
-### Task 1.1 ✔ (Completed) – Parallel image preprocessing in ML service
-The `ThreadPoolExecutor` & `asyncio.as_completed` implementation in `ml_inference_fastapi_app/main.py` already preprocesses images concurrently.
+1. **Skip captioning during ingestion (optional, async later)**  
+   • BLIP load + captioning costs ≈ 7 s + inference time each batch.  
+   • Write embeddings immediately, enqueue captions to a separate job/queue; search can function with embeddings only.  
+   **Expected gain**: ~10-15 s per 25 images.
 
-### Task 1.2 — Increase end-to-end batch size
+2. **Move image decoding to ingestion host**  
+   • Decoding σ 15 s happens on GPU box CPU threads; doing it on ingestion host (already reading bytes) and sending RGB PNG/JPEG would overlap I/O and shrink ML-side latency.  
+   **Trade-off**: more network bytes (~25-30 MB) but LAN is >1 Gbps.
 
-* **Justification**: GPU safe batch size is ≈ 471 but we currently send just **8 images**. 25 images therefore incur **4 full GPU passes** (~44 s), while a single 25-image call would cost ~13 s.  
-* **Change**: Bump `ML_INFERENCE_BATCH_SIZE` default from 8 → 128 (configurable).  Provide an optional *hand-shake* endpoint in ML service that returns its probed safe batch size so the orchestrator can adapt dynamically.
-* **Files**: `backend/ingestion_orchestration_fastapi_app/main.py` (change batching logic & env var doc) + optional `/api/v1/capabilities` in ML service.
+3. **Multipart / streaming payloads (remove Base64)**  
+   • Current JSON+Base64 inflates payload ≈ 33 % and costs encode/-decode CPU.  
+   • Switch to `multipart/form-data` or HTTP/2 streaming; expect ~2-3 s off network + CPU per 25 images.
 
-### Task 1.3 — Remove redundant DNG→PNG conversion in ingestion service
+4. **Pinned-memory DataLoader & `torch.compile` for CLIP**  
+   • Torch 2 allows `torch.compile` with `mode="reduce-overhead"`. Early tests show 10-15 % speed-up on ViT-B/32 in fp16.  
+   • Also use `pin_memory=True` when stacking tensors to cut host-→GPU transfer latency.
 
-* **Justification**: We currently decode RAW files with `rawpy` in the ingestion service and again decode the resulting PNG in the ML service, doubling CPU & I/O.  
-* **Change**: Send the **original bytes** for RAW images, drop the local decode step, and rely solely on ML service for DNG handling.  Only JPEG/PNG resizing remains client-side (optional).
-* **Expected Gain**: ~35 % reduction in CPU wall-time on host and less memory pressure.
+5. **Metadata extractor fast-path for DNG**  
+   • Current extractor tries PIL on `.dng`, raises `cannot identify image` for every file (see logs). Add early exit to skip PIL and avoid noisy logs + exception overhead.
 
-### Task 1.4 — Smarter directory walker & hash computation
-
-* Parallelise SHA-256 computation using `aiofiles` + `asyncio.to_thread` workers.  This can overlap I/O with CPU and prepare batches faster when ingesting thousands of images.
-
----
-
-### Benchmark Evidence
-
-Terminal output confirming current baseline:
-
-```
-Ingestion completed in 110.78 seconds.
-Result: total_processed=25, total_failed=0
-GPU logs: four inference passes (8 + 8 + 8 + 1 images) at ~11 s per pass.
-```
+6. **GPU utilisation**  
+   • For 25-image batch the GPU is under-utilised (batch safe limit 471).  In large ingestions (>128) we already fill the GPU.  Consider `ML_INFERENCE_BATCH_SIZE = min(safe_batch, 256)`.
 
 ---
 
