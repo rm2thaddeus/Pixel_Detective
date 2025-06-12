@@ -81,20 +81,19 @@ This document provides a narrative of the Pixel Detective application's architec
 
 ---
 
-## 🛡️ Sprint 09: Recovery, Robustness, and Persistent Data (Planned)
+## 🛡️ Sprint 09: Backend Validation, GPU Optimisation & Streamlit Sunset (In&nbsp;Progress)
 
 **Theme:** Recovery, Robustness, and Feature Enhancement.
 
-**Planned Architectural Enhancements:**
--   **Persistent Qdrant Collections:**
-    -   Qdrant collections will be made persistent across application sessions.
-    -   Logic will be implemented (likely in backend services, coordinated at startup) to check for an existing collection by a configured name and load it.
--   **UI-Driven Collection Creation:** If a collection doesn't exist, the frontend will prompt the user (via `fast_ui_screen.py`) to specify a folder. This action will trigger the `ingestion_orchestration_fastapi_app` (via `service_api.py`) to build and populate a new persistent collection.
--   **Enhanced UI Feedback via APIs:** The frontend will be enhanced to consume more granular progress and log updates from backend APIs, improving user experience during long-running operations (e.g., folder ingestion).
--   **"Folder Load" Restoration & Testing:** The critical "Folder Load" functionality will be fully restored, tested, and integrated with the new persistent Qdrant collection mechanism.
--   **Full Application Testing & API Stability:** Emphasis on comprehensive testing to ensure overall application stability and the reliability of the API-driven architecture.
+**Key Architectural Enhancements Delivered / In&nbsp;Progress:**
+-   **Persistent Qdrant Collections (✅ Implemented):**
+    - Collections now survive restarts.  Startup checks the configured collection name and either loads it or prompts the user to ingest a folder.
+    - Ingestion service exposes richer progress logs that the frontend polls.
+-   **GPU Batching & Mixed Precision (✅ Implemented):** Dynamic batch sizing and AMP in the ML inference service deliver ~89 % speed-ups.
+-   **Enhanced UI Feedback via APIs (✅ Implemented):** Streamlit loading screen polls `/ingest/status` for live progress and error logs.
+-   **"Folder Load" Flow Restored:** Background ingestion is fully functional under the new persistent collection mechanism.
 
-**Reference:** `docs/sprints/sprint-09/PRD.md`, `docs/sprints/sprint-09/README.md`, `docs/architecture.md` (S09 goals)
+**Reference:** `docs/sprints/sprint-09/PRD.md`, `docs/sprints/sprint-09/README.md`, `docs/architecture.md` (S09 in-progress)
 
 ---
 

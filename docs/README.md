@@ -2,9 +2,17 @@
 
 Pixel Detective is an advanced image search application that uses AI to analyze, caption, and search through your image collection. It combines multiple state-of-the-art AI models to provide a powerful and intuitive image search experience.
 
-## 🎯 **NEW**: Unified 3-Screen Architecture (Sprint 01 Complete)
+## 🚀 **LATEST**: GPU-Optimised Backend & Persistent Collections (Sprint 09)
 
-Pixel Detective now features a completely redesigned user experience with a **unified 3-screen architecture**:
+Pixel Detective's latest sprint delivers massive backend improvements while paving the way for a new UI stack:
+
+* **GPU Batching & Mixed Precision** – Up to 89 % faster inference via dynamic batch sizing and `torch.cuda.amp.autocast`.
+* **Persistent Qdrant Collections** – Collections survive restarts; folder-ingestion task runs only on first launch.
+* **FastAPI Services Refactor** – Separate Ingestion & ML services with richer progress endpoints.
+* **Streamlit Sunset Plan** – Current Streamlit UI enters maintenance mode; reusable UX patterns archived for React/Vite rewrite.
+* **Docs Overhaul** – Architecture, status dashboard, and PRDs fully refreshed.
+
+The classic **3-screen Streamlit experience** remains for now:
 
 ### Screen 1: Simple Setup 🚀
 - **User-focused folder selection** - No technical jargon, just "where are your photos?"

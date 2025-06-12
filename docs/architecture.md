@@ -34,11 +34,12 @@ This document describes the high-level architecture of the Pixel Detective appli
 -   UI components (including `latent_space.py`) made API-driven and stateless.
 -   Folder ingestion tasks from UI (`context_sidebar.py`) now submit tasks to the backend Ingestion Orchestration service via `service_api.py`.
 
-**Sprint 09 Architectural Goals:**
--   Implement persistent Qdrant collections loaded at startup.
--   Mechanism to check for existing collections and prompt for folder-based creation if absent.
--   Enhance frontend to consume APIs for progress/log updates from the backend.
--   Full restoration and testing of "Folder Load" functionality with persistent Qdrant.
+**Sprint 09 – In-Progress Implementation Highlights:**
+-   Key accomplishments so far:
+    -   ✅ Persistent Qdrant collections now auto-load at startup; ingestion prompt appears only when no collection is found.
+    -   ✅ GPU-optimised inference with mixed precision & dynamic batch sizing.
+    -   ✅ Expanded `/capabilities` endpoint and polling-friendly `/ingest/status` for fine-grained progress reporting.
+    -   🟡 Streamlit UI remains but has entered **maintenance**; patterns archived for migration to React/Vite in Sprint 10.
 
 ## 0. Environment Setup
 

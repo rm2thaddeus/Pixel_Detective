@@ -1,8 +1,8 @@
 # 📊 Pixel Detective - Project Status Dashboard
 
-**Last Updated**: February 2, 2025
-**Current Version**: v2.8.0 (Sprint 08 Complete)
-**Project Phase**: Core Feature Completion & System Stabilization
+**Last Updated**: June&nbsp;12, 2025
+**Current Version**: v2.9.0 (Sprint 09 In Progress)
+**Project Phase**: Backend Validation, GPU Optimisation & Documentation Overhaul (Sprint 09)
 
 ---
 
@@ -17,7 +17,7 @@
 - **Testing**: 🟡 Key gap. Comprehensive testing (unit, integration, E2E) is the focus for S09.
 
 ### Current Development Phase
-- **Active Sprint**: [Sprint 09 - Testing, Stabilization & Final Polish](./sprints/sprint-09/) (Planning phase, pending directory creation)
+- **Active Sprint**: [Sprint 09 – Backend Validation & Streamlit Removal](./sprints/sprint-09/) (**In Progress**)
 - **Foundation**: Sprint 08 (Qdrant Integration, New Features UI, Major Frontend Refactor) complete ✅
 - **Next Focus**: Comprehensive testing, finalizing duplicate detection backend, documentation updates, and overall system stabilization based on [Sprint 09 Backlog](./sprints/sprint-08/BACKLOG.md).
 
@@ -131,7 +131,7 @@
      - Standardized error handling and loading states for new components.
    - *Documentation*: [Sprint 08 Docs](./sprints/sprint-08/)
    
-9. **Sprint 09** 🚀 - Testing, Stabilization & Final Polish (PLANNING)
+9. **Sprint 09** 🚀 - Backend Validation & Streamlit Removal (**IN PROGRESS**)
    - *Goal*: Ensure system robustness through comprehensive testing, complete pending backend logic (duplicates), update all documentation, and perform final polish.
    - *Key Focus Areas (from Backlog)*:
      - Full implementation of duplicate detection algorithm.
@@ -165,7 +165,7 @@
 
 ## 🎯 **Next Phase Preview: Sprint 09**
 
-**Status**: 🚀 Planning, based on [Sprint 09 Backlog](./sprints/sprint-08/BACKLOG.md)
+**Status**: 🚀 In Progress – see [Sprint 09 Docs](./sprints/sprint-09/)
 
 **Sprint 09 Objectives**:
 - 🛠️ **Complete Core Functionality**: Finalize backend for duplicate detection.
@@ -191,4 +191,4 @@
 
 ---
 
-**🎯 Project Status Summary**: Pixel Detective successfully completed Sprint 08, delivering Qdrant-powered search and listing, new user-facing features (Duplicate Detection UI, Random Image, Advanced Filtering/Sorting), and a critical frontend refactor resulting in an API-driven, stateless UI. The project is now poised for Sprint 09, which will focus on comprehensive testing, finalizing the duplicate detection backend, and updating all project documentation to ensure a stable, robust, and well-documented v2.8.0 release. 
+**🎯 Project Status Summary**: Pixel Detective successfully completed Sprint 08, delivering Qdrant-powered search and listing, new user-facing features (Duplicate Detection UI, Random Image, Advanced Filtering/Sorting), and a critical frontend refactor resulting in an API-driven, stateless UI. The project is now poised for Sprint 09, which will focus on comprehensive testing, finalizing the duplicate detection backend, and updating all project documentation to ensure a stable, robust, and well-documented v2.9.0 release. 
