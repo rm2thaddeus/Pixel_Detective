@@ -10,10 +10,9 @@ import httpx
 import asyncio
 import os
 import logging
-import streamlit as st
 import base64 # New import
 import json
-from utils.logger import get_logger
+from .logger import get_logger
 
 logger = get_logger(__name__)
 
@@ -498,67 +497,6 @@ async def merge_folder(directory_path: str):
         logger.error(f"Unexpected error merging folder: {e}", exc_info=True)
         return {"error": str(e)}
 
-async def _test_main():
-    print("Testing service_api.py (ensure backend services are running)")
-    
-    if not os.path.exists("test_image.jpg"):
-        try:
-            from PIL import Image, ImageDraw
-            img = Image.new('RGB', (100, 100), color = 'red')
-            draw = ImageDraw.Draw(img)
-            draw.text((10,10), "Test", fill=(255,255,0))
-            img.save("test_image.jpg")
-            print("Created dummy 'test_image.jpg'.")
-        except ImportError:
-            print("Pillow not installed, can't create dummy image. Skipping some tests.")
-            return
-        except Exception as e:
-            print(f"Error creating dummy image: {e}")
-            return
-
-    if os.path.exists("test_image.jpg"):
-        with open("test_image.jpg", "rb") as f:
-            test_image_bytes = f.read()
-
-        print("\n--- Testing ML Inference Service ---")
-        embedding_response = await get_embedding(test_image_bytes)
-        print(f"Get Embedding Response: {embedding_response}")
-        
-        caption_response = await get_caption(test_image_bytes)
-        print(f"Get Caption Response: {caption_response}")
-
-        print("\n--- Testing Ingestion Orchestration Service ---")
-        if not os.path.exists("test_images_to_ingest"):
-            os.makedirs("test_images_to_ingest")
-            if os.path.exists("test_image.jpg"):
-                import shutil
-                shutil.copy("test_image.jpg", "test_images_to_ingest/test_image_copy.jpg")
-            print("Created dummy 'test_images_to_ingest/' directory.")
-
-        # Use absolute path for ingestion to avoid issues with backend's CWD
-        ingest_dir_absolute_path = os.path.abspath("test_images_to_ingest")
-        ingest_response = await start_ingestion(ingest_dir_absolute_path)
-        print(f"Ingest Directory Response: {ingest_response}")
-        
-        if ingest_response and "job_id" in ingest_response and ingest_response.get("error") is None:
-            job_id = ingest_response["job_id"]
-            await asyncio.sleep(2)
-            status_response = await get_ingestion_status(job_id)
-            print(f"Get Ingestion Status Response: {status_response}")
-        
-        print("\n--- Testing Search (via Ingestion Service) ---")
-        text_search_response = await search_images_by_text("test")
-        print(f"Text Search Response: {text_search_response}")
-        
-        image_search_response = await search_images_by_image(test_image_bytes)
-        print(f"Image Search Response: {image_search_response}")
-
-        print("\n--- Testing Get Processed Images ---")
-        processed_images_response = await get_processed_images(page=1, limit=5)
-        print(f"Get Processed Images Response: {processed_images_response}")
-    else:
-        print("Skipping direct API call tests as 'test_image.jpg' not found.")
-
 async def get_collections():
     """Retrieve list of Qdrant collections from the backend."""
     client = get_async_client()
@@ -583,7 +521,4 @@ async def clear_collection_cache():
         f"{INGESTION_ORCHESTRATION_URL}/collections/cache/clear"
     )
     response.raise_for_status()
-    return response.json()
-
-if __name__ == '__main__':
-    asyncio.run(_test_main()) 
+    return response.json() 
