@@ -1,6 +1,6 @@
-# Vibe Coding - A Hybrid Local/Cloud Media Search Engine
+# Pixel Detective - A Hybrid Local/Cloud Media Search Engine
 
-Vibe Coding is an advanced, locally-hosted search engine designed to index and search a personal media library using state-of-the-art AI models. It combines a high-performance backend with a (forthcoming) modern web interface to provide a seamless and powerful user experience.
+Pixel Detective is an advanced, locally-hosted search engine designed to index and search a personal media library using state-of-the-art AI models. It combines a high-performance backend with a (forthcoming) modern web interface to provide a seamless and powerful user experience.
 
 ## Project Status (June 2025)
 
