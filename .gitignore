@@ -42,4 +42,12 @@ logs/
 cache/
 
 # Streamlit config
-.streamlit/ 
+.streamlit/
+
+# DiskCache (SQLite) artefacts
+*.db
+*.db-shm
+*.db-wal
+# Ignore any diskcache directory at any level
+**/.diskcache/
+backend/.diskcache/ 
