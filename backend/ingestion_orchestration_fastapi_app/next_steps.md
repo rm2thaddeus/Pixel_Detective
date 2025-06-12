@@ -50,11 +50,23 @@ The `ThreadPoolExecutor` & `asyncio.as_completed` implementation in `ml_inferenc
 
 ---
 
+### Benchmark Evidence
+
+Terminal output confirming current baseline:
+
+```
+Ingestion completed in 110.78 seconds.
+Result: total_processed=25, total_failed=0
+GPU logs: four inference passes (8 + 8 + 8 + 1 images) at ~11 s per pass.
+```
+
+---
+
 ## 3. Priority 2: High - Security
 
-### Task 2.1: Secure Service-to-Service API with an API Key
+### Task 2.1: (Optional) Secure Service-to-Service API with an API Key
 
-- **Justification**: The ML inference endpoint is open to anyone on the network. A simple, shared API key will ensure that only the ingestion service can make requests to it, providing a crucial layer of security.
+- **Justification**: The ML inference endpoint is open to anyone on the network. A simple, shared API key will ensure that only the ingestion service can make requests to it, providing a crucial layer of security. *For local/off-line usage this can be postponed, but is recommended before any network exposure.*
 - **Files to Modify**:
     - `backend/ml_inference_fastapi_app/main.py` (to check for the key)
     - `backend/ingestion_orchestration_fastapi_app/main.py` (to send the key)

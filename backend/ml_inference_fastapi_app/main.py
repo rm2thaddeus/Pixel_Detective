@@ -517,6 +517,15 @@ async def batch_embed_and_caption_endpoint_v1(request: BatchEmbedAndCaptionReque
         
     return BatchEmbedAndCaptionResponse(results=final_results)
 
+# --- New Capabilities Endpoint to Expose Service Limits ---
+class CapabilitiesResponse(BaseModel):
+    """Response model for service capability information."""
+    safe_clip_batch: int
+
+@v1_router.get("/capabilities", response_model=CapabilitiesResponse)
+async def get_capabilities_v1():
+    """Return runtime capability information so clients can adapt dynamically."""
+    return CapabilitiesResponse(safe_clip_batch=SAFE_BATCH_SIZE)
 
 app.include_router(v1_router)
 

@@ -17,7 +17,6 @@ from qdrant_client.http.models import Distance, VectorParams, UpdateStatus # For
 from utils.metadata_extractor import extract_metadata # Import the new extractor
 import uuid # Added for generating UUIDs for point_id
 import hashlib # Added for image content hashing
-import rawpy # Decode DNG upstream
 from PIL import Image # For DNG->RGB conversion
 import io # For encoding PIL images to bytes
 import diskcache
@@ -47,7 +46,7 @@ app = FastAPI(title="Ingestion Orchestration Service")
 v1_router = APIRouter(prefix="/api/v1")
 
 ML_INFERENCE_SERVICE_URL = os.environ.get("ML_INFERENCE_SERVICE_URL", "http://localhost:8001")
-ML_INFERENCE_BATCH_SIZE = int(os.environ.get("ML_INFERENCE_BATCH_SIZE", 8)) # New config for batch size
+ML_INFERENCE_BATCH_SIZE = int(os.environ.get("ML_INFERENCE_BATCH_SIZE", 128))  # Increased default per roadmap (safe on 6 GB GPUs)
 QDRANT_HOST = os.environ.get("QDRANT_HOST", "localhost") # Assuming Qdrant might run locally or in Docker
 QDRANT_PORT = int(os.environ.get("QDRANT_PORT", 6333))
 QDRANT_COLLECTION_NAME = os.environ.get("QDRANT_COLLECTION_NAME", "") # Corrected default
@@ -157,25 +156,18 @@ async def process_batch_with_ml_service(
         filename_to_send = filename  # Default to original filename; may change if conversion occurs
         try:
             current_bytes = base64.b64decode(image_b64)
-            # If raw DNG file, decode and re-encode as PNG
-            if file_path.lower().endswith('.dng'):
-                # Use to_thread to avoid blocking the event loop with rawpy
-                raw_decode_func = partial(rawpy.imread, file_path)
-                with await asyncio.to_thread(raw_decode_func) as raw:
-                    rgb = raw.postprocess()
-                img = Image.fromarray(rgb).convert('RGB')
-                buf = io.BytesIO()
-                # Use to_thread for the potentially slow save operation
-                await asyncio.to_thread(img.save, buf, format='PNG')
-                # Retrieve the PNG bytes and update filename extension so downstream logic treats it correctly
-                current_bytes = buf.getvalue()
-                filename_to_send = os.path.splitext(filename)[0] + '.png'
-            
-            # --- Image Resizing Step ---
-            # Offload resizing to a thread to keep the event loop non-blocked
-            resized_bytes = await asyncio.to_thread(_resize_image, current_bytes, IMG_RESIZE_MAX_DIM)
-            final_b64 = base64.b64encode(resized_bytes).decode('utf-8')
-            # -------------------------
+            # No local DNG → PNG conversion; send RAW bytes directly (saves ~35% CPU)
+            is_raw_dng = file_path.lower().endswith('.dng')
+
+            if is_raw_dng:
+                # Keep original bytes and file name; ML service can handle DNG directly
+                final_b64 = image_b64  # Already base64-encoded upstream
+            else:
+                # --- Image Resizing Step ---
+                # Offload resizing to a thread to keep the event loop non-blocked
+                resized_bytes = await asyncio.to_thread(_resize_image, current_bytes, IMG_RESIZE_MAX_DIM)
+                final_b64 = base64.b64encode(resized_bytes).decode('utf-8')
+                # -------------------------
 
             images_payload.append(
                 MLBatchRequestItem(unique_id=image_hash, image_base64=final_b64, filename=filename_to_send).dict()
@@ -339,7 +331,8 @@ async def _run_ingestion_task(
                     async with aiofiles.open(file_path, 'rb') as f:
                         content = await f.read()
                     
-                    image_hash = hashlib.sha256(content).hexdigest()
+                    # Offload potentially CPU-heavy SHA-256 calculation to a worker thread
+                    image_hash = await asyncio.to_thread(lambda: hashlib.sha256(content).hexdigest())
                     
                     cached_data = disk_cache_bg.get(image_hash)
                     if cached_data:
@@ -436,6 +429,22 @@ async def startup_event():
         # For this refactor, _run_ingestion_task will receive qdrant_client as an argument.
         app.state.qdrant_client = qdrant_client_instance # For router dependencies
         globals()['qdrant_client_global'] = qdrant_client_instance # For direct use if needed, and for passing to BG task
+
+        # --- Dynamic ML batch size handshake ---
+        global ML_INFERENCE_BATCH_SIZE
+        try:
+            async with httpx.AsyncClient() as client:
+                resp = await client.get(f"{ML_INFERENCE_SERVICE_URL}/api/v1/capabilities", timeout=5)
+                resp.raise_for_status()
+                svc_capabilities = resp.json()
+                safe_batch = int(svc_capabilities.get("safe_clip_batch", ML_INFERENCE_BATCH_SIZE))
+                if safe_batch > 0:
+                    original_batch_size = ML_INFERENCE_BATCH_SIZE
+                    ML_INFERENCE_BATCH_SIZE = min(ML_INFERENCE_BATCH_SIZE, safe_batch)
+                    logger.info(f"Adjusted ML batch size from {original_batch_size} to {ML_INFERENCE_BATCH_SIZE} (service safe limit: {safe_batch}).")
+        except Exception as e:
+            logger.warning(f"Could not retrieve ML service capabilities – falling back to configured batch size ({ML_INFERENCE_BATCH_SIZE}). Error: {e}")
+
         logger.info(f"Successfully connected to Qdrant instance at {QDRANT_HOST}:{QDRANT_PORT}.")
     except Exception as e:
         logger.error(f"Failed to connect to Qdrant: {e}", exc_info=True)

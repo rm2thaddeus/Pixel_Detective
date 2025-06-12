@@ -184,10 +184,26 @@ The service can be configured using the following environment variables:
 -   `ML_INFERENCE_BATCH_SIZE`: Number of images to send to the ML service in a single batch. **Default updated: `128`** (tune according to GPU memory).
 -   `QDRANT_UPSERT_BATCH_SIZE`: Number of points to send to Qdrant in a single bulk upsert. (Default: `32`)
 
+## Recent Benchmark Results (2025-06-12)
+
+The first successful end-to-end run after fixing the RAW-filename bug processed **25 Sony `.dng` files in 110.78 s** with **0 failures**.
+
+```
+PS> python backend/scripts/ingest_benchmark.py --folder "C:\dng test" --collection "post-optim"
+Selected collection 'post-optim'.
+Ingestion job started: a5502559-d7c1-4b4d-a83b-b557ad5590c6
+...
+Progress: 100.0%
+Ingestion completed in 110.78 seconds.
+Result: {'total_processed': 25, 'total_failed': 0}
+```
+
+GPU-side logs show that each 8-image batch took ~11 s; batching is now the main optimisation target.
+
 ## Potential Next Steps (Roadmap as of 2025-06-12)
 
 1.  **Increase ML batch size** – raise `ML_INFERENCE_BATCH_SIZE` default to `128` and/or fetch the safe value probed by the ML service at runtime.  This will cut GPU cycles by ~3× for small-to-medium ingest runs.
 2.  **Remove redundant DNG→PNG conversion** – send RAW bytes directly to the ML service and let it decode.  Eliminates one full RAW decode per file.
-3.  **Authentication** – protect the internal `/batch_embed_and_caption` endpoint with an `x-api-key` header shared between services.
+3.  **Authentication** – *optional for local, offline usage.* When/if the services are exposed beyond localhost, protect `/batch_embed_and_caption` with an `x-api-key` header shared between services.
 4.  **More Robust Error Handling** – include structured error codes in job status so the frontend can surface actionable messages.
 5.  **Add a UI** – a lightweight admin dashboard (Streamlit or React) for collection management and job monitoring.
