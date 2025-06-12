@@ -229,11 +229,7 @@ class LoadingScreenUITest:
             print("-" * 30)
         
         # Summary
-<<<<<<< HEAD
-        print(f"\n📊 UI Test Summary:")
-=======
         print(f"\n📊 Test Summary:")
->>>>>>> e999a0dbfc5b1dedbbf2bc17b574607da607c9fb
         print(f"✅ Passed: {passed}")
         print(f"❌ Failed: {failed}")
         print(f"📈 Success Rate: {(passed / (passed + failed) * 100):.1f}%")
@@ -271,37 +267,16 @@ def main():
     results = tester.run_all_tests()
     
     # Save results
-<<<<<<< HEAD
-=======
     import json
->>>>>>> e999a0dbfc5b1dedbbf2bc17b574607da607c9fb
     with open('loading_ui_test_results.json', 'w') as f:
         json.dump(results, f, indent=2)
     
     print(f"\n💾 Results saved to: loading_ui_test_results.json")
     
     if results['overall_status'] == 'PASS':
-<<<<<<< HEAD
-        print("🎉 All UI tests passed! Loading screen UI is optimized.")
-    else:
-        print("⚠️ Some UI tests failed. Check the results for details.")
-    
-    # Provide recommendations
-    print("\n💡 Recommendations:")
-    print("1. Open http://localhost:8501 in your browser to see the loading screen")
-    print("2. Test the loading functionality by selecting a folder with images")
-    print("3. Observe the smooth loading without freezing or blocking")
-    print("4. Check browser developer tools for any console errors")
-
-
-if __name__ == "__main__":
-    main() 
-=======
         print("🎉 All UI tests passed! Loading screen UI is working well.")
     else:
         print("⚠️ Some UI tests failed. Check the results for details.")
 
-
 if __name__ == "__main__":
     main()
->>>>>>> e999a0dbfc5b1dedbbf2bc17b574607da607c9fb

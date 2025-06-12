@@ -1,0 +1,2 @@
+class AppStateManager:
+    pass

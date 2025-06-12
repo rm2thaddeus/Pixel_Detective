@@ -6,6 +6,7 @@ import sys
 import os
 import time
 import logging
+import pytest
 
 # Add project root to path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -54,17 +55,14 @@ def test_model_manager_optimization():
         print(f"✅ CLIP model re-accessed in {clip_reload_time:.3f}s")
         
         # Verify optimization worked
-        if clip_reload_time < 1.0:  # Should be nearly instant
-            print("🎉 OPTIMIZATION SUCCESS: Models are being kept in memory!")
-            return True
-        else:
-            print("❌ OPTIMIZATION FAILED: Models are still being swapped")
-            return False
+        assert clip_reload_time < 1.0, "Models are still being swapped"
+        print("🎉 OPTIMIZATION SUCCESS: Models are being kept in memory!")
             
     except Exception as e:
         print(f"❌ Test failed: {e}")
-        return False
+        pytest.fail(f"Test failed with exception: {e}")
 
+@pytest.mark.skip(reason="Session state caching test requires full Streamlit environment")
 def test_session_state_caching():
     """Test that @st.cache_resource is working for model managers"""
     print("\n🧪 Testing Session State Caching...")
@@ -90,11 +88,10 @@ def test_session_state_caching():
         # This test would need actual Streamlit to work properly
         print("⚠️ Session state caching test requires full Streamlit environment")
         print("✅ Test structure is correct - will work in actual app")
-        return True
         
     except Exception as e:
         print(f"❌ Test failed: {e}")
-        return False
+        pytest.fail(f"Test failed with exception: {e}")
 
 def test_background_loader_logic():
     """Test that the background loader doesn't get stuck in loops"""
@@ -117,50 +114,9 @@ def test_background_loader_logic():
         updated_progress = loader.get_progress()
         print(f"Updated progress: {updated_progress.progress_percentage}%")
         
-        if updated_progress.progress_percentage == 50:
-            print("✅ Progress tracking works correctly")
-            return True
-        else:
-            print("❌ Progress tracking failed")
-            return False
+        assert updated_progress.progress_percentage == 50, "Progress tracking failed"
+        print("✅ Progress tracking works correctly")
             
     except Exception as e:
         print(f"❌ Test failed: {e}")
-        return False
-
-def main():
-    """Run all optimization tests"""
-    print("🚀 Testing Pixel Detective Performance Optimizations")
-    print("=" * 60)
-    
-    results = []
-    
-    # Test 1: Model Manager Optimization
-    results.append(test_model_manager_optimization())
-    
-    # Test 2: Session State Caching
-    results.append(test_session_state_caching())
-    
-    # Test 3: Background Loader Logic
-    results.append(test_background_loader_logic())
-    
-    # Summary
-    print("\n" + "=" * 60)
-    print("📊 TEST RESULTS SUMMARY")
-    print("=" * 60)
-    
-    passed = sum(results)
-    total = len(results)
-    
-    print(f"Tests passed: {passed}/{total}")
-    
-    if passed == total:
-        print("🎉 ALL TESTS PASSED! Optimizations are working correctly.")
-    else:
-        print("⚠️ Some tests failed. Check the output above for details.")
-    
-    return passed == total
-
-if __name__ == "__main__":
-    success = main()
-    sys.exit(0 if success else 1) 
+        pytest.fail(f"Test failed with exception: {e}") 
