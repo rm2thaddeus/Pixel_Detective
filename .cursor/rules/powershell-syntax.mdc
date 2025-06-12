@@ -1,0 +1,71 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+# PowerShell Terminal Command Syntax
+
+## **Critical Syntax Rules for Windows PowerShell**
+
+### **Command Separators**
+- **❌ NEVER use `&&`** - This is bash syntax and will fail in PowerShell
+- **✅ Use `;`** - PowerShell command separator
+- **✅ Use separate commands** - Most reliable approach
+
+### **Correct PowerShell Patterns**
+
+#### **Wrong (Bash Syntax):**
+```bash
+cd "path" && git status && git commit -m "message"
+```
+
+#### **Correct (PowerShell Syntax):**
+```powershell
+# Option 1: Use semicolon separator
+cd "path"; git status; git commit -m "message"
+
+# Option 2: Separate commands (recommended)
+cd "path"
+git status  
+git commit -m "message"
+```
+
+### **File Path Handling**
+- **Always quote paths with spaces**: `"C:\Users\aitor\OneDrive\Escritorio\Vibe Coding"`
+- **Use forward slashes OR escaped backslashes** in string literals
+- **PowerShell handles both** `/` and `\` in file paths
+
+### **MCP Terminal Command Guidelines**
+When using `run_terminal_cmd` tool:
+1. **Never include `&&` in command parameter**
+2. **Use separate tool calls for multi-step operations**
+3. **Quote all paths containing spaces**
+4. **Prefer single, focused commands over chained operations**
+
+### **Example: Correct Git Workflow**
+```powershell
+# Step 1: Navigate (if needed)
+cd "C:\Users\aitor\OneDrive\Escritorio\Vibe Coding"
+
+# Step 2: Check status
+git status
+
+# Step 3: Stage changes  
+git add .cursor/rules/
+
+# Step 4: Commit
+git commit -m "docs: add new cursor rule"
+
+# Step 5: Push
+git push origin development
+```
+
+### **Error Prevention Checklist**
+- [ ] No `&&` operators in PowerShell commands
+- [ ] Paths with spaces are properly quoted
+- [ ] Multi-step operations use separate `run_terminal_cmd` calls
+- [ ] Commands are PowerShell-compatible syntax
+
+---
+
+*This rule prevents recurring bash syntax errors in PowerShell terminal operations during MCP-assisted development workflows.*

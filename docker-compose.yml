@@ -1,0 +1,68 @@
+version: '3.8'
+
+networks:
+  vibe_net:
+    driver: bridge
+
+services:
+#  ml_inference_service:
+#    build:
+#      context: ./backend/ml_inference_fastapi_app
+#    ports:
+#      - "8001:8001"
+#    volumes:
+#      # Mount Hugging Face cache (for BLIP and other transformers models)
+#      - /c/Users/aitor/.cache/huggingface:/root/.cache/huggingface
+#      # Mount CLIP model cache
+#      - /c/Users/aitor/.cache/clip:/root/.cache/clip
+#    environment:
+#      PYTHONUNBUFFERED: 1
+#      DEVICE_PREFERENCE: cuda 
+#      HF_HOME: /root/.cache/huggingface 
+#      # CLIP library typically checks ~/.cache/clip by default, which will be /root/.cache/clip in the container
+#    deploy:
+#      resources:
+#        reservations:
+#          devices:
+#            - driver: nvidia
+#              count: 1 # Request 1 GPU
+#              capabilities: [gpu]
+#    networks:
+#      - vibe_net
+
+#  ingestion_orchestration_service:
+#    build:
+#      context: .
+#      dockerfile: backend/ingestion_orchestration_fastapi_app/Dockerfile
+#    ports:
+#      - "8002:8002"
+#    volumes:
+#      - ingestion_cache:/cache
+#      - ./backend/ingestion_orchestration_fastapi_app/.diskcache:/cache
+#    depends_on:
+#      # ml_inference_service: # This service will be run manually on the host
+#      #   condition: service_started # Condition not applicable if run manually
+#      - qdrant_db
+#    environment:
+#      - PYTHONUNBUFFERED=1
+#      - ML_INFERENCE_SERVICE_URL=http://host.docker.internal:8001 # For ingestion service to reach ML service on host
+#      - QDRANT_HOST=qdrant_db
+#      - QDRANT_PORT=6333
+#      - DISKCACHE_DIR=/cache
+#    networks:
+#      - vibe_net
+
+  qdrant_db:
+    image: qdrant/qdrant:latest
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant_storage:/qdrant/storage
+    networks:
+      - vibe_net
+
+volumes:
+  qdrant_storage:
+#  ingestion_cache:
+  # models_cache: # If you chose a named volume for models instead of direct path mount 

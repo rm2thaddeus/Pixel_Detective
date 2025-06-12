@@ -1,0 +1,62 @@
+{
+  "overall_status": "PASS",
+  "tests_passed": 5,
+  "tests_failed": 0,
+  "success_rate": 100.0,
+  "detailed_results": [
+    {
+      "test": "page_load_speed",
+      "avg_load_time": 0.029282013575236004,
+      "all_load_times": [
+        0.024213075637817383,
+        0.03131699562072754,
+        0.032315969467163086
+      ],
+      "status": "PASS"
+    },
+    {
+      "test": "streamlit_health",
+      "status_code": 200,
+      "response_time": 0.009656,
+      "status": "PASS"
+    },
+    {
+      "test": "static_resources",
+      "avg_resource_time": 0.016626477241516113,
+      "resource_times": [
+        0.016609668731689453,
+        0.016643285751342773
+      ],
+      "status": "PASS"
+    },
+    {
+      "test": "accessibility",
+      "checks": {
+        "has_title": true,
+        "has_meta_viewport": true,
+        "has_lang_attribute": true,
+        "has_semantic_elements": false,
+        "has_aria_labels": false
+      },
+      "passed_checks": 3,
+      "total_checks": 5,
+      "score": 60.0,
+      "status": "PASS"
+    },
+    {
+      "test": "performance_indicators",
+      "indicators": {
+        "has_css_optimization": true,
+        "has_javascript_defer": false,
+        "has_meta_charset": true,
+        "reasonable_size": true,
+        "has_caching_headers": true
+      },
+      "passed_indicators": 4,
+      "total_indicators": 5,
+      "content_size": 1837,
+      "score": 80.0,
+      "status": "PASS"
+    }
+  ]
+}

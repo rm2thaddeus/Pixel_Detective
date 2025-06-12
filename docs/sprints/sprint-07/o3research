@@ -1,0 +1,214 @@
+Below is a **step-by-step refactor playbook** for `app.py` (and the modules it orchestrates) that will take you from “pretty fast” to “instant-feels fast”. I’ve broken the work into **six short sprints** you can run in order; each has concrete To-Do lines, code snippets, and visual cheat-sheets you can pin on the wall.
+
+---
+
+## 📍 Sprint 0 – Measure before you cut
+
+```
+┌─st.timing─────────────────────────┐
+│  ⏱️  TTFB, total, P95, browser    │
+└───────────────────────────────────┘
+       ▲                ▲
+┌──────┴──────┐   ┌─────┴──────┐
+│  FastAPI    │   │  nsys+NVTX │
+│  middleware │   │  torchprof │
+└─────────────┘   └────────────┘
+```
+
+1. **Add `st.timing()`** around the whole request in your Streamlit `main()`.
+2. Plug [`slowapi`](https://pypi.org/project/slowapi/) middleware into FastAPI to log per-route latency and payload size.
+3. Wrap model inference with `torch.autograd.profiler.emit_nvtx()`; trace once in Nsight Systems so you know where each millisecond goes. ([PyTorch][1])
+
+Keep these baselines; every later sprint must beat them.
+
+---
+
+## 🏎️ Sprint 1 – Front-end “perceived speed”
+
+### Figure 1 – Three-screen UX pipeline
+
+```
+ [ FAST_UI ]  →  [ LOADER ]  →  [ ADVANCED_UI ]
+  <50 ms          stream μ-update      full app
+```
+
+1. **Pre-allocate empty placeholders** in `FAST_UI` so Streamlit paints *something* within ≈40 ms.
+
+   ```python
+   ph_header, ph_gallery = st.empty(), st.empty()
+   ```
+2. **Turn `render_app()` asynchronous**
+   *Inside* `core/screen_renderer.py` change:
+
+   ```python
+   async def render_app():
+       ...
+   ```
+
+   and in `app.py`:
+
+   ```python
+   import asyncio, httpx
+   client = st.cache_resource(httpx.AsyncClient)()
+
+   async def main_async():
+       await render_app(client)
+   asyncio.run(main_async())
+   ```
+
+   (Yes, Streamlit can run a top-level coroutine; see community examples). ([Medium][2])
+3. **Stream thumbnails first** – expose a `/thumb` FastAPI route that returns a resized JPEG in <10 ms; call it via `asyncio.gather()` so users see results while embeddings finish.
+
+---
+
+## ⚙️ Sprint 2 – `app.py` refactor (startup & imports)
+
+### Figure 2 – Startup timeline after refactor
+
+```
+t=0ms  ├─ import st, set_page_config
+       ├─ import *lazy* FastStartupManager
+       │        (models not loaded yet)
+       ├─ FAST_UI renders
+t~30ms ├─ background thread loads models (.compile + .half)
+t>2s   └─ ADVANCED_UI becomes available
+```
+
+1. **Minimise import time**
+   *Move* every heavy import (`torch`, `numpy`, any model code) *out* of `app.py` and into `core/…` modules that load lazily inside `FastStartupManager.background_worker()`.
+
+2. **Replace the private call**
+   `fsm._start_background_preload()` in your file ([Stack Overflow][3]) is a private method.
+   *Expose* a public wrapper instead:
+
+   ```python
+   # core/fast_startup_manager.py
+   def start():               # <-- new
+       instance = get_fast_startup_manager()
+       if not instance.is_ready():
+           instance._start_background_preload()
+   ```
+
+   Then call `start()` from `app.py`. Private-method calls disappear, IDE warnings go away.
+
+3. **Cache the manager**
+
+   ```python
+   @st.cache_resource
+   def get_fsm():
+       return get_fast_startup_manager()
+   ```
+
+   You only ever create one thread and one set of GPU weights.
+
+---
+
+## 🛰️ Sprint 3 – Transport & protocol wins
+
+### Figure 3 – Payload size vs. latency curve (rule-of-thumb)
+
+```
+Latency ↑
+   100ms ───────────────┐
+    50 ───────┐         │ base64
+    30 ───┐   │         │
+    10     \  │         │ multipart+br
+           └──┴──────────────────→ Payload KB
+               50   100  500
+```
+
+1. **Drop base64** – change your `/embed` and `/caption` endpoints to accept `multipart/form-data` binaries. You cut \~33 % off every request and save a base64 decode on the server. ([Hugging Face][4])
+2. **Enable Brotli** responses (`Accept-Encoding: br`) – average 18-25 % smaller than gzip.
+3. **Keep-alive & HTTP/2** – in Nginx front your FastAPI with:
+
+   ```nginx
+   proxy_http_version 1.1;
+   proxy_set_header Connection "";
+   ```
+
+   and let `httpx` upgrade to h2 automatically.
+4. **Local deployment hack** – if Streamlit ↔ FastAPI share a host, address the API via a UNIX domain socket:
+
+   ```python
+   client = httpx.AsyncClient(base_url="http+unix://%2Ftmp%2Fapi.sock")
+   ```
+
+   zero TCP hand-shake cost.
+
+---
+
+## 🚀 Sprint 4 – FastAPI + GPU acceleration
+
+1. **Compile once, run forever**
+
+   ```python
+   model = torch.compile(model, mode="reduce-overhead").half()
+   ```
+
+   Typical 20-30 % throughput bump. ([GitHub][5])
+
+2. **Export CLIP encoder to ONNX + onnxruntime-gpu** – community repo reports up to 3 × speed-up on older GPUs. ([FastAPI][6])
+
+3. **Overlap kernels** inside the batch endpoint:
+
+   ```python
+   stream = torch.cuda.Stream()
+   with torch.cuda.stream(stream):
+       embeds = model(images)    # async launch
+   torch.cuda.current_stream().wait_stream(stream)
+   ```
+
+4. **Worker replication** – run *N = (min(cpu, gpu)) + 1* uvicorn workers:
+
+   ```bash
+   uvicorn main:app --workers 3 --timeout-keep-alive 5
+   ```
+
+   Official guide here. ([Stack Overflow][7])
+
+5. **Replace blocking calls**
+   Any sync I/O in an `async def` still blocks; off-load to `await asyncio.to_thread(cpu_bound)` or declare the handler as regular `def` and let FastAPI’s thread-pool deal with it. ([Streamlit][8])
+
+---
+
+## 🧠 Sprint 5 – Streamlit state & memory hygiene
+
+1. **Keep only small scalars in `st.session_state`** – big numpy arrays explode RAM and can crash the script runner. Community threads confirm the leak.&#x20;
+2. **Return float16 embeddings** – cuts JSON size in half; similarity search is unchanged at typical thresholds.
+3. **Use `@st.cache_data(ttl=600, max_entries=200)`** around read-only GET endpoints; watch container RAM doesn’t creep.
+
+---
+
+## 🔭 Sprint 6 – Observability & safety nets
+
+| Metric          | Implementation                                                                             |
+| --------------- | ------------------------------------------------------------------------------------------ |
+| FastAPI P99     | `slowapi` + Prometheus-client                                                              |
+| GPU util & VRAM | `nvidia-smi dmon` fed to Grafana                                                           |
+| Front-end FPS   | `st.experimental_get_query_params()` flag to overlay FPS counter                           |
+| Auto-rollback   | Health endpoint checked by container orchestrator; if `/readyz` > 200 ms mean, restart pod |
+
+---
+
+### 🛠️ Code-change checklist (copy–paste into your tracker)
+
+* [ ] **app.py** – convert `main()` to async wrapper; cache `httpx.AsyncClient`.
+* [ ] **fast\_startup\_manager.py** – add public `start()`; hide privates.
+* [ ] **screen\_renderer.py** – make `render_app()` await-able; stream placeholders.
+* [ ] **backend/router.py** – switch to `multipart/form-data`; add `/thumb` route.
+* [ ] **Dockerfile** – install `onnxruntime-gpu`, `brotli`, update PyTorch ≥ 2.1.
+* [ ] **nginx.conf** – enable HTTP/2, Brotli, proxy keep-alive.
+* [ ] **Grafana dashboard** – import JSON template; add FastAPI & GPU panels.
+
+Finish these six sprints and you’ll slice *seconds* off cold-start, *hundreds* of milliseconds off every hot path, and – most importantly – give users that “snap” feeling that converts curiosity into daily active use.
+
+The stopwatch is ticking – go make those milliseconds disappear. 🏁
+
+[1]: https://pytorch.org/docs/stable/autograd.html?utm_source=chatgpt.com "Automatic differentiation package - torch.autograd"
+[2]: https://sehmi-conscious.medium.com/got-that-asyncio-feeling-f1a7c37cab8b?utm_source=chatgpt.com "Got that asyncio feeling?. How to run async code in Streamlit"
+[3]: https://stackoverflow.com/questions/1574961/how-much-faster-is-it-to-use-inline-base64-images-for-a-web-site-than-just-linki?utm_source=chatgpt.com "How much faster is it to use inline/base64 images for a web site than ..."
+[4]: https://huggingface.co/docs/transformers/v4.32.0/perf_torch_compile?utm_source=chatgpt.com "Optimize inference using torch.compile() - Hugging Face"
+[5]: https://github.com/Lednik7/CLIP-ONNX?utm_source=chatgpt.com "Lednik7/CLIP-ONNX: It is a simple library to speed up CLIP ... - GitHub"
+[6]: https://fastapi.tiangolo.com/deployment/server-workers/?utm_source=chatgpt.com "Server Workers - Uvicorn with Workers - FastAPI"
+[7]: https://stackoverflow.com/questions/79382645/fastapi-why-does-synchronous-code-do-not-block-the-event-loop?utm_source=chatgpt.com "FastAPI - Why does synchronous code do not block the event Loop?"
+[8]: https://discuss.streamlit.io/t/memory-used-by-session-state-never-released/26592?utm_source=chatgpt.com "Memory used by session state never released? - Using Streamlit"

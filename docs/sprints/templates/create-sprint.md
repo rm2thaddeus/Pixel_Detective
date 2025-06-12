@@ -254,4 +254,4 @@ All templates are available in:
 **Prerequisites:** Access to all required MCP servers  
 **Output:** Complete sprint planning package ready for execution
 
-*This quick-start guide implements the workflow defined in `.cursor/rules/sprint-planning.mdc`*
+*This quick-start guide implements the workflow defined in `.cursor/rules/sprint-planning.mdc`* 

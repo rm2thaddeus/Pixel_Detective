@@ -1,0 +1,43 @@
+{
+  "timestamp": 1748297944.5738442,
+  "test_results": {
+    "optimized": {
+      "startup_time": 21.224841117858887,
+      "ui_render_time": 1.0015287399291992,
+      "model_load_time": 0.0,
+      "first_interaction_time": 0.0,
+      "memory_usage_mb": 0.0,
+      "success": false,
+      "error_message": "'<' not supported between instances of 'ModelLoadTask' and 'ModelLoadTask'"
+    },
+    "legacy": {
+      "startup_time": 82.97270917892456,
+      "ui_render_time": 0.0,
+      "model_load_time": 19.2085120677948,
+      "first_interaction_time": 18.917056560516357,
+      "memory_usage_mb": 1669.98828125,
+      "success": true,
+      "error_message": ""
+    },
+    "background_loading": {
+      "startup_time": 9.444284200668335,
+      "ui_render_time": 0.008682012557983398,
+      "model_load_time": 9.435602188110352,
+      "first_interaction_time": 0.0,
+      "memory_usage_mb": 1030.7265625,
+      "success": true,
+      "error_message": ""
+    },
+    "memory_efficiency": {
+      "startup_time": 0.834589958190918,
+      "ui_render_time": 0.0,
+      "model_load_time": 0.0,
+      "first_interaction_time": 0.0,
+      "memory_usage_mb": 0.0546875,
+      "success": true,
+      "error_message": ""
+    }
+  },
+  "comparisons": {},
+  "recommendations": []
+}

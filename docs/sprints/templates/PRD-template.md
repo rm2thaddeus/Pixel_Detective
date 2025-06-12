@@ -211,4 +211,4 @@ External Services
 **Last Review Date:** {date}  
 **Next Review Date:** {date}  
 
-*This PRD was generated using the sprint planning workflow defined in `.cursor/rules/sprint-planning.mdc` and integrates research from Context7 MCP and visualization from Mindmap MCP.*
+*This PRD was generated using the sprint planning workflow defined in `.cursor/rules/sprint-planning.mdc` and integrates research from Context7 MCP and visualization from Mindmap MCP.* 

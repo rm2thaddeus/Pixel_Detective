@@ -1,0 +1,258 @@
+<<<<<<< HEAD
+---
+description: MCP server starting and correct use
+globs: 
+alwaysApply: false
+---
+=======
+>>>>>>> e999a0dbfc5b1dedbbf2bc17b574607da607c9fb
+# MCP Interaction Rule for Pixel Detective
+
+**Repository:** [Pixel_Detective](mdc:https:/github.com/rm2thaddeus/Pixel_**Branches:**
+- main
+- development
+
+## Available MCP Servers & Capabilities
+
+### 1. **GitHub MCP (`mcp_github_*`)**
+- **Primary Use**: Version control, repository management, collaboration workflows
+- **Capabilities**:
+  - Search code, repositories, commits, issues, and PRs
+  - Read, create, update, or delete files
+  - Manage issues (create, list, comment, update) and pull requests (create, list, merge, update)
+  - Manage branches and tags
+- **When to Use**: All code commits, file operations, issue tracking, PR management
+
+### 2. **Supabase MCP (`mcp_supabase_*`)**
+- **Primary Use**: Database interactions, backend data management
+- **Capabilities**:
+  - Execute raw SQL queries
+  - Manage database schemas, tables, and data (CRUD operations)
+  - Seed databases and perform migrations/rollbacks
+- **When to Use**: Database schema changes, data seeding, backend data operations
+
+### 3. **Browser Tools MCP (`mcp_browser-tools_*`)**
+- **Primary Use**: Frontend debugging, web analysis, performance optimization
+- **Capabilities**:
+  - Capture console logs (standard and errors) and network logs
+  - Take screenshots for visual debugging
+  - Run comprehensive audits (accessibility, performance, SEO, best practices, Next.js)
+  - Wipe logs for clean debugging sessions
+- **When to Use**: Debugging frontend issues, performance analysis, accessibility compliance
+
+#### **Browser Tools MCP Setup & Troubleshooting**
+
+**⚠️ CRITICAL SETUP REQUIREMENTS:**
+Browser Tools MCP requires **three components** to function properly:
+
+1. **Chrome Extension** - Captures browser data
+2. **Browser Tools Server** - Node.js middleware (port 3025)
+3. **Browser Tools MCP** - The MCP server itself
+
+**Setup Verification Steps:**
+```bash
+# 1. Check Node.js version (requires v18+)
+node --version
+
+# 2. Start Browser Tools Server
+npx @agentdeskai/browser-tools-server@latest
+
+# 3. Verify server is running
+netstat -an | findstr 3025  # Windows
+# or
+lsof -i :3025  # Mac/Linux
+```
+
+**Chrome Extension Installation:**
+1. Clone repository: `git clone https://github.com/AgentDeskAI/browser-tools-mcp.git`
+2. Open Chrome → `chrome://extensions/`
+3. Enable "Developer mode"
+4. Click "Load unpacked"
+5. Select folder: `browser-tools-mcp/chrome-extension`
+6. Verify "BrowserToolsMCP" appears in extensions
+
+**Connection Verification:**
+1. Open any webpage (e.g., https://example.com)
+2. Open Chrome DevTools (F12)
+3. Look for "BrowserTools" tab in DevTools
+4. Verify connection status shows "Connected"
+
+**Common Error Patterns:**
+- `"Failed to discover browser connector server"` → Browser Tools Server not running
+- `"Chrome extension not connected"` → Extension not installed or not connected
+- `"Error taking screenshot"` → Extension installed but not connected to active tab
+
+**Debugging Commands:**
+```bash
+# Test MCP connection
+mcp_browser-tools_wipeLogs  # Should return "All logs cleared successfully"
+
+# Test server connection  
+mcp_browser-tools_getConsoleLogs  # Should return [] if no logs
+
+# Test full functionality (requires extension)
+mcp_browser-tools_takeScreenshot  # Should capture screenshot or show specific error
+```
+
+**Node.js Version Issues:**
+- Browser Tools MCP requires Node.js v18+ (uses native fetch API)
+- If using nvm: `nvm alias default 20` to set default version
+- Verify with: `node --version` before starting server
+
+### 4. **Browser Control MCP (`mcp_browser-control-*`)**
+- **Primary Use**: Web navigation, content extraction, browser automation
+- **Capabilities**:
+  - Open/close tabs and manage browser sessions
+  - List open tabs and browser history
+  - Retrieve full web page content and extract links
+  - Find and highlight specific text within web pages
+- **When to Use**: Web scraping, content analysis, automated testing workflows
+
+### 5. **Context7 MCP (`mcp_context7_*`)**
+- **Primary Use**: Documentation lookup, API reference, library guidance
+- **Capabilities**:
+  - Resolve library/package names to documentation IDs
+  - Fetch up-to-date library documentation and API references
+- **When to Use**: When implementing new libraries, troubleshooting API usage, code examples
+
+### 6. **Docker MCP (`docker-mcp`)**
+- **Primary Use**: Container management, Docker Compose operations, containerized development
+- **Capabilities**:
+  - Create and manage Docker containers
+  - Deploy and manage Docker Compose stacks
+  - Retrieve container logs for debugging
+  - List and monitor container status
+- **When to Use**: Containerized applications, microservices, development environment setup
+
+### 7. **Mindmap MCP (`mindmap`)**
+- **Primary Use**: Visual planning, architecture documentation, sprint planning
+- **Capabilities**:
+  - Create structured mind maps for complex features and requirements
+  - Generate visual representations of system architecture
+  - Support sprint planning and PRD (Product Requirement Document) generation
+  - Create project roadmaps and feature breakdowns
+- **When to Use**: Sprint planning, complex feature planning, architecture documentation, PRD generation
+
+## Best Practices for MCP Interactions
+
+### **Pre-Action Context Gathering**
+1. **Always establish context first**:
+   - Verify current working directory (`pwd`)
+   - Understand project structure (`tree -L 3 --gitignore | cat`)
+   - Use `grep_search` for exact symbol/keyword matches
+   - Use `codebase_search` for broader feature understanding
+
+### **GitHub MCP Workflows**
+2. **Branch Awareness**
+   - Always determine the current active git branch before committing or pushing changes
+   - Default to the active branch unless user specifies otherwise
+   - Main branches for this repository: `main`, `development`
+
+3. **Commit Messages**
+   - Use clear, descriptive commit messages following Conventional Commits style:
+     - `feat:` - New features
+     - `fix:` - Bug fixes  
+     - `docs:` - Documentation updates
+     - `refactor:` - Code restructuring
+     - `test:` - Test additions/updates
+     - `chore:` - Maintenance tasks
+
+4. **Batching Changes**
+   - Prefer batching related changes into a single commit when possible
+   - Avoid committing commented-out code or experimental scripts to main repository
+   - Use `mcp_github_push_files` for multiple file changes
+
+### **Database Operations (Supabase MCP)**
+5. **SQL Safety**
+   - Always backup or understand data impact before destructive operations
+   - Use transactions for multi-step database changes
+   - Test queries on development data first when possible
+
+### **Frontend Debugging (Browser MCPs)**
+6. **Clean Debugging Sessions**
+   - Use `mcp_browser-tools_wipeLogs` before starting new debugging sessions
+   - Capture screenshots for visual issues documentation
+   - Run comprehensive audits after significant UI changes
+
+7. **Browser Tools MCP Initialization Protocol**
+   - **ALWAYS verify Browser Tools MCP setup before use:**
+     1. Check Node.js version: `node --version` (must be v18+)
+     2. Start Browser Tools Server: `npx @agentdeskai/browser-tools-server@latest`
+     3. Verify server: `netstat -an | findstr 3025` (Windows) or `lsof -i :3025` (Mac/Linux)
+     4. Test MCP connection: `mcp_browser-tools_wipeLogs`
+     5. If extension needed, guide user through Chrome extension installation
+   - **Error Recovery Steps:**
+     - "Failed to discover browser connector server" → Start Browser Tools Server
+     - "Chrome extension not connected" → Install/connect Chrome extension
+     - Node version issues → Upgrade to Node.js v18+ and restart server
+
+### **Sprint Planning & Documentation (Mindmap + Context7 MCPs)**
+8. **Research-Driven Development**
+   - Use Context7 MCP to research implementation patterns before starting new features
+   - Document technology assessments in sprint planning documents
+   - Create mindmaps for complex features before implementation
+
+9. **PRD Generation Workflow**
+   - Use Mindmap MCP to visualize sprint requirements and architecture
+   - Convert mindmaps to structured PRD documents in `/docs/sprints/`
+   - Reference Context7 research in PRD technical specifications
+   - Follow sprint planning rules from `sprint-planning.mdc`
+
+### **Documentation & Standards**
+10. **MCP-Driven Documentation**
+   - Document any MCP-driven architectural or workflow changes in `/docs/CHANGELOG.md`
+   - For major features or refactors, update relevant documentation in `/docs/`
+   - Use Context7 MCP to ensure accurate library usage documentation
+
+11. **Safety and Review**
+   - Never force-push to shared branches unless explicitly instructed
+   - Create feature branches for experimental or breaking changes
+   - Open pull requests for review of significant changes
+
+12. **Transparency**
+   - Clearly state when changes are made by MCP in commit messages or PR descriptions
+   - Include MCP server used in commit messages when relevant (e.g., `feat(github-mcp): add automated issue labeling`)
+
+## MCP Server Selection Strategy
+
+**Task-Based Selection Guide:**
+- **Code Changes**: GitHub MCP
+- **Database Work**: Supabase MCP  
+- **Frontend Issues**: Browser Tools + Browser Control MCP
+- **Library Integration**: Context7 MCP + GitHub MCP
+- **Performance Issues**: Browser Tools MCP + GitHub MCP
+- **Documentation**: Context7 MCP + GitHub MCP
+- **Container Operations**: Docker MCP + GitHub MCP
+- **Microservices Development**: Docker MCP + Supabase MCP + GitHub MCP
+- **Development Environment**: Docker MCP + Browser Tools MCP
+- **Sprint Planning**: Mindmap MCP + Context7 MCP + GitHub MCP
+- **Feature Architecture**: Mindmap MCP + Context7 MCP
+- **PRD Generation**: Mindmap MCP + Context7 MCP + GitHub MCP
+
+## Error Handling & Recovery
+
+- If MCP tool call fails, analyze error and retry once with corrected parameters
+- If edit applications result in incorrect diffs, use `reapply` immediately  
+- For persistent issues, explain problem and suggest manual intervention
+- **Browser Tools MCP specific**: Always verify setup components before troubleshooting functionality
+
+## Integration with Sprint Planning
+
+**Sprint-Specific MCP Workflows:**
+- **Planning Phase**: Use Context7 MCP for technology research + Mindmap MCP for requirements visualization
+- **Development Phase**: Follow standard GitHub MCP + Context7 MCP workflows with PRD references
+- **Review Phase**: Use Browser Tools MCP for testing + GitHub MCP for delivery documentation
+
+**Cross-Rule References:**
+- Sprint planning workflows detailed in `sprint-planning.mdc`
+- Feature development follows `feature-request.mdc` within sprint context
+- Debugging during sprints follows `debugging.mdc` protocols
+
+---
+
+<<<<<<< HEAD
+_This comprehensive rule ensures safe, efficient, and well-documented collaboration between human developers and all available MCP AI assistants in the Pixel Detective project, including full integration of sprint planning workflows and critical Browser Tools MCP setup procedures._
+
+=======
+_This comprehensive rule ensures safe, efficient, and well-documented collaboration between human developers and all available MCP AI assistants in the Pixel Detective project, including full integration of sprint planning workflows and critical Browser Tools MCP setup procedures._
+>>>>>>> e999a0dbfc5b1dedbbf2bc17b574607da607c9fb

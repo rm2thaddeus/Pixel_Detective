@@ -1,0 +1,10 @@
+fastapi
+uvicorn[standard]
+httpx
+qdrant-client~=1.14.0
+aiofiles
+diskcache
+python-multipart
+brotli
+rawpy
+Pillow

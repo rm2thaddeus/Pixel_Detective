@@ -1,0 +1,412 @@
+/* 🎨 Pixel Detective - Animation & Transitions
+ * Sprint 02: Visual Design System Implementation
+ * Purpose: Animation library for screen transitions and micro-interactions
+ */
+
+/* ===== SCREEN TRANSITION ANIMATIONS ===== */
+
+/* Screen Entry Animations */
+.pd-screen-enter {
+  animation: screenEnter 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+.pd-screen-exit {
+  animation: screenExit 0.3s cubic-bezier(0.4, 0, 0.6, 1) forwards;
+}
+
+@keyframes screenEnter {
+  0% {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes screenExit {
+  0% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-5px) scale(1.02);
+  }
+}
+
+/* ===== COMPONENT ENTRANCE ANIMATIONS ===== */
+
+/* Staggered entrance for multiple elements */
+.pd-stagger-item {
+  opacity: 0;
+  transform: translateY(20px);
+  animation: staggerEnter 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+.pd-stagger-item:nth-child(1) { animation-delay: 0.1s; }
+.pd-stagger-item:nth-child(2) { animation-delay: 0.2s; }
+.pd-stagger-item:nth-child(3) { animation-delay: 0.3s; }
+.pd-stagger-item:nth-child(4) { animation-delay: 0.4s; }
+.pd-stagger-item:nth-child(5) { animation-delay: 0.5s; }
+
+@keyframes staggerEnter {
+  0% {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ===== LOADING ANIMATIONS ===== */
+
+/* Pulsing effect for loading states */
+.pd-pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+/* Bouncing dots loader */
+.pd-bounce-loader {
+  display: inline-flex;
+  gap: var(--pd-space-1);
+}
+
+.pd-bounce-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  background-color: var(--pd-primary);
+  border-radius: 50%;
+  animation: bounce 1.4s ease-in-out infinite both;
+}
+
+.pd-bounce-dot:nth-child(1) { animation-delay: -0.32s; }
+.pd-bounce-dot:nth-child(2) { animation-delay: -0.16s; }
+.pd-bounce-dot:nth-child(3) { animation-delay: 0s; }
+
+@keyframes bounce {
+  0%, 80%, 100% {
+    transform: scale(0);
+  }
+  40% {
+    transform: scale(1);
+  }
+}
+
+/* Wave animation for loading bars */
+.pd-wave {
+  position: relative;
+  overflow: hidden;
+}
+
+.pd-wave::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.4),
+    transparent
+  );
+  animation: wave 2s infinite;
+}
+
+@keyframes wave {
+  0% {
+    left: -100%;
+  }
+  100% {
+    left: 100%;
+  }
+}
+
+/* ===== MICRO-INTERACTION ANIMATIONS ===== */
+
+/* Button press animation */
+.pd-btn-press {
+  animation: buttonPress 0.1s ease-out;
+}
+
+@keyframes buttonPress {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(0.98);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* Success celebration animation */
+.pd-celebrate {
+  animation: celebrate 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+
+@keyframes celebrate {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.2) rotate(5deg);
+  }
+  100% {
+    transform: scale(1) rotate(0deg);
+  }
+}
+
+/* Shake animation for errors */
+.pd-shake {
+  animation: shake 0.5s cubic-bezier(0.36, 0.07, 0.19, 0.97);
+}
+
+@keyframes shake {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  10%, 30%, 50%, 70%, 90% {
+    transform: translateX(-5px);
+  }
+  20%, 40%, 60%, 80% {
+    transform: translateX(5px);
+  }
+}
+
+/* ===== PROGRESS ANIMATIONS ===== */
+
+/* Progress bar fill animation */
+.pd-progress-fill {
+  animation: progressFill 1s ease-out forwards;
+}
+
+@keyframes progressFill {
+  0% {
+    width: 0%;
+  }
+  100% {
+    width: var(--progress-width, 100%);
+  }
+}
+
+/* Circular progress animation */
+.pd-circular-progress {
+  width: 3rem;
+  height: 3rem;
+  position: relative;
+}
+
+.pd-circular-progress svg {
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+
+.pd-circular-progress-bg {
+  fill: none;
+  stroke: var(--pd-border);
+  stroke-width: 3;
+}
+
+.pd-circular-progress-fill {
+  fill: none;
+  stroke: var(--pd-primary);
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-dasharray: 0 100;
+  animation: circularProgress 2s ease-out forwards;
+}
+
+@keyframes circularProgress {
+  to {
+    stroke-dasharray: var(--progress-value, 75) 100;
+  }
+}
+
+/* ===== HOVER ANIMATIONS ===== */
+
+/* Gentle hover lift */
+.pd-hover-lift {
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.pd-hover-lift:hover {
+  transform: translateY(-2px);
+}
+
+/* Scale on hover */
+.pd-hover-scale {
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.pd-hover-scale:hover {
+  transform: scale(1.05);
+}
+
+/* Rotate on hover */
+.pd-hover-rotate {
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.pd-hover-rotate:hover {
+  transform: rotate(5deg);
+}
+
+/* Glow effect on hover */
+.pd-hover-glow {
+  transition: box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.pd-hover-glow:hover {
+  box-shadow: 0 0 20px rgba(31, 119, 180, 0.4);
+}
+
+/* ===== FOCUS ANIMATIONS ===== */
+
+/* Focus ring animation */
+.pd-focus-ring {
+  position: relative;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.pd-focus-ring:focus::before {
+  content: '';
+  position: absolute;
+  top: -3px;
+  left: -3px;
+  right: -3px;
+  bottom: -3px;
+  border: 2px solid var(--pd-primary);
+  border-radius: inherit;
+  animation: focusRing 0.3s ease-out;
+}
+
+@keyframes focusRing {
+  0% {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* ===== NOTIFICATION ANIMATIONS ===== */
+
+/* Slide in from top */
+.pd-notification-enter {
+  animation: notificationSlideIn 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.pd-notification-exit {
+  animation: notificationSlideOut 0.3s cubic-bezier(0.4, 0, 0.6, 1);
+}
+
+@keyframes notificationSlideIn {
+  0% {
+    opacity: 0;
+    transform: translateY(-100%) scale(0.95);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes notificationSlideOut {
+  0% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-20px) scale(1.05);
+  }
+}
+
+/* ===== SPECIAL EFFECTS ===== */
+
+/* Typewriter effect */
+.pd-typewriter {
+  overflow: hidden;
+  border-right: 2px solid var(--pd-primary);
+  white-space: nowrap;
+  animation: typewriter 3s steps(40, end), blink 0.75s step-end infinite;
+}
+
+@keyframes typewriter {
+  from {
+    width: 0;
+  }
+  to {
+    width: 100%;
+  }
+}
+
+@keyframes blink {
+  from, to {
+    border-color: transparent;
+  }
+  50% {
+    border-color: var(--pd-primary);
+  }
+}
+
+/* Floating animation */
+.pd-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+/* ===== PERFORMANCE OPTIMIZATIONS ===== */
+
+/* Reduce motion for accessibility */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  
+  .pd-float,
+  .pd-pulse,
+  .pd-bounce-loader,
+  .pd-typewriter {
+    animation: none;
+  }
+}
+
+/* Hardware acceleration for smooth animations */
+.pd-accelerated {
+  transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
+  perspective: 1000;
+} 

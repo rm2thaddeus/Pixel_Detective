@@ -5,6 +5,7 @@ import os
 import glob
 from utils.logger import logger
 from config import IMAGE_EXTENSIONS
+from utils.metadata_extractor import extract_metadata
 
 def get_image_list(folder: str):
     """

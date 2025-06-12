@@ -1,0 +1,57 @@
+[16:02:26.136] Creating new model manager instance
+[16:02:26.136] Loading CLIP model on cuda...
+[16:02:26.136] Starting to load CLIP model on cuda...
+[16:02:26.136] CUDA device count: 1
+[16:02:26.136] Current CUDA device: 0
+[16:02:26.136] Loading CLIP model with device=cuda...
+[16:02:29.757] Model is loaded on: cuda:0
+[16:02:29.757] CLIP model loaded in 3.62 seconds on cuda
+[16:02:29.757] CLIP model loaded in 3.62 seconds
+[16:02:29.757] Loading BLIP model on cuda...
+[16:02:29.757] Starting to load BLIP model on cuda...
+[16:02:29.757] Loading BLIP processor from Salesforce/blip-image-captioning-large...
+[16:02:30.417] Loading BLIP model from Salesforce/blip-image-captioning-large...
+[16:02:30.417] CUDA device count: 1
+[16:02:30.417] Current CUDA device: 0
+[16:02:32.206] BLIP model is loaded on: cuda:0
+[16:02:32.206] BLIP model loaded successfully on cuda
+[16:02:32.206] BLIP model loaded in 2.45 seconds
+[16:02:32.206] [After model manager initialization] CUDA Memory - Allocated: 0.00 MB, Reserved: 0.00 MB, Peak: 0.00 MB
+[16:02:32.206] Creating new database manager instance
+[16:02:32.206] [Before rendering UI] CUDA Memory - Allocated: 0.00 MB, Reserved: 0.00 MB, Peak: 0.00 MB
+[16:02:32.237] [After rendering UI] CUDA Memory - Allocated: 0.00 MB, Reserved: 0.00 MB, Peak: 0.00 MB
+[16:09:04.820] Using existing model manager from session state
+[16:09:04.822] [After model manager initialization] CUDA Memory - Allocated: 0.00 MB, Reserved: 0.00 MB, Peak: 0.00 MB
+[16:09:04.823] Using existing database manager from session state
+[16:09:04.824] [Before rendering UI] CUDA Memory - Allocated: 0.00 MB, Reserved: 0.00 MB, Peak: 0.00 MB
+[16:09:04.831] [After rendering UI] CUDA Memory - Allocated: 0.00 MB, Reserved: 0.00 MB, Peak: 0.00 MB
+[16:09:16.203] Using existing model manager from session state
+[16:09:16.205] [After model manager initialization] CUDA Memory - Allocated: 0.00 MB, Reserved: 0.00 MB, Peak: 0.00 MB
+[16:09:16.205] Using existing database manager from session state
+[16:09:16.206] [Before rendering UI] CUDA Memory - Allocated: 0.00 MB, Reserved: 0.00 MB, Peak: 0.00 MB
+[16:09:16.210] [After rendering UI] CUDA Memory - Allocated: 0.00 MB, Reserved: 0.00 MB, Peak: 0.00 MB
+[16:09:16.440] Using existing model manager from session state
+[16:09:16.441] [After model manager initialization] CUDA Memory - Allocated: 0.00 MB, Reserved: 0.00 MB, Peak: 0.00 MB
+[16:09:16.442] Using existing database manager from session state
+[16:09:16.442] [Before rendering UI] CUDA Memory - Allocated: 0.00 MB, Reserved: 0.00 MB, Peak: 0.00 MB
+[16:09:16.498] [After rendering UI] CUDA Memory - Allocated: 0.00 MB, Reserved: 0.00 MB, Peak: 0.00 MB
+[16:09:25.244] Using existing model manager from session state
+[16:09:25.245] [After model manager initialization] CUDA Memory - Allocated: 0.00 MB, Reserved: 0.00 MB, Peak: 0.00 MB
+[16:09:25.246] Using existing database manager from session state
+[16:09:25.247] [Before rendering UI] CUDA Memory - Allocated: 0.00 MB, Reserved: 0.00 MB, Peak: 0.00 MB
+[16:09:25.253] [After rendering UI] CUDA Memory - Allocated: 0.00 MB, Reserved: 0.00 MB, Peak: 0.00 MB
+[16:09:32.078] Using existing model manager from session state
+[16:09:32.079] [After model manager initialization] CUDA Memory - Allocated: 0.00 MB, Reserved: 0.00 MB, Peak: 0.00 MB
+[16:09:32.080] Using existing database manager from session state
+[16:09:32.081] [Before rendering UI] CUDA Memory - Allocated: 0.00 MB, Reserved: 0.00 MB, Peak: 0.00 MB
+[16:09:34.164] [After rendering UI] CUDA Memory - Allocated: 0.00 MB, Reserved: 0.00 MB, Peak: 0.00 MB
+[16:09:44.969] Using existing model manager from session state
+[16:09:44.970] [After model manager initialization] CUDA Memory - Allocated: 0.00 MB, Reserved: 0.00 MB, Peak: 0.00 MB
+[16:09:44.970] Using existing database manager from session state
+[16:09:44.971] [Before rendering UI] CUDA Memory - Allocated: 0.00 MB, Reserved: 0.00 MB, Peak: 0.00 MB
+[16:09:44.976] [After rendering UI] CUDA Memory - Allocated: 0.00 MB, Reserved: 0.00 MB, Peak: 0.00 MB
+[16:09:47.672] Using existing model manager from session state
+[16:09:47.673] [After model manager initialization] CUDA Memory - Allocated: 0.00 MB, Reserved: 0.00 MB, Peak: 0.00 MB
+[16:09:47.673] Using existing database manager from session state
+[16:09:47.674] [Before rendering UI] CUDA Memory - Allocated: 0.00 MB, Reserved: 0.00 MB, Peak: 0.00 MB
+[16:09:49.095] [After rendering UI] CUDA Memory - Allocated: 0.00 MB, Reserved: 0.00 MB, Peak: 0.00 MB

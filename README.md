@@ -1,97 +1,66 @@
-# Pixel Detective: AI-Powered Image Search
+# Vibe Coding - A Hybrid Local/Cloud Media Search Engine
 
-Pixel Detective is an advanced image search application that uses AI to analyze, caption, and search through your image collection. It combines multiple state-of-the-art AI models to provide a powerful and intuitive image search experience.
+Vibe Coding is an advanced, locally-hosted search engine designed to index and search a personal media library using state-of-the-art AI models. It combines a high-performance backend with a (forthcoming) modern web interface to provide a seamless and powerful user experience.
 
-## 🔍 Key Features
+## Project Status (June 2025)
 
-- **AI-Powered Image Search**: Search your image collection using natural language queries
-- **Automatic Image Captioning**: Generate high-quality captions for all your images using BLIP
-- **Semantic Understanding**: Extract meaningful concepts and tags from your images using CLIP
-- **Metadata Extraction**: Extract and index comprehensive metadata from various image formats
-- **GPU Acceleration**: Optimized to run efficiently on consumer GPUs (6GB VRAM minimum recommended)
-- **Interactive UI**: User-friendly Streamlit interface with multiple search modes
+-   **Current Focus**: Sprint 10 - [Critical UI Refactor](/docs/sprints/critical-ui-refactor/README.md)
+-   **Last Major Milestone**: Completion of **Sprint 09**, which involved a significant backend overhaul.
+-   **Summary of Sprint 09**:
+    -   🚀 **High-Performance Backend**: The backend services were refactored for major performance gains, leveraging GPU optimization, dynamic batching, and asynchronous processing. The full technical details can be found in the [Backend Architecture Spec](/backend/ARCHITECTURE.md).
+    -   ✅ **Persistent Vector Storage**: Integrated Qdrant for robust, persistent vector storage and search, with full support for creating and managing multiple collections.
+    -   🗑️ **Legacy UI Deprecated**: The original Streamlit-based frontend has been completely removed, paving the way for a modern, scalable Next.js application.
 
-## 🧠 AI Models
+## Core Features
 
-Pixel Detective leverages two powerful AI models:
+-   **AI-Powered Search**: Use natural language or images to search your media library.
+-   **Automatic Tagging & Captioning**: The system automatically generates descriptive captions and tags for your images using advanced models like CLIP and BLIP.
+-   **High-Speed Ingestion**: A multi-threaded ingestion pipeline quickly processes large directories of images, extracts metadata, and generates embeddings.
+-   **Local-First Architecture**: Your files and data stay on your machine. The application is designed to run locally, ensuring privacy and control.
+-   **Scalable Vector Database**: Built on Qdrant, the system can handle hundreds of thousands of images with fast and accurate search results.
 
-- **CLIP** (Contrastive Language-Image Pre-training): Creates embeddings that connect images and text in the same semantic space, enabling natural language search
-- **BLIP** (Bootstrapping Language-Image Pre-training): Generates detailed captions for images, enhancing searchability and organization
+## Getting Started
 
-## 📋 Requirements
+> **Note**: The original Streamlit frontend has been removed. The following instructions are for running the backend services only. A new Next.js frontend is under development as part of the **Critical UI Refactor** sprint.
 
-The following packages are required to run this application:
+### Prerequisites
 
-```
-qdrant-client
-openai-clip
-streamlit
-rawpy
-exifread
-transformers==4.38.0
-torch
-torchvision
-pillow
-accelerate
-bitsandbytes
-```
+-   Python 3.9+
+-   Docker and Docker Compose
+-   NVIDIA GPU with CUDA installed (for GPU-accelerated inference)
 
-You can install these dependencies by running:
+### Installation & Setup
 
-```
-pip install -r requirements.txt
-```
+1.  **Clone the repository**:
+    ```bash
+    git clone <repository_url>
+    cd Vibe-Coding
+    ```
 
-## 🚀 Usage
+2.  **Install Python dependencies**:
+    ```bash
+    pip install -r requirements.txt
+    ```
 
-1. Install the required dependencies
-2. Run the Streamlit app:
+3.  **Start Backend Services**: Use Docker Compose to launch the Qdrant vector database.
+    ```bash
+    docker-compose up -d
+    ```
 
-```
-streamlit run app.py
-```
+4.  **Run the FastAPI Applications**: Start the two backend services in separate terminals.
 
-3. Enter the path to your image folder in the Command Center sidebar
-4. Click "Launch the Brain Builder!" to process the images
-5. Once processing is complete, use the tabs to:
-   - **Text Search**: Find images using natural language queries
-   - **Image Search**: Upload an image to find similar ones
-   - **AI Guessing Game**: Test the AI's understanding of your images
+    *Terminal 1: ML Inference Service*
+    ```bash
+    uvicorn backend.ml_inference_fastapi_app.main:app --reload --port 8001
+    ```
 
-## 📁 File Structure
+    *Terminal 2: Ingestion Orchestration Service*
+    ```bash
+    uvicorn backend.ingestion_orchestration_fastapi_app.main:app --reload --port 8002
+    ```
 
-- `app.py`: Main Streamlit application
-- `config.py`: Configuration settings for the application
-- `metadata_extractor.py`: Comprehensive metadata extraction from various image formats
-- `vector_db.py`: Vector database operations for the main application
-- `models/`
-  - `clip_model.py`: CLIP model implementation for image embeddings and understanding
-  - `blip_model.py`: BLIP model implementation for image captioning
-- `database/`
-  - `vector_db.py`: Qdrant vector database operations
-- `ui/`
-  - `tabs.py`: UI components for the different tabs
-  - `sidebar.py`: UI components for the sidebar
-- `utils/`
-  - `image_utils.py`: Utility functions for image handling
-  - `logger.py`: Logging configuration
+Once the services are running, you can interact with them via the API endpoints documented in the backend `README.md` files.
 
-## 🔧 GPU Optimization
+## What's Next?
 
-The application is optimized to run efficiently on GPUs with at least 6GB of VRAM:
-
-- Memory-efficient processing for large image collections
-- Proper model loading and unloading to share GPU resources
-- 8-bit quantization options for larger models
-- Batch processing with configurable batch sizes
-
-## 📝 Notes
-
-- For large image collections, processing may take some time
-- The application works best with JPEG, PNG, and other common image formats
-- RAW and DNG file support depends on the availability of the `rawpy` library
-- GPU acceleration significantly improves performance but is not required
-
-## 📄 License
-
-This project is open source and available under the MIT License. 
+The project is currently focused on the **[Critical UI Refactor](/docs/sprints/critical-ui-refactor/README.md)** sprint, which will deliver a brand-new, high-performance frontend built with Next.js. This will replace the deprecated Streamlit UI and provide a modern, responsive, and feature-rich user experience for interacting with the powerful backend. 
