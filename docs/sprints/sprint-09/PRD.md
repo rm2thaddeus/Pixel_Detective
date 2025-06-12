@@ -1,7 +1,7 @@
 # Sprint 09 Product Requirements Document (PRD)
 
 ## 1. Executive Summary
-Sprint 09 focuses on validating backend ingestion services with full image support and Qdrant integration. Objectives include:
+Sprint 09 focused on validating backend ingestion services with full image support and Qdrant integration. Objectives include:
 - Comprehensive testing of ingestion pipelines for all supported image formats (.jpg, .png, .dng, .heic) end-to-end.
 - Ingesting metadata, embeddings, and captions into Qdrant collections and verifying vector storage and retrieval.
 - Exploring local Qdrant deployment: setting up Qdrant as a local service, building collections while keeping original image files in place.
@@ -13,24 +13,24 @@ Sprint 09 focuses on validating backend ingestion services with full image suppo
 ## 3. Requirements Matrix
 | ID        | User Story                                                                                                | Acceptance Criteria                                                                                             | Status  | Priority |
 |-----------|-----------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------|---------|----------|
-| FR-09-01  | As a user, I want the ingestion pipeline to support all image formats so that no pictures are skipped.    | - Ingestion processes .jpg, .png, .dng, .heic, etc. files.<br>- No errors occur due to unsupported formats. | Planned | High     |
-| FR-09-02  | As a user, I want images and their metadata/embeddings to be ingested into Qdrant, so I can perform vector search. | - Metadata, embeddings, and captions stored correctly in Qdrant.<br>- Search queries return expected results. | Planned | High     |
-| FR-09-03  | As a developer, I want to deploy Qdrant locally and ingest collections while preserving original images locations. | - Qdrant runs locally (e.g., via Docker or binary).<br>- Collections built and accessible.<br>- Original files remain in their folder. | Planned | Medium   |
-| FR-09-04  | As a developer, I want to remove all Streamlit code and dependencies to clean up the codebase.             | - No Streamlit imports or dependencies remain.<br>- Code builds and runs without Streamlit.                    | Planned | High     |
+| FR-09-01  | As a user, I want the ingestion pipeline to support all image formats so that no pictures are skipped.    | - Ingestion processes .jpg, .png, .dng, .heic, etc. files.<br>- No errors occur due to unsupported formats. | Done | High     |
+| FR-09-02  | As a user, I want images and their metadata/embeddings to be ingested into Qdrant, so I can perform vector search. | - Metadata, embeddings, and captions stored correctly in Qdrant.<br>- Search queries return expected results. | Done | High     |
+| FR-09-03  | As a developer, I want to deploy Qdrant locally and ingest collections while preserving original images locations. | - Qdrant runs locally (e.g., via Docker or binary).<br>- Collections built and accessible.<br>- Original files remain in their folder. | Done | Medium   |
+| FR-09-04  | As a developer, I want to remove all Streamlit code and dependencies to clean up the codebase.             | - No Streamlit imports or dependencies remain.<br>- Code builds and runs without Streamlit.                    | Done | High     |
 | FR-09-05  | As a user, I want all application screens to behave consistently and reliably based on backend data.        | - All frontend screens correctly fetch and display data from the backend APIs (`service_api.py`).
 - Critical crashes on the Fast UI screen (e.g., `AttributeError`) have been resolved.
 - UI interactions (filtering, sorting, searching, etc.) accurately reflect backend state and capabilities.
-- Stale or incorrect data presentation is minimized.            | In Progress   | Medium   |
+- Stale or incorrect data presentation is minimized.            | Obsolete   | Medium   |
 | FR-09-06  | As a user, if the application crashes or encounters a critical error, I want to see a user-friendly error screen with recovery options. | - Critical frontend errors are caught gracefully.
 - An error screen (`error_screen.py`) is displayed instead of a blank page or a Streamlit traceback.
-- The screen shows the error message and offers options to "Try Again" or "Restart". | Done | High     |
+- The screen shows the error message and offers options to "Try Again" or "Restart". | Obsolete | High     |
 | FR-09-07  | As a user, I want to select and manage Qdrant collections via the frontend sidebar.      | - UI displays a dropdown of available Qdrant collections.
 +- Users can create new collections from the sidebar.
 +- Users can select the active collection and clear its cache via sidebar controls.
 +- Selection persists and updates the working collection across the app.   | Done   | High     |
-| NFR-09-01 | The ingestion process must complete within acceptable time (e.g., < 10s for 100 images).                    | - Benchmark ingestion durations.<br>- Performance logs recorded.                                               | Planned | Medium   |
-| NFR-09-02 | Qdrant searches must return results within 200ms for queries on production-size collections (100k+).       | - Measure query response times.<br>- Response times <200ms.                                                    | Planned | Medium   |
-| NFR-09-03 | The codebase must have 100% removal of Streamlit, verified by static analysis and build checks.            | - Build passes without Streamlit.<br>- No Streamlit references in code.                                        | Planned | High     |
+| NFR-09-01 | The ingestion process must complete within acceptable time (e.g., < 10s for 100 images).                    | - Benchmark ingestion durations.<br>- Performance logs recorded.                                               | Done | Medium   |
+| NFR-09-02 | Qdrant searches must return results within 200ms for queries on production-size collections (100k+).       | - Measure query response times.<br>- Response times <200ms.                                                    | Done | Medium   |
+| NFR-09-03 | The codebase must have 100% removal of Streamlit, verified by static analysis and build checks.            | - Build passes without Streamlit.<br>- No Streamlit references in code.                                        | Done | High     |
 
 ## 4. Technical Architecture
 - **Backend Ingestion & Qdrant Integration:**
@@ -94,11 +94,11 @@ Sprint 09 focuses on validating backend ingestion services with full image suppo
 | Performance issues with collection loading      | Profile loading times early. Investigate Qdrant optimization settings. Consider lazy loading or background loading for parts of the data if initial load is too slow.         |
 | **Qdrant collection/data corruption**           | **Implement regular automated backups, health checks, and an automated restore/failsafe mechanism for production. For development, manual reset is acceptable, but for scale-up, a robust recovery plan is required.** |
 
-## 8. Codex Backend Refactor – Sprint-09 Progress Summary
+## 8. Codex Backend Refactor – Sprint-09 Completion Summary
 
 ### 8.1  Work Completed in `codex/refactor-backend-services-for-gpu-optimization`
 
-The following major changes landed via the **codex** branch and are now merged into `development` as part of Sprint&nbsp;09:
+The following major changes landed via the **codex** branch and are now merged into `development` as part of Sprint&nbsp;09. For a detailed technical overview, see the official [Backend Architecture Documentation](/backend/ARCHITECTURE.md).
 
 1. **GPU-Optimised Backend Stack**
    • Ingestion Orchestration API and ML Inference API refactored to leverage larger GPU batches (default 128, negotiated via `/capabilities`).
@@ -116,23 +116,24 @@ The following major changes landed via the **codex** branch and are now merged i
 6. **Robust Error Handling & Logging**
    • Centralised logging, GPU memory diagnostics, graceful FastAPI exception handlers.
 7. **Documentation**
-   • `backend/ARCHITECTURE.md`, `backend/DEVELOPER_ROADMAP.md`, and service-specific *next_steps.md* files created.
+   • [`backend/ARCHITECTURE.md`](/backend/ARCHITECTURE.md), [`backend/DEVELOPER_ROADMAP.md`](/backend/DEVELOPER_ROADMAP.md), and service-specific `next_steps.md` files created.
 
 ### 8.2  Regression & Compatibility Notes
 
-* Remaining **Streamlit** code is still present in `frontend/`.  UI will be deprecated in Sprint 10 but key interaction patterns (accessibility helpers, skeleton screens, animation CSS) will be archived for future reference.
-* Binary cache artefacts (`backend/.diskcache/*.db*`) are now in source-control; evaluate moving them to `.gitignore`.
+* **Streamlit UI Deprecated**: All `frontend/` code has been removed. Key UI/UX patterns (accessibility helpers, skeleton screens, animation CSS) have been archived for future reference in `docs/archive/sprint_09_frontend_ideas`.
+* **DiskCache Artefacts**: Binary cache artefacts (`backend/.diskcache/*.db*`) are now correctly handled by `.gitignore`.
 
-### 8.3  Outstanding Work (roll-over to Sprint 10)
+### 8.3  Outstanding Work (roll-over to Sprint 10: Critical UI Refactor)
 
 | ID | Task | Priority | Owner |
 |----|------|----------|-------|
-| R-10-01 | Remove all Streamlit modules & dependencies | High | Frontend / DevOps |
-| R-10-02 | Archive reusable UI/UX patterns from `frontend/` into `/docs/archive/sprint_09_frontend_ideas` | High | Frontend |
+| R-10-01 | **(Done)** Remove all Streamlit modules & dependencies | High | Frontend / DevOps |
+| R-10-02 | **(Done)** Archive reusable UI/UX patterns from `frontend/` into `docs/archive/sprint_09_frontend_ideas` | High | Frontend |
 | R-10-03 | Harden service-to-service auth with `x-api-key` | Medium | Backend |
 | R-10-04 | Add CI workflow to run new benchmark & regression tests | Medium | DevOps |
 | R-10-05 | Auto-evict old DiskCache entries & add size limit | Low | Backend |
+| UI-1 | Implement new Next.js Frontend | High | Frontend |
 
 ---
 
-> _Last updated: 2025-06-12 by AI assistant during merge of `codex/refactor-backend-services-for-gpu-optimization` into `development`._ 
+> _Last updated: 2025-06-12 by AI assistant during Sprint 09 wrap-up._ 

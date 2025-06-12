@@ -1,87 +1,66 @@
-# 🕵️‍♂️ Pixel Detective
+# Vibe Coding - A Hybrid Local/Cloud Media Search Engine
 
-Lightning-fast AI image search with smart 3-screen progressive UX.
+Vibe Coding is an advanced, locally-hosted search engine designed to index and search a personal media library using state-of-the-art AI models. It combines a high-performance backend with a (forthcoming) modern web interface to provide a seamless and powerful user experience.
 
-## 🎉 **SPRINT 03 RECOVERY COMPLETE**
-✅ **Performance Crisis Resolved**: 68+ seconds → 6.84 seconds startup (**10x improvement**)  
-✅ **Lazy Loading Restored**: Models load only when needed  
-✅ **App Running Successfully**: Responsive and smooth user experience  
+## Project Status (June 2025)
 
-## 🚀 Quick Start
+-   **Current Focus**: Sprint 10 - [Critical UI Refactor](/docs/sprints/critical-ui-refactor/README.md)
+-   **Last Major Milestone**: Completion of **Sprint 09**, which involved a significant backend overhaul.
+-   **Summary of Sprint 09**:
+    -   🚀 **High-Performance Backend**: The backend services were refactored for major performance gains, leveraging GPU optimization, dynamic batching, and asynchronous processing. The full technical details can be found in the [Backend Architecture Spec](/backend/ARCHITECTURE.md).
+    -   ✅ **Persistent Vector Storage**: Integrated Qdrant for robust, persistent vector storage and search, with full support for creating and managing multiple collections.
+    -   🗑️ **Legacy UI Deprecated**: The original Streamlit-based frontend has been completely removed, paving the way for a modern, scalable Next.js application.
 
-```bash
-# Install dependencies
-pip install -r requirements.txt
+## Core Features
 
-# Run the application
-streamlit run app.py
-```
+-   **AI-Powered Search**: Use natural language or images to search your media library.
+-   **Automatic Tagging & Captioning**: The system automatically generates descriptive captions and tags for your images using advanced models like CLIP and BLIP.
+-   **High-Speed Ingestion**: A multi-threaded ingestion pipeline quickly processes large directories of images, extracts metadata, and generates embeddings.
+-   **Local-First Architecture**: Your files and data stay on your machine. The application is designed to run locally, ensuring privacy and control.
+-   **Scalable Vector Database**: Built on Qdrant, the system can handle hundreds of thousands of images with fast and accurate search results.
 
-**Expected startup time**: ~7 seconds (down from 68+ seconds!)
+## Getting Started
 
-## 🎯 3-Screen UX Flow
+> **Note**: The original Streamlit frontend has been removed. The following instructions are for running the backend services only. A new Next.js frontend is under development as part of the **Critical UI Refactor** sprint.
 
-### Screen 1: Fast UI (Instant Launch)
-- ⚡ **Loads in <1 second**
-- 📁 Folder selection interface
-- 🎨 Background UI component loading
-- 💡 Smart user guidance
+### Prerequisites
 
-### Screen 2: Loading (Engaged Progress)
-- 📊 **Real-time progress tracking**
-- 🔄 Live logs and phase indicators
-- ⏱️ Time estimation and user controls
-- 🎯 Excitement building for features
+-   Python 3.9+
+-   Docker and Docker Compose
+-   NVIDIA GPU with CUDA installed (for GPU-accelerated inference)
 
-### Screen 3: Advanced UI (Full Features)
-- 🔍 **Text and image search**
-- 🎮 AI guessing game
-- 🌐 Latent space exploration
-- 👥 Duplicate detection
+### Installation & Setup
 
-## 🧠 Smart Loading Philosophy
+1.  **Clone the repository**:
+    ```bash
+    git clone <repository_url>
+    cd Vibe-Coding
+    ```
 
-- **Load what you need, when you need it**
-- **Never block the UI** - everything in background
-- **Respect user flow** - clear progression
-- **Progressive enhancement** - features unlock naturally
+2.  **Install Python dependencies**:
+    ```bash
+    pip install -r requirements.txt
+    ```
 
-## 🛠️ Architecture
+3.  **Start Backend Services**: Use Docker Compose to launch the Qdrant vector database.
+    ```bash
+    docker-compose up -d
+    ```
 
-```
-app.py (Entry Point)
-├── core/
-│   ├── app_state.py          # State management
-│   ├── background_loader.py  # Background processing
-│   └── screen_renderer.py    # Screen routing
-└── screens/
-    ├── fast_ui_screen.py     # Screen 1: Instant UI
-    ├── loading_screen.py     # Screen 2: Progress
-    └── advanced_ui_screen.py # Screen 3: Full features
-```
+4.  **Run the FastAPI Applications**: Start the two backend services in separate terminals.
 
-## 🎨 Key Features
+    *Terminal 1: ML Inference Service*
+    ```bash
+    uvicorn backend.ml_inference_fastapi_app.main:app --reload --port 8001
+    ```
 
-- **Instant startup** - No waiting for unused features
-- **Smart state management** - Clear transitions between screens
-- **Contextual sidebars** - Relevant info for each screen
-- **Graceful error handling** - Recovery options at every step
-- **Progressive disclosure** - Show features when ready
+    *Terminal 2: Ingestion Orchestration Service*
+    ```bash
+    uvicorn backend.ingestion_orchestration_fastapi_app.main:app --reload --port 8002
+    ```
 
-## 🔧 Development
+Once the services are running, you can interact with them via the API endpoints documented in the backend `README.md` files.
 
-To enable debug mode, uncomment the debug line in `core/screen_renderer.py`:
+## What's Next?
 
-```python
-# ScreenRenderer.show_debug_info()  # Uncomment for debugging
-```
-
-## 📊 User Experience Goals
-
-- **Instant Launch**: <1 second to first interaction
-- **Engaged Loading**: User stays engaged during processing
-- **Smooth Transitions**: No jarring UI changes
-- **Clear Progress**: Always know what's happening
-- **Recoverable Errors**: Graceful error handling
-
-Built with ❤️ for the perfect user experience. 
+The project is currently focused on the **[Critical UI Refactor](/docs/sprints/critical-ui-refactor/README.md)** sprint, which will deliver a brand-new, high-performance frontend built with Next.js. This will replace the deprecated Streamlit UI and provide a modern, responsive, and feature-rich user experience for interacting with the powerful backend. 
