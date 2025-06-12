@@ -2,7 +2,7 @@
 
 ## 1. Sprint Overview and Status
 
-**Status:** Planned
+**Status:** In&nbsp;Progress – Codex backend refactor merged (see Section 8 of PRD)
 
 **Theme:** Backend Validation & Streamlit Removal
 

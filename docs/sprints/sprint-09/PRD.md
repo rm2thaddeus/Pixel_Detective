@@ -94,4 +94,45 @@ Sprint 09 focuses on validating backend ingestion services with full image suppo
 | Performance issues with collection loading      | Profile loading times early. Investigate Qdrant optimization settings. Consider lazy loading or background loading for parts of the data if initial load is too slow.         |
 | **Qdrant collection/data corruption**           | **Implement regular automated backups, health checks, and an automated restore/failsafe mechanism for production. For development, manual reset is acceptable, but for scale-up, a robust recovery plan is required.** |
 
-</rewritten_file> 
+## 8. Codex Backend Refactor – Sprint-09 Progress Summary
+
+### 8.1  Work Completed in `codex/refactor-backend-services-for-gpu-optimization`
+
+The following major changes landed via the **codex** branch and are now merged into `development` as part of Sprint&nbsp;09:
+
+1. **GPU-Optimised Backend Stack**
+   • Ingestion Orchestration API and ML Inference API refactored to leverage larger GPU batches (default 128, negotiated via `/capabilities`).
+   • Mixed-precision inference (`torch.cuda.amp.autocast`) and `torch.inference_mode()` enabled – ≈ 89 % improvement on 25-image DNG benchmark.
+   • Dynamic batch sizing based on live GPU memory probe.
+2. **RAW → RGB Off-loading**
+   • DNG decoding moved from ML service to ingestion pipeline.
+3. **Parallelised SHA-256 & Directory Scan**
+   • Async thread off-loading eliminates event-loop blocking.
+4. **Persistent Qdrant Collections**
+   • Collection management endpoints added (`/collections`, `/select`, `/cache/clear`).
+   • Local Qdrant Docker workflow documented.
+5. **DiskCache Deduplication & Job Tracking**
+   • SQLite-backed cache resides in `backend/.diskcache`.
+6. **Robust Error Handling & Logging**
+   • Centralised logging, GPU memory diagnostics, graceful FastAPI exception handlers.
+7. **Documentation**
+   • `backend/ARCHITECTURE.md`, `backend/DEVELOPER_ROADMAP.md`, and service-specific *next_steps.md* files created.
+
+### 8.2  Regression & Compatibility Notes
+
+* Remaining **Streamlit** code is still present in `frontend/`.  UI will be deprecated in Sprint 10 but key interaction patterns (accessibility helpers, skeleton screens, animation CSS) will be archived for future reference.
+* Binary cache artefacts (`backend/.diskcache/*.db*`) are now in source-control; evaluate moving them to `.gitignore`.
+
+### 8.3  Outstanding Work (roll-over to Sprint 10)
+
+| ID | Task | Priority | Owner |
+|----|------|----------|-------|
+| R-10-01 | Remove all Streamlit modules & dependencies | High | Frontend / DevOps |
+| R-10-02 | Archive reusable UI/UX patterns from `frontend/` into `/docs/archive/sprint_09_frontend_ideas` | High | Frontend |
+| R-10-03 | Harden service-to-service auth with `x-api-key` | Medium | Backend |
+| R-10-04 | Add CI workflow to run new benchmark & regression tests | Medium | DevOps |
+| R-10-05 | Auto-evict old DiskCache entries & add size limit | Low | Backend |
+
+---
+
+> _Last updated: 2025-06-12 by AI assistant during merge of `codex/refactor-backend-services-for-gpu-optimization` into `development`._ 
