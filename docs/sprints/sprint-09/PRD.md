@@ -1,24 +1,22 @@
 # Sprint 09 Product Requirements Document (PRD)
 
 ## 1. Executive Summary
-Sprint 09 focuses on achieving application stability and robustness through comprehensive testing, implementing persistent Qdrant vector collections loaded at startup, and enhancing the frontend to fully leverage backend API capabilities, including progress indicators and logs. A key aspect is restoring and solidifying the "Folder Load" functionality.
+Sprint 09 focuses on validating backend ingestion services with full image support and Qdrant integration. Objectives include:
+- Comprehensive testing of ingestion pipelines for all supported image formats (.jpg, .png, .dng, .heic) end-to-end.
+- Ingesting metadata, embeddings, and captions into Qdrant collections and verifying vector storage and retrieval.
+- Exploring local Qdrant deployment: setting up Qdrant as a local service, building collections while keeping original image files in place.
+- Final cleanup: remove Streamlit UI components and dependencies to prepare for the new frontend architecture.
 
 ## 2. Context7 Research Summary
 *(To be updated if specific research is undertaken for new UI components or Qdrant persistence strategies. Refer to Sprint 08 PRD for existing relevant research on Streamlit background tasks and API patterns.)*
 
 ## 3. Requirements Matrix
-| ID        | User Story                                                                                                | Acceptance Criteria                                                                                                                                                                                                                                                           | Status    | Priority |
-|-----------|-----------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------|----------|
-| FR-09-01  | As a user, I want the application to use persistent Qdrant collections so that data is available across sessions. | - On startup, the application checks for an existing Qdrant collection.
-- If a collection exists, it is loaded and made available for use.
-- Qdrant data (vectors, metadata) persists between application restarts.                                                                | Planned   | High     |
-| FR-09-02  | As a user, if no Qdrant collection exists, I want to be prompted to create one from a specified folder.      | - If no collection is found at startup, the UI presents an option (e.g., button, text input area) to specify a local folder path.
-- User can trigger collection creation/ingestion from the specified folder.
-- Progress of collection creation is displayed to the user.        | Planned   | High     |
-| FR-09-03  | As a developer/user, I want improved frontend feedback for backend processes.                               | - Frontend screens utilize new/existing APIs to display progress for long-running operations (e.g., folder ingestion, search, duplicate detection).
-- Relevant logs or status messages from the backend are displayed in the UI where appropriate.
-- Clear error messages are shown for API failures. | Planned   | High     |
-| FR-09-04  | As a user, I want the "Folder Load" functionality to be fully restored and reliable.                        | Done        | High     |
+| ID        | User Story                                                                                                | Acceptance Criteria                                                                                             | Status  | Priority |
+|-----------|-----------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------|---------|----------|
+| FR-09-01  | As a user, I want the ingestion pipeline to support all image formats so that no pictures are skipped.    | - Ingestion processes .jpg, .png, .dng, .heic, etc. files.<br>- No errors occur due to unsupported formats. | Planned | High     |
+| FR-09-02  | As a user, I want images and their metadata/embeddings to be ingested into Qdrant, so I can perform vector search. | - Metadata, embeddings, and captions stored correctly in Qdrant.<br>- Search queries return expected results. | Planned | High     |
+| FR-09-03  | As a developer, I want to deploy Qdrant locally and ingest collections while preserving original images locations. | - Qdrant runs locally (e.g., via Docker or binary).<br>- Collections built and accessible.<br>- Original files remain in their folder. | Planned | Medium   |
+| FR-09-04  | As a developer, I want to remove all Streamlit code and dependencies to clean up the codebase.             | - No Streamlit imports or dependencies remain.<br>- Code builds and runs without Streamlit.                    | Planned | High     |
 | FR-09-05  | As a user, I want all application screens to behave consistently and reliably based on backend data.        | - All frontend screens correctly fetch and display data from the backend APIs (`service_api.py`).
 - Critical crashes on the Fast UI screen (e.g., `AttributeError`) have been resolved.
 - UI interactions (filtering, sorting, searching, etc.) accurately reflect backend state and capabilities.
@@ -30,15 +28,19 @@ Sprint 09 focuses on achieving application stability and robustness through comp
 +- Users can create new collections from the sidebar.
 +- Users can select the active collection and clear its cache via sidebar controls.
 +- Selection persists and updates the working collection across the app.   | Done   | High     |
-| NFR-09-01 | The application must undergo full functional testing to ensure all features work as expected.             | - A comprehensive test plan covering all user stories from Sprint 08 and 09 is executed.
-- All critical user flows are tested end-to-end.
-- Identified bugs are documented and prioritized for fixing.                                                                           | Planned   | High     |
-| NFR-09-02 | Qdrant collection loading at startup should be efficient.                                                   | - Time to check and load an existing Qdrant collection (e.g., 100k items) is within acceptable limits (e.g., <5 seconds).
-- Application remains responsive during the initial check/load.                                               | Planned   | Medium   |
-| NFR-09-03 | The frontend codebase must use a consistent and robust import strategy to prevent startup failures.        | - All local imports within the `frontend` module use absolute paths from the project root (e.g., `from frontend.core...`).
-- The application starts reliably without `ModuleNotFoundError` or `ImportError` issues. | Done | High     |
+| NFR-09-01 | The ingestion process must complete within acceptable time (e.g., < 10s for 100 images).                    | - Benchmark ingestion durations.<br>- Performance logs recorded.                                               | Planned | Medium   |
+| NFR-09-02 | Qdrant searches must return results within 200ms for queries on production-size collections (100k+).       | - Measure query response times.<br>- Response times <200ms.                                                    | Planned | Medium   |
+| NFR-09-03 | The codebase must have 100% removal of Streamlit, verified by static analysis and build checks.            | - Build passes without Streamlit.<br>- No Streamlit references in code.                                        | Planned | High     |
 
 ## 4. Technical Architecture
+- **Backend Ingestion & Qdrant Integration:**
+-   The ingestion service processes all supported image formats, extracts metadata, embeddings, and captions, and ingests them into configured Qdrant collections.
+-   Support for local Qdrant deployment (Docker or binary) is provided via updated `config.py` and environment variables.
+-   Collections are built while leaving original image files in place; default file paths are configurable.
+- **Streamlit Clean-up:**
+-   Removed all Streamlit modules (`frontend/app.py`, `frontend/screens/`, relevant components).
+-   Uninstalled `streamlit` from `requirements.txt` and removed related configurations.
+-   Verified no residual Streamlit imports or dependencies remain across the codebase.
 -   **Qdrant Integration:**
     -   Implement logic to initialize and connect to Qdrant at application startup (`app.py` or a core module).
     -   Modify backend services (`ingestion_orchestration_fastapi_app`, `ml_inference_fastapi_app`) to work with pre-configured/persistent Qdrant collection names instead of creating them on-the-fly for every operation, unless a new collection is explicitly being built.

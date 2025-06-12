@@ -13,6 +13,8 @@ import io # For handling bytes as files for PIL
 import base64
 import tempfile  # Added for DNG temp file handling
 from typing import Dict, Any, Tuple, List, Optional
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import asyncio
 
 # Configure basic logging
 logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO").upper())
@@ -26,12 +28,24 @@ CLIP_MODEL_NAME_CONFIG = os.environ.get("CLIP_MODEL_NAME", "ViT-B/32")
 BLIP_MODEL_NAME_CONFIG = os.environ.get("BLIP_MODEL_NAME", "Salesforce/blip-image-captioning-large")
 DEVICE_PREFERENCE = os.environ.get("DEVICE_PREFERENCE", "cuda")
 
+# --- Global Thread Pool Executor ---
+# Use a thread pool for CPU-bound tasks like image decoding to avoid blocking the asyncio event loop
+cpu_executor = ThreadPoolExecutor(max_workers=os.cpu_count())
+
+# --- Concurrency Control ---
+# Global lock to ensure only one batch is processed on the GPU at a time
+gpu_lock = asyncio.Lock()
+# Lock to prevent race conditions when lazy-loading the BLIP model
+blip_load_lock = asyncio.Lock()
+
+
 # --- Global Variables for Models and Processors ---
 device: torch.device = None
 clip_model_instance: Any = None
 clip_preprocess_instance: Any = None
 blip_model_instance: Any = None
 blip_processor_instance: Any = None
+SAFE_BATCH_SIZE: int = 1 # Default, will be probed on startup if using CUDA
 
 # --- Helper Functions from clip_model.py and blip_model.py (adapted) ---
 
@@ -53,9 +67,12 @@ async def _load_clip_model_internal(model_name: str, target_device: torch.device
     start_time = time.time()
     try:
         model, preprocess = clip.load(model_name, device=target_device)
-        # Ensure model is on the target device, clip.load might handle this but an explicit .to() is safer.
-        model = model.to(target_device) 
-        logger.info(f"CLIP model ({model_name}) loaded in {time.time() - start_time:.2f}s. Device: {next(model.parameters()).device}")
+        # Ensure model is on the target device and in half-precision if using CUDA
+        if target_device.type == "cuda":
+            model = model.to(target_device).half()
+        else:
+            model = model.to(target_device)
+        logger.info(f"CLIP model ({model_name}) loaded in {time.time() - start_time:.2f}s. Device: {next(model.parameters()).device}, Precision: {next(model.parameters()).dtype}")
         return model, preprocess
     except Exception as e:
         logger.error(f"Error loading CLIP model ({model_name}): {e}", exc_info=True)
@@ -67,12 +84,108 @@ async def _load_blip_model_internal(model_name: str, target_device: torch.device
     try:
         processor = BlipProcessor.from_pretrained(model_name)
         model = BlipForConditionalGeneration.from_pretrained(model_name)
-        model = model.to(target_device)
-        logger.info(f"BLIP model ({model_name}) loaded in {time.time() - start_time:.2f}s. Device: {next(model.parameters()).device}")
+        # Ensure model is on the target device and in half-precision if using CUDA
+        if target_device.type == "cuda":
+            model = model.to(target_device).half()
+        else:
+            model = model.to(target_device)
+        logger.info(f"BLIP model ({model_name}) loaded in {time.time() - start_time:.2f}s. Device: {next(model.parameters()).device}, Precision: {next(model.parameters()).dtype}")
         return model, processor
     except Exception as e:
         logger.error(f"Error loading BLIP model ({model_name}): {e}", exc_info=True)
         raise # Re-raise to be caught by startup event
+
+# --- New Function for GPU Probing ---
+def _probe_safe_batch_size():
+    """
+    Probes the GPU to determine a safe batch size for CLIP inference.
+    This helps prevent out-of-memory errors.
+    """
+    global SAFE_BATCH_SIZE
+    if device.type != "cuda" or not clip_model_instance:
+        logger.info("Skipping batch size probing (not using CUDA or CLIP model not loaded). Defaulting to 1.")
+        SAFE_BATCH_SIZE = 1
+        return
+
+    logger.info("Probing for safe GPU batch size...")
+    try:
+        # 1. Create a dummy input tensor
+        # Use the preprocessor to get the correct dimensions
+        dummy_pil = Image.new('RGB', (224, 224))
+        dummy_input = clip_preprocess_instance(dummy_pil).unsqueeze(0).to(device)
+        
+        # 2. Measure memory usage for a single item
+        torch.cuda.empty_cache()
+        mem_before = torch.cuda.memory_allocated()
+        
+        # Run inference on the single item
+        with torch.inference_mode():
+            with torch.cuda.amp.autocast():
+                clip_model_instance.encode_image(dummy_input)
+
+        mem_after = torch.cuda.memory_allocated()
+        torch.cuda.empty_cache()
+
+        per_input_mem = mem_after - mem_before
+        if per_input_mem <= 0:
+            # This can happen if the model is very small or memory allocation is unusual
+            logger.warning("Could not determine memory per input (per_input_mem <= 0). Defaulting batch size to 1.")
+            SAFE_BATCH_SIZE = 1
+            return
+            
+        # 3. Get free memory and calculate a safe batch size
+        free_mem, _ = torch.cuda.mem_get_info()
+        # Use 80% of free memory as a safety margin
+        safe_free_mem = free_mem * 0.8
+        
+        calculated_size = int(safe_free_mem // per_input_mem)
+        
+        # Ensure batch size is at least 1
+        SAFE_BATCH_SIZE = max(1, calculated_size)
+        logger.info(f"Memory per input: {per_input_mem / 1024**2:.2f} MB. Free memory: {free_mem / 1024**2:.2f} MB.")
+        logger.info(f"Determined safe batch size: {SAFE_BATCH_SIZE}")
+
+    except Exception as e:
+        logger.error(f"Failed to probe for safe batch size: {e}. Defaulting to 1.", exc_info=True)
+        SAFE_BATCH_SIZE = 1
+
+# --- Dependency for Lazy-Loading BLIP Model ---
+async def get_blip_model():
+    """
+    Dependency to lazy-load the BLIP model.
+    This ensures the model is only loaded into memory when a captioning endpoint is called.
+    Uses a lock to prevent race conditions on first load.
+    """
+    global blip_model_instance, blip_processor_instance
+    if blip_model_instance is None:
+        async with blip_load_lock:
+            # Check again inside the lock in case it was loaded while waiting
+            if blip_model_instance is None:
+                logger.info("BLIP model not loaded. Loading now...")
+                try:
+                    blip_model_instance, blip_processor_instance = await _load_blip_model_internal(BLIP_MODEL_NAME_CONFIG, device)
+                except Exception as e:
+                    logger.error(f"CRITICAL: Failed to lazy-load BLIP model: {e}")
+                    # Set to dummy values to prevent repeated load attempts
+                    blip_model_instance, blip_processor_instance = "failed", "failed" 
+            
+    if blip_model_instance == "failed":
+        raise HTTPException(status_code=503, detail="BLIP model failed to load and is unavailable.")
+        
+    return blip_model_instance, blip_processor_instance
+
+# --- Heavy compute helper functions to allow asyncio offloading ---
+def _encode_clip(tensor: torch.Tensor) -> torch.Tensor:
+    with torch.inference_mode():
+        with torch.cuda.amp.autocast(enabled=(device.type == "cuda")):
+            feats = clip_model_instance.encode_image(tensor)
+            feats /= feats.norm(dim=-1, keepdim=True)
+    return feats
+
+def _generate_blip(inputs: Dict[str, torch.Tensor]) -> torch.Tensor:
+    with torch.inference_mode():
+        with torch.cuda.amp.autocast(enabled=(device.type == "cuda")):
+            return blip_model_instance.generate(**inputs, max_length=75)
 
 # --- FastAPI Lifecycle Events ---
 @app.on_event("startup")
@@ -83,29 +196,24 @@ async def startup_event():
     device = _setup_device(DEVICE_PREFERENCE)
     logger.info(f"Selected device: {device}")
 
+    # Eagerly load the CLIP model as it's the primary model
     try:
         clip_model_instance, clip_preprocess_instance = await _load_clip_model_internal(CLIP_MODEL_NAME_CONFIG, device)
     except Exception as e:
         logger.error(f"CRITICAL: Failed to load CLIP model during startup: {e}")
-        # Decide if service should fail to start or run degraded
-        # For now, it will continue, but endpoints using CLIP will fail.
+        # Service will start degraded, endpoint checks will fail.
 
-    try:
-        blip_model_instance, blip_processor_instance = await _load_blip_model_internal(BLIP_MODEL_NAME_CONFIG, device)
-    except Exception as e:
-        logger.error(f"CRITICAL: Failed to load BLIP model during startup: {e}")
-        # Decide if service should fail to start or run degraded
+    # BLIP model is now lazy-loaded and will not be loaded here.
+    logger.info("BLIP model will be lazy-loaded on first use.")
+
+    # After loading models, probe for a safe batch size
+    _probe_safe_batch_size()
 
     logger.info("ML Inference Service startup complete.")
     if clip_model_instance:
         logger.info(f"CLIP model ({CLIP_MODEL_NAME_CONFIG}) ready.")
     else:
         logger.warning(f"CLIP model ({CLIP_MODEL_NAME_CONFIG}) FAILED TO LOAD.")
-    
-    if blip_model_instance:
-        logger.info(f"BLIP model ({BLIP_MODEL_NAME_CONFIG}) ready.")
-    else:
-        logger.warning(f"BLIP model ({BLIP_MODEL_NAME_CONFIG}) FAILED TO LOAD.")
 
 
 @app.on_event("shutdown")
@@ -155,21 +263,22 @@ async def embed_image_endpoint_v1(request: EmbedRequest = Body(...)):
             image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
 
         image_input = clip_preprocess_instance(image).unsqueeze(0).to(device)
-        
-        with torch.no_grad():
-            image_features = clip_model_instance.encode_image(image_input)
-            image_features /= image_features.norm(dim=-1, keepdim=True)
+
+        image_features = await asyncio.to_thread(_encode_clip, image_input)
         
         embedding = image_features.cpu().numpy().squeeze().tolist() # tolist for JSON
-        
+
         logger.info(f"Successfully embedded image: {request.filename or 'untitled'}")
-        return {
+        response = {
             "filename": request.filename,
             "embedding": embedding,
             "embedding_shape": list(np.array(embedding).shape),
             "model_name": CLIP_MODEL_NAME_CONFIG,
             "device_used": str(device)
         }
+        if device.type == "cuda":
+            torch.cuda.empty_cache()
+        return response
     except Exception as e:
         logger.error(f"Error processing image for embedding ({request.filename or 'untitled'}): {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to embed image: {str(e)}")
@@ -180,9 +289,11 @@ class CaptionRequest(BaseModel):
 
 @v1_router.post("/caption", response_model=Dict[str, Any])
 async def caption_image_endpoint_v1(request: CaptionRequest = Body(...)):
-    if not blip_model_instance or not blip_processor_instance:
-        logger.error("/caption call failed: BLIP model not loaded.")
-        raise HTTPException(status_code=503, detail="BLIP model is not available. Please check service logs.")
+    try:
+        # Lazy load the BLIP model using the dependency
+        blip_model, blip_processor = await get_blip_model()
+    except HTTPException as e:
+        raise e # Propagate the 503 error if the model failed to load
 
     try:
         image_bytes = base64.b64decode(request.image_base64)
@@ -204,21 +315,23 @@ async def caption_image_endpoint_v1(request: CaptionRequest = Body(...)):
         # BLIP doesn't typically use a conditional prompt string unless you want to guide it.
         # For general captioning, an empty prompt or task-specific default is fine.
         # inputs = blip_processor_instance(image, return_tensors="pt").to(device) # Simple case
-        inputs = blip_processor_instance(images=image, text=None, return_tensors="pt").to(device)
+        inputs = blip_processor.to(device)
 
-
-        with torch.no_grad():
-            output_ids = blip_model_instance.generate(**inputs, max_length=75) # Added max_length
+        async with gpu_lock:
+            output_ids = await asyncio.to_thread(_generate_blip, inputs)
         
-        caption = blip_processor_instance.decode(output_ids[0], skip_special_tokens=True)
+        caption = blip_processor.decode(output_ids[0], skip_special_tokens=True)
         
         logger.info(f"Successfully captioned image: {request.filename or 'untitled'}")
-        return {
+        response = {
             "filename": request.filename,
             "caption": caption.strip(),
             "model_name": BLIP_MODEL_NAME_CONFIG,
             "device_used": str(device)
         }
+        if device.type == "cuda":
+            torch.cuda.empty_cache()
+        return response
     except Exception as e:
         logger.error(f"Error processing image for captioning ({request.filename or 'untitled'}): {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to caption image: {str(e)}")
@@ -246,181 +359,175 @@ class BatchResultItem(BaseModel):
 class BatchEmbedAndCaptionResponse(BaseModel):
     results: List[BatchResultItem]
 
+def log_cuda_memory(stage: str):
+    """Log current CUDA memory usage."""
+    if torch.cuda.is_available():
+        alloc = torch.cuda.memory_allocated() / 1024**2
+        res = torch.cuda.memory_reserved() / 1024**2
+        logging.getLogger(__name__).info(f"{stage} - GPU allocated: {alloc:.2f} MB, reserved: {res:.2f} MB")
+
+# --- Helper function for parallel preprocessing ---
+def _decode_and_prep_image(item: BatchImageRequestItem) -> Tuple[str, Optional[Image.Image], Optional[str]]:
+    """
+    Decodes a base64 image string and prepares it as a PIL image.
+    Handles DNG and common image formats. Runs in a thread pool.
+    Returns a tuple of (unique_id, PIL.Image or None, error_message or None).
+    """
+    try:
+        image_bytes = base64.b64decode(item.image_base64)
+        if item.filename.lower().endswith('.dng'):
+            # DNG handling requires reading from a file path
+            with tempfile.NamedTemporaryFile(suffix='.dng', delete=False) as tmp:
+                tmp.write(image_bytes)
+                tmp_path = tmp.name
+            try:
+                with rawpy.imread(tmp_path) as raw:
+                    rgb = raw.postprocess()
+                pil_img = Image.fromarray(rgb).convert("RGB")
+            finally:
+                os.remove(tmp_path)
+        else:
+            pil_img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+        return item.unique_id, pil_img, None
+    except Exception as e:
+        logger.error(f"Error decoding/preprocessing image {item.filename} (ID: {item.unique_id}): {e}")
+        return item.unique_id, None, f"Failed to decode or preprocess image: {str(e)}"
+
 # --- Batch Processing Endpoint ---
 @v1_router.post("/batch_embed_and_caption", response_model=BatchEmbedAndCaptionResponse)
 async def batch_embed_and_caption_endpoint_v1(request: BatchEmbedAndCaptionRequest = Body(...)):
-    if not clip_model_instance or not clip_preprocess_instance or not blip_model_instance or not blip_processor_instance:
-        logger.error("/batch_embed_and_caption call failed: One or more models not loaded.")
-        raise HTTPException(status_code=503, detail="One or more models are not available. Please check service logs.")
-
-    batch_results: List[BatchResultItem] = []
-    if not request.images:
-        return BatchEmbedAndCaptionResponse(results=[])
-
-    logger.info(f"Received batch request for {len(request.images)} images.")
-
-    pil_images = []
-    processed_indices = [] # Keep track of indices of successfully preprocessed images
-    request_items_for_processing = [] # Store corresponding request items
-
-    for i, item in enumerate(request.images):
-        try:
-            image_bytes = base64.b64decode(item.image_base64)
-            # DNG handling for batch; write to temp file for rawpy
-            if item.filename.lower().endswith('.dng'):
-                with tempfile.NamedTemporaryFile(suffix='.dng', delete=False) as tmp:
-                    tmp.write(image_bytes)
-                    tmp.flush()
-                    tmp_path = tmp.name
-                try:
-                    with rawpy.imread(tmp_path) as raw:
-                        rgb = raw.postprocess()
-                    pil_img = Image.fromarray(rgb).convert("RGB")
-                finally:
-                    os.remove(tmp_path)
-            else:
-                pil_img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
-            pil_images.append(pil_img)
-            processed_indices.append(i) # Store original index
-            request_items_for_processing.append(item) # Store corresponding request item
-        except Exception as e:
-            logger.error(f"Error decoding/preprocessing image {item.filename} (ID: {item.unique_id}) for batch: {e}")
-            batch_results.append(BatchResultItem(
-                unique_id=item.unique_id,
-                filename=item.filename,
-                error=f"Failed to decode or preprocess image: {str(e)}"
-            ))
+    """
+    Handles batch processing for embedding (CLIP) and captioning (BLIP).
+    - Image decoding is done in parallel on a CPU thread pool.
+    - GPU-bound inference is protected by a lock to ensure sequential access.
+    - BLIP model is lazy-loaded on demand.
+    """
+    start_time = time.time()
     
-    # Filter out items that failed preprocessing for model inference
-    if not pil_images: # All images failed preprocessing
-        logger.warning("All images in batch failed preprocessing. Returning empty results for model inference part.")
-        # Errors for failed preprocessing items are already in batch_results
-        return BatchEmbedAndCaptionResponse(results=batch_results)
+    # --- Check for model availability ---
+    if not clip_model_instance:
+        raise HTTPException(status_code=503, detail="CLIP model is not available.")
+    
+    # Lazy load the BLIP model if needed for this request
+    try:
+        blip_model, blip_processor = await get_blip_model()
+    except HTTPException as e:
+        raise e # Propagate the 503 error if model loading fails
 
-    # Get CLIP embeddings for successfully preprocessed images
-    clip_embeddings = []
-    if clip_model_instance and clip_preprocess_instance:
-        # Preprocess all images for CLIP together if possible (check clip_preprocess_instance type)
-        # Assuming clip_preprocess_instance can take a list of PIL images or individual application
+    # --- 1. Parallel Image Preprocessing on CPU threads ---
+    prepped_images: Dict[str, Image.Image] = {}
+    future_to_id = {cpu_executor.submit(_decode_and_prep_image, item): item.unique_id for item in request.images}
+    
+    processing_results: Dict[str, Dict] = {item.unique_id: {
+        "unique_id": item.unique_id,
+        "filename": item.filename,
+        "error": None
+    } for item in request.images}
+
+    for future in as_completed(future_to_id):
+        unique_id = future_to_id[future]
         try:
-            # This part needs to be careful with how clip_preprocess_instance handles a list
-            # If it expects individual images, loop here. If it can batch, then batch.
-            # For simplicity, let's assume individual preprocessing for now, then stack.
-            image_inputs_clip = torch.stack([clip_preprocess_instance(img) for img in pil_images]).to(device)
-            with torch.no_grad():
-                image_features = clip_model_instance.encode_image(image_inputs_clip)
-                image_features /= image_features.norm(dim=-1, keepdim=True)
-            clip_embeddings = image_features.cpu().numpy()
-        except Exception as e:
-            logger.error(f"Error during CLIP batch embedding: {e}")
-            # Mark all items in this batch as errored for CLIP part
-            for idx, original_batch_idx in enumerate(processed_indices):
-                req_item = request_items_for_processing[idx]
-                # Find if this item already has an error, if so, append. If not, create.
-                found_result = next((r for r in batch_results if r.unique_id == req_item.unique_id), None)
-                if found_result:
-                    found_result.error = (found_result.error + "; CLIP embedding failed: " + str(e)) if found_result.error else "CLIP embedding failed: " + str(e)
-                else: # Should not happen if preprocessing errors are handled by adding to batch_results first
-                    batch_results.append(BatchResultItem(unique_id=req_item.unique_id, filename=req_item.filename, error="CLIP embedding failed: " + str(e)))
-    else:
-        logger.warning("CLIP model not available for batch processing.")
-        # Add error to all items that were successfully preprocessed but can't get embedding
-        for idx, original_batch_idx in enumerate(processed_indices):
-            req_item = request_items_for_processing[idx]
-            found_result = next((r for r in batch_results if r.unique_id == req_item.unique_id), None)
-            if found_result:
-                 found_result.error = (found_result.error + "; CLIP model unavailable") if found_result.error else "CLIP model unavailable"
+            _id, pil_image, error_msg = future.result()
+            if error_msg:
+                processing_results[unique_id]["error"] = error_msg
             else:
-                 batch_results.append(BatchResultItem(unique_id=req_item.unique_id, filename=req_item.filename, error="CLIP model unavailable"))
-
-    # Get BLIP captions for successfully preprocessed images
-    blip_captions = [None] * len(pil_images)
-    if blip_model_instance and blip_processor_instance:
-        try:
-            # BLIP usually processes one by one for captioning in a loop or small batches
-            for i, img in enumerate(pil_images):
-                inputs = blip_processor_instance(images=img, text=None, return_tensors="pt").to(device)
-                with torch.no_grad():
-                    output_ids = blip_model_instance.generate(**inputs, max_length=75)
-                blip_captions[i] = blip_processor_instance.decode(output_ids[0], skip_special_tokens=True).strip()
+                prepped_images[unique_id] = pil_image
         except Exception as e:
-            logger.error(f"Error during BLIP batch captioning: {e}")
-            # Mark all items as errored for BLIP part
-            for idx, original_batch_idx in enumerate(processed_indices):
-                req_item = request_items_for_processing[idx]
-                found_result = next((r for r in batch_results if r.unique_id == req_item.unique_id), None)
-                if found_result:
-                    found_result.error = (found_result.error + "; BLIP captioning failed: " + str(e)) if found_result.error else "BLIP captioning failed: " + str(e)
+            logger.error(f"Error decoding image {unique_id} in thread: {e}", exc_info=True)
+            processing_results[unique_id]["error"] = f"Failed during decoding: {e}"
+
+    # Filter out images that failed decoding
+    valid_ids = [uid for uid, img in prepped_images.items() if img is not None]
+    
+    if not valid_ids:
+        logger.warning("No valid images to process after decoding step.")
+        return BatchEmbedAndCaptionResponse(results=list(processing_results.values()))
+
+    logger.info(f"Decoded {len(valid_ids)} images in {time.time() - start_time:.2f}s")
+    log_cuda_memory("After Image Decoding")
+
+    # --- 2. Locked, Sequential GPU Inference in Chunks ---
+    async with gpu_lock:
+        inference_start_time = time.time()
+        logger.info(f"Acquired GPU lock. Starting inference for {len(valid_ids)} images in chunks of {SAFE_BATCH_SIZE}.")
+
+        # Process valid_ids in chunks of SAFE_BATCH_SIZE
+        for i in range(0, len(valid_ids), SAFE_BATCH_SIZE):
+            chunk_ids = valid_ids[i:i + SAFE_BATCH_SIZE]
+            if not chunk_ids:
+                continue
+            
+            logger.info(f"Processing chunk {i//SAFE_BATCH_SIZE + 1}/{(len(valid_ids) + SAFE_BATCH_SIZE - 1)//SAFE_BATCH_SIZE} with {len(chunk_ids)} images.")
+
+            # --- CLIP Embeddings for the chunk ---
+            try:
+                pil_images_clip = [prepped_images[uid] for uid in chunk_ids]
+                clip_input_tensors = torch.stack([clip_preprocess_instance(img) for img in pil_images_clip]).to(device)
+
+                # For half-precision, ensure input tensor is also .half()
+                if device.type == "cuda":
+                    clip_input_tensors = clip_input_tensors.half()
+
+                clip_features = await asyncio.to_thread(_encode_clip, clip_input_tensors)
+                clip_embeddings = clip_features.cpu().numpy()
+                
+                for j, unique_id in enumerate(chunk_ids):
+                    processing_results[unique_id]["embedding"] = clip_embeddings[j].tolist()
+                    processing_results[unique_id]["embedding_shape"] = list(clip_embeddings[j].shape)
+            except Exception as e:
+                logger.error(f"Error during CLIP batch inference on chunk: {e}", exc_info=True)
+                for uid in chunk_ids:
+                    if not processing_results[uid]["error"]: # Avoid overwriting decode error
+                        processing_results[uid]["error"] = f"CLIP inference failed: {e}"
+            
+            # --- BLIP Captions for the chunk ---
+            try:
+                pil_images_blip = [prepped_images[uid] for uid in chunk_ids]
+                # Use the lazy-loaded processor
+                blip_inputs = blip_processor(images=pil_images_blip, return_tensors="pt").to(device)
+
+                # For half-precision, ensure input tensor is also .half()
+                if device.type == "cuda":
+                    blip_inputs = {k: v.to(device).half() for k, v in blip_inputs.items()}
                 else:
-                    batch_results.append(BatchResultItem(unique_id=req_item.unique_id, filename=req_item.filename, error="BLIP captioning failed: " + str(e)))
-    else:
-        logger.warning("BLIP model not available for batch processing.")
-        for idx, original_batch_idx in enumerate(processed_indices):
-            req_item = request_items_for_processing[idx]
-            found_result = next((r for r in batch_results if r.unique_id == req_item.unique_id), None)
-            if found_result:
-                 found_result.error = (found_result.error + "; BLIP model unavailable") if found_result.error else "BLIP model unavailable"
-            else:
-                 batch_results.append(BatchResultItem(unique_id=req_item.unique_id, filename=req_item.filename, error="BLIP model unavailable"))
+                    blip_inputs = {k: v.to(device) for k, v in blip_inputs.items()}
 
-    # Combine results
-    # Iterate through the successfully preprocessed items and update/add to batch_results
-    for idx, original_batch_idx in enumerate(processed_indices):
-        item = request_items_for_processing[idx] # The original request item for this successfully preprocessed image
+                
+                logger.info(f"Running BLIP inference for batch of size {len(pil_images_blip)}...")
+                blip_output_ids = await asyncio.to_thread(_generate_blip, blip_inputs)
+                captions = blip_processor.batch_decode(blip_output_ids, skip_special_tokens=True)
+
+                for j, unique_id in enumerate(chunk_ids):
+                    processing_results[unique_id]["caption"] = captions[j].strip()
+            except Exception as e:
+                logger.error(f"Error during BLIP batch inference on chunk: {e}", exc_info=True)
+                for uid in chunk_ids:
+                    if not processing_results[uid]["error"]: # Avoid overwriting previous errors
+                        processing_results[uid]["error"] = f"BLIP inference failed: {e}"
         
-        # Check if this item already exists in batch_results (e.g. due to a preprocessing error being logged)
-        # This logic can be complex if an item fails one model but not another.
-        # The current structure adds errors to existing entries or creates new ones.
-        # We need to ensure we are updating the correct BatchResultItem or creating it if it was fully successful up to this point.
+        log_cuda_memory("After all inference chunks")
+        logger.info(f"GPU inference finished in {time.time() - inference_start_time:.2f}s. Releasing lock.")
 
-        existing_result_index = -1
-        for i, res in enumerate(batch_results):
-            if res.unique_id == item.unique_id:
-                existing_result_index = i
-                break
+    # --- 3. Consolidate and Respond ---
+    final_results = [BatchResultItem(**res) for res in processing_results.values()]
+
+    logger.info(f"Batch processing complete for {len(request.images)} items in {time.time() - start_time:.2f}s")
+    if device.type == "cuda":
+        torch.cuda.empty_cache() # Clear cache after a large batch operation
         
-        current_result = None
-        if existing_result_index != -1:
-            current_result = batch_results[existing_result_index]
-        else:
-            current_result = BatchResultItem(unique_id=item.unique_id, filename=item.filename)
-            # This new item needs to be appended later if it wasn't found
-            # However, items that passed preprocessing should not need this unless errors are cleared.
-            # Let's assume items that passed preprocessing don't have an error entry yet, or their error entry is what we update.
-            # This means the `batch_results.append` in the error handling above for CLIP/BLIP already created the necessary entries.
+    return BatchEmbedAndCaptionResponse(results=final_results)
 
-        # Update with embedding if available and no critical error for this item already
-        if idx < len(clip_embeddings) and clip_embeddings[idx] is not None and (not current_result.error or "CLIP" not in current_result.error):
-            current_result.embedding = clip_embeddings[idx].squeeze().tolist()
-            current_result.embedding_shape = list(np.array(clip_embeddings[idx].squeeze()).shape)
-        elif not current_result.error or "CLIP" not in current_result.error: # If embedding is None but no specific CLIP error logged for this item yet
-            current_result.error = (current_result.error + "; Embedding not generated") if current_result.error else "Embedding not generated"
+# --- New Capabilities Endpoint to Expose Service Limits ---
+class CapabilitiesResponse(BaseModel):
+    """Response model for service capability information."""
+    safe_clip_batch: int
 
-        # Update with caption if available and no critical error for this item already
-        if idx < len(blip_captions) and blip_captions[idx] is not None and (not current_result.error or "BLIP" not in current_result.error):
-            current_result.caption = blip_captions[idx]
-        elif not current_result.error or "BLIP" not in current_result.error: # If caption is None but no specific BLIP error logged for this item yet
-            current_result.error = (current_result.error + "; Caption not generated") if current_result.error else "Caption not generated"
-        
-        # Update model names and device (these are constant for the batch)
-        current_result.model_name_clip = CLIP_MODEL_NAME_CONFIG
-        current_result.model_name_blip = BLIP_MODEL_NAME_CONFIG
-        current_result.device_used = str(device) # Actual device used
+@v1_router.get("/capabilities", response_model=CapabilitiesResponse)
+async def get_capabilities_v1():
+    """Return runtime capability information so clients can adapt dynamically."""
+    return CapabilitiesResponse(safe_clip_batch=SAFE_BATCH_SIZE)
 
-        if existing_result_index == -1 and not current_result.error: # Only append if it's a new, error-free result
-            # This case should ideally not be hit often if error handling above creates the items.
-            # This ensures items that passed everything are added if they somehow weren't.
-             batch_results.append(current_result)
-        elif existing_result_index != -1: # If it existed, update it in place
-            batch_results[existing_result_index] = current_result
-        elif current_result.error and existing_result_index == -1: # It has an error and wasn't in batch_results (e.g. only preproc error)
-             batch_results.append(current_result) # This was missing, ensure errored items from preproc are kept
-
-
-    logger.info(f"Batch processing completed. Returning {len(batch_results)} results.")
-    return BatchEmbedAndCaptionResponse(results=batch_results)
-
-app.include_router(v1_router) # Add the v1 router to the main app
+app.include_router(v1_router)
 
 if __name__ == "__main__":
     import uvicorn
