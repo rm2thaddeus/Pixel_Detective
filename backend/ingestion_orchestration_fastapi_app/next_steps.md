@@ -13,50 +13,40 @@ The following plan addresses these points in order of priority.
 
 ---
 
-## 2. Priority 1: Critical - Performance & Robustness
+## Status Update – 2025-06-12
 
-### Task 1.1: Parallelize Image Preprocessing in ML Service (Major Performance Gain)
+The RAW-filename bug has been fixed and the pipeline successfully processed 25 DNG images in ~111 s (down from >170 s with 100 % failures).  Logs show that the ML service currently receives four requests of 8, 8, 8 and 1 images respectively, and each GPU inference call takes ≈11 s.  
 
-- **Justification**: This is the most significant bottleneck. The ML service currently decodes images one by one. By parallelizing this step, the service can prepare all images in a batch concurrently, dramatically reducing the total time the ingestion service spends waiting for a response.
-- **File to Modify**: `backend/ml_inference_fastapi_app/main.py`
-- **Action**: Refactor the `batch_embed_and_caption_endpoint_v1` endpoint. Wrap the image decoding and PIL conversion logic for a single image into a helper function. Then, use `asyncio.gather` and `asyncio.to_thread` to run this helper function for all images in the batch concurrently.
+Key findings after the latest run:
 
-  **Conceptual Code Change:**
-  ```python
-  # In backend/ml_inference_fastapi_app/main.py
+* **Decoding Parallelisation is already implemented** in `ml_inference_fastapi_app` via a `ThreadPoolExecutor`; therefore the old Task 1.1 is now **✔ Completed**.
+* **Main bottleneck** is now the *small batch size* (8) chosen by the ingestion service compared to the safe GPU batch size (≈471) probed by the ML service.
+* **Redundant DNG → PNG conversion** is still happening in the ingestion service; ML service can decode RAW directly, so we are double-decoding every file.
 
-  async def _decode_and_prep_image(item):
-      # Helper function to contain the decoding logic for one image
-      # This is the logic currently inside the `for item in request.images:` loop
-      # It should return a PIL image or raise an exception
-      image_bytes = base64.b64decode(item.image_base64)
-      # ... (dng handling, etc.)
-      return Image.open(io.BytesIO(image_bytes)).convert("RGB")
+We therefore revise the roadmap below.
 
-  @v1_router.post("/batch_embed_and_caption", ...)
-  async def batch_embed_and_caption_endpoint_v1(request: ...):
-      # ...
-      
-      # Replace the serial loop with concurrent processing
-      pre_processing_tasks = []
-      for item in request.images:
-          # Use to_thread because decoding can be CPU-intensive
-          pre_processing_tasks.append(asyncio.to_thread(_decode_and_prep_image, item))
-      
-      # Run all decoding tasks in parallel
-      results = await asyncio.gather(*pre_processing_tasks, return_exceptions=True)
+---
 
-      pil_images = []
-      request_items_for_processing = []
-      for i, result in enumerate(results):
-          if isinstance(result, Exception):
-              # Handle error for request.images[i]
-          else:
-              pil_images.append(result)
-              request_items_for_processing.append(request.images[i])
+## 2. Priority 1: Critical — Performance & Robustness
 
-      # ... (the rest of the function remains the same, processing pil_images)
-  ```
+### Task 1.1 ✔ (Completed) – Parallel image preprocessing in ML service
+The `ThreadPoolExecutor` & `asyncio.as_completed` implementation in `ml_inference_fastapi_app/main.py` already preprocesses images concurrently.
+
+### Task 1.2 — Increase end-to-end batch size
+
+* **Justification**: GPU safe batch size is ≈ 471 but we currently send just **8 images**. 25 images therefore incur **4 full GPU passes** (~44 s), while a single 25-image call would cost ~13 s.  
+* **Change**: Bump `ML_INFERENCE_BATCH_SIZE` default from 8 → 128 (configurable).  Provide an optional *hand-shake* endpoint in ML service that returns its probed safe batch size so the orchestrator can adapt dynamically.
+* **Files**: `backend/ingestion_orchestration_fastapi_app/main.py` (change batching logic & env var doc) + optional `/api/v1/capabilities` in ML service.
+
+### Task 1.3 — Remove redundant DNG→PNG conversion in ingestion service
+
+* **Justification**: We currently decode RAW files with `rawpy` in the ingestion service and again decode the resulting PNG in the ML service, doubling CPU & I/O.  
+* **Change**: Send the **original bytes** for RAW images, drop the local decode step, and rely solely on ML service for DNG handling.  Only JPEG/PNG resizing remains client-side (optional).
+* **Expected Gain**: ~35 % reduction in CPU wall-time on host and less memory pressure.
+
+### Task 1.4 — Smarter directory walker & hash computation
+
+* Parallelise SHA-256 computation using `aiofiles` + `asyncio.to_thread` workers.  This can overlap I/O with CPU and prepare batches faster when ingesting thousands of images.
 
 ---
 

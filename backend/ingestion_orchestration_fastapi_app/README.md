@@ -181,11 +181,13 @@ The service can be configured using the following environment variables:
 -   `QDRANT_PORT`: Port for the Qdrant database. (Default: `6333`)
 -   `QDRANT_VECTOR_SIZE`: The dimension of the vectors to be stored. Must match the output of the ML model. (Default: `512`)
 -   `QDRANT_DISTANCE_METRIC`: The distance metric used for vector comparison in Qdrant. (Default: `Cosine`)
--   `ML_INFERENCE_BATCH_SIZE`: Number of images to send to the ML service in a single batch. (Default: `8`)
+-   `ML_INFERENCE_BATCH_SIZE`: Number of images to send to the ML service in a single batch. **Default updated: `128`** (tune according to GPU memory).
 -   `QDRANT_UPSERT_BATCH_SIZE`: Number of points to send to Qdrant in a single bulk upsert. (Default: `32`)
 
-## Potential Next Steps
+## Potential Next Steps (Roadmap as of 2025-06-12)
 
--   **Authentication**: Secure the API endpoints with a simple API key or a more robust OAuth2 implementation.
--   **More Robust Error Handling**: Improve error reporting within ingestion jobs. If an image fails, provide more detailed reasons in the job status logs.
--   **Add a UI**: This service is a perfect backend for a web-based user interface that would allow users to manage collections and trigger ingestion jobs without using `curl`.
+1.  **Increase ML batch size** – raise `ML_INFERENCE_BATCH_SIZE` default to `128` and/or fetch the safe value probed by the ML service at runtime.  This will cut GPU cycles by ~3× for small-to-medium ingest runs.
+2.  **Remove redundant DNG→PNG conversion** – send RAW bytes directly to the ML service and let it decode.  Eliminates one full RAW decode per file.
+3.  **Authentication** – protect the internal `/batch_embed_and_caption` endpoint with an `x-api-key` header shared between services.
+4.  **More Robust Error Handling** – include structured error codes in job status so the frontend can surface actionable messages.
+5.  **Add a UI** – a lightweight admin dashboard (Streamlit or React) for collection management and job monitoring.

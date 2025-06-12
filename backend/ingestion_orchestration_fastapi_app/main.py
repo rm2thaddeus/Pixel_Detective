@@ -154,6 +154,7 @@ async def process_batch_with_ml_service(
     # Prepare images, decoding DNG locally, resizing, and converting to PNG where needed
     images_payload = []
     for image_hash, image_b64, filename, file_path in batch_items_to_ml:
+        filename_to_send = filename  # Default to original filename; may change if conversion occurs
         try:
             current_bytes = base64.b64decode(image_b64)
             # If raw DNG file, decode and re-encode as PNG
@@ -166,7 +167,9 @@ async def process_batch_with_ml_service(
                 buf = io.BytesIO()
                 # Use to_thread for the potentially slow save operation
                 await asyncio.to_thread(img.save, buf, format='PNG')
+                # Retrieve the PNG bytes and update filename extension so downstream logic treats it correctly
                 current_bytes = buf.getvalue()
+                filename_to_send = os.path.splitext(filename)[0] + '.png'
             
             # --- Image Resizing Step ---
             # Offload resizing to a thread to keep the event loop non-blocked
@@ -175,7 +178,7 @@ async def process_batch_with_ml_service(
             # -------------------------
 
             images_payload.append(
-                MLBatchRequestItem(unique_id=image_hash, image_base64=final_b64, filename=filename).dict()
+                MLBatchRequestItem(unique_id=image_hash, image_base64=final_b64, filename=filename_to_send).dict()
             )
         except Exception as e:
             log_to_job(job_id, f"Error preparing image {filename} for ML service: {e}", level="ERROR")
