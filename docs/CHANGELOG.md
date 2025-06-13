@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## [2025-06-12] - Sprint 10 Kickoff
+
+### Added
+- Initial Next.js frontend scaffold with Chakra UI and React Query.
+- Basic state management and API helpers.
+
 ## [2025-05-27] - Project Cleanup & Organization
 
 ### Chores
