@@ -24,6 +24,12 @@
 
 - Duration: 2 weeks (Exact dates to be defined)
 
+## Current Progress
+
+- ✅ Next.js project scaffolded under `frontend/`
+- ✅ Chakra UI and React Query integrated via `RootLayout`
+- ✅ Basic API and WebSocket clients added
+
 ## Team
 
 - Roles: Frontend Lead, UI/UX Designer, Backend Integrator, QA Engineer 
