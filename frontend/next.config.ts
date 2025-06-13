@@ -1,9 +1,10 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  experimental: {
-    optimizePackageImports: ["@chakra-ui/react"],
-  },
+  // Temporarily disable package optimization to fix import issues
+  // experimental: {
+  //   optimizePackageImports: ["@chakra-ui/react"],
+  // },
 };
 
 export default nextConfig;
