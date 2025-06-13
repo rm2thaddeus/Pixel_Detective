@@ -15,7 +15,9 @@ import {
   useToast,
   FormControl,
   FormLabel,
-  FormHelperText
+  FormHelperText,
+  useColorModeValue,
+  Code
 } from '@chakra-ui/react';
 import { useState } from 'react';
 import { useStore } from '@/store/useStore';
@@ -33,6 +35,15 @@ export function AddImagesModal({ isOpen, onClose }: AddImagesModalProps) {
   const [loading, setLoading] = useState(false);
   const toast = useToast();
   const router = useRouter();
+
+  // Dark mode aware colors
+  const overlayBg = useColorModeValue('blackAlpha.300', 'blackAlpha.600');
+  const contentBg = useColorModeValue('white', 'gray.800');
+  const textColor = useColorModeValue('gray.800', 'white');
+  const mutedTextColor = useColorModeValue('gray.600', 'gray.400');
+  const inputBg = useColorModeValue('white', 'gray.700');
+  const inputBorderColor = useColorModeValue('gray.300', 'gray.600');
+  const codeBg = useColorModeValue('gray.100', 'gray.700');
 
   const startIngestion = async () => {
     if (!collection) {
@@ -102,17 +113,23 @@ export function AddImagesModal({ isOpen, onClose }: AddImagesModalProps) {
     }
   };
 
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !loading) {
+      startIngestion();
+    }
+  };
+
   return (
     <Modal isOpen={isOpen} onClose={handleClose} size="md">
-      <ModalOverlay />
-      <ModalContent>
-        <ModalHeader>Add Images to Collection</ModalHeader>
-        <ModalCloseButton isDisabled={loading} />
+      <ModalOverlay bg={overlayBg} />
+      <ModalContent bg={contentBg}>
+        <ModalHeader color={textColor}>Add Images to Collection</ModalHeader>
+        <ModalCloseButton isDisabled={loading} color={textColor} />
         
         <ModalBody>
           <VStack spacing={4} align="stretch">
             {collection ? (
-              <Text color="blue.600" fontWeight="semibold">
+              <Text color="blue.500" fontWeight="semibold">
                 Adding to collection: {collection}
               </Text>
             ) : (
@@ -122,24 +139,32 @@ export function AddImagesModal({ isOpen, onClose }: AddImagesModalProps) {
             )}
 
             <FormControl>
-              <FormLabel>Directory Path</FormLabel>
+              <FormLabel color={textColor}>Directory Path</FormLabel>
               <Input
                 placeholder="e.g., C:\Users\username\Pictures\my-images"
                 value={directoryPath}
                 onChange={(e) => setDirectoryPath(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && !loading && startIngestion()}
+                onKeyPress={handleKeyPress}
                 isDisabled={loading}
+                bg={inputBg}
+                borderColor={inputBorderColor}
+                color={textColor}
+                _placeholder={{ color: mutedTextColor }}
+                _focus={{
+                  borderColor: 'blue.500',
+                  boxShadow: '0 0 0 1px blue.500',
+                }}
               />
-              <FormHelperText>
+              <FormHelperText color={mutedTextColor}>
                 Enter the full path to the directory containing images you want to ingest.
                 Supported formats: JPG, PNG, DNG, and more.
               </FormHelperText>
             </FormControl>
 
-            <Text fontSize="sm" color="gray.600">
+            <Text fontSize="sm" color={mutedTextColor}>
               <strong>Example paths:</strong><br />
-              • Windows: <code>C:\Users\username\Pictures\vacation</code><br />
-              • macOS/Linux: <code>/Users/username/Pictures/vacation</code>
+              • Windows: <Code bg={codeBg} color={textColor}>C:\Users\username\Pictures\vacation</Code><br />
+              • macOS/Linux: <Code bg={codeBg} color={textColor}>/Users/username/Pictures/vacation</Code>
             </Text>
           </VStack>
         </ModalBody>
@@ -150,6 +175,7 @@ export function AddImagesModal({ isOpen, onClose }: AddImagesModalProps) {
             mr={3} 
             onClick={handleClose}
             isDisabled={loading}
+            color={textColor}
           >
             Cancel
           </Button>

@@ -19,9 +19,17 @@ import {
   Stat,
   StatLabel,
   StatNumber,
-  StatHelpText
+  StatHelpText,
+  useColorModeValue,
+  Flex,
+  Badge,
+  Divider,
+  Progress,
+  Heading,
+  Container,
+  Sidebar
 } from '@chakra-ui/react';
-import { FiDatabase, FiPlus, FiSearch, FiActivity } from 'react-icons/fi';
+import { FiSearch, FiUpload, FiActivity, FiFolder, FiEye, FiZap, FiShield, FiDatabase } from 'react-icons/fi';
 import { Header } from '@/components/Header';
 import { CollectionModal } from '@/components/CollectionModal';
 import { AddImagesModal } from '@/components/AddImagesModal';
@@ -32,6 +40,7 @@ export default function Home() {
   const router = useRouter();
   const { collection } = useStore();
   const [backendStatus, setBackendStatus] = useState<'loading' | 'ok' | 'error'>('loading');
+  const [setupStep, setSetupStep] = useState(1);
   
   const {
     isOpen: isCollectionModalOpen,
@@ -45,208 +54,356 @@ export default function Home() {
     onClose: onAddImagesModalClose,
   } = useDisclosure();
 
+  // Dark mode aware colors
+  const bgColor = useColorModeValue('gray.50', 'gray.900');
+  const sidebarBg = useColorModeValue('white', 'gray.800');
+  const textColor = useColorModeValue('gray.800', 'white');
+  const mutedTextColor = useColorModeValue('gray.600', 'gray.300');
+  const cardBgColor = useColorModeValue('white', 'gray.800');
+  const borderColor = useColorModeValue('gray.200', 'gray.600');
+  const brandGradient = useColorModeValue(
+    'linear(to-r, blue.500, purple.600)',
+    'linear(to-r, blue.300, purple.400)'
+  );
+
   useEffect(() => {
-    const checkBackend = async () => {
+    const checkBackendHealth = async () => {
       try {
         await ping();
         setBackendStatus('ok');
-      } catch {
+      } catch (error) {
+        console.error('Backend health check failed:', error);
         setBackendStatus('error');
       }
     };
-    
-    checkBackend();
+
+    checkBackendHealth();
+    const interval = setInterval(checkBackendHealth, 30000);
+    return () => clearInterval(interval);
   }, []);
+
+  // Determine setup progress
+  useEffect(() => {
+    if (backendStatus === 'ok' && collection) {
+      setSetupStep(3); // Ready to use
+    } else if (backendStatus === 'ok') {
+      setSetupStep(2); // Need collection
+    } else {
+      setSetupStep(1); // Backend issues
+    }
+  }, [backendStatus, collection]);
+
+  const getSetupProgress = () => {
+    switch (setupStep) {
+      case 1: return { progress: 0, label: 'Connecting to services...', color: 'red' };
+      case 2: return { progress: 50, label: 'Select or create a collection', color: 'yellow' };
+      case 3: return { progress: 100, label: 'Ready to search!', color: 'green' };
+      default: return { progress: 0, label: 'Initializing...', color: 'gray' };
+    }
+  };
+
+  const setupProgress = getSetupProgress();
 
   const quickActions = [
     {
-      title: 'Manage Collections',
-      description: 'Create, select, and manage your image collections',
-      icon: FiDatabase,
+      title: 'Search Images',
+      description: 'Find images using AI-powered semantic search',
+      icon: FiSearch,
       color: 'blue',
-      action: onCollectionModalOpen,
-      disabled: backendStatus !== 'ok'
+      action: () => router.push('/search'),
+      disabled: setupStep < 3,
+      featured: true
     },
     {
       title: 'Add Images',
-      description: 'Ingest images from a folder into your collection',
-      icon: FiPlus,
+      description: 'Upload and process new images for your collection',
+      icon: FiUpload,
       color: 'green',
       action: onAddImagesModalOpen,
-      disabled: backendStatus !== 'ok' || !collection
+      disabled: setupStep < 3,
+      featured: true
     },
     {
-      title: 'Search Images',
-      description: 'Find images using natural language descriptions',
-      icon: FiSearch,
+      title: 'View Activity',
+      description: 'Monitor system activity and processing jobs',
+      icon: FiEye,
+      color: 'orange',
+      action: () => router.push('/logs'),
+      disabled: false,
+      featured: false
+    },
+    {
+      title: 'Manage Collections',
+      description: 'Create or switch between collections',
+      icon: FiFolder,
       color: 'purple',
-      action: () => router.push('/search'),
-      disabled: backendStatus !== 'ok' || !collection
+      action: onCollectionModalOpen,
+      disabled: false,
+      featured: setupStep < 3
     }
   ];
 
+  const featuredActions = quickActions.filter(action => action.featured);
+  const otherActions = quickActions.filter(action => !action.featured);
+
   return (
-    <Box>
+    <Box bg={bgColor} minH="100vh">
       <Header />
       
-      <Box p={8} maxW="6xl" mx="auto">
-        <VStack spacing={8} align="stretch">
-          {/* Welcome Section */}
-          <Box textAlign="center">
-            <Text fontSize="4xl" fontWeight="bold" mb={4}>
-              Welcome to Vibe Coding
-            </Text>
-            <Text fontSize="xl" color="gray.600" mb={6}>
-              Your AI-powered image search and management platform
-            </Text>
-            
-            {backendStatus === 'error' && (
-              <Alert status="error" mb={6}>
-                <AlertIcon />
-                Backend services are not available. Please check that the services are running.
-              </Alert>
-            )}
-          </Box>
+      <Flex>
+        {/* Sidebar */}
+        <Box
+          w="320px"
+          bg={sidebarBg}
+          borderRight="1px"
+          borderColor={borderColor}
+          h="calc(100vh - 80px)"
+          p={6}
+          overflow="auto"
+        >
+          <VStack spacing={6} align="stretch">
+            {/* Setup Progress */}
+            <Box>
+              <Text fontSize="sm" fontWeight="semibold" mb={3} color={textColor}>
+                Setup Progress
+              </Text>
+              <VStack spacing={3} align="stretch">
+                <Progress 
+                  value={setupProgress.progress} 
+                  colorScheme={setupProgress.color}
+                  size="sm"
+                  bg={useColorModeValue('gray.100', 'gray.700')}
+                />
+                <Text fontSize="sm" color={mutedTextColor}>
+                  {setupProgress.label}
+                </Text>
+              </VStack>
+            </Box>
 
-          {/* Status Overview */}
-          <SimpleGrid columns={{ base: 1, md: 3 }} spacing={6}>
-            <Card>
-              <CardBody textAlign="center">
-                <Stat>
-                  <StatLabel>Backend Status</StatLabel>
-                  <StatNumber color={backendStatus === 'ok' ? 'green.500' : 'red.500'}>
-                    {backendStatus === 'loading' ? 'Checking...' : 
-                     backendStatus === 'ok' ? 'Online' : 'Offline'}
-                  </StatNumber>
-                  <StatHelpText>
-                    {backendStatus === 'ok' ? 'All services running' : 'Services unavailable'}
-                  </StatHelpText>
-                </Stat>
-              </CardBody>
-            </Card>
+            <Divider />
 
-            <Card>
-              <CardBody textAlign="center">
-                <Stat>
-                  <StatLabel>Active Collection</StatLabel>
-                  <StatNumber color={collection ? 'blue.500' : 'gray.400'}>
-                    {collection || 'None'}
-                  </StatNumber>
-                  <StatHelpText>
-                    {collection ? 'Ready for operations' : 'Select a collection'}
-                  </StatHelpText>
-                </Stat>
-              </CardBody>
-            </Card>
-
-            <Card>
-              <CardBody textAlign="center">
-                <Stat>
-                  <StatLabel>System Status</StatLabel>
-                  <StatNumber color={backendStatus === 'ok' && collection ? 'green.500' : 'orange.500'}>
-                    {backendStatus === 'ok' && collection ? 'Ready' : 'Setup Required'}
-                  </StatNumber>
-                  <StatHelpText>
-                    {backendStatus === 'ok' && collection ? 'All systems go' : 'Complete setup'}
-                  </StatHelpText>
-                </Stat>
-              </CardBody>
-            </Card>
-          </SimpleGrid>
-
-          {/* Quick Actions */}
-          <Box>
-            <Text fontSize="2xl" fontWeight="bold" mb={6} textAlign="center">
-              Quick Actions
-            </Text>
-            
-            <SimpleGrid columns={{ base: 1, md: 3 }} spacing={6}>
-              {quickActions.map((action, index) => (
-                <Card 
-                  key={index} 
-                  cursor={action.disabled ? 'not-allowed' : 'pointer'}
-                  opacity={action.disabled ? 0.6 : 1}
-                  _hover={action.disabled ? {} : { shadow: 'lg', transform: 'translateY(-2px)' }}
-                  transition="all 0.2s"
-                  onClick={action.disabled ? undefined : action.action}
-                >
-                  <CardHeader textAlign="center">
-                    <Icon 
-                      as={action.icon} 
-                      boxSize={12} 
-                      color={`${action.color}.500`} 
-                      mb={4}
-                    />
-                    <Text fontSize="xl" fontWeight="semibold">
-                      {action.title}
-                    </Text>
-                  </CardHeader>
-                  <CardBody pt={0} textAlign="center">
-                    <Text color="gray.600" mb={4}>
-                      {action.description}
-                    </Text>
-                    <Button
-                      colorScheme={action.color}
-                      size="sm"
-                      isDisabled={action.disabled}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (!action.disabled) action.action();
-                      }}
-                    >
-                      {action.title}
-                    </Button>
+            {/* System Status */}
+            <Box>
+              <Text fontSize="sm" fontWeight="semibold" mb={3} color={textColor}>
+                System Status
+              </Text>
+              <VStack spacing={3} align="stretch">
+                <Card size="sm" bg={cardBgColor}>
+                  <CardBody>
+                    <Stat size="sm">
+                      <StatLabel color={mutedTextColor}>Backend Services</StatLabel>
+                      <StatNumber color={backendStatus === 'ok' ? 'green.500' : 'red.500'}>
+                        {backendStatus === 'loading' ? 'Checking...' : 
+                         backendStatus === 'ok' ? 'Online' : 'Offline'}
+                      </StatNumber>
+                      <StatHelpText color={mutedTextColor}>
+                        {backendStatus === 'ok' ? 'All services running' : 'Services unavailable'}
+                      </StatHelpText>
+                    </Stat>
                   </CardBody>
                 </Card>
-              ))}
-            </SimpleGrid>
-          </Box>
 
-          {/* Getting Started Guide */}
-          {(!collection || backendStatus !== 'ok') && (
-            <Card bg="blue.50" borderColor="blue.200">
-              <CardHeader>
-                <HStack>
-                  <Icon as={FiActivity} color="blue.500" />
-                  <Text fontSize="lg" fontWeight="semibold" color="blue.700">
-                    Getting Started
+                <Card size="sm" bg={cardBgColor}>
+                  <CardBody>
+                    <Stat size="sm">
+                      <StatLabel color={mutedTextColor}>Active Collection</StatLabel>
+                      <StatNumber color={collection ? 'blue.500' : 'gray.400'}>
+                        {collection || 'None Selected'}
+                      </StatNumber>
+                      <StatHelpText color={mutedTextColor}>
+                        {collection ? 'Ready for operations' : 'Select a collection'}
+                      </StatHelpText>
+                    </Stat>
+                  </CardBody>
+                </Card>
+              </VStack>
+            </Box>
+
+            {/* Quick Setup Actions */}
+            {setupStep < 3 && (
+              <>
+                <Divider />
+                <Box>
+                  <Text fontSize="sm" fontWeight="semibold" mb={3} color={textColor}>
+                    Next Steps
                   </Text>
-                </HStack>
-              </CardHeader>
-              <CardBody pt={0}>
-                <VStack align="start" spacing={2} color="blue.700">
-                  {backendStatus !== 'ok' && (
-                    <Text>• ⚠️ Start the backend services first</Text>
-                  )}
-                  {backendStatus === 'ok' && !collection && (
-                    <>
-                      <Text>• ✅ Backend is running</Text>
-                      <Text>• 📁 Create or select a collection to get started</Text>
-                    </>
-                  )}
-                  {backendStatus === 'ok' && collection && (
-                    <>
-                      <Text>• ✅ Backend is running</Text>
-                      <Text>• ✅ Collection &quot;{collection}&quot; is selected</Text>
-                      <Text>• 🚀 You&apos;re ready to add images and search!</Text>
-                    </>
+                  <VStack spacing={2} align="stretch">
+                    {setupStep === 1 && (
+                      <Alert status="error" size="sm">
+                        <AlertIcon />
+                        <Text fontSize="xs">Backend services unavailable</Text>
+                      </Alert>
+                    )}
+                    {setupStep === 2 && (
+                      <Button
+                        size="sm"
+                        colorScheme="blue"
+                        onClick={onCollectionModalOpen}
+                        leftIcon={<Icon as={FiFolder} />}
+                      >
+                        Select Collection
+                      </Button>
+                    )}
+                  </VStack>
+                </Box>
+              </>
+            )}
+          </VStack>
+        </Box>
+
+        {/* Main Content */}
+        <Box flex="1" p={8}>
+          <Container maxW="4xl">
+            <VStack spacing={8} align="stretch">
+              {/* Hero Section */}
+              <Box textAlign="center">
+                <VStack spacing={4}>
+                  <HStack spacing={3}>
+                    <Icon as={FiZap} boxSize={10} color="blue.500" />
+                    <Heading 
+                      size="2xl" 
+                      bgGradient={brandGradient}
+                      bgClip="text"
+                      fontWeight="bold"
+                    >
+                      Pixel Detective
+                    </Heading>
+                  </HStack>
+                  <Text fontSize="xl" color={mutedTextColor} maxW="2xl">
+                    Your AI-powered image search and management platform. 
+                    Find any image using natural language descriptions.
+                  </Text>
+                  
+                  {setupStep === 3 && (
+                    <Badge colorScheme="green" size="lg" px={3} py={1}>
+                      🎉 Ready to Search!
+                    </Badge>
                   )}
                 </VStack>
-              </CardBody>
-            </Card>
-          )}
-        </VStack>
-      </Box>
+              </Box>
+
+              {/* Featured Actions */}
+              {setupStep >= 3 && (
+                <Box>
+                  <Text fontSize="xl" fontWeight="bold" mb={6} color={textColor}>
+                    Start Exploring
+                  </Text>
+                  
+                  <SimpleGrid columns={{ base: 1, md: 2 }} spacing={6}>
+                    {featuredActions.map((action, index) => (
+                      <Card 
+                        key={index} 
+                        cursor={action.disabled ? 'not-allowed' : 'pointer'}
+                        opacity={action.disabled ? 0.6 : 1}
+                        _hover={action.disabled ? {} : { 
+                          shadow: 'xl', 
+                          transform: 'translateY(-4px)',
+                          borderColor: `${action.color}.500`
+                        }}
+                        transition="all 0.3s"
+                        onClick={action.disabled ? undefined : action.action}
+                        bg={cardBgColor}
+                        borderWidth="2px"
+                        borderColor="transparent"
+                        size="lg"
+                      >
+                        <CardHeader>
+                          <HStack>
+                            <Icon 
+                              as={action.icon} 
+                              boxSize={8} 
+                              color={`${action.color}.500`} 
+                            />
+                            <VStack align="start" spacing={1} flex="1">
+                              <Text fontWeight="bold" fontSize="lg" color={textColor}>
+                                {action.title}
+                              </Text>
+                              <Text fontSize="sm" color={mutedTextColor}>
+                                {action.description}
+                              </Text>
+                            </VStack>
+                          </HStack>
+                        </CardHeader>
+                      </Card>
+                    ))}
+                  </SimpleGrid>
+                </Box>
+              )}
+
+              {/* Setup Guidance */}
+              {setupStep < 3 && (
+                <Box>
+                  <Text fontSize="xl" fontWeight="bold" mb={6} color={textColor}>
+                    Getting Started
+                  </Text>
+                  
+                  <Card bg={cardBgColor} p={6}>
+                    <VStack spacing={4} align="start">
+                      <HStack>
+                        <Icon as={FiShield} color="blue.500" boxSize={6} />
+                        <Text fontWeight="semibold" color={textColor}>
+                          Set up your first collection
+                        </Text>
+                      </HStack>
+                      <Text color={mutedTextColor}>
+                        Collections help organize your images. Create one to get started 
+                        with searching and managing your image library.
+                      </Text>
+                      <Button
+                        colorScheme="blue"
+                        onClick={onCollectionModalOpen}
+                        leftIcon={<Icon as={FiDatabase} />}
+                        isDisabled={backendStatus !== 'ok'}
+                      >
+                        {backendStatus !== 'ok' ? 'Waiting for Backend...' : 'Create Collection'}
+                      </Button>
+                    </VStack>
+                  </Card>
+                </Box>
+              )}
+
+              {/* Other Actions */}
+              <Box>
+                <Text fontSize="lg" fontWeight="semibold" mb={4} color={textColor}>
+                  Additional Tools
+                </Text>
+                
+                <SimpleGrid columns={{ base: 1, md: 2, lg: 4 }} spacing={4}>
+                  {otherActions.map((action, index) => (
+                    <Card 
+                      key={index} 
+                      cursor={action.disabled ? 'not-allowed' : 'pointer'}
+                      opacity={action.disabled ? 0.6 : 1}
+                      _hover={action.disabled ? {} : { shadow: 'md', transform: 'translateY(-2px)' }}
+                      transition="all 0.2s"
+                      onClick={action.disabled ? undefined : action.action}
+                      bg={cardBgColor}
+                      size="sm"
+                    >
+                      <CardBody textAlign="center">
+                        <VStack spacing={2}>
+                          <Icon 
+                            as={action.icon} 
+                            boxSize={6} 
+                            color={`${action.color}.500`} 
+                          />
+                          <Text fontWeight="semibold" fontSize="sm" color={textColor}>
+                            {action.title}
+                          </Text>
+                        </VStack>
+                      </CardBody>
+                    </Card>
+                  ))}
+                </SimpleGrid>
+              </Box>
+            </VStack>
+          </Container>
+        </Box>
+      </Flex>
 
       {/* Modals */}
-      <CollectionModal 
-        isOpen={isCollectionModalOpen} 
-        onClose={onCollectionModalClose} 
-      />
-      <AddImagesModal 
-        isOpen={isAddImagesModalOpen} 
-        onClose={onAddImagesModalClose} 
-      />
+      <CollectionModal isOpen={isCollectionModalOpen} onClose={onCollectionModalClose} />
+      <AddImagesModal isOpen={isAddImagesModalOpen} onClose={onAddImagesModalClose} />
     </Box>
   );
 }

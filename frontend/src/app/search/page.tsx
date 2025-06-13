@@ -17,18 +17,29 @@ import {
   AlertIcon,
   Spinner,
   InputGroup,
-  InputRightElement
+  InputRightElement,
+  useColorModeValue
 } from '@chakra-ui/react';
 import { Header } from '@/components/Header';
 import { useStore } from '@/store/useStore';
 import { api } from '@/lib/api';
 
 interface SearchResult {
-  filename: string;
+  id: string;
+  filename?: string;
   caption?: string;
   score: number;
   thumbnail_url?: string;
-  file_path?: string;
+  payload?: Record<string, any>;
+}
+
+interface TextSearchResponse {
+  total_approx: number;
+  page: number;
+  per_page: number;
+  results: SearchResult[];
+  query: string;
+  embedding_model?: string;
 }
 
 export default function SearchPage() {
@@ -37,6 +48,16 @@ export default function SearchPage() {
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
+  const [searchInfo, setSearchInfo] = useState<{model?: string, total?: number}>({});
+
+  // Dark mode aware colors
+  const bgColor = useColorModeValue('gray.50', 'gray.900');
+  const textColor = useColorModeValue('gray.800', 'white');
+  const mutedTextColor = useColorModeValue('gray.600', 'gray.300');
+  const cardBgColor = useColorModeValue('white', 'gray.800');
+  const tipsBgColor = useColorModeValue('gray.50', 'gray.800');
+  const inputBgColor = useColorModeValue('white', 'gray.700');
+  const inputBorderColor = useColorModeValue('gray.200', 'gray.600');
 
   const handleSearch = async () => {
     if (!collection) {
@@ -49,16 +70,22 @@ export default function SearchPage() {
 
     try {
       setLoading(true);
-      const response = await api.post<SearchResult[]>('/api/v1/search', {
-        embedding: query.trim(),
-        limit: 10
+      const response = await api.post<TextSearchResponse>('/api/v1/search/text', {
+        text: query.trim(),
+        limit: 12,
+        offset: 0
       });
 
-      setResults(response.data);
+      setResults(response.data.results);
+      setSearchInfo({
+        model: response.data.embedding_model,
+        total: response.data.total_approx
+      });
       setHasSearched(true);
     } catch (error) {
       console.error('Search failed:', error);
       setResults([]);
+      setSearchInfo({});
       setHasSearched(true);
     } finally {
       setLoading(false);
@@ -72,19 +99,26 @@ export default function SearchPage() {
   };
 
   return (
-    <Box>
+    <Box bg={bgColor} minH="100vh">
       <Header />
       <Box p={8} maxW="6xl" mx="auto">
         <VStack spacing={6} align="stretch">
           {/* Search Header */}
           <Box textAlign="center">
-            <Text fontSize="3xl" fontWeight="bold" mb={2}>
-              Search Your Collection
+            <Text fontSize="3xl" fontWeight="bold" mb={2} color={textColor}>
+              AI-Powered Image Search
             </Text>
             {collection ? (
-              <Text color="blue.600" fontSize="lg">
-                Searching in: {collection}
-              </Text>
+              <VStack spacing={2}>
+                <Text color="blue.500" fontSize="lg">
+                  Searching in: {collection}
+                </Text>
+                {searchInfo.model && (
+                  <Text fontSize="sm" color={mutedTextColor}>
+                    Powered by {searchInfo.model}
+                  </Text>
+                )}
+              </VStack>
             ) : (
               <Alert status="warning" mb={4}>
                 <AlertIcon />
@@ -102,6 +136,14 @@ export default function SearchPage() {
                 onChange={(e) => setQuery(e.target.value)}
                 onKeyPress={handleKeyPress}
                 isDisabled={!collection || loading}
+                bg={inputBgColor}
+                borderColor={inputBorderColor}
+                color={textColor}
+                _placeholder={{ color: mutedTextColor }}
+                _focus={{
+                  borderColor: 'blue.500',
+                  boxShadow: '0 0 0 1px blue.500'
+                }}
               />
               <InputRightElement width="4.5rem">
                 <Button
@@ -122,8 +164,8 @@ export default function SearchPage() {
           {loading && (
             <Box textAlign="center" py={8}>
               <Spinner size="xl" color="blue.500" />
-              <Text mt={4} color="gray.600">
-                Searching through your images...
+              <Text mt={4} color={mutedTextColor}>
+                Analyzing your query and searching through images...
               </Text>
             </Box>
           )}
@@ -132,31 +174,38 @@ export default function SearchPage() {
           {!loading && hasSearched && (
             <Box>
               <HStack justify="space-between" align="center" mb={4}>
-                <Text fontSize="xl" fontWeight="semibold">
+                <Text fontSize="xl" fontWeight="semibold" color={textColor}>
                   Search Results
                 </Text>
-                <Badge colorScheme="blue" fontSize="sm">
-                  {results.length} results
-                </Badge>
+                <HStack spacing={3}>
+                  <Badge colorScheme="blue" fontSize="sm">
+                    {results.length} results
+                  </Badge>
+                  {searchInfo.total && searchInfo.total > results.length && (
+                    <Badge colorScheme="gray" fontSize="sm">
+                      ~{searchInfo.total} total
+                    </Badge>
+                  )}
+                </HStack>
               </HStack>
 
               {results.length === 0 ? (
                 <Box textAlign="center" py={8}>
-                  <Text fontSize="lg" color="gray.500">
+                  <Text fontSize="lg" color={mutedTextColor}>
                     No results found for &quot;{query}&quot;
                   </Text>
-                  <Text color="gray.400" mt={2}>
+                  <Text color={mutedTextColor} mt={2}>
                     Try different keywords or make sure your collection has images.
                   </Text>
                 </Box>
               ) : (
                 <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={6}>
                   {results.map((result, index) => (
-                    <Card key={index} overflow="hidden" shadow="md">
+                    <Card key={result.id || index} overflow="hidden" shadow="md" bg={cardBgColor}>
                       <Box position="relative">
                         <Image
                           src={result.thumbnail_url || '/placeholder-image.png'}
-                          alt={result.filename}
+                          alt={result.filename || `Result ${index + 1}`}
                           objectFit="cover"
                           w="full"
                           h="200px"
@@ -175,17 +224,20 @@ export default function SearchPage() {
                       </Box>
                       <CardBody>
                         <VStack align="start" spacing={2}>
-                          <Text fontWeight="semibold" fontSize="sm" noOfLines={1}>
-                            {result.filename}
+                          <Text fontWeight="semibold" fontSize="sm" noOfLines={1} color={textColor}>
+                            {result.filename || `Image ${index + 1}`}
                           </Text>
                           {result.caption && (
-                            <Text fontSize="xs" color="gray.600" noOfLines={2}>
+                            <Text fontSize="xs" color={mutedTextColor} noOfLines={2}>
                               {result.caption}
                             </Text>
                           )}
                           <HStack justify="space-between" w="full">
-                            <Text fontSize="xs" color="gray.500">
+                            <Text fontSize="xs" color={mutedTextColor}>
                               Match: {Math.round(result.score * 100)}%
+                            </Text>
+                            <Text fontSize="xs" color={mutedTextColor}>
+                              ID: {result.id}
                             </Text>
                           </HStack>
                         </VStack>
@@ -199,15 +251,16 @@ export default function SearchPage() {
 
           {/* Search Tips */}
           {!hasSearched && (
-            <Box bg="gray.50" p={6} borderRadius="md">
-              <Text fontWeight="semibold" mb={3}>
-                💡 Search Tips:
+            <Box bg={tipsBgColor} p={6} borderRadius="md" border="1px" borderColor={inputBorderColor}>
+              <Text fontWeight="semibold" mb={3} color={textColor}>
+                💡 AI Search Tips:
               </Text>
-              <VStack align="start" spacing={1} fontSize="sm" color="gray.600">
-                <Text>• Describe what you see: &quot;red car in parking lot&quot;</Text>
-                <Text>• Use emotions: &quot;happy people&quot;, &quot;peaceful landscape&quot;</Text>
-                <Text>• Try colors and objects: &quot;blue sky&quot;, &quot;wooden table&quot;</Text>
-                <Text>• Be specific: &quot;dog running on beach&quot; vs just &quot;dog&quot;</Text>
+              <VStack align="start" spacing={1} fontSize="sm" color={mutedTextColor}>
+                <Text>• <strong>Be descriptive:</strong> &quot;red car in parking lot&quot;</Text>
+                <Text>• <strong>Use emotions:</strong> &quot;happy people&quot;, &quot;peaceful landscape&quot;</Text>
+                <Text>• <strong>Mention colors/objects:</strong> &quot;blue sky&quot;, &quot;wooden table&quot;</Text>
+                <Text>• <strong>Be specific:</strong> &quot;dog running on beach&quot; vs just &quot;dog&quot;</Text>
+                <Text>• <strong>Try actions:</strong> &quot;person jumping&quot;, &quot;cat sleeping&quot;</Text>
               </VStack>
             </Box>
           )}

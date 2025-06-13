@@ -1,13 +1,21 @@
 'use client';
 
-import { Box, Flex, Text, Badge } from '@chakra-ui/react';
+import { Box, Flex, Text, Badge, useColorModeValue, HStack, Icon } from '@chakra-ui/react';
+import { FiZap } from 'react-icons/fi';
 import { useStore } from '@/store/useStore';
 import { useEffect, useState } from 'react';
 import { ping } from '@/lib/api';
+import { ColorModeButton } from '@/components/ui/color-mode';
 
 export function Header() {
   const { collection } = useStore();
   const [healthStatus, setHealthStatus] = useState<'loading' | 'ok' | 'error'>('loading');
+
+  // Dark mode aware colors
+  const bgColor = useColorModeValue('white', 'gray.800');
+  const borderColor = useColorModeValue('gray.200', 'gray.600');
+  const textColor = useColorModeValue('gray.800', 'white');
+  const mutedTextColor = useColorModeValue('gray.600', 'gray.300');
 
   useEffect(() => {
     const checkHealth = async () => {
@@ -33,15 +41,18 @@ export function Header() {
   };
 
   return (
-    <Box bg="white" shadow="sm" px={6} py={4} borderBottom="1px" borderColor="gray.200">
+    <Box bg={bgColor} shadow="sm" px={6} py={4} borderBottom="1px" borderColor={borderColor}>
       <Flex justify="space-between" align="center">
-        <Text fontSize="xl" fontWeight="bold" color="gray.800">
-          Vibe Coding - Image Search
-        </Text>
+        <HStack spacing={2}>
+          <Icon as={FiZap} color="blue.500" boxSize={5} />
+          <Text fontSize="xl" fontWeight="bold" color={textColor}>
+            Pixel Detective
+          </Text>
+        </HStack>
         
         <Flex align="center" gap={4}>
           <Flex align="center" gap={2}>
-            <Text fontSize="sm" color="gray.600">Backend:</Text>
+            <Text fontSize="sm" color={mutedTextColor}>Backend:</Text>
             <Badge 
               colorScheme={getStatusColor()} 
               data-testid={`status-${healthStatus}`}
@@ -52,10 +63,12 @@ export function Header() {
           
           {collection && (
             <Flex align="center" gap={2}>
-              <Text fontSize="sm" color="gray.600">Collection:</Text>
+              <Text fontSize="sm" color={mutedTextColor}>Collection:</Text>
               <Badge colorScheme="blue">{collection}</Badge>
             </Flex>
           )}
+
+          <ColorModeButton />
         </Flex>
       </Flex>
     </Box>

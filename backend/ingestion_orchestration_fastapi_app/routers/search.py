@@ -3,6 +3,8 @@ from qdrant_client import QdrantClient
 from qdrant_client.http.models import Filter, FieldCondition, Range, PointStruct, Distance, VectorParams, SearchRequest
 from typing import List, Dict, Any, Optional
 import logging
+import httpx
+from pydantic import BaseModel, Field
 
 # Assuming main.py is in the parent directory of 'routers'
 # Adjust the import path if your structure is different.
@@ -48,16 +50,27 @@ router = APIRouter()
 #     limit: int = 10
 #     offset: int = 0
 
-# class SearchResultItem(BaseModel):
-#     id: str
-#     payload: Dict[str, Any]
-#     score: float
+class TextSearchRequest(BaseModel):
+    text: str
+    filters: Optional[Dict[str, Any]] = None
+    limit: int = Field(default=10, ge=1, le=100)
+    offset: int = Field(default=0, ge=0)
 
-# class SearchResponse(BaseModel):
-#     total: int
-#     page: int
-#     per_page: int
-#     results: List[SearchResultItem]
+class SearchResultItem(BaseModel):
+    id: str
+    payload: Dict[str, Any]
+    score: float
+    filename: Optional[str] = None
+    caption: Optional[str] = None
+    thumbnail_url: Optional[str] = None
+
+class TextSearchResponse(BaseModel):
+    total_approx: int
+    page: int
+    per_page: int
+    results: List[SearchResultItem]
+    query: str
+    embedding_model: Optional[str] = None
 
 @router.post("/search", summary="Search images by vector and filters")
 async def search_images(
@@ -141,5 +154,112 @@ async def search_images(
     except Exception as e:
         logger.error(f"Error during image search: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Internal server error during search: {str(e)}")
+
+@router.post("/search/text", response_model=TextSearchResponse, summary="Search images by text query")
+async def search_images_by_text(
+    request: TextSearchRequest,
+    qdrant: QdrantClient = Depends(get_qdrant_dependency)
+):
+    """
+    Search for images using natural language text queries.
+    Converts text to embeddings via ML service, then searches Qdrant.
+    """
+    text = request.text.strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="Text query cannot be empty")
+    
+    logger.info(f"Text search request: '{text[:50]}{'...' if len(text) > 50 else ''}' (limit={request.limit}, offset={request.offset})")
+    
+    try:
+        # Step 1: Convert text to embedding via ML service
+        ml_service_url = "http://localhost:8001/api/v1/embed_text"  # TODO: Make configurable
+        
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            ml_response = await client.post(
+                ml_service_url,
+                json={"text": text, "description": f"Search query: {text}"}
+            )
+            
+            if ml_response.status_code != 200:
+                logger.error(f"ML service error: {ml_response.status_code} - {ml_response.text}")
+                raise HTTPException(
+                    status_code=503, 
+                    detail=f"ML service unavailable for text embedding: {ml_response.status_code}"
+                )
+            
+            ml_data = ml_response.json()
+            embedding = ml_data["embedding"]
+            embedding_model = ml_data.get("model_name", "unknown")
+            
+            logger.info(f"Generated embedding: shape={len(embedding)}, model={embedding_model}")
+        
+        # Step 2: Search Qdrant with the embedding
+        COLLECTION_NAME = "images"  # TODO: Make configurable or dynamic
+        
+        qdrant_filter = None
+        if request.filters:
+            must_conditions = []
+            for key, value in request.filters.items():
+                if isinstance(value, dict) and "gte" in value and "lte" in value:
+                    must_conditions.append(FieldCondition(key=key, range=Range(gte=value["gte"], lte=value["lte"])))
+                elif isinstance(value, list):
+                    should_conditions = [FieldCondition(key=key, match={"value": v}) for v in value]
+                    if should_conditions:
+                        must_conditions.append(Filter(should=should_conditions))
+                else:
+                    must_conditions.append(FieldCondition(key=key, match={"value": value}))
+            
+            if must_conditions:
+                qdrant_filter = Filter(must=must_conditions)
+        
+        search_result = qdrant.search(
+            collection_name=COLLECTION_NAME,
+            query_vector=embedding,
+            query_filter=qdrant_filter,
+            limit=request.limit,
+            offset=request.offset,
+            with_payload=True,
+            with_vectors=False
+        )
+        
+        # Step 3: Format results for frontend
+        results = []
+        for hit in search_result:
+            # Extract common fields from payload
+            payload = hit.payload or {}
+            result_item = SearchResultItem(
+                id=str(hit.id),
+                payload=payload,
+                score=float(hit.score),
+                filename=payload.get("filename"),
+                caption=payload.get("caption"),
+                thumbnail_url=payload.get("thumbnail_url")  # Will be None for now, implement later
+            )
+            results.append(result_item)
+        
+        # Approximate total calculation
+        total_hits_approximation = request.offset + len(results)
+        if len(results) == request.limit:
+            total_hits_approximation += request.limit
+        
+        logger.info(f"Text search completed: {len(results)} results found")
+        
+        return TextSearchResponse(
+            total_approx=total_hits_approximation,
+            page=(request.offset // request.limit) + 1 if request.limit > 0 else 1,
+            per_page=request.limit,
+            results=results,
+            query=text,
+            embedding_model=embedding_model
+        )
+        
+    except httpx.RequestError as e:
+        logger.error(f"Network error connecting to ML service: {e}")
+        raise HTTPException(status_code=503, detail="ML service unavailable for text embedding")
+    except HTTPException:
+        raise  # Re-raise HTTP exceptions
+    except Exception as e:
+        logger.error(f"Error during text search: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Internal server error during text search: {str(e)}")
 
 # Placeholder for further Pydantic models and refinements 

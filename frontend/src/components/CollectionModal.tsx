@@ -16,7 +16,8 @@ import {
   Box,
   useToast,
   Spinner,
-  Badge
+  Badge,
+  useColorModeValue
 } from '@chakra-ui/react';
 import { useState, useEffect, useCallback } from 'react';
 import { useStore } from '@/store/useStore';
@@ -35,29 +36,49 @@ export function CollectionModal({ isOpen, onClose }: CollectionModalProps) {
   const [creating, setCreating] = useState(false);
   const toast = useToast();
 
-  const fetchCollections = useCallback(async () => {
+  // Dark mode aware colors
+  const overlayBg = useColorModeValue('blackAlpha.300', 'blackAlpha.600');
+  const contentBg = useColorModeValue('white', 'gray.800');
+  const textColor = useColorModeValue('gray.800', 'white');
+  const mutedTextColor = useColorModeValue('gray.500', 'gray.400');
+  const inputBg = useColorModeValue('white', 'gray.700');
+  const inputBorderColor = useColorModeValue('gray.300', 'gray.600');
+  const cardBg = useColorModeValue('white', 'gray.700');
+  const selectedCardBg = useColorModeValue('blue.50', 'blue.900');
+  const cardBorderColor = useColorModeValue('gray.200', 'gray.600');
+
+  const loadCollections = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await api.get<string[]>('/api/v1/collections');
+      const response = await api.get('/api/v1/collections');
       setCollections(response.data);
-    } catch {
+    } catch (error) {
+      console.error('Failed to load collections:', error);
       toast({
-        title: 'Error fetching collections',
-        description: 'Could not load collections from the server',
+        title: 'Error loading collections',
+        description: 'Could not fetch collection list from server',
         status: 'error',
         duration: 3000,
         isClosable: true,
       });
+      // Fallback to empty array on error
+      setCollections([]);
     } finally {
       setLoading(false);
     }
   }, [toast]);
 
+  useEffect(() => {
+    if (isOpen) {
+      loadCollections();
+    }
+  }, [isOpen, loadCollections]);
+
   const createCollection = async () => {
     if (!newCollectionName.trim()) {
       toast({
-        title: 'Invalid name',
-        description: 'Please enter a collection name',
+        title: 'Collection name required',
+        description: 'Please enter a name for the new collection',
         status: 'warning',
         duration: 3000,
         isClosable: true,
@@ -67,24 +88,29 @@ export function CollectionModal({ isOpen, onClose }: CollectionModalProps) {
 
     try {
       setCreating(true);
+      const newName = newCollectionName.trim();
+      
+      // Create collection via API
       await api.post('/api/v1/collections', {
-        collection_name: newCollectionName.trim()
+        collection_name: newName
       });
+      
+      // Update local state
+      setCollections(prev => [...prev, newName]);
+      setNewCollectionName('');
       
       toast({
         title: 'Collection created',
-        description: `Collection "${newCollectionName}" created successfully`,
+        description: `Collection "${newName}" has been created successfully`,
         status: 'success',
         duration: 3000,
         isClosable: true,
       });
-      
-      setNewCollectionName('');
-      await fetchCollections();
-    } catch {
+    } catch (error) {
+      console.error('Failed to create collection:', error);
       toast({
         title: 'Error creating collection',
-        description: 'Could not create the collection',
+        description: 'Could not create the collection. Please try again.',
         status: 'error',
         duration: 3000,
         isClosable: true,
@@ -96,24 +122,26 @@ export function CollectionModal({ isOpen, onClose }: CollectionModalProps) {
 
   const selectCollection = async (collectionName: string) => {
     try {
+      // Call API to select collection
       await api.post('/api/v1/collections/select', {
         collection_name: collectionName
       });
       
+      // Update local state
       setCollection(collectionName);
       toast({
         title: 'Collection selected',
-        description: `Now using collection "${collectionName}"`,
+        description: `Now using collection: ${collectionName}`,
         status: 'success',
-        duration: 3000,
+        duration: 2000,
         isClosable: true,
       });
-      
       onClose();
-    } catch {
+    } catch (error) {
+      console.error('Failed to select collection:', error);
       toast({
         title: 'Error selecting collection',
-        description: 'Could not select the collection',
+        description: 'Could not select the collection. Please try again.',
         status: 'error',
         duration: 3000,
         isClosable: true,
@@ -121,51 +149,60 @@ export function CollectionModal({ isOpen, onClose }: CollectionModalProps) {
     }
   };
 
-  useEffect(() => {
-    if (isOpen) {
-      fetchCollections();
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !creating) {
+      createCollection();
     }
-  }, [isOpen, fetchCollections]);
+  };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} size="md">
-      <ModalOverlay />
-      <ModalContent>
-        <ModalHeader>Manage Collections</ModalHeader>
-        <ModalCloseButton />
-        
+    <Modal isOpen={isOpen} onClose={onClose} size="lg">
+      <ModalOverlay bg={overlayBg} />
+      <ModalContent bg={contentBg}>
+        <ModalHeader color={textColor}>Manage Collections</ModalHeader>
+        <ModalCloseButton color={textColor} />
         <ModalBody>
-          <VStack spacing={4} align="stretch">
-            {/* Create new collection */}
+          <VStack spacing={6} align="stretch">
+            {/* Create New Collection */}
             <Box>
-              <Text fontWeight="semibold" mb={2}>Create New Collection</Text>
-              <HStack>
+              <Text fontWeight="semibold" mb={3} color={textColor}>Create New Collection</Text>
+              <HStack spacing={3}>
                 <Input
-                  placeholder="Enter collection name"
+                  placeholder="Enter collection name..."
                   value={newCollectionName}
                   onChange={(e) => setNewCollectionName(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && createCollection()}
+                  onKeyPress={handleKeyPress}
+                  isDisabled={creating}
+                  bg={inputBg}
+                  borderColor={inputBorderColor}
+                  color={textColor}
+                  _placeholder={{ color: mutedTextColor }}
+                  _focus={{
+                    borderColor: 'blue.500',
+                    boxShadow: '0 0 0 1px blue.500',
+                  }}
                 />
                 <Button
                   colorScheme="blue"
                   onClick={createCollection}
                   isLoading={creating}
-                  loadingText="Creating"
+                  isDisabled={!newCollectionName.trim()}
+                  loadingText="Creating..."
                 >
                   Create
                 </Button>
               </HStack>
             </Box>
 
-            {/* List existing collections */}
+            {/* Existing Collections */}
             <Box>
-              <Text fontWeight="semibold" mb={2}>Existing Collections</Text>
+              <Text fontWeight="semibold" mb={2} color={textColor}>Existing Collections</Text>
               {loading ? (
                 <Box textAlign="center" py={4}>
-                  <Spinner />
+                  <Spinner color="blue.500" />
                 </Box>
               ) : collections.length === 0 ? (
-                <Text color="gray.500" textAlign="center" py={4}>
+                <Text color={mutedTextColor} textAlign="center" py={4}>
                   No collections found. Create one above.
                 </Text>
               ) : (
@@ -175,13 +212,15 @@ export function CollectionModal({ isOpen, onClose }: CollectionModalProps) {
                       key={col}
                       p={3}
                       border="1px"
-                      borderColor="gray.200"
+                      borderColor={cardBorderColor}
                       borderRadius="md"
                       justify="space-between"
-                      bg={collection === col ? 'blue.50' : 'white'}
+                      bg={collection === col ? selectedCardBg : cardBg}
+                      transition="all 0.2s"
+                      _hover={{ shadow: 'sm' }}
                     >
                       <HStack>
-                        <Text>{col}</Text>
+                        <Text color={textColor}>{col}</Text>
                         {collection === col && (
                           <Badge colorScheme="blue" size="sm">Active</Badge>
                         )}
@@ -204,7 +243,7 @@ export function CollectionModal({ isOpen, onClose }: CollectionModalProps) {
         </ModalBody>
 
         <ModalFooter>
-          <Button onClick={onClose}>Close</Button>
+          <Button onClick={onClose} color={textColor} variant="ghost">Close</Button>
         </ModalFooter>
       </ModalContent>
     </Modal>

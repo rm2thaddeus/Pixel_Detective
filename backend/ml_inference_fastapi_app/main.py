@@ -234,6 +234,11 @@ async def shutdown_event():
 async def root():
     return {"message": "ML Inference Service is running", "device": str(device)}
 
+@app.get("/health")
+async def health():
+    """Health check endpoint for the ML Inference Service."""
+    return {"service": "ML Inference Service", "status": "ok", "device": str(device)}
+
 class EmbedRequest(BaseModel):
     image_base64: str
     filename: str # Optional, for logging/context
@@ -286,6 +291,67 @@ async def embed_image_endpoint_v1(request: EmbedRequest = Body(...)):
 class CaptionRequest(BaseModel):
     image_base64: str
     filename: str # Optional, for logging/context
+
+class TextEmbedRequest(BaseModel):
+    text: str
+    description: str = "Text query for embedding"  # Optional, for logging/context
+
+class TextEmbedResponse(BaseModel):
+    embedding: List[float]
+    embedding_shape: List[int]
+    text: str
+    model_name: str
+    device_used: str
+
+@v1_router.post("/embed_text", response_model=TextEmbedResponse)
+async def embed_text_endpoint_v1(request: TextEmbedRequest = Body(...)):
+    """
+    Generate CLIP text embeddings for semantic search.
+    
+    Args:
+        request: TextEmbedRequest containing the text to embed
+        
+    Returns:
+        TextEmbedResponse containing the normalized embedding vector
+    """
+    text = request.text.strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="Text cannot be empty")
+    
+    if not clip_model_instance:
+        raise HTTPException(status_code=503, detail="CLIP model not loaded")
+    
+    logger.info(f"Generating text embedding for: '{text[:50]}{'...' if len(text) > 50 else ''}'")
+    
+    try:
+        # Tokenize and encode text
+        text_tokens = clip.tokenize([text]).to(device)
+        
+        # Generate embeddings with GPU lock
+        async with gpu_lock:
+            with torch.inference_mode():
+                with torch.cuda.amp.autocast(enabled=(device.type == "cuda")):
+                    text_features = clip_model_instance.encode_text(text_tokens)
+                    # Normalize the features
+                    text_features /= text_features.norm(dim=-1, keepdim=True)
+        
+        # Convert to CPU and list format
+        embedding = text_features.cpu().numpy().flatten().tolist()
+        embedding_shape = list(text_features.shape)
+        
+        logger.info(f"Generated text embedding: shape={embedding_shape}, first_few_values={embedding[:3]}")
+        
+        return TextEmbedResponse(
+            embedding=embedding,
+            embedding_shape=embedding_shape,
+            text=text,
+            model_name=CLIP_MODEL_NAME_CONFIG,
+            device_used=str(device)
+        )
+        
+    except Exception as e:
+        logger.error(f"Error generating text embedding: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to generate text embedding: {str(e)}")
 
 @v1_router.post("/caption", response_model=Dict[str, Any])
 async def caption_image_endpoint_v1(request: CaptionRequest = Body(...)):

@@ -2,12 +2,31 @@
 
 // Import polyfill first
 import '@/lib/polyfills'
-import { ChakraProvider } from '@chakra-ui/react'
+import { ChakraProvider, extendTheme, type ThemeConfig } from '@chakra-ui/react'
 import { ReactNode } from 'react'
+
+// 1. Create a theme configuration
+const config: ThemeConfig = {
+  initialColorMode: 'system', // 'dark' | 'light' | 'system'
+  useSystemColorMode: true,
+}
+
+// 2. Extend the theme to include the color mode config
+const theme = extendTheme({
+  config,
+  styles: {
+    global: (props: any) => ({
+      body: {
+        bg: props.colorMode === 'dark' ? 'gray.900' : 'white',
+        color: props.colorMode === 'dark' ? 'white' : 'gray.800',
+      },
+    }),
+  },
+})
 
 export function Provider({ children }: { children: ReactNode }) {
   return (
-    <ChakraProvider>
+    <ChakraProvider theme={theme}>
       {children}
     </ChakraProvider>
   )

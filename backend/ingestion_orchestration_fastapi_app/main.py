@@ -578,6 +578,98 @@ v1_router.include_router(images_router.router, prefix="/images", tags=["Qdrant I
 v1_router.include_router(duplicates_router.router, prefix="/duplicates", tags=["Qdrant Duplicate Detection Extensions"]) # Path from plan
 v1_router.include_router(random_router.router, prefix="/random", tags=["Qdrant Random Image Extensions"]) # Path from plan
 
+# --- Text Search Endpoint ---
+class TextSearchRequest(BaseModel):
+    text: str
+    limit: int = 10
+    offset: int = 0
+
+class SearchResultItem(BaseModel):
+    id: str
+    filename: str
+    caption: Optional[str] = None
+    score: float
+    thumbnail_url: Optional[str] = None
+    payload: Optional[Dict[str, Any]] = None
+
+class TextSearchResponse(BaseModel):
+    total_approx: int
+    page: int
+    per_page: int
+    results: List[SearchResultItem]
+    query: str
+    embedding_model: Optional[str] = None
+
+@v1_router.post("/search/text", response_model=TextSearchResponse)
+async def search_text_v1(request: TextSearchRequest, q_client: QdrantClient = Depends(get_qdrant_dependency)):
+    """
+    Search images using natural language text queries.
+    Converts text to embedding using ML service and searches Qdrant.
+    """
+    global active_collection_name
+    if not active_collection_name:
+        raise HTTPException(status_code=400, detail="No collection selected. Please select a collection first.")
+    
+    try:
+        # Step 1: Convert text to embedding using ML service
+        logger.info(f"Converting text query to embedding: '{request.text[:50]}{'...' if len(request.text) > 50 else ''}'")
+        
+        async with httpx.AsyncClient() as client:
+            ml_response = await client.post(
+                f"{ML_INFERENCE_SERVICE_URL}/api/v1/embed_text",
+                json={"text": request.text}
+            )
+            
+        if ml_response.status_code != 200:
+            logger.error(f"ML service failed to generate text embedding: {ml_response.status_code} - {ml_response.text}")
+            raise HTTPException(status_code=500, detail="Failed to generate text embedding from ML service")
+        
+        ml_data = ml_response.json()
+        text_embedding = ml_data["embedding"]
+        embedding_model = ml_data.get("model_name", "unknown")
+        
+        logger.info(f"Text embedding generated: {len(text_embedding)} dimensions using {embedding_model}")
+        
+        # Step 2: Search Qdrant with the embedding
+        search_results = await asyncio.to_thread(
+            q_client.search,
+            collection_name=active_collection_name,
+            query_vector=text_embedding,
+            limit=request.limit,
+            offset=request.offset,
+            with_payload=True
+        )
+        
+        # Step 3: Format results
+        formatted_results = []
+        for result in search_results:
+            result_item = SearchResultItem(
+                id=str(result.id),
+                filename=result.payload.get("filename", "unknown"),
+                caption=result.payload.get("caption"),
+                score=float(result.score),
+                thumbnail_url=f"/api/v1/thumbnail/{result.id}",  # TODO: Implement thumbnail endpoint
+                payload=result.payload
+            )
+            formatted_results.append(result_item)
+        
+        logger.info(f"Text search returned {len(formatted_results)} results")
+        
+        return TextSearchResponse(
+            total_approx=len(formatted_results),  # TODO: Get actual total count from Qdrant
+            page=request.offset // request.limit + 1,
+            per_page=request.limit,
+            results=formatted_results,
+            query=request.text,
+            embedding_model=embedding_model
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in text search: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Text search failed: {str(e)}")
+
 # --- Qdrant Collection Management Endpoints ---
 class CollectionNameRequest(BaseModel):
     collection_name: str
