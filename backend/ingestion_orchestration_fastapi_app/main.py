@@ -6,6 +6,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../.
 from fastapi import FastAPI, HTTPException, APIRouter, Depends, Request, BackgroundTasks # Added BackgroundTasks
 from fastapi.responses import JSONResponse # Added JSONResponse
 from fastapi.exceptions import RequestValidationError # Added RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware # Added CORS middleware
 import httpx
 from pydantic import BaseModel
 from typing import List, Dict, Any, Tuple, Optional # Added Tuple and Optional
@@ -42,6 +43,16 @@ from .routers.duplicates import on_shutdown as duplicates_on_shutdown # Import s
 from .dependencies import get_qdrant_dependency
 
 app = FastAPI(title="Ingestion Orchestration Service")
+
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],  # Frontend URLs
+    allow_credentials=True,
+    allow_methods=["*"],  # Allow all methods
+    allow_headers=["*"],  # Allow all headers
+)
+
 # Create a router for API version 1
 v1_router = APIRouter(prefix="/api/v1")
 
@@ -413,6 +424,10 @@ async def _run_ingestion_task(
 @app.get("/")
 async def root():
     return {"message": "Ingestion Orchestration Service is running"}
+
+@app.get("/health")
+async def health():
+    return {"service": "Ingestion Orchestration Service", "status": "ok"}
 
 @app.on_event("startup")
 async def startup_event():
