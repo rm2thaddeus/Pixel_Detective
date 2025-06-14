@@ -5,7 +5,7 @@ import random # For a basic random selection if not using a specific Qdrant feat
 import logging
 from typing import Dict, Any
 
-from ..dependencies import get_qdrant_dependency, get_active_collection
+from ..dependencies import get_qdrant_client, get_active_collection
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -21,7 +21,7 @@ router = APIRouter()
 
 @router.get("/random", summary="Get a random image from the collection")
 async def get_random_image(
-    qdrant: QdrantClient = Depends(get_qdrant_dependency),
+    qdrant: QdrantClient = Depends(get_qdrant_client),
     collection_name: str = Depends(get_active_collection)
 ) -> Dict[str, Any]: # Replace with Pydantic model later
     """

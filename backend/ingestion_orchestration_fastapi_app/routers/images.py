@@ -1,10 +1,11 @@
 from fastapi import APIRouter, HTTPException, Query, Depends
 from qdrant_client import QdrantClient
 from qdrant_client.http.models import Filter, FieldCondition, Range, ScrollRequest, OrderBy
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Union
 import logging
+import json
 
-from ..dependencies import get_qdrant_dependency, get_active_collection
+from ..dependencies import get_qdrant_client, get_active_collection
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -23,7 +24,7 @@ async def list_images(
     filters: Optional[str] = Query(None, description="JSON string for filters (e.g., '{\"tag\": \"animal\", \"date_range\": {\"gte\": \"2023-01-01\", \"lte\": \"2023-12-31\"}}')."),
     sort_by: Optional[str] = Query(None, description="Field to sort by (e.g., 'created_at', 'name')."),
     sort_order: Optional[str] = Query("desc", description="Sort order: 'asc' or 'desc'."),
-    qdrant: QdrantClient = Depends(get_qdrant_dependency),
+    qdrant: QdrantClient = Depends(get_qdrant_client),
     collection_name: str = Depends(get_active_collection)
 ):
     """
@@ -35,7 +36,6 @@ async def list_images(
         qdrant_filter = None
         if filters:
             try:
-                import json
                 filter_dict = json.loads(filters)
                 must_conditions = []
                 for key, value in filter_dict.items():

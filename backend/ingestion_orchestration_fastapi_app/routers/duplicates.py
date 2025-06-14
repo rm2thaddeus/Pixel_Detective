@@ -6,7 +6,7 @@ import logging
 from concurrent.futures import ThreadPoolExecutor
 import asyncio
 
-from ..dependencies import get_qdrant_dependency, get_active_collection
+from ..dependencies import get_qdrant_client, get_active_collection
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -87,7 +87,7 @@ async def find_duplicates(
     background_tasks: BackgroundTasks,
     # threshold: float = Body(0.98, ge=0.0, le=1.0, description="Similarity threshold for duplicates."),
     # limit_per_image: int = Body(5, ge=1, description="Max duplicates per image."),
-    qdrant: QdrantClient = Depends(get_qdrant_dependency),
+    qdrant: QdrantClient = Depends(get_qdrant_client),
     collection_name: str = Depends(get_active_collection)
 ):
     """
