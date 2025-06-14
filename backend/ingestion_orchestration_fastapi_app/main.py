@@ -1,13 +1,17 @@
 import os
 import logging
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, APIRouter, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from qdrant_client import QdrantClient
 from sentence_transformers import SentenceTransformer
+from typing import Dict, Any
+from pydantic import BaseModel
+import diskcache
+from PIL import Image
 
 # Import the global state manager and the routers
-from .dependencies import app_state
+from .dependencies import app_state, get_qdrant_client
 from .routers import search, images, duplicates, random # and any others
 
 # Configure logging
@@ -73,6 +77,13 @@ app.include_router(images.router)
 app.include_router(duplicates.router)
 app.include_router(random.router)
 
+# --- API V1 Router Setup ---
+# Define the versioned router BEFORE it is used by decorators
+v1_router = APIRouter(prefix="/api/v1", tags=["collections"])
+
+class CollectionNameRequest(BaseModel):
+    collection_name: str
+
 @app.get("/")
 def read_root():
     return {"message": "Welcome to the Vibe Coding API"}
@@ -108,17 +119,14 @@ def select_collection(collection_name: str):
     return {"message": f"Active collection changed to '{collection_name}'"}
 
 @v1_router.delete("/collections/{collection_name}", response_model=Dict[str, Any])
-async def delete_collection(collection_name: str, q_client: QdrantClient = Depends(get_qdrant_dependency)):
+async def delete_collection(collection_name: str, q_client: QdrantClient = Depends(get_qdrant_client)):
     """Delete a Qdrant collection by name."""
     try:
         result = q_client.delete_collection(collection_name=collection_name)
         if result:
             # If the collection was active, reset the active_collection_name
-            global active_collection_name
-            if active_collection_name == collection_name:
-                active_collection_name = ""
-                # Also clear from app state
-                app.state.active_collection_name = ""
+            if app_state.active_collection == collection_name:
+                app_state.active_collection = ""
                 logger.info(f"Active collection '{collection_name}' was deleted. Active collection has been reset.")
             return {"status": "success", "message": f"Collection '{collection_name}' deleted successfully."}
         else:
@@ -131,19 +139,14 @@ async def delete_collection(collection_name: str, q_client: QdrantClient = Depen
         raise HTTPException(status_code=500, detail=str(e))
 
 @v1_router.post("/collections/select", response_model=Dict[str, str])
-async def select_collection(req: CollectionNameRequest):
+async def select_collection_v1(req: CollectionNameRequest):
     """Select the active Qdrant collection for future operations"""
-    global active_collection_name
-    active_collection_name = req.collection_name
-    
-    # Also store in app state for dependency injection
-    app.state.active_collection_name = req.collection_name
-    
+    app_state.active_collection = req.collection_name
     logger.info(f"Selected collection: {req.collection_name}")
     return {"selected_collection": req.collection_name}
 
 @v1_router.get("/collections/{collection_name}/info", response_model=Dict[str, Any])
-async def get_collection_info(collection_name: str, q_client: QdrantClient = Depends(get_qdrant_dependency)):
+async def get_collection_info(collection_name: str, q_client: QdrantClient = Depends(get_qdrant_client)):
     """Get detailed information about a specific collection"""
     try:
         # Get collection info from Qdrant
@@ -181,7 +184,7 @@ async def get_collection_info(collection_name: str, q_client: QdrantClient = Dep
                 "distance": collection_info.config.params.vectors.distance.value if collection_info.config.params.vectors else None,
             },
             "sample_points": sample_metadata,
-            "is_active": collection_name == active_collection_name,
+            "is_active": collection_name == app_state.active_collection,
         }
         
     except Exception as e:
@@ -191,10 +194,13 @@ async def get_collection_info(collection_name: str, q_client: QdrantClient = Dep
 @v1_router.post("/collections/cache/clear", response_model=Dict[str, str])
 async def clear_collection_cache():
     """Clear the disk cache for the currently active Qdrant collection."""
-    cache_dir = os.path.join(DISKCACHE_DIR, active_collection_name)
+    if not app_state.active_collection:
+        raise HTTPException(status_code=400, detail="No collection selected")
+
+    cache_dir = os.path.join("cache", app_state.active_collection)
     cache = diskcache.Cache(cache_dir)
     cache.clear()
-    return {"cache_cleared_for": active_collection_name}
+    return {"cache_cleared_for": app_state.active_collection}
 
 # --- Image Serving Endpoints ---
 from fastapi.responses import FileResponse, Response
@@ -202,16 +208,15 @@ import io
 import base64
 
 @v1_router.get("/images/{image_id}/thumbnail")
-async def get_image_thumbnail(image_id: str, q_client: QdrantClient = Depends(get_qdrant_dependency)):
+async def get_image_thumbnail(image_id: str, q_client: QdrantClient = Depends(get_qdrant_client)):
     """Serve image thumbnail by ID - optimized for speed with base64 data"""
-    global active_collection_name
-    if not active_collection_name:
+    if not app_state.active_collection:
         raise HTTPException(status_code=400, detail="No collection selected")
     
     try:
         # Get the image data from Qdrant
         result = q_client.retrieve(
-            collection_name=active_collection_name,
+            collection_name=app_state.active_collection,
             ids=[image_id],
             with_payload=True
         )
@@ -273,16 +278,15 @@ async def get_image_thumbnail(image_id: str, q_client: QdrantClient = Depends(ge
         raise HTTPException(status_code=500, detail="Failed to serve image thumbnail")
 
 @v1_router.get("/images/{image_id}/image")
-async def get_full_image(image_id: str, q_client: QdrantClient = Depends(get_qdrant_dependency)):
-    """Serve full image by ID - optimized for speed with base64 data"""
-    global active_collection_name
-    if not active_collection_name:
+async def get_full_image(image_id: str, q_client: QdrantClient = Depends(get_qdrant_client)):
+    """Serve full resolution image by ID, prioritizing fast file system access"""
+    if not app_state.active_collection:
         raise HTTPException(status_code=400, detail="No collection selected")
-    
+
     try:
         # Get the image data from Qdrant
         result = q_client.retrieve(
-            collection_name=active_collection_name,
+            collection_name=app_state.active_collection,
             ids=[image_id],
             with_payload=True
         )
@@ -328,7 +332,7 @@ async def get_full_image(image_id: str, q_client: QdrantClient = Depends(get_qdr
         logger.error(f"Error serving image {image_id}: {e}")
         raise HTTPException(status_code=500, detail="Failed to serve image")
 
-# Include the v1 router in the main app
+# Finally, register v1_router with the main FastAPI app (do this once at the end)
 app.include_router(v1_router)
 
 if __name__ == "__main__":
