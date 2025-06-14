@@ -1,7 +1,6 @@
-import sys # Added import
 import os # Added import
 # Add project root to sys.path to allow importing 'utils'
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+# sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
 from fastapi import FastAPI, HTTPException, APIRouter, Depends, Request, BackgroundTasks # Added BackgroundTasks
 from fastapi.responses import JSONResponse # Added JSONResponse
@@ -67,8 +66,8 @@ QDRANT_VECTOR_SIZE = int(os.environ.get("QDRANT_VECTOR_SIZE", 512))
 QDRANT_DISTANCE_METRIC = Distance[os.environ.get("QDRANT_DISTANCE_METRIC", "Cosine").upper()]
 QDRANT_UPSERT_BATCH_SIZE = int(os.environ.get("QDRANT_UPSERT_BATCH_SIZE", 32))
 
-# Global Qdrant client instance
-qdrant_client_global: Optional[QdrantClient] = None
+# Global Qdrant client instance is now managed via app.state
+# qdrant_client_global: Optional[QdrantClient] = None
 # Persistent cache for image hashes to embeddings and captions
 DISKCACHE_DIR = os.environ.get("DISKCACHE_DIR", "./.diskcache")
 image_content_cache = diskcache.Cache(DISKCACHE_DIR)
@@ -254,15 +253,34 @@ async def process_batch_with_ml_service(
                 if qdrant_conn:
                     point_id_str = str(uuid.uuid5(uuid.NAMESPACE_DNS, file_path))
                     qdrant_payload = comprehensive_metadata.copy()
+                    
+                    # Store base64 image data for fast serving
+                    image_base64 = base64.b64encode(image_bytes_for_size).decode('utf-8')
+                    
+                    # Create thumbnail (200x200) for faster loading
+                    try:
+                        thumbnail_img = Image.open(io.BytesIO(image_bytes_for_size))
+                        thumbnail_img.thumbnail((200, 200), Image.Resampling.LANCZOS)
+                        thumbnail_buffer = io.BytesIO()
+                        thumbnail_img.save(thumbnail_buffer, format='JPEG', quality=85)
+                        thumbnail_base64 = base64.b64encode(thumbnail_buffer.getvalue()).decode('utf-8')
+                    except Exception as e:
+                        log_to_job(job_id, f"Failed to create thumbnail for {filename}: {e}", level="WARNING")
+                        thumbnail_base64 = image_base64  # Fallback to full image
+                    
                     qdrant_payload.update({
-                        "caption": caption, "original_size_bytes": len(image_bytes_for_size),
-                        "full_path": file_path, "ml_embedding_model": model_name_clip,
+                        "caption": caption, 
+                        "original_size_bytes": len(image_bytes_for_size),
+                        "full_path": file_path, 
+                        "ml_embedding_model": model_name_clip,
                         "ml_caption_model": model_name_blip,
-                        "filename": qdrant_payload.get("filename", filename)
+                        "filename": qdrant_payload.get("filename", filename),
+                        "image_base64": image_base64,  # Store full image as base64
+                        "thumbnail_base64": thumbnail_base64  # Store thumbnail as base64
                     })
                     qdrant_payload = {k: v for k, v in qdrant_payload.items() if v is not None}
 
-                    log_to_job(job_id, f"Queueing point for Qdrant upsert: {filename} (ID: {point_id_str})")
+                    log_to_job(job_id, f"Queueing point for Qdrant upsert: {filename} (ID: {point_id_str}) with base64 data")
                     qdrant_points.append(
                         models.PointStruct(id=point_id_str, vector=embedding, payload=qdrant_payload)
                     )
@@ -353,6 +371,20 @@ async def _run_ingestion_task(
                         point_id_str = str(uuid.uuid5(uuid.NAMESPACE_DNS, file_path))
                         comprehensive_metadata = await asyncio.to_thread(extract_metadata, file_path)
                         
+                        # Store base64 image data for fast serving (cached items)
+                        image_base64 = base64.b64encode(content).decode('utf-8')
+                        
+                        # Create thumbnail for cached items
+                        try:
+                            thumbnail_img = Image.open(io.BytesIO(content))
+                            thumbnail_img.thumbnail((200, 200), Image.Resampling.LANCZOS)
+                            thumbnail_buffer = io.BytesIO()
+                            thumbnail_img.save(thumbnail_buffer, format='JPEG', quality=85)
+                            thumbnail_base64 = base64.b64encode(thumbnail_buffer.getvalue()).decode('utf-8')
+                        except Exception as e:
+                            log_to_job(job_id, f"Failed to create thumbnail for cached {filename}: {e}", level="WARNING")
+                            thumbnail_base64 = image_base64  # Fallback to full image
+                        
                         qdrant_payload = comprehensive_metadata.copy()
                         qdrant_payload.update({
                             "caption": cached_data.get("caption_data", {}).get("caption", ""),
@@ -360,7 +392,9 @@ async def _run_ingestion_task(
                             "full_path": file_path,
                             "ml_embedding_model": cached_data.get("embedding_data", {}).get("model_name"),
                             "ml_caption_model": cached_data.get("caption_data", {}).get("model_name"),
-                            "filename": qdrant_payload.get("filename", filename)
+                            "filename": qdrant_payload.get("filename", filename),
+                            "image_base64": image_base64,  # Store full image as base64
+                            "thumbnail_base64": thumbnail_base64  # Store thumbnail as base64
                         })
                         qdrant_payload = {k: v for k, v in qdrant_payload.items() if v is not None}
 
@@ -427,43 +461,78 @@ async def root():
 
 @app.get("/health")
 async def health():
-    return {"service": "Ingestion Orchestration Service", "status": "ok"}
+    return {"service": "ingestion-orchestration", "status": "ok"}
 
 @app.on_event("startup")
 async def startup_event():
-    global qdrant_client_global
+    """
+    On startup, connect to Qdrant and try to get the batch size from the ML service.
+    The Qdrant client is attached to the app state for dependency injection.
+    """
+    global active_collection_name, ML_INFERENCE_BATCH_SIZE
     logger.info("Ingestion Orchestration Service starting up...")
 
-    logger.info(f"Expecting ML Inference Service at: {ML_INFERENCE_SERVICE_URL}")
+    # --- Qdrant Connection ---
     logger.info(f"Connecting to Qdrant at: {QDRANT_HOST}:{QDRANT_PORT}")
     try:
-        qdrant_client_instance = QdrantClient(host=QDRANT_HOST, port=QDRANT_PORT, timeout=20)
-        # Attach the Qdrant client to FastAPI app state for dependency injection without circular imports
-        # However, for background tasks, it's often simpler to pass globals if they are configured at startup
-        # and their state doesn't change per request in a way that background tasks would misuse.
-        # For this refactor, _run_ingestion_task will receive qdrant_client as an argument.
-        app.state.qdrant_client = qdrant_client_instance # For router dependencies
-        globals()['qdrant_client_global'] = qdrant_client_instance # For direct use if needed, and for passing to BG task
-
-        # --- Dynamic ML batch size handshake ---
-        global ML_INFERENCE_BATCH_SIZE
-        try:
-            async with httpx.AsyncClient() as client:
-                resp = await client.get(f"{ML_INFERENCE_SERVICE_URL}/api/v1/capabilities", timeout=5)
-                resp.raise_for_status()
-                svc_capabilities = resp.json()
-                safe_batch = int(svc_capabilities.get("safe_clip_batch", ML_INFERENCE_BATCH_SIZE))
-                if safe_batch > 0:
-                    original_batch_size = ML_INFERENCE_BATCH_SIZE
-                    ML_INFERENCE_BATCH_SIZE = min(ML_INFERENCE_BATCH_SIZE, safe_batch)
-                    logger.info(f"Adjusted ML batch size from {original_batch_size} to {ML_INFERENCE_BATCH_SIZE} (service safe limit: {safe_batch}).")
-        except Exception as e:
-            logger.warning(f"Could not retrieve ML service capabilities – falling back to configured batch size ({ML_INFERENCE_BATCH_SIZE}). Error: {e}")
-
+        # Initialize the client and attach it to the app's state
+        qdrant_client = QdrantClient(host=QDRANT_HOST, port=QDRANT_PORT)
+        # Verify connection
+        qdrant_client.get_collections()
+        app.state.qdrant_client = qdrant_client
         logger.info(f"Successfully connected to Qdrant instance at {QDRANT_HOST}:{QDRANT_PORT}.")
     except Exception as e:
-        logger.error(f"Failed to connect to Qdrant: {e}", exc_info=True)
-        # qdrant_client_global will remain None if startup fails. Dependencies will handle this.
+        logger.critical(f"Could not connect to Qdrant. Please check if it is running. Error: {e}", exc_info=True)
+        # Set client to None on state so dependencies can check for it
+        app.state.qdrant_client = None
+
+    # --- ML Service Capability Check ---
+    logger.info(f"Expecting ML Inference Service at: {ML_INFERENCE_SERVICE_URL}")
+    max_retries = 5
+    retry_delay = 3  # seconds
+    for attempt in range(max_retries):
+        try:
+            async with httpx.AsyncClient() as client:
+                res = await client.get(f"{ML_INFERENCE_SERVICE_URL}/api/v1/capabilities", timeout=10.0)
+                res.raise_for_status()
+                capabilities = res.json()
+                batch_size = capabilities.get("safe_clip_batch")
+                if batch_size and isinstance(batch_size, int):
+                    ML_INFERENCE_BATCH_SIZE = batch_size
+                    logger.info(f"Successfully retrieved ML service capabilities. Batch size set to: {ML_INFERENCE_BATCH_SIZE}")
+                else:
+                    logger.warning(f"ML service responded but 'safe_clip_batch' was invalid. Using default: {ML_INFERENCE_BATCH_SIZE}")
+                break  # Exit loop on success
+        except (httpx.RequestError, httpx.HTTPStatusError) as e:
+            logger.warning(
+                f"Attempt {attempt + 1}/{max_retries} to connect to ML service failed. "
+                f"Retrying in {retry_delay} seconds... Error: {e}"
+            )
+            if attempt < max_retries - 1:
+                await asyncio.sleep(retry_delay)
+            else:
+                logger.error(
+                    "Could not retrieve ML service capabilities after multiple retries. "
+                    f"Falling back to configured batch size ({ML_INFERENCE_BATCH_SIZE}). "
+                    "The ML service might be down or misconfigured."
+                )
+
+    # --- Initialize Active Collection ---
+    try:
+        if qdrant_client:
+            collections_response = qdrant_client.get_collections()
+            existing_collections = [col.name for col in collections_response.collections]
+            if existing_collections:
+                if not active_collection_name or active_collection_name not in existing_collections:
+                    active_collection_name = existing_collections[0]
+                    logger.info(f"No active collection set or previous one not found. Defaulting to first available: '{active_collection_name}'")
+            else:
+                logger.warning("No collections found in Qdrant. Please create a collection via the API.")
+    except Exception as e:
+        logger.error(f"Failed to initialize active collection on startup. Error: {e}", exc_info=True)
+
+
+    logger.info("Ingestion Orchestration Service startup complete.")
 
 @app.on_event("shutdown")
 async def shutdown_event():
@@ -484,7 +553,7 @@ class IngestRequest(BaseModel):
     directory_path: str
 
 @v1_router.post("/ingest/")
-async def ingest_directory_v1(request: IngestRequest, background_tasks: BackgroundTasks, q_client: QdrantClient = Depends(get_qdrant_dependency)): # Use dependency for endpoint check
+async def ingest_directory_v1(request: IngestRequest, background_tasks: BackgroundTasks, q_client: QdrantClient = Depends(get_qdrant_dependency)):
     if not active_collection_name:
         raise HTTPException(status_code=400, detail="No collection selected. Please select a collection first using the /api/v1/collections/select endpoint.")
     
@@ -501,17 +570,6 @@ async def ingest_directory_v1(request: IngestRequest, background_tasks: Backgrou
     }
     logger.info(f"APIv1: Queuing ingestion job {job_id} for directory: {request.directory_path}")
 
-    # Ensure qdrant_client_global is available for the background task
-    if qdrant_client_global is None:
-        error_msg = "Qdrant client not initialized globally. Cannot start background ingestion."
-        logger.error(error_msg)
-        # Log to a temporary job entry if possible, or just raise
-        job_status_db[job_id] = {
-            "status": "failed", "progress": 0.0, "logs": [f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [ERROR] {error_msg}"],
-            "result": {"error": error_msg}, "directory_path": request.directory_path
-        }
-        raise HTTPException(status_code=503, detail=error_msg)
-
     # Use a per-collection cache directory
     collection_cache_dir = os.path.join(DISKCACHE_DIR, active_collection_name)
     collection_cache = diskcache.Cache(collection_cache_dir)
@@ -519,7 +577,7 @@ async def ingest_directory_v1(request: IngestRequest, background_tasks: Backgrou
         _run_ingestion_task,
         directory_path=request.directory_path,
         job_id=job_id,
-        qdrant_conn_bg=qdrant_client_global,
+        qdrant_conn_bg=q_client,
         ml_service_url_bg=ML_INFERENCE_SERVICE_URL,
         ml_batch_size_bg=ML_INFERENCE_BATCH_SIZE,
         disk_cache_bg=collection_cache,
@@ -648,7 +706,7 @@ async def search_text_v1(request: TextSearchRequest, q_client: QdrantClient = De
                 filename=result.payload.get("filename", "unknown"),
                 caption=result.payload.get("caption"),
                 score=float(result.score),
-                thumbnail_url=f"/api/v1/thumbnail/{result.id}",  # TODO: Implement thumbnail endpoint
+                thumbnail_url=f"http://localhost:8002/api/v1/images/{result.id}/thumbnail",  # Full URL for frontend
                 payload=result.payload
             )
             formatted_results.append(result_item)
@@ -682,25 +740,55 @@ async def list_collections(q_client: QdrantClient = Depends(get_qdrant_dependenc
     collections_info = q_client.get_collections().collections
     return [c.name for c in collections_info]
 
-@v1_router.post("/collections", response_model=Dict[str, str])
+@v1_router.post("/collections", response_model=Dict[str, Any])
 async def create_collection(req: CollectionNameRequest, q_client: QdrantClient = Depends(get_qdrant_dependency)):
     """Create a new Qdrant collection with optional, specific vector params"""
-    vector_size = req.vector_size or QDRANT_VECTOR_SIZE
-    distance_metric_str = req.distance or QDRANT_DISTANCE_METRIC.name
-    
     try:
-        distance_metric = Distance[distance_metric_str.upper()]
-    except KeyError:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid distance metric '{req.distance}'. Must be one of: {', '.join([d.name for d in Distance])}"
-        )
+        # Check if collection already exists
+        existing_collections = q_client.get_collections().collections
+        existing_names = [c.name for c in existing_collections]
+        
+        if req.collection_name in existing_names:
+            logger.warning(f"Collection '{req.collection_name}' already exists")
+            raise HTTPException(
+                status_code=409,
+                detail=f"Collection '{req.collection_name}' already exists"
+            )
+        
+        vector_size = req.vector_size or QDRANT_VECTOR_SIZE
+        distance_metric_str = req.distance or "COSINE"  # Use hardcoded default for now
+        
+        logger.info(f"Creating collection '{req.collection_name}' with vector_size={vector_size}, distance={distance_metric_str}")
+        
+        try:
+            distance_metric = Distance[distance_metric_str.upper()]
+        except KeyError:
+            available_metrics = [d.name for d in Distance]
+            logger.error(f"Invalid distance metric '{distance_metric_str}'. Available: {available_metrics}")
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid distance metric '{distance_metric_str}'. Must be one of: {', '.join(available_metrics)}"
+            )
 
-    q_client.create_collection(
-        collection_name=req.collection_name,
-        vectors_config=VectorParams(size=vector_size, distance=distance_metric)
-    )
-    return {"collection": req.collection_name, "params": {"vector_size": vector_size, "distance": distance_metric.name}}
+        # Create the collection
+        q_client.create_collection(
+            collection_name=req.collection_name,
+            vectors_config=VectorParams(size=vector_size, distance=distance_metric)
+        )
+        
+        logger.info(f"Successfully created collection '{req.collection_name}'")
+        return {
+            "collection": req.collection_name, 
+            "status": "created",
+            "vector_size": vector_size, 
+            "distance": distance_metric.value
+        }
+        
+    except HTTPException:
+        raise  # Re-raise HTTP exceptions
+    except Exception as e:
+        logger.error(f"Error creating collection '{req.collection_name}': {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to create collection: {str(e)}")
 
 @v1_router.delete("/collections/{collection_name}", response_model=Dict[str, Any])
 async def delete_collection(collection_name: str, q_client: QdrantClient = Depends(get_qdrant_dependency)):
@@ -712,6 +800,8 @@ async def delete_collection(collection_name: str, q_client: QdrantClient = Depen
             global active_collection_name
             if active_collection_name == collection_name:
                 active_collection_name = ""
+                # Also clear from app state
+                app.state.active_collection_name = ""
                 logger.info(f"Active collection '{collection_name}' was deleted. Active collection has been reset.")
             return {"status": "success", "message": f"Collection '{collection_name}' deleted successfully."}
         else:
@@ -728,7 +818,58 @@ async def select_collection(req: CollectionNameRequest):
     """Select the active Qdrant collection for future operations"""
     global active_collection_name
     active_collection_name = req.collection_name
-    return {"selected_collection": active_collection_name}
+    
+    # Also store in app state for dependency injection
+    app.state.active_collection_name = req.collection_name
+    
+    logger.info(f"Selected collection: {req.collection_name}")
+    return {"selected_collection": req.collection_name}
+
+@v1_router.get("/collections/{collection_name}/info", response_model=Dict[str, Any])
+async def get_collection_info(collection_name: str, q_client: QdrantClient = Depends(get_qdrant_dependency)):
+    """Get detailed information about a specific collection"""
+    try:
+        # Get collection info from Qdrant
+        collection_info = q_client.get_collection(collection_name=collection_name)
+        
+        # Get a few sample points to understand the data structure
+        sample_result = q_client.scroll(
+            collection_name=collection_name,
+            limit=3,
+            with_payload=True
+        )
+        
+        sample_points = sample_result[0] if sample_result else []
+        
+        # Extract metadata from sample points
+        sample_metadata = []
+        for point in sample_points:
+            if point.payload:
+                sample_metadata.append({
+                    "id": str(point.id),
+                    "filename": point.payload.get("filename", "unknown"),
+                    "timestamp": point.payload.get("timestamp", "unknown"),
+                    "has_thumbnail": "thumbnail_base64" in point.payload,
+                    "has_caption": "caption" in point.payload,
+                })
+        
+        return {
+            "name": collection_name,
+            "status": collection_info.status.value if collection_info.status else "unknown",
+            "points_count": collection_info.points_count,
+            "vectors_count": collection_info.vectors_count,
+            "indexed_vectors_count": collection_info.indexed_vectors_count,
+            "config": {
+                "vector_size": collection_info.config.params.vectors.size if collection_info.config.params.vectors else None,
+                "distance": collection_info.config.params.vectors.distance.value if collection_info.config.params.vectors else None,
+            },
+            "sample_points": sample_metadata,
+            "is_active": collection_name == active_collection_name,
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting collection info for '{collection_name}': {e}")
+        raise HTTPException(status_code=404, detail=f"Collection '{collection_name}' not found or error retrieving info")
 
 @v1_router.post("/collections/cache/clear", response_model=Dict[str, str])
 async def clear_collection_cache():
@@ -737,6 +878,138 @@ async def clear_collection_cache():
     cache = diskcache.Cache(cache_dir)
     cache.clear()
     return {"cache_cleared_for": active_collection_name}
+
+# --- Image Serving Endpoints ---
+from fastapi.responses import FileResponse, Response
+import io
+import base64
+
+@v1_router.get("/images/{image_id}/thumbnail")
+async def get_image_thumbnail(image_id: str, q_client: QdrantClient = Depends(get_qdrant_dependency)):
+    """Serve image thumbnail by ID - optimized for speed with base64 data"""
+    global active_collection_name
+    if not active_collection_name:
+        raise HTTPException(status_code=400, detail="No collection selected")
+    
+    try:
+        # Get the image data from Qdrant
+        result = q_client.retrieve(
+            collection_name=active_collection_name,
+            ids=[image_id],
+            with_payload=True
+        )
+        
+        if not result:
+            raise HTTPException(status_code=404, detail=f"Image with ID {image_id} not found")
+        
+        point = result[0]
+        payload = point.payload
+        
+        # Fast path: use pre-generated thumbnail
+        if "thumbnail_base64" in payload:
+            thumbnail_data = base64.b64decode(payload["thumbnail_base64"])
+            return Response(content=thumbnail_data, media_type="image/jpeg")
+        
+        # Fallback: use full image and create thumbnail
+        image_data = None
+        if "image_base64" in payload:
+            image_data = base64.b64decode(payload["image_base64"])
+        elif "full_path" in payload or "file_path" in payload:
+            # Fast file system fallback - read from file path
+            file_path = payload.get("full_path") or payload.get("file_path")
+            if file_path and os.path.exists(file_path):
+                with open(file_path, "rb") as f:
+                    image_data = f.read()
+        
+        if not image_data:
+            raise HTTPException(status_code=404, detail="Image data not found")
+        
+        # Create thumbnail on-the-fly (should rarely happen with new ingestion)
+        try:
+            img = Image.open(io.BytesIO(image_data))
+            img.thumbnail((200, 200), Image.Resampling.LANCZOS)
+            
+            img_byte_arr = io.BytesIO()
+            img.save(img_byte_arr, format='JPEG', quality=85)
+            thumbnail_data = img_byte_arr.getvalue()
+            
+            return Response(content=thumbnail_data, media_type="image/jpeg")
+            
+        except Exception as e:
+            logger.error(f"Error creating thumbnail for {image_id}: {e}")
+            # Return original image if thumbnail creation fails
+            filename = payload.get("filename", "image.jpg")
+            content_type = "image/jpeg"
+            if filename.lower().endswith('.png'):
+                content_type = "image/png"
+            elif filename.lower().endswith('.gif'):
+                content_type = "image/gif"
+            elif filename.lower().endswith('.webp'):
+                content_type = "image/webp"
+            
+            return Response(content=image_data, media_type=content_type)
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error serving thumbnail for {image_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to serve image thumbnail")
+
+@v1_router.get("/images/{image_id}/image")
+async def get_full_image(image_id: str, q_client: QdrantClient = Depends(get_qdrant_dependency)):
+    """Serve full image by ID - optimized for speed with base64 data"""
+    global active_collection_name
+    if not active_collection_name:
+        raise HTTPException(status_code=400, detail="No collection selected")
+    
+    try:
+        # Get the image data from Qdrant
+        result = q_client.retrieve(
+            collection_name=active_collection_name,
+            ids=[image_id],
+            with_payload=True
+        )
+        
+        if not result:
+            raise HTTPException(status_code=404, detail=f"Image with ID {image_id} not found")
+        
+        point = result[0]
+        payload = point.payload
+        
+        # Fast path: use stored base64 data
+        image_data = None
+        if "image_base64" in payload:
+            image_data = base64.b64decode(payload["image_base64"])
+        elif "full_path" in payload or "file_path" in payload:
+            # Fast file system fallback - read from file path
+            file_path = payload.get("full_path") or payload.get("file_path")
+            if file_path and os.path.exists(file_path):
+                with open(file_path, "rb") as f:
+                    image_data = f.read()
+        
+        if not image_data:
+            raise HTTPException(status_code=404, detail="Image data not found")
+        
+        # Determine content type from filename
+        filename = payload.get("filename", "image.jpg")
+        if filename.lower().endswith('.png'):
+            content_type = "image/png"
+        elif filename.lower().endswith('.gif'):
+            content_type = "image/gif"
+        elif filename.lower().endswith('.webp'):
+            content_type = "image/webp"
+        elif filename.lower().endswith('.dng'):
+            content_type = "image/jpeg"  # DNG is converted to JPEG during processing
+        else:
+            content_type = "image/jpeg"
+        
+        return Response(content=image_data, media_type=content_type)
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error serving image {image_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to serve image")
 
 # Include the v1 router in the main app
 app.include_router(v1_router)

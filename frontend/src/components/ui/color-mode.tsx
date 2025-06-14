@@ -10,7 +10,9 @@ export function ColorModeIcon() {
   return colorMode === "dark" ? <LuSun /> : <LuMoon />
 }
 
-interface ColorModeButtonProps extends Omit<IconButtonProps, "aria-label"> {}
+type ColorModeButtonProps = Omit<IconButtonProps, "aria-label"> & {
+  // Custom props can be added here if needed
+}
 
 export const ColorModeButton = React.forwardRef<
   HTMLButtonElement,

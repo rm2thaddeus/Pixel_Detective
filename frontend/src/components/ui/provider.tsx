@@ -11,11 +11,15 @@ const config: ThemeConfig = {
   useSystemColorMode: true,
 }
 
+interface GlobalStyleProps {
+  colorMode: 'light' | 'dark'
+}
+
 // 2. Extend the theme to include the color mode config
 const theme = extendTheme({
   config,
   styles: {
-    global: (props: any) => ({
+    global: (props: GlobalStyleProps) => ({
       body: {
         bg: props.colorMode === 'dark' ? 'gray.900' : 'white',
         color: props.colorMode === 'dark' ? 'white' : 'gray.800',

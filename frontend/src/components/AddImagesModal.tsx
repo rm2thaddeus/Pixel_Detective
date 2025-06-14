@@ -10,6 +10,7 @@ import {
   ModalCloseButton,
   Button,
   VStack,
+  HStack,
   Input,
   Text,
   useToast,
@@ -17,7 +18,10 @@ import {
   FormLabel,
   FormHelperText,
   useColorModeValue,
-  Code
+  Code,
+  Badge,
+  Alert,
+  AlertIcon
 } from '@chakra-ui/react';
 import { useState } from 'react';
 import { useStore } from '@/store/useStore';
@@ -44,6 +48,7 @@ export function AddImagesModal({ isOpen, onClose }: AddImagesModalProps) {
   const inputBg = useColorModeValue('white', 'gray.700');
   const inputBorderColor = useColorModeValue('gray.300', 'gray.600');
   const codeBg = useColorModeValue('gray.100', 'gray.700');
+  const buttonHoverBg = useColorModeValue('gray.50', 'gray.700');
 
   const startIngestion = async () => {
     if (!collection) {
@@ -127,45 +132,108 @@ export function AddImagesModal({ isOpen, onClose }: AddImagesModalProps) {
         <ModalCloseButton isDisabled={loading} color={textColor} />
         
         <ModalBody>
-          <VStack spacing={4} align="stretch">
+          <VStack spacing={6} align="stretch">
             {collection ? (
-              <Text color="blue.500" fontWeight="semibold">
-                Adding to collection: {collection}
-              </Text>
+              <HStack>
+                <Text color="blue.500" fontWeight="semibold">
+                  Adding to collection:
+                </Text>
+                <Badge colorScheme="blue">{collection}</Badge>
+              </HStack>
             ) : (
-              <Text color="red.500" fontWeight="semibold">
-                ⚠️ No collection selected. Please select a collection first.
-              </Text>
+              <Alert status="warning" size="sm">
+                <AlertIcon />
+                <Text fontSize="sm">No collection selected. Please select a collection first.</Text>
+              </Alert>
             )}
 
             <FormControl>
               <FormLabel color={textColor}>Directory Path</FormLabel>
-              <Input
-                placeholder="e.g., C:\Users\username\Pictures\my-images"
-                value={directoryPath}
-                onChange={(e) => setDirectoryPath(e.target.value)}
-                onKeyPress={handleKeyPress}
-                isDisabled={loading}
-                bg={inputBg}
-                borderColor={inputBorderColor}
-                color={textColor}
-                _placeholder={{ color: mutedTextColor }}
-                _focus={{
-                  borderColor: 'blue.500',
-                  boxShadow: '0 0 0 1px blue.500',
-                }}
-              />
-              <FormHelperText color={mutedTextColor}>
-                Enter the full path to the directory containing images you want to ingest.
-                Supported formats: JPG, PNG, DNG, and more.
-              </FormHelperText>
+              <VStack spacing={3} align="stretch">
+                <HStack spacing={2}>
+                  <Input
+                    placeholder="e.g., C:\\Users\\username\\Pictures\\my-images"
+                    value={directoryPath}
+                    onChange={(e) => setDirectoryPath(e.target.value)}
+                    onKeyPress={handleKeyPress}
+                    isDisabled={loading}
+                    bg={inputBg}
+                    borderColor={inputBorderColor}
+                    color={textColor}
+                    _placeholder={{ color: mutedTextColor }}
+                    _focus={{
+                      borderColor: 'blue.500',
+                      boxShadow: '0 0 0 1px blue.500',
+                    }}
+                    flex="1"
+                  />
+                  <Button
+                    size="md"
+                    variant="outline"
+                    onClick={() => document.getElementById('folder-input')?.click()}
+                    isDisabled={loading}
+                    borderColor={inputBorderColor}
+                    color={textColor}
+                    _hover={{
+                      bg: buttonHoverBg,
+                    }}
+                  >
+                    Browse
+                  </Button>
+                  <input
+                    id="folder-input"
+                    type="file"
+                    style={{ display: 'none' }}
+                    // @ts-expect-error - webkitdirectory is not in the types but is widely supported
+                    webkitdirectory=""
+                    directory=""
+                    multiple
+                    onChange={(e) => {
+                      const files = e.target.files;
+                      if (files && files.length > 0) {
+                        // Get the directory path from the first file
+                        const firstFile = files[0];
+                        const fullPath = firstFile.webkitRelativePath || firstFile.name;
+                        const dirPath = fullPath.split('/').slice(0, -1).join('/');
+                        
+                        // For local files, we can't get the full system path
+                        // But we can provide a helpful message
+                        if (dirPath) {
+                          setDirectoryPath(`Selected: ${files.length} files from '${dirPath}'`);
+                        } else {
+                          setDirectoryPath(`Selected: ${files.length} files`);
+                        }
+                      }
+                    }}
+                  />
+                </HStack>
+                
+                <FormHelperText color={mutedTextColor}>
+                  Type the full directory path or click &quot;Browse&quot; to select a folder.
+                  Supported formats: JPG, PNG, DNG, and more.
+                </FormHelperText>
+              </VStack>
             </FormControl>
 
-            <Text fontSize="sm" color={mutedTextColor}>
-              <strong>Example paths:</strong><br />
-              • Windows: <Code bg={codeBg} color={textColor}>C:\Users\username\Pictures\vacation</Code><br />
-              • macOS/Linux: <Code bg={codeBg} color={textColor}>/Users/username/Pictures/vacation</Code>
-            </Text>
+            <VStack spacing={2} align="stretch">
+              <Text fontSize="sm" fontWeight="semibold" color={textColor}>
+                Quick Examples:
+              </Text>
+              <VStack spacing={1} align="stretch" pl={2}>
+                <HStack>
+                  <Text fontSize="xs" color={mutedTextColor} w="60px">Windows:</Text>
+                  <Code bg={codeBg} color={textColor} fontSize="xs">{'C:\\Users\\yourname\\Pictures\\vacation'}</Code>
+                </HStack>
+                <HStack>
+                  <Text fontSize="xs" color={mutedTextColor} w="60px">macOS:</Text>
+                  <Code bg={codeBg} color={textColor} fontSize="xs">/Users/yourname/Pictures/vacation</Code>
+                </HStack>
+                <HStack>
+                  <Text fontSize="xs" color={mutedTextColor} w="60px">Linux:</Text>
+                  <Code bg={codeBg} color={textColor} fontSize="xs">/home/yourname/Pictures/vacation</Code>
+                </HStack>
+              </VStack>
+            </VStack>
           </VStack>
         </ModalBody>
 

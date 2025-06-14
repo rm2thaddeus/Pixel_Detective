@@ -5,7 +5,7 @@ import random # For a basic random selection if not using a specific Qdrant feat
 import logging
 from typing import Dict, Any
 
-from ..dependencies import get_qdrant_dependency
+from ..dependencies import get_qdrant_dependency, get_active_collection
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -21,7 +21,8 @@ router = APIRouter()
 
 @router.get("/random", summary="Get a random image from the collection")
 async def get_random_image(
-    qdrant: QdrantClient = Depends(get_qdrant_dependency)
+    qdrant: QdrantClient = Depends(get_qdrant_dependency),
+    collection_name: str = Depends(get_active_collection)
 ) -> Dict[str, Any]: # Replace with Pydantic model later
     """
     Retrieves a single random image (point) from the Qdrant collection.
@@ -33,11 +34,9 @@ async def get_random_image(
     This might not be the most performant way for extremely large collections if Qdrant
     offers a more direct random sampling method.
     """
-    COLLECTION_NAME = "images" # Example collection name
-
     try:
         # Get the total number of points in the collection
-        collection_info = qdrant.get_collection(collection_name=COLLECTION_NAME)
+        collection_info = qdrant.get_collection(collection_name=collection_name)
         total_points = collection_info.points_count
 
         if total_points == 0:
@@ -51,7 +50,7 @@ async def get_random_image(
 
         # Scroll to retrieve one point at the random offset
         scroll_result = qdrant.scroll(
-            collection_name=COLLECTION_NAME,
+            collection_name=collection_name,
             limit=1,
             offset=random_offset,
             with_payload=True,

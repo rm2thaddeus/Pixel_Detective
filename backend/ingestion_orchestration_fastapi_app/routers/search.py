@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 
 # Assuming main.py is in the parent directory of 'routers'
 # Adjust the import path if your structure is different.
-from ..dependencies import get_qdrant_dependency 
+from ..dependencies import get_qdrant_dependency, get_active_collection
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -79,14 +79,14 @@ async def search_images(
     filters: Optional[Dict[str, Any]] = Body(None, description="Key-value pairs for filtering metadata."),
     limit: int = Query(10, ge=1, le=100, description="Number of results to return per page."),
     offset: int = Query(0, ge=0, description="Offset for pagination."),
-    qdrant: QdrantClient = Depends(get_qdrant_dependency) # Use dependency from main.py
+    qdrant: QdrantClient = Depends(get_qdrant_dependency), # Use dependency from main.py
+    collection_name: str = Depends(get_active_collection)  # Get active collection
 ):
     """
     Search for images based on a query vector and optional metadata filters.
     Returns paginated results with image metadata.
     """
-    # This collection_name should come from config or constants
-    COLLECTION_NAME = "images" # Example collection name
+    COLLECTION_NAME = collection_name
 
     try:
         qdrant_filter = None
@@ -158,7 +158,8 @@ async def search_images(
 @router.post("/search/text", response_model=TextSearchResponse, summary="Search images by text query")
 async def search_images_by_text(
     request: TextSearchRequest,
-    qdrant: QdrantClient = Depends(get_qdrant_dependency)
+    qdrant: QdrantClient = Depends(get_qdrant_dependency),
+    collection_name: str = Depends(get_active_collection)  # Get active collection
 ):
     """
     Search for images using natural language text queries.
@@ -194,7 +195,7 @@ async def search_images_by_text(
             logger.info(f"Generated embedding: shape={len(embedding)}, model={embedding_model}")
         
         # Step 2: Search Qdrant with the embedding
-        COLLECTION_NAME = "images"  # TODO: Make configurable or dynamic
+        COLLECTION_NAME = collection_name
         
         qdrant_filter = None
         if request.filters:
@@ -233,7 +234,7 @@ async def search_images_by_text(
                 score=float(hit.score),
                 filename=payload.get("filename"),
                 caption=payload.get("caption"),
-                thumbnail_url=payload.get("thumbnail_url")  # Will be None for now, implement later
+                thumbnail_url=f"http://localhost:8002/api/v1/images/{hit.id}/thumbnail"  # Correct URL format
             )
             results.append(result_item)
         

@@ -26,15 +26,16 @@ import {
   Divider,
   Progress,
   Heading,
-  Container,
-  Sidebar
+  Container
 } from '@chakra-ui/react';
-import { FiSearch, FiUpload, FiActivity, FiFolder, FiEye, FiZap, FiShield, FiDatabase } from 'react-icons/fi';
+import { FiSearch, FiUpload, FiFolder, FiEye, FiZap, FiShield, FiDatabase } from 'react-icons/fi';
 import { Header } from '@/components/Header';
 import { CollectionModal } from '@/components/CollectionModal';
 import { AddImagesModal } from '@/components/AddImagesModal';
+import { CollectionStats } from '@/components/CollectionStats';
 import { useStore } from '@/store/useStore';
 import { ping } from '@/lib/api';
+import { HomeDashboard } from '@/components/HomeDashboard';
 
 export default function Home() {
   const router = useRouter();
@@ -54,8 +55,7 @@ export default function Home() {
     onClose: onAddImagesModalClose,
   } = useDisclosure();
 
-  // Dark mode aware colors
-  const bgColor = useColorModeValue('gray.50', 'gray.900');
+  // Dark mode aware colors - ALL at top level to avoid Hook rule violations
   const sidebarBg = useColorModeValue('white', 'gray.800');
   const textColor = useColorModeValue('gray.800', 'white');
   const mutedTextColor = useColorModeValue('gray.600', 'gray.300');
@@ -65,6 +65,7 @@ export default function Home() {
     'linear(to-r, blue.500, purple.600)',
     'linear(to-r, blue.300, purple.400)'
   );
+  const progressBg = useColorModeValue('gray.100', 'gray.700');
 
   useEffect(() => {
     const checkBackendHealth = async () => {
@@ -147,7 +148,7 @@ export default function Home() {
   const otherActions = quickActions.filter(action => !action.featured);
 
   return (
-    <Box bg={bgColor} minH="100vh">
+    <Box minH="100vh">
       <Header />
       
       <Flex>
@@ -172,7 +173,7 @@ export default function Home() {
                   value={setupProgress.progress} 
                   colorScheme={setupProgress.color}
                   size="sm"
-                  bg={useColorModeValue('gray.100', 'gray.700')}
+                  bg={progressBg}
                 />
                 <Text fontSize="sm" color={mutedTextColor}>
                   {setupProgress.label}
@@ -218,6 +219,19 @@ export default function Home() {
                 </Card>
               </VStack>
             </Box>
+
+            {/* Collection Statistics */}
+            {setupStep === 3 && (
+              <>
+                <Divider />
+                <Box>
+                  <Text fontSize="sm" fontWeight="semibold" mb={3} color={textColor}>
+                    Collection Details
+                  </Text>
+                  <CollectionStats />
+                </Box>
+              </>
+            )}
 
             {/* Quick Setup Actions */}
             {setupStep < 3 && (

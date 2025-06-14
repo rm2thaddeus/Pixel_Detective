@@ -120,7 +120,7 @@ def _probe_safe_batch_size():
         
         # Run inference on the single item
         with torch.inference_mode():
-            with torch.cuda.amp.autocast():
+            with torch.amp.autocast("cuda"):
                 clip_model_instance.encode_image(dummy_input)
 
         mem_after = torch.cuda.memory_allocated()
@@ -177,14 +177,14 @@ async def get_blip_model():
 # --- Heavy compute helper functions to allow asyncio offloading ---
 def _encode_clip(tensor: torch.Tensor) -> torch.Tensor:
     with torch.inference_mode():
-        with torch.cuda.amp.autocast(enabled=(device.type == "cuda")):
+        with torch.amp.autocast("cuda", enabled=(device.type == "cuda")):
             feats = clip_model_instance.encode_image(tensor)
             feats /= feats.norm(dim=-1, keepdim=True)
     return feats
 
 def _generate_blip(inputs: Dict[str, torch.Tensor]) -> torch.Tensor:
     with torch.inference_mode():
-        with torch.cuda.amp.autocast(enabled=(device.type == "cuda")):
+        with torch.amp.autocast("cuda", enabled=(device.type == "cuda")):
             return blip_model_instance.generate(**inputs, max_length=75)
 
 # --- FastAPI Lifecycle Events ---
@@ -330,7 +330,7 @@ async def embed_text_endpoint_v1(request: TextEmbedRequest = Body(...)):
         # Generate embeddings with GPU lock
         async with gpu_lock:
             with torch.inference_mode():
-                with torch.cuda.amp.autocast(enabled=(device.type == "cuda")):
+                with torch.amp.autocast("cuda", enabled=(device.type == "cuda")):
                     text_features = clip_model_instance.encode_text(text_tokens)
                     # Normalize the features
                     text_features /= text_features.norm(dim=-1, keepdim=True)

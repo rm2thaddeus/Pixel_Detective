@@ -4,7 +4,7 @@ from qdrant_client.http.models import Filter, FieldCondition, Range, ScrollReque
 from typing import List, Dict, Any, Optional
 import logging
 
-from ..dependencies import get_qdrant_dependency
+from ..dependencies import get_qdrant_dependency, get_active_collection
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -23,12 +23,12 @@ async def list_images(
     filters: Optional[str] = Query(None, description="JSON string for filters (e.g., '{\"tag\": \"animal\", \"date_range\": {\"gte\": \"2023-01-01\", \"lte\": \"2023-12-31\"}}')."),
     sort_by: Optional[str] = Query(None, description="Field to sort by (e.g., 'created_at', 'name')."),
     sort_order: Optional[str] = Query("desc", description="Sort order: 'asc' or 'desc'."),
-    qdrant: QdrantClient = Depends(get_qdrant_dependency)
+    qdrant: QdrantClient = Depends(get_qdrant_dependency),
+    collection_name: str = Depends(get_active_collection)
 ):
     """
     List images with pagination, filtering, and sorting options.
     """
-    COLLECTION_NAME = "images" # Example collection name
     offset = (page - 1) * per_page
 
     try:
@@ -68,7 +68,7 @@ async def list_images(
         # If sorting by a field other than score, `search` might be more direct with a `match_all: {}` query filter.
         
         scroll_request = ScrollRequest(
-            collection_name=COLLECTION_NAME,
+            collection_name=collection_name,
             scroll_filter=qdrant_filter,
             limit=per_page,
             offset=offset, # This offset for scroll is a numeric offset of points
@@ -88,7 +88,7 @@ async def list_images(
             })
         
         # Get total count matching the filter for accurate pagination meta
-        count_result = qdrant.count(collection_name=COLLECTION_NAME, scroll_filter=qdrant_filter, exact=True)
+        count_result = qdrant.count(collection_name=collection_name, scroll_filter=qdrant_filter, exact=True)
         total_hits = count_result.count
 
         return {
