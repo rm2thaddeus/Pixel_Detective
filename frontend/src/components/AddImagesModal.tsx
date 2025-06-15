@@ -5,224 +5,169 @@ import {
   ModalOverlay,
   ModalContent,
   ModalHeader,
-  ModalFooter,
-  ModalBody,
   ModalCloseButton,
+  ModalBody,
+  ModalFooter,
   Button,
   VStack,
-  HStack,
-  Input,
   Text,
   useToast,
-  FormControl,
-  FormLabel,
-  FormHelperText,
   useColorModeValue,
-  Code,
-  Badge,
-  Alert,
-  AlertIcon,
-  InputGroup
+  Box,
+  Icon,
+  Input,
+  Progress,
+  HStack,
 } from '@chakra-ui/react';
 import { useState, useRef } from 'react';
 import { useStore } from '@/store/useStore';
 import { api } from '@/lib/api';
 import { useRouter } from 'next/navigation';
+import { FiFolder, FiUploadCloud } from 'react-icons/fi';
+import { useMutation } from '@tanstack/react-query';
 
 interface AddImagesModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
+const uploadFiles = async (files: FileList) => {
+  const formData = new FormData();
+  Array.from(files).forEach(file => {
+    formData.append('files', file);
+  });
+
+  const { data } = await api.post('/api/v1/ingest/upload', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  });
+  return data;
+};
+
 export function AddImagesModal({ isOpen, onClose }: AddImagesModalProps) {
   const { collection } = useStore();
   const [selectedFiles, setSelectedFiles] = useState<FileList | null>(null);
-  const [loading, setLoading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const toast = useToast();
   const router = useRouter();
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Dark mode aware colors
-  const overlayBg = useColorModeValue('blackAlpha.300', 'blackAlpha.600');
-  const contentBg = useColorModeValue('white', 'gray.800');
-  const textColor = useColorModeValue('gray.800', 'white');
-  const mutedTextColor = useColorModeValue('gray.600', 'gray.400');
-  const inputBg = useColorModeValue('white', 'gray.700');
-  const inputBorderColor = useColorModeValue('gray.300', 'gray.600');
-  const codeBg = useColorModeValue('gray.100', 'gray.700');
   const dropzoneBorder = useColorModeValue('gray.300', 'gray.600');
-  const dropzoneBg = useColorModeValue('gray.50', 'gray.700');
+  const dropzoneBg = useColorModeValue('gray.50', 'gray.800');
+  const dropzoneBgHover = useColorModeValue('gray.100', 'gray.700');
 
-  const startIngestion = async () => {
-    if (!collection) {
+  const mutation = useMutation({
+    mutationFn: uploadFiles,
+    onSuccess: (data) => {
       toast({
-        title: 'No collection selected',
-        description: 'Please select a collection first',
-        status: 'warning',
-        duration: 3000,
-        isClosable: true,
-      });
-      return;
-    }
-
-    if (!selectedFiles || selectedFiles.length === 0) {
-      toast({
-        title: 'No files selected',
-        description: 'Please select one or more image files to upload.',
-        status: 'warning',
-        duration: 3000,
-        isClosable: true,
-      });
-      return;
-    }
-
-    try {
-      setLoading(true);
-      
-      // TODO: Implement multipart/form-data upload
-      // const formData = new FormData();
-      // Array.from(selectedFiles).forEach(file => {
-      //   formData.append('files', file);
-      // });
-      // const response = await api.post('/api/v1/ingest/upload/', formData, { ... });
-
-      // For now, we'll just simulate the success and log to console.
-      console.log('Selected files:', selectedFiles);
-      
-      toast({
-        title: 'Upload (Not Implemented)',
-        description: `This feature is being refactored. ${selectedFiles.length} files are ready.`,
-        status: 'info',
+        title: 'Upload successful',
+        description: `Ingestion job started with ID: ${data.job_id}`,
+        status: 'success',
         duration: 5000,
         isClosable: true,
       });
-
-      // onClose();
-      // setDirectoryPath('');
-      // router.push(`/logs/${response.data.job_id}`);
-
-    } catch (error: unknown) {
-      const errorMessage = error && typeof error === 'object' && 'response' in error && 
-        error.response && typeof error.response === 'object' && 'data' in error.response &&
-        error.response.data && typeof error.response.data === 'object' && 'detail' in error.response.data
-        ? String(error.response.data.detail) 
-        : 'Could not start ingestion';
-      
+      router.push(`/logs/${data.job_id}`);
+      handleClose();
+    },
+    onError: (error: any) => {
       toast({
-        title: 'Error starting ingestion',
-        description: errorMessage,
+        title: 'Upload failed',
+        description: error.response?.data?.detail || 'An unexpected error occurred.',
         status: 'error',
-        duration: 5000,
+        duration: 9000,
         isClosable: true,
       });
-    } finally {
-      setLoading(false);
+    },
+  });
+
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (event.target.files) {
+      setSelectedFiles(event.target.files);
+    }
+  };
+
+  const handleUpload = () => {
+    if (!collection) {
+      toast({ title: 'No collection selected', status: 'warning' });
+      return;
+    }
+    if (selectedFiles) {
+      mutation.mutate(selectedFiles);
     }
   };
 
   const handleClose = () => {
-    if (!loading) {
-      setSelectedFiles(null);
-      onClose();
+    setSelectedFiles(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
     }
-  };
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      setSelectedFiles(e.target.files);
-    }
+    mutation.reset();
+    onClose();
   };
 
   return (
     <Modal isOpen={isOpen} onClose={handleClose} size="xl">
-      <ModalOverlay bg={overlayBg} />
-      <ModalContent bg={contentBg}>
-        <ModalHeader color={textColor}>Add Images to Collection</ModalHeader>
-        <ModalCloseButton isDisabled={loading} color={textColor} />
-        
+      <ModalOverlay />
+      <ModalContent>
+        <ModalHeader>Add Images to &quot;{collection}&quot;</ModalHeader>
+        <ModalCloseButton />
         <ModalBody>
-          <VStack spacing={6} align="stretch">
-            {collection ? (
-              <HStack>
-                <Text color="blue.500" fontWeight="semibold">
-                  Adding to collection:
+          <VStack spacing={4}>
+            <Text>Select a folder containing your images to upload and ingest them into the current collection.</Text>
+            <Box
+              p={6}
+              border="2px dashed"
+              borderColor={dropzoneBorder}
+              borderRadius="md"
+              w="full"
+              textAlign="center"
+              bg={dropzoneBg}
+              _hover={{ bg: dropzoneBgHover }}
+              cursor="pointer"
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <VStack>
+                <Icon as={FiUploadCloud} boxSize={12} color="gray.500" />
+                <Text fontWeight="medium">Click to select a folder</Text>
+                <Text fontSize="sm" color="gray.500">
+                  You will be prompted to select a directory from your computer.
                 </Text>
-                <Badge colorScheme="blue">{collection}</Badge>
+              </VStack>
+              <Input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleFileSelect}
+                style={{ display: 'none' }}
+                {...{ webkitdirectory: 'true', mozdirectory: 'true' }}
+              />
+            </Box>
+            {selectedFiles && (
+              <HStack w="full" bg={useColorModeValue('gray.100', 'gray.700')} p={3} borderRadius="md">
+                <Icon as={FiFolder} />
+                <Text fontSize="sm" isTruncated>
+                  {selectedFiles.length} file(s) selected from folder.
+                </Text>
               </HStack>
-            ) : (
-              <Alert status="warning" size="sm">
-                <AlertIcon />
-                <Text fontSize="sm">No collection selected. Please select a collection first.</Text>
-              </Alert>
             )}
-
-            <FormControl>
-              <FormLabel color={textColor}>Upload Images</FormLabel>
-              <VStack
-                p={5}
-                border="2px dashed"
-                borderColor={dropzoneBorder}
-                borderRadius="md"
-                bg={dropzoneBg}
-                textAlign="center"
-                cursor="pointer"
-                onClick={() => fileInputRef.current?.click()}
-              >
-                <Input
-                  type="file"
-                  ref={fileInputRef}
-                  multiple
-                  onChange={handleFileChange}
-                  style={{ display: 'none' }}
-                  accept="image/jpeg,image/png,image/webp,image/gif,image/tiff,.dng,.cr2,.nef,.arw,.rw2,.orf"
-                />
-                <Text color={mutedTextColor}>
-                  Drag & drop files here, or click to select files
-                </Text>
-                <FormHelperText color={mutedTextColor}>
-                  Supported formats: JPG, PNG, DNG, TIFF, WEBP, and more.
-                </FormHelperText>
-              </VStack>
-            </FormControl>
-
-            {selectedFiles && selectedFiles.length > 0 && (
-              <VStack align="start" spacing={1}>
-                <Text fontSize="sm" fontWeight="semibold">{selectedFiles.length} files selected:</Text>
-                <VStack align="start" spacing={0} pl={2} maxH="100px" overflowY="auto">
-                {Array.from(selectedFiles).map((file, i) => (
-                  <Text key={i} fontSize="xs" color={mutedTextColor}>{file.name}</Text>
-                ))}
-                </VStack>
+            {mutation.isPending && (
+              <VStack w="full">
+                <Progress size="xs" isIndeterminate w="full" />
+                <Text fontSize="sm" color="gray.500">Uploading...</Text>
               </VStack>
             )}
-
-            <Alert status="info" size="sm">
-              <AlertIcon />
-              <Text fontSize="sm">
-                The application will process all uploaded image files and add them to the selected collection.
-              </Text>
-            </Alert>
           </VStack>
         </ModalBody>
-
         <ModalFooter>
-          <Button 
-            variant="ghost" 
-            mr={3} 
-            onClick={handleClose}
-            isDisabled={loading}
-            color={textColor}
-          >
+          <Button variant="ghost" mr={3} onClick={handleClose}>
             Cancel
           </Button>
           <Button
             colorScheme="blue"
-            onClick={startIngestion}
-            isLoading={loading}
-            loadingText="Starting..."
-            isDisabled={!collection || !selectedFiles || selectedFiles.length === 0}
+            onClick={handleUpload}
+            isDisabled={!selectedFiles || mutation.isPending}
+            isLoading={mutation.isPending}
           >
-            Start Ingestion
+            Upload and Ingest
           </Button>
         </ModalFooter>
       </ModalContent>

@@ -113,4 +113,25 @@ async def select_collection(req: SelectCollectionRequest):
     """Set the active collection in global state."""
     app_state.active_collection = req.collection_name
     logger.info(f"Active collection set to {req.collection_name}")
-    return {"selected_collection": req.collection_name} 
+    return {"selected_collection": req.collection_name}
+
+@router.delete("/{collection_name}", response_model=Dict[str, Any])
+async def delete_collection(collection_name: str, qdrant: QdrantClient = Depends(get_qdrant_client)):
+    """Delete a collection and all its data."""
+    try:
+        result = qdrant.delete_collection(collection_name=collection_name)
+        if result:
+            logger.info(f"Collection '{collection_name}' deleted successfully.")
+            # If the deleted collection was the active one, clear it
+            if app_state.active_collection == collection_name:
+                app_state.active_collection = None
+                logger.info("Active collection was deleted, now no collection is active.")
+            return {"status": "success", "message": f"Collection '{collection_name}' deleted."}
+        else:
+            # This case might happen if the delete operation fails for some reason other than an exception
+            raise HTTPException(status_code=400, detail=f"Failed to delete collection '{collection_name}'.")
+    except Exception as e:
+        # Qdrant client often raises a generic Exception or ValueError for non-existent collections
+        logger.error(f"Error deleting collection '{collection_name}': {e}")
+        # A more specific check could be to inspect the error message, but this is a reasonable fallback
+        raise HTTPException(status_code=500, detail=f"An error occurred while trying to delete collection '{collection_name}'. It might not exist or there was a connection issue.") 

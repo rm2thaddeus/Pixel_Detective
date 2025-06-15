@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
+from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks, File, UploadFile
 from pydantic import BaseModel, Field
 from typing import Dict, Any, List
 import logging
@@ -15,6 +15,8 @@ import diskcache
 from PIL import Image, ExifTags
 import io
 import rawpy
+import tempfile
+import shutil
 
 from ..dependencies import get_qdrant_client, get_active_collection
 
@@ -93,6 +95,68 @@ async def start_ingestion(
         job_id=job_id,
         status="started",
         message=f"Ingestion job started for directory: {request.directory_path}"
+    )
+
+@router.post("/upload", response_model=JobResponse)
+async def upload_and_ingest_files(
+    background_tasks: BackgroundTasks,
+    files: List[UploadFile] = File(...),
+    collection_name: str = Depends(get_active_collection)
+):
+    """
+    Accept file uploads, save them to a temporary directory,
+    and start the ingestion process.
+    """
+    if not files:
+        raise HTTPException(status_code=400, detail="No files were uploaded.")
+
+    # Create a temporary directory to store uploaded files
+    temp_dir = tempfile.mkdtemp()
+    
+    logger.info(f"Created temporary directory for upload: {temp_dir}")
+
+    for file in files:
+        try:
+            # Sanitize filename to prevent security issues like directory traversal
+            sanitized_filename = os.path.basename(file.filename or "unknown_file")
+            if not sanitized_filename:
+                 logger.warning(f"Skipping file with empty filename.")
+                 continue
+
+            file_location = os.path.join(temp_dir, sanitized_filename)
+            with open(file_location, "wb+") as file_object:
+                shutil.copyfileobj(file.file, file_object)
+            logger.info(f"Saved uploaded file to {file_location}")
+        finally:
+            file.file.close()
+    
+    # Generate job ID
+    job_id = str(uuid.uuid4())
+    
+    # Initialize job status
+    job_status[job_id] = {
+        "status": "started",
+        "message": "Ingestion job started from uploaded files.",
+        "directory_path": temp_dir, # The temp dir is the source
+        "collection_name": collection_name,
+        "processed_files": 0,
+        "total_files": len(files),
+        "errors": [],
+        "cached_files": 0,
+        "progress": 0.0,
+        "logs": ["Starting ingestion from uploaded files..."]
+    }
+    
+    # Start background processing on the temporary directory
+    # We add another task to clean up the directory after processing
+    background_tasks.add_task(process_and_cleanup_directory, job_id, temp_dir, collection_name)
+    
+    logger.info(f"Started ingestion job {job_id} for uploaded files in temp dir: {temp_dir}")
+    
+    return JobResponse(
+        job_id=job_id,
+        status="started",
+        message=f"Ingestion job started for {len(files)} uploaded files."
     )
 
 @router.get("/status/{job_id}")
@@ -249,9 +313,9 @@ async def process_directory(job_id: str, directory_path: str, collection_name: s
                         payload={
                             "filename": os.path.basename(image_path),
                             "full_path": image_path,
+                            "file_hash": file_hash,
                             "caption": cached_result.get("caption", ""),
-                            "file_hash": file_hash,  # Keep hash in payload for deduplication
-                            "thumbnail_base64": thumbnail_base64,  # Add thumbnail for fast display
+                            "thumbnail_base64": thumbnail_base64,
                             **metadata
                         }
                     )
@@ -304,14 +368,14 @@ async def process_directory(job_id: str, directory_path: str, collection_name: s
                             point_id = str(uuid.uuid4())
                             
                             point = PointStruct(
-                                id=point_id,  # Use UUID instead of ml_result["unique_id"]
+                                id=point_id,  # Use UUID instead of file_hash
                                 vector=ml_result["embedding"],
                                 payload={
                                     "filename": batch_item["filename"],
                                     "full_path": batch_item["full_path"],
+                                    "file_hash": ml_result["unique_id"],
                                     "caption": ml_result.get("caption", ""),
-                                    "file_hash": ml_result["unique_id"],  # Keep hash in payload for deduplication
-                                    "thumbnail_base64": thumbnail_base64,  # Add thumbnail for fast display
+                                    "thumbnail_base64": thumbnail_base64,
                                     **metadata
                                 }
                             )
@@ -378,3 +442,15 @@ async def process_directory(job_id: str, directory_path: str, collection_name: s
         job_status[job_id]["message"] = f"Job failed: {str(e)}"
         job_status[job_id]["logs"].append(f"❌ Job failed: {str(e)}")
         logger.error(f"Job {job_id} failed: {e}", exc_info=True)
+
+async def process_and_cleanup_directory(job_id: str, directory_path: str, collection_name: str):
+    """A wrapper task that runs ingestion and then cleans up the temporary directory."""
+    try:
+        await process_directory(job_id, directory_path, collection_name)
+    finally:
+        logger.info(f"Cleaning up temporary directory: {directory_path}")
+        try:
+            shutil.rmtree(directory_path)
+            logger.info(f"Successfully removed temporary directory: {directory_path}")
+        except Exception as e:
+            logger.error(f"Failed to remove temporary directory {directory_path}: {e}")
