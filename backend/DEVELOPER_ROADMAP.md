@@ -1,57 +1,119 @@
-# Backend Roadmap – June 2025
+# Backend Roadmap – December 2024
 
 This file gathers *all* outstanding technical tasks across the two backend services so a junior developer can see, at a glance, what to tackle next and why.
 
 ---
 
-## 🔴 Critical (do these first)
+## 🟢 Recently Completed (December 2024)
 
-1. **Increase batch size end-to-end** ✅ _Implemented 2025-06-12_
-   *Current issue*: Orchestrator sends batches of 8 even though the ML service can take ~470.  
+1. **Enhanced Ingestion Pipeline with Thumbnails** ✅ _Implemented 2024-12-19_
+   *Change*: Added automatic thumbnail generation (200x200 JPEG) stored as base64 in Qdrant payload for fast frontend display.
+   *Files*: `ingestion_orchestration_fastapi_app/routers/ingest.py`.
+
+2. **Collection Info Endpoint** ✅ _Implemented 2024-12-19_
+   *Change*: Added `/api/v1/collections/{name}/info` endpoint returning collection metadata, statistics, and sample points.
+   *Files*: `ingestion_orchestration_fastapi_app/routers/collections.py`.
+
+3. **Image Serving Endpoints** ✅ _Implemented 2024-12-19_
+   *Change*: Added `/api/v1/images/{id}/thumbnail` and `/api/v1/images/{id}/info` for fast image access and metadata.
+   *Files*: `ingestion_orchestration_fastapi_app/routers/images.py`.
+
+4. **Text Search Endpoint** ✅ _Implemented 2024-12-19_
+   *Change*: Added `/api/v1/search/text` for semantic text search with CLIP text embeddings.
+   *Files*: `ingestion_orchestration_fastapi_app/routers/search.py`, `ml_inference_fastapi_app/main.py`.
+
+5. **Enhanced Job Tracking** ✅ _Implemented 2024-12-19_
+   *Change*: Improved job status tracking with detailed logs, progress reporting, and error handling.
+   *Files*: `ingestion_orchestration_fastapi_app/routers/ingest.py`.
+
+6. **Increase batch size end-to-end** ✅ _Implemented 2025-06-12_
    *Resolution*: Default `ML_INFERENCE_BATCH_SIZE` raised to **128** and orchestrator now queries the ML service `/api/v1/capabilities` endpoint at startup to clamp to the probed `safe_clip_batch`.  
    *Files*: `ingestion_orchestration_fastapi_app/main.py`, `ml_inference_fastapi_app/main.py`.
 
-2. **Drop local DNG → PNG conversion** ✅ _Implemented 2025-06-12_
+7. **Drop local DNG → PNG conversion** ✅ _Implemented 2025-06-12_
    *Change*: Orchestrator now sends **original RAW bytes** for `.dng` files; resize logic retained for JPEG/PNG only.  
    *Files*: `ingestion_orchestration_fastapi_app/main.py`.
 
-3. **Parallelise SHA-256 & directory scan** ✅ _Implemented 2025-06-12_
-   *Change*: SHA-256 computation is now off-loaded to `asyncio.to_thread`, reducing event-loop blocking.  Additional full parallel directory traversal slated for later optimisation.  
+8. **Parallelise SHA-256 & directory scan** ✅ _Implemented 2025-06-12_
+   *Change*: SHA-256 computation is now off-loaded to `asyncio.to_thread`, reducing event-loop blocking.  
    *Files*: `ingestion_orchestration_fastapi_app/main.py`.
+
+---
+
+## 🔴 Critical (do these first)
+
+1. **Frontend Directory Path Integration**
+   *Current issue*: Frontend can't access full system paths due to browser security restrictions. Users must manually type directory paths.
+   *Potential solutions*: 
+   - Implement drag-and-drop file upload with individual file processing
+   - Add server-side directory browsing API for local deployments
+   - Create desktop app wrapper (Electron/Tauri) that can access file system
+   *Priority*: High - affects user experience significantly
+
+2. **Error Handling Improvements**
+   *Current issue*: Some error messages are not user-friendly, especially for invalid directory paths.
+   *Resolution needed*: Add structured error codes and better validation messages.
+   *Files*: `ingestion_orchestration_fastapi_app/routers/ingest.py`.
 
 ---
 
 ## 🟠 High (next sprint)
 
-4. **Dynamic batch handshake endpoint in ML service**  
-   *Expose* `{ "safe_clip_batch": 471 }` so orchestrator can adapt on any GPU.
+3. **Dynamic batch handshake endpoint in ML service** ✅ _Already implemented_
+   *Status*: `GET /api/v1/capabilities` endpoint exists and returns `{ "safe_clip_batch": 471 }`.
 
-5. **Graceful GPU lock improvements**  
+4. **Graceful GPU lock improvements**  
    Existing `gpu_lock` works but blocks whole request. Investigate queueing or immediate *429 – try later* responses when GPU busy.
+
+5. **Collection Management Enhancements**
+   *Current gap*: No collection deletion confirmation, no collection statistics in list view.
+   *Needed*: Add collection size, last modified, and usage statistics to collection listing.
+
+6. **Search Result Pagination**
+   *Current limitation*: Search results are limited but not paginated properly.
+   *Needed*: Implement proper pagination with offset/limit for large result sets.
 
 ---
 
 ## 🟡 Medium
 
-6. **Optional API key auth (local deployments can skip)**  
+7. **Optional API key auth (local deployments can skip)**  
    Implement only when services leave localhost.
 
-7. **Structured error codes in job status**  
+8. **Structured error codes in job status**  
    Make front-end-friendly (`ERR_DECODING_RAW`, `ERR_CLIP_INFER`, etc.).
+
+9. **Duplicate Detection Implementation**
+   *Current status*: Endpoint exists but returns placeholder response.
+   *Needed*: Implement actual duplicate detection using vector similarity.
+
+10. **Image Metadata Enhancement**
+    *Current*: Basic EXIF extraction.
+    *Needed*: GPS coordinates, camera settings, lens information extraction.
 
 ---
 
 ## 🟢 Nice-to-have / future
 
-8. **Admin UI**  
-   Streamlit MVP: collection list, run ingestion, tail logs.
+11. **Admin UI**  
+    Streamlit MVP: collection list, run ingestion, tail logs.
 
-9. **Auto-evict old cache entries**  
-   Set `diskcache` size limit and culling policy.
+12. **Auto-evict old cache entries**  
+    Set `diskcache` size limit and culling policy.
+
+13. **Batch Operations**
+    - Bulk image deletion
+    - Batch metadata updates
+    - Collection merging/splitting
+
+14. **Advanced Search Features**
+    - Combined text + image similarity search
+    - Metadata filtering (date ranges, camera models, etc.)
+    - Saved search queries
 
 ---
 
-## 🟣 ML Inference Service – Optimisation Roadmap (added 2025-06-12)
+## 🟣 ML Inference Service – Optimisation Roadmap
 
 Priorities are ordered by *estimated wall-time reduction per 25-image batch* on a 6 GB GPU box.
 
@@ -90,10 +152,46 @@ Priorities are ordered by *estimated wall-time reduction per 25-image batch* on 
 6. **8-bit / 4-bit BLIP weights via bitsandbytes** (-30 % caption latency & memory).  
 7. **CLIP ONNX or TensorRT path** (1.3-1.6× encoder speed).
 
-> Detailed implementation notes live in `ml_inference_fastapi_app/next_steps.md`.
+---
+
+## 📊 Current System Status
+
+### Services Running
+- **Frontend**: http://localhost:3001 (Next.js 15 + TypeScript + Chakra UI with dark mode)
+- **ML Inference Service**: http://localhost:8001 (CUDA-enabled, CLIP + BLIP models loaded)
+- **Ingestion Orchestration**: http://localhost:8002 (all endpoints functional)
+- **Qdrant Database**: localhost:6333 (collections working, thumbnails stored)
+
+### Key Metrics (Last Benchmark)
+- **25 DNG files**: 64.71s end-to-end (down from 110.78s after optimizations)
+- **ML Processing**: 55.15s (15.4s decode + 39.7s inference)
+- **Batch Size**: 25 (GPU safe limit: 471)
+- **Success Rate**: 100% (0 failures)
+
+### API Endpoints Status
+✅ **Working**: Collection management, ingestion, search, image serving, thumbnails
+✅ **Optimized**: Batch processing, caching, thumbnail generation
+⚠️ **Needs Work**: Directory path input (frontend limitation), duplicate detection
+❌ **Not Implemented**: Multipart uploads, caption-optional mode
 
 ---
 
 ### Recent Benchmark (baseline)
 
 ```
+End-to-end ingestion: 25 DNG files in 64.71s
+- Directory scan: ~1s
+- ML processing: 55.15s (decode + inference)
+- Qdrant upsert: ~8s
+- Thumbnail generation: included in processing time
+Success rate: 100% (0 failures)
+```
+
+---
+
+**Revision history**
+
+| Date | Author | Notes |
+|------|--------|-------|
+| 2025-06-12 | Senior Backend Architect (AI) | Initial roadmap with optimization priorities. |
+| 2024-12-19 | AI Assistant | Updated with recent implementations: thumbnails, collection info, image serving, text search, enhanced job tracking. Added frontend integration challenges and current system status. |

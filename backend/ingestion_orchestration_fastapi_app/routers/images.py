@@ -1,9 +1,11 @@
 from fastapi import APIRouter, HTTPException, Query, Depends
+from fastapi.responses import Response
 from qdrant_client import QdrantClient
 from qdrant_client.http.models import Filter, FieldCondition, Range, ScrollRequest, OrderBy
 from typing import List, Dict, Any, Optional, Union
 import logging
 import json
+import base64
 
 from ..dependencies import get_qdrant_client, get_active_collection
 
@@ -11,7 +13,7 @@ from ..dependencies import get_qdrant_client, get_active_collection
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
-router = APIRouter()
+router = APIRouter(prefix="/api/v1/images", tags=["images"])
 
 # Removed get_qdrant_client_local_temp
 
@@ -103,4 +105,113 @@ async def list_images(
         raise
     except Exception as e:
         logger.error(f"Error listing images: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Internal server error listing images: {str(e)}") 
+        raise HTTPException(status_code=500, detail=f"Internal server error listing images: {str(e)}")
+
+@router.get("/{image_id}/thumbnail", summary="Get image thumbnail")
+async def get_image_thumbnail(
+    image_id: str,
+    qdrant: QdrantClient = Depends(get_qdrant_client),
+    collection_name: str = Depends(get_active_collection)
+):
+    """
+    Get a thumbnail for a specific image by ID.
+    Returns the base64 thumbnail stored in Qdrant payload.
+    """
+    try:
+        # Retrieve the point from Qdrant
+        points = qdrant.retrieve(
+            collection_name=collection_name,
+            ids=[image_id],
+            with_payload=True,
+            with_vectors=False
+        )
+        
+        if not points:
+            raise HTTPException(status_code=404, detail=f"Image with ID {image_id} not found")
+        
+        point = points[0]
+        payload = point.payload
+        
+        if not payload:
+            raise HTTPException(status_code=404, detail=f"No payload data found for image {image_id}")
+        
+        # Get the base64 thumbnail from payload
+        thumbnail_base64 = payload.get("thumbnail_base64")
+        if not thumbnail_base64:
+            raise HTTPException(status_code=404, detail=f"No thumbnail available for image {image_id}")
+        
+        # Decode base64 and return as JPEG
+        try:
+            thumbnail_bytes = base64.b64decode(thumbnail_base64)
+            return Response(
+                content=thumbnail_bytes,
+                media_type="image/jpeg",
+                headers={"Cache-Control": "public, max-age=3600"}  # Cache for 1 hour
+            )
+        except Exception as e:
+            logger.error(f"Error decoding thumbnail for image {image_id}: {e}")
+            raise HTTPException(status_code=500, detail="Error processing thumbnail")
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error retrieving thumbnail for image {image_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+@router.get("/{image_id}/info", summary="Get image information")
+async def get_image_info(
+    image_id: str,
+    qdrant: QdrantClient = Depends(get_qdrant_client),
+    collection_name: str = Depends(get_active_collection)
+):
+    """
+    Get detailed information about a specific image.
+    """
+    try:
+        # Retrieve the point from Qdrant
+        points = qdrant.retrieve(
+            collection_name=collection_name,
+            ids=[image_id],
+            with_payload=True,
+            with_vectors=False
+        )
+        
+        if not points:
+            raise HTTPException(status_code=404, detail=f"Image with ID {image_id} not found")
+        
+        point = points[0]
+        payload = point.payload
+        
+        if not payload:
+            raise HTTPException(status_code=404, detail=f"No data found for image {image_id}")
+        
+        # Return image information (excluding the base64 thumbnail for performance)
+        info = {
+            "id": image_id,
+            "filename": payload.get("filename"),
+            "full_path": payload.get("full_path"),
+            "caption": payload.get("caption"),
+            "file_hash": payload.get("file_hash"),
+            "width": payload.get("width"),
+            "height": payload.get("height"),
+            "format": payload.get("format"),
+            "mode": payload.get("mode"),
+            "has_thumbnail": bool(payload.get("thumbnail_base64"))
+        }
+        
+        # Add EXIF data if available
+        exif_data = {}
+        for key, value in payload.items():
+            if key.startswith("exif_"):
+                exif_data[key[5:]] = value  # Remove "exif_" prefix
+        
+        if exif_data:
+            info["exif"] = exif_data
+        
+        return info
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error retrieving info for image {image_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}") 

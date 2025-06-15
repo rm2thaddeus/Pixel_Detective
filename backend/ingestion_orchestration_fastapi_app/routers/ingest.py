@@ -50,11 +50,20 @@ async def start_ingestion(
     Start ingestion of images from a directory into the active collection.
     Returns a job ID for tracking progress.
     """
+    # Enhanced logging for debugging 400 errors
+    logger.info(f"Received ingestion request: directory_path='{request.directory_path}', collection='{collection_name}'")
+    
     # Validate directory exists
+    if not request.directory_path:
+        logger.error("Empty directory path provided")
+        raise HTTPException(status_code=400, detail="Directory path cannot be empty")
+    
     if not os.path.exists(request.directory_path):
+        logger.error(f"Directory not found: {request.directory_path}")
         raise HTTPException(status_code=400, detail=f"Directory not found: {request.directory_path}")
     
     if not os.path.isdir(request.directory_path):
+        logger.error(f"Path is not a directory: {request.directory_path}")
         raise HTTPException(status_code=400, detail=f"Path is not a directory: {request.directory_path}")
     
     # Generate job ID
@@ -70,7 +79,8 @@ async def start_ingestion(
         "total_files": 0,
         "errors": [],
         "cached_files": 0,
-        "progress": 0.0
+        "progress": 0.0,
+        "logs": []  # Add logs array for frontend
     }
     
     # Start background processing
@@ -125,6 +135,28 @@ def extract_image_metadata(file_path: str) -> Dict[str, Any]:
         logger.warning(f"Could not extract metadata from {file_path}: {e}")
         return {"width": 0, "height": 0, "format": "unknown", "mode": "unknown"}
 
+def create_thumbnail_base64(image_path: str, size: tuple = (200, 200)) -> str:
+    """Create a thumbnail and return as base64 string."""
+    try:
+        with Image.open(image_path) as img:
+            # Convert to RGB if necessary (for PNG with transparency, etc.)
+            if img.mode in ('RGBA', 'LA', 'P'):
+                img = img.convert('RGB')
+            
+            # Create thumbnail
+            img.thumbnail(size, Image.Resampling.LANCZOS)
+            
+            # Save to bytes
+            img_byte_arr = io.BytesIO()
+            img.save(img_byte_arr, format='JPEG', quality=85)
+            thumbnail_bytes = img_byte_arr.getvalue()
+            
+            # Return base64 encoded
+            return base64.b64encode(thumbnail_bytes).decode('utf-8')
+    except Exception as e:
+        logger.warning(f"Could not create thumbnail for {image_path}: {e}")
+        return ""
+
 async def send_batch_to_ml_service(batch_images: List[Dict]) -> List[Dict]:
     """Send a batch of images to the ML service for processing."""
     async with httpx.AsyncClient(timeout=300.0) as client:  # 5 minute timeout
@@ -146,6 +178,7 @@ async def process_directory(job_id: str, directory_path: str, collection_name: s
         # Update job status
         job_status[job_id]["status"] = "processing"
         job_status[job_id]["message"] = "Scanning directory for images"
+        job_status[job_id]["logs"] = ["Starting directory scan..."]
         
         # Get list of image files
         image_extensions = {'.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff', '.webp', '.dng'}
@@ -159,10 +192,12 @@ async def process_directory(job_id: str, directory_path: str, collection_name: s
         total_files = len(image_files)
         job_status[job_id]["total_files"] = total_files
         job_status[job_id]["message"] = f"Found {total_files} image files to process"
+        job_status[job_id]["logs"].append(f"Found {total_files} image files")
         
         if total_files == 0:
             job_status[job_id]["status"] = "completed"
             job_status[job_id]["message"] = "No image files found in directory"
+            job_status[job_id]["logs"].append("No image files found - job completed")
             return
 
         # Get Qdrant client
@@ -190,14 +225,22 @@ async def process_directory(job_id: str, directory_path: str, collection_name: s
                     
                     # Create Qdrant point from cached data
                     metadata = await asyncio.to_thread(extract_image_metadata, image_path)
+                    
+                    # Create thumbnail for fast display
+                    thumbnail_base64 = await asyncio.to_thread(create_thumbnail_base64, image_path)
+                    
+                    # FIX: Generate UUID for point ID instead of using SHA256 hash
+                    point_id = str(uuid.uuid4())
+                    
                     point = PointStruct(
-                        id=file_hash,
+                        id=point_id,  # Use UUID instead of file_hash
                         vector=cached_result["embedding"],
                         payload={
                             "filename": os.path.basename(image_path),
                             "full_path": image_path,
                             "caption": cached_result.get("caption", ""),
-                            "file_hash": file_hash,
+                            "file_hash": file_hash,  # Keep hash in payload for deduplication
+                            "thumbnail_base64": thumbnail_base64,  # Add thumbnail for fast display
                             **metadata
                         }
                     )
@@ -219,6 +262,7 @@ async def process_directory(job_id: str, directory_path: str, collection_name: s
                 if len(batch_for_ml) >= ML_BATCH_SIZE or i == len(image_files) - 1:
                     if batch_for_ml:
                         job_status[job_id]["message"] = f"Processing ML batch of {len(batch_for_ml)} images"
+                        job_status[job_id]["logs"].append(f"Processing ML batch of {len(batch_for_ml)} images")
                         
                         # Send batch to ML service
                         ml_results = await send_batch_to_ml_service(batch_for_ml)
@@ -228,6 +272,7 @@ async def process_directory(job_id: str, directory_path: str, collection_name: s
                             if ml_result.get("error"):
                                 error_msg = f"ML processing error for {batch_item['filename']}: {ml_result['error']}"
                                 job_status[job_id]["errors"].append(error_msg)
+                                job_status[job_id]["logs"].append(f"ERROR: {error_msg}")
                                 logger.error(error_msg)
                                 continue
                             
@@ -240,14 +285,22 @@ async def process_directory(job_id: str, directory_path: str, collection_name: s
                             
                             # Extract metadata and create Qdrant point
                             metadata = await asyncio.to_thread(extract_image_metadata, batch_item["full_path"])
+                            
+                            # Create thumbnail for fast display
+                            thumbnail_base64 = await asyncio.to_thread(create_thumbnail_base64, batch_item["full_path"])
+                            
+                            # FIX: Generate UUID for point ID instead of using SHA256 hash
+                            point_id = str(uuid.uuid4())
+                            
                             point = PointStruct(
-                                id=ml_result["unique_id"],
+                                id=point_id,  # Use UUID instead of ml_result["unique_id"]
                                 vector=ml_result["embedding"],
                                 payload={
                                     "filename": batch_item["filename"],
                                     "full_path": batch_item["full_path"],
                                     "caption": ml_result.get("caption", ""),
-                                    "file_hash": ml_result["unique_id"],
+                                    "file_hash": ml_result["unique_id"],  # Keep hash in payload for deduplication
+                                    "thumbnail_base64": thumbnail_base64,  # Add thumbnail for fast display
                                     **metadata
                                 }
                             )
@@ -258,6 +311,7 @@ async def process_directory(job_id: str, directory_path: str, collection_name: s
                 # Upsert to Qdrant when batch is full
                 if len(points_for_qdrant) >= QDRANT_BATCH_SIZE:
                     job_status[job_id]["message"] = f"Storing {len(points_for_qdrant)} points to Qdrant"
+                    job_status[job_id]["logs"].append(f"Storing {len(points_for_qdrant)} points to database")
                     qdrant_client.upsert(
                         collection_name=collection_name,
                         points=points_for_qdrant
@@ -272,14 +326,20 @@ async def process_directory(job_id: str, directory_path: str, collection_name: s
                 job_status[job_id]["cached_files"] = cached_files
                 job_status[job_id]["message"] = f"Progress: {progress:.1f}% ({processed + cached_files}/{total_files} files)"
                 
+                # Add periodic log updates
+                if (i + 1) % 10 == 0 or i == len(image_files) - 1:
+                    job_status[job_id]["logs"].append(f"Processed {i + 1}/{total_files} files ({progress:.1f}%)")
+                
             except Exception as e:
                 error_msg = f"Error processing {image_path}: {str(e)}"
                 job_status[job_id]["errors"].append(error_msg)
+                job_status[job_id]["logs"].append(f"ERROR: {error_msg}")
                 logger.error(f"Job {job_id}: {error_msg}")
         
         # Upsert any remaining points
         if points_for_qdrant:
             job_status[job_id]["message"] = f"Storing final {len(points_for_qdrant)} points to Qdrant"
+            job_status[job_id]["logs"].append(f"Storing final {len(points_for_qdrant)} points to database")
             qdrant_client.upsert(
                 collection_name=collection_name,
                 points=points_for_qdrant
@@ -299,9 +359,11 @@ async def process_directory(job_id: str, directory_path: str, collection_name: s
             success_msg += f" with {len(job_status[job_id]['errors'])} errors"
         
         job_status[job_id]["message"] = success_msg
+        job_status[job_id]["logs"].append(f"✅ {success_msg}")
         logger.info(f"Job {job_id} completed successfully: {success_msg}")
         
     except Exception as e:
         job_status[job_id]["status"] = "failed"
         job_status[job_id]["message"] = f"Job failed: {str(e)}"
+        job_status[job_id]["logs"].append(f"❌ Job failed: {str(e)}")
         logger.error(f"Job {job_id} failed: {e}", exc_info=True)

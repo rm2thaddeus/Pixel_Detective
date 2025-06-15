@@ -48,7 +48,6 @@ export function AddImagesModal({ isOpen, onClose }: AddImagesModalProps) {
   const inputBg = useColorModeValue('white', 'gray.700');
   const inputBorderColor = useColorModeValue('gray.300', 'gray.600');
   const codeBg = useColorModeValue('gray.100', 'gray.700');
-  const buttonHoverBg = useColorModeValue('gray.50', 'gray.700');
 
   const startIngestion = async () => {
     if (!collection) {
@@ -150,74 +149,32 @@ export function AddImagesModal({ isOpen, onClose }: AddImagesModalProps) {
             <FormControl>
               <FormLabel color={textColor}>Directory Path</FormLabel>
               <VStack spacing={3} align="stretch">
-                <HStack spacing={2}>
-                  <Input
-                    placeholder="e.g., C:\\Users\\username\\Pictures\\my-images"
-                    value={directoryPath}
-                    onChange={(e) => setDirectoryPath(e.target.value)}
-                    onKeyPress={handleKeyPress}
-                    isDisabled={loading}
-                    bg={inputBg}
-                    borderColor={inputBorderColor}
-                    color={textColor}
-                    _placeholder={{ color: mutedTextColor }}
-                    _focus={{
-                      borderColor: 'blue.500',
-                      boxShadow: '0 0 0 1px blue.500',
-                    }}
-                    flex="1"
-                  />
-                  <Button
-                    size="md"
-                    variant="outline"
-                    onClick={() => document.getElementById('folder-input')?.click()}
-                    isDisabled={loading}
-                    borderColor={inputBorderColor}
-                    color={textColor}
-                    _hover={{
-                      bg: buttonHoverBg,
-                    }}
-                  >
-                    Browse
-                  </Button>
-                  <input
-                    id="folder-input"
-                    type="file"
-                    style={{ display: 'none' }}
-                    // @ts-expect-error - webkitdirectory is not in the types but is widely supported
-                    webkitdirectory=""
-                    directory=""
-                    multiple
-                    onChange={(e) => {
-                      const files = e.target.files;
-                      if (files && files.length > 0) {
-                        // Get the directory path from the first file
-                        const firstFile = files[0];
-                        const fullPath = firstFile.webkitRelativePath || firstFile.name;
-                        const dirPath = fullPath.split('/').slice(0, -1).join('/');
-                        
-                        // For local files, we can't get the full system path
-                        // But we can provide a helpful message
-                        if (dirPath) {
-                          setDirectoryPath(`Selected: ${files.length} files from '${dirPath}'`);
-                        } else {
-                          setDirectoryPath(`Selected: ${files.length} files`);
-                        }
-                      }
-                    }}
-                  />
-                </HStack>
+                <Input
+                  placeholder="e.g., C:\\Users\\username\\Pictures\\my-images"
+                  value={directoryPath}
+                  onChange={(e) => setDirectoryPath(e.target.value)}
+                  onKeyPress={handleKeyPress}
+                  isDisabled={loading}
+                  bg={inputBg}
+                  borderColor={inputBorderColor}
+                  color={textColor}
+                  _placeholder={{ color: mutedTextColor }}
+                  _focus={{
+                    borderColor: 'blue.500',
+                    boxShadow: '0 0 0 1px blue.500',
+                  }}
+                />
                 
                 <FormHelperText color={mutedTextColor}>
-                  Type the full directory path or click &quot;Browse&quot; to select a folder.
-                  Supported formats: JPG, PNG, DNG, and more.
+                  Enter the full path to the directory containing your images.
+                  Supported formats: JPG, PNG, DNG, TIFF, WEBP, and more.
                 </FormHelperText>
               </VStack>
             </FormControl>
 
             <VStack spacing={2} align="stretch">
               <Text fontSize="sm" fontWeight="semibold" color={textColor}>
-                Quick Examples:
+                Path Examples:
               </Text>
               <VStack spacing={1} align="stretch" pl={2}>
                 <HStack>
@@ -234,6 +191,14 @@ export function AddImagesModal({ isOpen, onClose }: AddImagesModalProps) {
                 </HStack>
               </VStack>
             </VStack>
+
+            <Alert status="info" size="sm">
+              <AlertIcon />
+              <Text fontSize="sm">
+                Due to browser security restrictions, you must manually type the full directory path. 
+                The application will process all supported image files in the directory and its subdirectories.
+              </Text>
+            </Alert>
           </VStack>
         </ModalBody>
 

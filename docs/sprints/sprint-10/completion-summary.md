@@ -143,6 +143,8 @@
 
 ### ⚠️ **Remaining Issues (Phase 2)**
 - **✅ RESOLVED**: ~~Ingestion pipeline failing silently~~ - **FULLY IMPLEMENTED AND TESTED**
+- **✅ RESOLVED**: ~~Frontend crashes on logs page~~ - **FIXED undefined logs array issue**
+- **✅ RESOLVED**: ~~Collection API not working~~ - **COLLECTION LISTING AND INFO WORKING PERFECTLY**
 - **🟡 MINOR**: Collection creation API returns 500 error despite successful creation (cosmetic)
 - **🔄 PENDING**: Dark mode implementation not started
 - **🔄 PENDING**: WebSocket integration for real-time updates
@@ -249,9 +251,11 @@ async def process_directory(directory_path: str, job_id: str):
 3. **🔥 CRITICAL: Complete Ingestion Pipeline**: Built missing backend endpoints from scratch
 4. **Hardcoded Collection Fix**: Removed default collection assumption, proper error handling
 5. **Router Registration**: Added ingest router to main application
-3. **User Experience**: Added navigation guidance after ingestion completion
-4. **Error Handling**: Enhanced error boundaries and user feedback
-5. **Image Serving**: Optimized thumbnail serving with multiple fallback paths
+6. **User Experience**: Added navigation guidance after ingestion completion
+7. **Error Handling**: Enhanced error boundaries and user feedback
+8. **Image Serving**: Optimized thumbnail serving with multiple fallback paths
+9. **✅ NEW: Collection API Integration**: Implemented collection info endpoint, fixed frontend integration
+10. **✅ NEW: Frontend Crash Fix**: Fixed undefined logs array causing app crashes in logs page
 
 ---
 
