@@ -229,7 +229,7 @@ export default function SearchPage() {
       } else {
         // Text search
         const searchResponse = await api.post<SearchResponse>('/api/v1/search/text', {
-          text: query.trim(),
+          query: query.trim(),
           limit: 20,
           offset: 0
         });

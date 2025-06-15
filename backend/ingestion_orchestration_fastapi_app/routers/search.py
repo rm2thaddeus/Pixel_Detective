@@ -1,12 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException, Body, Query
 from qdrant_client import QdrantClient, models
-from sentence_transformers import SentenceTransformer
 from pydantic import BaseModel, Field
 from typing import List, Dict, Any, Optional, Union
 import logging
+import httpx
+import os
 
 # Import the new dependency getters, NOT the main app or old dependencies
-from ..dependencies import get_qdrant_client, get_ml_model, get_active_collection
+from ..dependencies import get_qdrant_client, get_active_collection
 
 logger = logging.getLogger(__name__)
 
@@ -14,6 +15,9 @@ router = APIRouter(
     prefix="/api/v1/search",
     tags=["search"]
 )
+
+# Configuration
+ML_SERVICE_URL = os.getenv("ML_SERVICE_URL", "http://localhost:8001")
 
 # --- Pydantic Models for API validation and documentation ---
 
@@ -40,19 +44,24 @@ class SearchResponse(BaseModel):
 async def search_images_by_text(
     search_request: SearchRequest,
     qdrant_client: QdrantClient = Depends(get_qdrant_client),
-    ml_model: SentenceTransformer = Depends(get_ml_model),
     collection_name: str = Depends(get_active_collection)
 ):
     """
     Performs a vector search based on a natural language text query.
-    1. Encodes the text query into a vector using the ML model.
+    1. Encodes the text query into a vector using the ML service.
     2. Searches for the most similar vectors in the specified Qdrant collection.
     """
     logger.info(f"Searching in collection '{collection_name}' for: '{search_request.query}'")
 
-    # 1. Encode the text query into a vector
+    # 1. Encode the text query into a vector using the ML service
     try:
-        query_vector = ml_model.encode(search_request.query).tolist()
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                f"{ML_SERVICE_URL}/api/v1/embed_text",
+                json={"text": search_request.query, "description": f"Search query: {search_request.query}"}
+            )
+            response.raise_for_status()
+            query_vector = response.json()["embedding"]
     except Exception as e:
         logger.error(f"Failed to encode query '{search_request.query}': {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to encode query: {e}")

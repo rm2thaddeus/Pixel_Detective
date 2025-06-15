@@ -1,5 +1,4 @@
 from qdrant_client import QdrantClient
-from sentence_transformers import SentenceTransformer
 from typing import Union
 from fastapi import HTTPException
 
@@ -8,7 +7,7 @@ from fastapi import HTTPException
 class AppState:
     def __init__(self):
         self.qdrant_client: Union[QdrantClient, None] = None
-        self.ml_model: Union[SentenceTransformer, None] = None
+        # ML model is no longer managed here - we use the ML service via HTTP
         self.active_collection: Union[str, None] = None
 
 # We create a single, global instance of this state.
@@ -27,14 +26,6 @@ def get_qdrant_client() -> QdrantClient:
     if app_state.qdrant_client is None:
         raise RuntimeError("Qdrant client has not been initialized.")
     return app_state.qdrant_client
-
-def get_ml_model() -> SentenceTransformer:
-    """
-    Dependency function to get the initialized ML model.
-    """
-    if app_state.ml_model is None:
-        raise RuntimeError("ML model has not been initialized.")
-    return app_state.ml_model
 
 def get_active_collection() -> str:
     """

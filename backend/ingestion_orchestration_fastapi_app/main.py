@@ -4,7 +4,6 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, APIRouter, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from qdrant_client import QdrantClient
-from sentence_transformers import SentenceTransformer
 from typing import Dict, Any
 from pydantic import BaseModel
 import diskcache
@@ -34,11 +33,8 @@ async def lifespan(app: FastAPI):
     app_state.qdrant_client = QdrantClient(host=qdrant_host, port=qdrant_port)
     logger.info(f"Qdrant client initialized for {qdrant_host}:{qdrant_port}")
 
-    # Initialize ML Model
-    # This ensures the model is loaded once on startup, not per-request
-    model_name = "clip-ViT-B-32"
-    app_state.ml_model = SentenceTransformer(model_name)
-    logger.info(f"ML Model '{model_name}' loaded.")
+    # Note: We don't load ML models here anymore - we use the ML service via HTTP
+    logger.info("Using ML service at http://localhost:8001 for embeddings")
 
     # No default active collection - users must explicitly select one
     app_state.active_collection = None
@@ -103,13 +99,12 @@ async def health():
     except Exception:
         qdrant_status = "error"
 
-    # Check ML model
-    ml_model_status = "ok" if app_state.ml_model else "error"
-
-    if qdrant_status == "ok" and ml_model_status == "ok":
-        return {"status": "ok", "services": {"qdrant": qdrant_status, "ml_model": ml_model_status}}
+    # We don't check ML model here anymore since we use the ML service
+    
+    if qdrant_status == "ok":
+        return {"status": "ok", "services": {"qdrant": qdrant_status, "ml_service": "external"}}
     else:
-        raise HTTPException(status_code=503, detail={"status": "error", "services": {"qdrant": qdrant_status, "ml_model": ml_model_status}})
+        raise HTTPException(status_code=503, detail={"status": "error", "services": {"qdrant": qdrant_status, "ml_service": "external"}})
 
 
 # Example endpoint to change the active collection
