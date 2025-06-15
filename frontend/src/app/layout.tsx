@@ -25,7 +25,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        <ColorModeScript initialColorMode="system" />
+        <ColorModeScript initialColorMode="light" />
       </head>
       <body>
         <Provider>{children}</Provider>

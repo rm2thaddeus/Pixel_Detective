@@ -1,6 +1,7 @@
 from qdrant_client import QdrantClient
 from sentence_transformers import SentenceTransformer
 from typing import Union
+from fastapi import HTTPException
 
 # This is a simple container for our shared resources.
 # It's a plain class, so it's easy to understand and doesn't hide any magic.
@@ -38,11 +39,8 @@ def get_ml_model() -> SentenceTransformer:
 def get_active_collection() -> str:
     """
     Dependency function to get the currently active collection name.
+    Raises HTTPException if no collection is selected.
     """
-    # In a real app, this might have more logic, but for now,
-    # we can depend on the global state.
     if app_state.active_collection is None:
-        # You can decide to raise an error or return a default
-        # raise HTTPException(status_code=400, detail="No collection selected")
-        return "default_collection" # Or whatever your default is
+        raise HTTPException(status_code=400, detail="No collection selected. Please select a collection first using POST /api/v1/collections/select")
     return app_state.active_collection 

@@ -7,8 +7,9 @@ import { ReactNode } from 'react'
 
 // 1. Create a theme configuration
 const config: ThemeConfig = {
-  initialColorMode: 'system', // 'dark' | 'light' | 'system'
-  useSystemColorMode: true,
+  initialColorMode: 'light', // Start with light to prevent hydration mismatch
+  useSystemColorMode: false, // Disable to prevent SSR/client mismatch
+  disableTransitionOnChange: false,
 }
 
 interface GlobalStyleProps {

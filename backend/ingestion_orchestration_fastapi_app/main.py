@@ -12,7 +12,7 @@ from PIL import Image
 
 # Import the global state manager and the routers
 from .dependencies import app_state, get_qdrant_client
-from .routers import search, images, duplicates, random # and any others
+from .routers import search, images, duplicates, random, collections # and any others
 
 # Configure logging
 logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO").upper())
@@ -40,9 +40,9 @@ async def lifespan(app: FastAPI):
     app_state.ml_model = SentenceTransformer(model_name)
     logger.info(f"ML Model '{model_name}' loaded.")
 
-    # Set a default active collection for demonstration
-    app_state.active_collection = os.getenv("QDRANT_COLLECTION_NAME", "my-first-collection")
-    logger.info(f"Default active collection set to '{app_state.active_collection}'.")
+    # No default active collection - users must explicitly select one
+    app_state.active_collection = None
+    logger.info("No default collection set. Users must select a collection via the API.")
     
     logger.info("Startup complete.")
     yield
@@ -76,6 +76,11 @@ app.include_router(search.router)
 app.include_router(images.router)
 app.include_router(duplicates.router)
 app.include_router(random.router)
+app.include_router(collections.router)
+
+# Import and include the ingest router
+from .routers import ingest
+app.include_router(ingest.router)
 
 # --- API V1 Router Setup ---
 # Define the versioned router BEFORE it is used by decorators
@@ -108,99 +113,16 @@ async def health():
 
 
 # Example endpoint to change the active collection
-@app.post("/api/v1/collections/select", tags=["collections"])
-def select_collection(collection_name: str):
-    """
-    An endpoint to change the globally active collection.
-    """
-    # In a real application, you'd verify the collection exists first.
-    logger.info(f"Changing active collection from '{app_state.active_collection}' to '{collection_name}'")
-    app_state.active_collection = collection_name
-    return {"message": f"Active collection changed to '{collection_name}'"}
+# @app.post("/api/v1/collections/select", tags=["collections"])
+# def select_collection(collection_name: str):
+#     """
+#     An endpoint to change the globally active collection.
+#     """
+#     logger.info(f"Changing active collection from '{app_state.active_collection}' to '{collection_name}'")
+#     app_state.active_collection = collection_name
+#     return {"message": f"Active collection changed to '{collection_name}'"}
 
-@v1_router.delete("/collections/{collection_name}", response_model=Dict[str, Any])
-async def delete_collection(collection_name: str, q_client: QdrantClient = Depends(get_qdrant_client)):
-    """Delete a Qdrant collection by name."""
-    try:
-        result = q_client.delete_collection(collection_name=collection_name)
-        if result:
-            # If the collection was active, reset the active_collection_name
-            if app_state.active_collection == collection_name:
-                app_state.active_collection = ""
-                logger.info(f"Active collection '{collection_name}' was deleted. Active collection has been reset.")
-            return {"status": "success", "message": f"Collection '{collection_name}' deleted successfully."}
-        else:
-            # This case might indicate the operation was accepted but execution is pending, or it failed silently.
-            # Qdrant's delete_collection returns True on success, so False might mean it didn't exist or another issue.
-            raise HTTPException(status_code=404, detail=f"Collection '{collection_name}' could not be deleted or was not found.")
-    except Exception as e:
-        # Catching potential exceptions from the client, e.g., if Qdrant is down or responds with an error.
-        logger.error(f"Error deleting collection '{collection_name}': {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
-
-@v1_router.post("/collections/select", response_model=Dict[str, str])
-async def select_collection_v1(req: CollectionNameRequest):
-    """Select the active Qdrant collection for future operations"""
-    app_state.active_collection = req.collection_name
-    logger.info(f"Selected collection: {req.collection_name}")
-    return {"selected_collection": req.collection_name}
-
-@v1_router.get("/collections/{collection_name}/info", response_model=Dict[str, Any])
-async def get_collection_info(collection_name: str, q_client: QdrantClient = Depends(get_qdrant_client)):
-    """Get detailed information about a specific collection"""
-    try:
-        # Get collection info from Qdrant
-        collection_info = q_client.get_collection(collection_name=collection_name)
-        
-        # Get a few sample points to understand the data structure
-        sample_result = q_client.scroll(
-            collection_name=collection_name,
-            limit=3,
-            with_payload=True
-        )
-        
-        sample_points = sample_result[0] if sample_result else []
-        
-        # Extract metadata from sample points
-        sample_metadata = []
-        for point in sample_points:
-            if point.payload:
-                sample_metadata.append({
-                    "id": str(point.id),
-                    "filename": point.payload.get("filename", "unknown"),
-                    "timestamp": point.payload.get("timestamp", "unknown"),
-                    "has_thumbnail": "thumbnail_base64" in point.payload,
-                    "has_caption": "caption" in point.payload,
-                })
-        
-        return {
-            "name": collection_name,
-            "status": collection_info.status.value if collection_info.status else "unknown",
-            "points_count": collection_info.points_count,
-            "vectors_count": collection_info.vectors_count,
-            "indexed_vectors_count": collection_info.indexed_vectors_count,
-            "config": {
-                "vector_size": collection_info.config.params.vectors.size if collection_info.config.params.vectors else None,
-                "distance": collection_info.config.params.vectors.distance.value if collection_info.config.params.vectors else None,
-            },
-            "sample_points": sample_metadata,
-            "is_active": collection_name == app_state.active_collection,
-        }
-        
-    except Exception as e:
-        logger.error(f"Error getting collection info for '{collection_name}': {e}")
-        raise HTTPException(status_code=404, detail=f"Collection '{collection_name}' not found or error retrieving info")
-
-@v1_router.post("/collections/cache/clear", response_model=Dict[str, str])
-async def clear_collection_cache():
-    """Clear the disk cache for the currently active Qdrant collection."""
-    if not app_state.active_collection:
-        raise HTTPException(status_code=400, detail="No collection selected")
-
-    cache_dir = os.path.join("cache", app_state.active_collection)
-    cache = diskcache.Cache(cache_dir)
-    cache.clear()
-    return {"cache_cleared_for": app_state.active_collection}
+# Legacy collection routes were replaced by `routers/collections.py` to avoid duplication and validation issues.
 
 # --- Image Serving Endpoints ---
 from fastapi.responses import FileResponse, Response
@@ -282,7 +204,7 @@ async def get_full_image(image_id: str, q_client: QdrantClient = Depends(get_qdr
     """Serve full resolution image by ID, prioritizing fast file system access"""
     if not app_state.active_collection:
         raise HTTPException(status_code=400, detail="No collection selected")
-
+    
     try:
         # Get the image data from Qdrant
         result = q_client.retrieve(
