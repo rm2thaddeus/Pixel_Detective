@@ -6,6 +6,8 @@ from typing import List, Dict, Any, Optional, Union
 import logging
 import json
 import base64
+import os
+import os
 
 from ..dependencies import get_qdrant_client, get_active_collection
 
@@ -156,6 +158,80 @@ async def get_image_thumbnail(
         raise
     except Exception as e:
         logger.error(f"Error retrieving thumbnail for image {image_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+@router.get("/{image_id}/image", summary="Get full image")
+async def get_full_image(
+    image_id: str,
+    qdrant: QdrantClient = Depends(get_qdrant_client),
+    collection_name: str = Depends(get_active_collection)
+):
+    """
+    Get the full image file by ID.
+    Returns the original image file from the file system.
+    """
+    try:
+        # Retrieve the point from Qdrant
+        points = qdrant.retrieve(
+            collection_name=collection_name,
+            ids=[image_id],
+            with_payload=True,
+            with_vectors=False
+        )
+        
+        if not points:
+            raise HTTPException(status_code=404, detail=f"Image with ID {image_id} not found")
+        
+        point = points[0]
+        payload = point.payload
+        
+        if not payload:
+            raise HTTPException(status_code=404, detail=f"No payload data found for image {image_id}")
+        
+        # Get the full path from payload
+        full_path = payload.get("full_path")
+        if not full_path:
+            raise HTTPException(status_code=404, detail=f"No file path available for image {image_id}")
+        
+        # Check if file exists
+        if not os.path.exists(full_path):
+            raise HTTPException(status_code=404, detail=f"Image file not found at {full_path}")
+        
+        # Determine media type based on file extension
+        file_extension = os.path.splitext(full_path)[1].lower()
+        media_type_map = {
+            '.jpg': 'image/jpeg',
+            '.jpeg': 'image/jpeg',
+            '.png': 'image/png',
+            '.gif': 'image/gif',
+            '.bmp': 'image/bmp',
+            '.tiff': 'image/tiff',
+            '.webp': 'image/webp',
+            '.dng': 'image/x-adobe-dng'
+        }
+        media_type = media_type_map.get(file_extension, 'application/octet-stream')
+        
+        # Read and return the file
+        try:
+            with open(full_path, 'rb') as f:
+                image_data = f.read()
+            
+            return Response(
+                content=image_data,
+                media_type=media_type,
+                headers={
+                    "Cache-Control": "public, max-age=3600",  # Cache for 1 hour
+                    "Content-Disposition": f"inline; filename=\"{os.path.basename(full_path)}\""
+                }
+            )
+        except Exception as e:
+            logger.error(f"Error reading image file {full_path}: {e}")
+            raise HTTPException(status_code=500, detail="Error reading image file")
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error retrieving full image for {image_id}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 @router.get("/{image_id}/info", summary="Get image information")

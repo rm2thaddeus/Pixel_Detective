@@ -14,6 +14,7 @@ from qdrant_client.http.models import PointStruct
 import diskcache
 from PIL import Image, ExifTags
 import io
+import rawpy
 
 from ..dependencies import get_qdrant_client, get_active_collection
 
@@ -138,21 +139,31 @@ def extract_image_metadata(file_path: str) -> Dict[str, Any]:
 def create_thumbnail_base64(image_path: str, size: tuple = (200, 200)) -> str:
     """Create a thumbnail and return as base64 string."""
     try:
-        with Image.open(image_path) as img:
-            # Convert to RGB if necessary (for PNG with transparency, etc.)
-            if img.mode in ('RGBA', 'LA', 'P'):
-                img = img.convert('RGB')
-            
-            # Create thumbnail
-            img.thumbnail(size, Image.Resampling.LANCZOS)
-            
-            # Save to bytes
-            img_byte_arr = io.BytesIO()
-            img.save(img_byte_arr, format='JPEG', quality=85)
-            thumbnail_bytes = img_byte_arr.getvalue()
-            
-            # Return base64 encoded
-            return base64.b64encode(thumbnail_bytes).decode('utf-8')
+        img: Image.Image
+        # Use rawpy for RAW image formats
+        if image_path.lower().endswith(('.dng', '.cr2', '.nef', '.arw', '.rw2', '.orf')):
+            with rawpy.imread(image_path) as raw:
+                # Postprocessing with camera white balance is usually a good starting point
+                rgb = raw.postprocess(use_camera_wb=True)
+            img = Image.fromarray(rgb).convert('RGB')
+        else:
+            # Use Pillow for standard image formats
+            img = Image.open(image_path)
+
+        # Convert to RGB if necessary (e.g., for PNG with transparency, palette-based images)
+        if img.mode in ('RGBA', 'LA', 'P'):
+            img = img.convert('RGB')
+        
+        # Create thumbnail in-place
+        img.thumbnail(size, Image.Resampling.LANCZOS)
+        
+        # Save to an in-memory bytes buffer
+        img_byte_arr = io.BytesIO()
+        img.save(img_byte_arr, format='JPEG', quality=85) # Save as JPEG for web efficiency
+        thumbnail_bytes = img_byte_arr.getvalue()
+        
+        # Return base64 encoded string
+        return base64.b64encode(thumbnail_bytes).decode('utf-8')
     except Exception as e:
         logger.warning(f"Could not create thumbnail for {image_path}: {e}")
         return ""

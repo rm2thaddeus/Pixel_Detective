@@ -21,9 +21,10 @@ import {
   Code,
   Badge,
   Alert,
-  AlertIcon
+  AlertIcon,
+  InputGroup
 } from '@chakra-ui/react';
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useStore } from '@/store/useStore';
 import { api } from '@/lib/api';
 import { useRouter } from 'next/navigation';
@@ -35,10 +36,11 @@ interface AddImagesModalProps {
 
 export function AddImagesModal({ isOpen, onClose }: AddImagesModalProps) {
   const { collection } = useStore();
-  const [directoryPath, setDirectoryPath] = useState('');
+  const [selectedFiles, setSelectedFiles] = useState<FileList | null>(null);
   const [loading, setLoading] = useState(false);
   const toast = useToast();
   const router = useRouter();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Dark mode aware colors
   const overlayBg = useColorModeValue('blackAlpha.300', 'blackAlpha.600');
@@ -48,6 +50,8 @@ export function AddImagesModal({ isOpen, onClose }: AddImagesModalProps) {
   const inputBg = useColorModeValue('white', 'gray.700');
   const inputBorderColor = useColorModeValue('gray.300', 'gray.600');
   const codeBg = useColorModeValue('gray.100', 'gray.700');
+  const dropzoneBorder = useColorModeValue('gray.300', 'gray.600');
+  const dropzoneBg = useColorModeValue('gray.50', 'gray.700');
 
   const startIngestion = async () => {
     if (!collection) {
@@ -61,10 +65,10 @@ export function AddImagesModal({ isOpen, onClose }: AddImagesModalProps) {
       return;
     }
 
-    if (!directoryPath.trim()) {
+    if (!selectedFiles || selectedFiles.length === 0) {
       toast({
-        title: 'Invalid path',
-        description: 'Please enter a directory path',
+        title: 'No files selected',
+        description: 'Please select one or more image files to upload.',
         status: 'warning',
         duration: 3000,
         isClosable: true,
@@ -74,23 +78,29 @@ export function AddImagesModal({ isOpen, onClose }: AddImagesModalProps) {
 
     try {
       setLoading(true);
-      const response = await api.post<{ job_id: string }>('/api/v1/ingest/', {
-        directory_path: directoryPath.trim()
-      });
+      
+      // TODO: Implement multipart/form-data upload
+      // const formData = new FormData();
+      // Array.from(selectedFiles).forEach(file => {
+      //   formData.append('files', file);
+      // });
+      // const response = await api.post('/api/v1/ingest/upload/', formData, { ... });
 
+      // For now, we'll just simulate the success and log to console.
+      console.log('Selected files:', selectedFiles);
+      
       toast({
-        title: 'Ingestion started',
-        description: `Job ${response.data.job_id} has been started`,
-        status: 'success',
-        duration: 3000,
+        title: 'Upload (Not Implemented)',
+        description: `This feature is being refactored. ${selectedFiles.length} files are ready.`,
+        status: 'info',
+        duration: 5000,
         isClosable: true,
       });
 
-      onClose();
-      setDirectoryPath('');
-      
-      // Navigate to logs page
-      router.push(`/logs/${response.data.job_id}`);
+      // onClose();
+      // setDirectoryPath('');
+      // router.push(`/logs/${response.data.job_id}`);
+
     } catch (error: unknown) {
       const errorMessage = error && typeof error === 'object' && 'response' in error && 
         error.response && typeof error.response === 'object' && 'data' in error.response &&
@@ -112,19 +122,19 @@ export function AddImagesModal({ isOpen, onClose }: AddImagesModalProps) {
 
   const handleClose = () => {
     if (!loading) {
-      setDirectoryPath('');
+      setSelectedFiles(null);
       onClose();
     }
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !loading) {
-      startIngestion();
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      setSelectedFiles(e.target.files);
     }
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={handleClose} size="md">
+    <Modal isOpen={isOpen} onClose={handleClose} size="xl">
       <ModalOverlay bg={overlayBg} />
       <ModalContent bg={contentBg}>
         <ModalHeader color={textColor}>Add Images to Collection</ModalHeader>
@@ -147,56 +157,49 @@ export function AddImagesModal({ isOpen, onClose }: AddImagesModalProps) {
             )}
 
             <FormControl>
-              <FormLabel color={textColor}>Directory Path</FormLabel>
-              <VStack spacing={3} align="stretch">
+              <FormLabel color={textColor}>Upload Images</FormLabel>
+              <VStack
+                p={5}
+                border="2px dashed"
+                borderColor={dropzoneBorder}
+                borderRadius="md"
+                bg={dropzoneBg}
+                textAlign="center"
+                cursor="pointer"
+                onClick={() => fileInputRef.current?.click()}
+              >
                 <Input
-                  placeholder="e.g., C:\\Users\\username\\Pictures\\my-images"
-                  value={directoryPath}
-                  onChange={(e) => setDirectoryPath(e.target.value)}
-                  onKeyPress={handleKeyPress}
-                  isDisabled={loading}
-                  bg={inputBg}
-                  borderColor={inputBorderColor}
-                  color={textColor}
-                  _placeholder={{ color: mutedTextColor }}
-                  _focus={{
-                    borderColor: 'blue.500',
-                    boxShadow: '0 0 0 1px blue.500',
-                  }}
+                  type="file"
+                  ref={fileInputRef}
+                  multiple
+                  onChange={handleFileChange}
+                  style={{ display: 'none' }}
+                  accept="image/jpeg,image/png,image/webp,image/gif,image/tiff,.dng,.cr2,.nef,.arw,.rw2,.orf"
                 />
-                
+                <Text color={mutedTextColor}>
+                  Drag & drop files here, or click to select files
+                </Text>
                 <FormHelperText color={mutedTextColor}>
-                  Enter the full path to the directory containing your images.
                   Supported formats: JPG, PNG, DNG, TIFF, WEBP, and more.
                 </FormHelperText>
               </VStack>
             </FormControl>
 
-            <VStack spacing={2} align="stretch">
-              <Text fontSize="sm" fontWeight="semibold" color={textColor}>
-                Path Examples:
-              </Text>
-              <VStack spacing={1} align="stretch" pl={2}>
-                <HStack>
-                  <Text fontSize="xs" color={mutedTextColor} w="60px">Windows:</Text>
-                  <Code bg={codeBg} color={textColor} fontSize="xs">{'C:\\Users\\yourname\\Pictures\\vacation'}</Code>
-                </HStack>
-                <HStack>
-                  <Text fontSize="xs" color={mutedTextColor} w="60px">macOS:</Text>
-                  <Code bg={codeBg} color={textColor} fontSize="xs">/Users/yourname/Pictures/vacation</Code>
-                </HStack>
-                <HStack>
-                  <Text fontSize="xs" color={mutedTextColor} w="60px">Linux:</Text>
-                  <Code bg={codeBg} color={textColor} fontSize="xs">/home/yourname/Pictures/vacation</Code>
-                </HStack>
+            {selectedFiles && selectedFiles.length > 0 && (
+              <VStack align="start" spacing={1}>
+                <Text fontSize="sm" fontWeight="semibold">{selectedFiles.length} files selected:</Text>
+                <VStack align="start" spacing={0} pl={2} maxH="100px" overflowY="auto">
+                {Array.from(selectedFiles).map((file, i) => (
+                  <Text key={i} fontSize="xs" color={mutedTextColor}>{file.name}</Text>
+                ))}
+                </VStack>
               </VStack>
-            </VStack>
+            )}
 
             <Alert status="info" size="sm">
               <AlertIcon />
               <Text fontSize="sm">
-                Due to browser security restrictions, you must manually type the full directory path. 
-                The application will process all supported image files in the directory and its subdirectories.
+                The application will process all uploaded image files and add them to the selected collection.
               </Text>
             </Alert>
           </VStack>
@@ -217,7 +220,7 @@ export function AddImagesModal({ isOpen, onClose }: AddImagesModalProps) {
             onClick={startIngestion}
             isLoading={loading}
             loadingText="Starting..."
-            isDisabled={!collection || !directoryPath.trim()}
+            isDisabled={!collection || !selectedFiles || selectedFiles.length === 0}
           >
             Start Ingestion
           </Button>

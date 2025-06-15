@@ -1,274 +1,157 @@
 'use client';
 
-import { useState, useRef, useCallback } from 'react';
+import React, { useState } from 'react';
 import {
   Box,
   VStack,
   HStack,
-  Input,
   Text,
-  SimpleGrid,
-  Image,
-  Card,
-  CardBody,
-  Badge,
-  Alert,
-  AlertIcon,
-  Spinner,
+  Input,
   InputGroup,
   InputRightElement,
-  useColorModeValue,
   IconButton,
-  useToast,
+  Button,
+  Card,
+  CardBody,
+  SimpleGrid,
   AspectRatio,
-  Flex,
+  Badge,
+  Spinner,
+  Center,
   Icon,
-  Center
+  Alert,
+  AlertIcon,
+  useColorModeValue,
+  useToast,
+  Flex,
+  Modal,
+  ModalOverlay,
+  ModalContent,
+  ModalHeader,
+  ModalFooter,
+  ModalBody,
+  ModalCloseButton,
+  useDisclosure,
+  Divider,
+  Table,
+  Tbody,
+  Tr,
+  Td,
+  TableContainer,
 } from '@chakra-ui/react';
-import { FiUpload, FiX, FiSearch, FiImage, FiType } from 'react-icons/fi';
+import { FiSearch, FiImage, FiUpload, FiX, FiType, FiInfo, FiDownload } from 'react-icons/fi';
 import { Header } from '@/components/Header';
-import { useStore } from '@/store/useStore';
-import { api, mlApi } from '@/lib/api';
+import { api } from '@/lib/api';
+import { ClientOnly } from '@/components/ClientOnly';
+import NextImage from 'next/image';
+import { useSearch, type SearchResult } from '@/hooks/useSearch';
 
-interface SearchResult {
+interface ImageDetails {
   id: string;
   filename: string;
+  full_path: string;
   caption?: string;
-  score: number;
-  thumbnail_url?: string;
-  payload?: Record<string, unknown>;
-}
-
-interface SearchResponse {
-  total_approx: number;
-  page: number;
-  per_page: number;
-  results: SearchResult[];
-  query: string;
-  embedding_model?: string;
+  file_hash: string;
+  width: number;
+  height: number;
+  format: string;
+  mode: string;
+  has_thumbnail: boolean;
+  exif?: Record<string, string>;
 }
 
 export default function SearchPage() {
-  const [query, setQuery] = useState('');
-  const [results, setResults] = useState<SearchResult[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [totalResults, setTotalResults] = useState(0);
-  const [selectedImage, setSelectedImage] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [isDragOver, setIsDragOver] = useState(false);
-  const [searchType, setSearchType] = useState<'text' | 'image' | null>(null);
-  
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const toast = useToast();
-  const { collection } = useStore();
+  const {
+    query,
+    results,
+    loading,
+    searchType,
+    imagePreview,
+    selectedImage,
+    fileInputRef,
+    handleTextChange,
+    handleSearch,
+    handleImageSelection,
+    clearImage,
+  } = useSearch();
 
-  // All color mode values at top level to avoid Hook rule violations
+  const [collection, setCollection] = useState<string | null>(null);
+  const [selectedImageDetails, setSelectedImageDetails] = useState<ImageDetails | null>(null);
+  const [isDragOver, setIsDragOver] = useState(false);
+  const { isOpen, onOpen, onClose } = useDisclosure();
+  const toast = useToast();
+
   const bgColor = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.200', 'gray.600');
-  const hoverBorderColor = useColorModeValue('blue.300', 'blue.500');
-  const dragBorderColor = useColorModeValue('blue.500', 'blue.300');
+  const hoverBorderColor = useColorModeValue('gray.300', 'gray.500');
+  const dragBorderColor = useColorModeValue('blue.400', 'blue.300');
   const pageBg = useColorModeValue('gray.50', 'gray.900');
   const headerText = useColorModeValue('gray.600', 'gray.400');
-  const cardPreviewBg = useColorModeValue('gray.50', 'gray.700');
-  const captionText = useColorModeValue('gray.600', 'gray.400');
-  const fallbackBg = useColorModeValue('gray.100', 'gray.700');
-  const fallbackIconColor = useColorModeValue('gray.400', 'gray.500');
-  const fallbackTextColor = useColorModeValue('gray.500', 'gray.400');
-  const noResultsIconColor = useColorModeValue('gray.400', 'gray.500');
-  const noResultsText = useColorModeValue('gray.600', 'gray.400');
+  const cardPreviewBg = useColorModeValue('gray.100', 'gray.700');
+  const noResultsIconColor = useColorModeValue('gray.300', 'gray.600');
+  const noResultsText = useColorModeValue('gray.500', 'gray.400');
 
-  // Handle file selection
-  const handleFileSelect = useCallback((file: File) => {
-    if (!file.type.startsWith('image/')) {
-      toast({
-        title: 'Invalid file type',
-        description: 'Please select an image file (JPG, PNG, GIF, etc.)',
-        status: 'error',
-        duration: 3000,
-        isClosable: true,
-      });
-      return;
-    }
-
-    setSelectedImage(file);
-    setSearchType('image');
-    setQuery(`🖼️ ${file.name}`);
-    
-    // Create preview
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      setImagePreview(e.target?.result as string);
-    };
-    reader.readAsDataURL(file);
-  }, [toast]);
-
-  // Handle drag and drop
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragOver(true);
+  React.useEffect(() => {
+    api.get('/health')
+      .then(response => {
+        if (response.data?.active_collection) {
+          setCollection(response.data.active_collection);
+        }
+      })
+      .catch(error => console.error('Failed to fetch collection info:', error));
   }, []);
 
-  const handleDragLeave = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragOver(false);
-  }, []);
-
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragOver(false);
-    
-    const files = Array.from(e.dataTransfer.files);
-    if (files.length > 0) {
-      handleFileSelect(files[0]);
-    }
-  }, [handleFileSelect]);
-
-  // Handle file input change
-  const handleFileInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (files && files.length > 0) {
-      handleFileSelect(files[0]);
-    }
-  }, [handleFileSelect]);
-
-  // Clear image selection
-  const clearImage = useCallback(() => {
-    setSelectedImage(null);
-    setImagePreview(null);
-    setSearchType(null);
-    setQuery('');
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
-  }, []);
-
-  // Handle text input change
-  const handleTextChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setQuery(value);
-    
-    if (value.trim() && !selectedImage) {
-      setSearchType('text');
-    } else if (!value.trim() && !selectedImage) {
-      setSearchType(null);
-    }
-  }, [selectedImage]);
-
-  // Perform search
-  const handleSearch = async () => {
-    if (!query.trim() && !selectedImage) {
-      toast({
-        title: 'Search query required',
-        description: 'Please enter text or select an image to search',
-        status: 'warning',
-        duration: 3000,
-        isClosable: true,
-      });
-      return;
-    }
-
-    if (!collection) {
-      toast({
-        title: 'No collection selected',
-        description: 'Please select a collection first',
-        status: 'warning',
-        duration: 3000,
-        isClosable: true,
-      });
-      return;
-    }
-
-    setLoading(true);
-    setResults([]);
-
+  const handleImageClick = async (result: SearchResult) => {
     try {
-      if (selectedImage) {
-        // Image search
-        const reader = new FileReader();
-        reader.onload = async (e) => {
-          try {
-            const base64Image = e.target?.result as string;
-            
-            // Get embedding from ML service
-            const embedResponse = await mlApi.post('/api/v1/embed', {
-              image_base64: base64Image.split(',')[1],
-              filename: selectedImage.name
-            });
-
-            // Search using the embedding
-            const searchResponse = await api.post<SearchResponse>('/api/v1/search', {
-              embedding: embedResponse.data.embedding,
-              limit: 20,
-              offset: 0
-            });
-
-            setResults(searchResponse.data.results || []);
-            setTotalResults(searchResponse.data.total_approx || 0);
-            
-            toast({
-              title: 'Image search completed',
-              description: `Found ${searchResponse.data.results?.length || 0} similar images`,
-              status: 'success',
-              duration: 3000,
-              isClosable: true,
-            });
-          } catch (error) {
-            console.error('Image search error:', error);
-            toast({
-              title: 'Image search failed',
-              description: 'Could not process the image. Please try again.',
-              status: 'error',
-              duration: 5000,
-              isClosable: true,
-            });
-          } finally {
-            setLoading(false);
-          }
-        };
-        reader.readAsDataURL(selectedImage);
-      } else {
-        // Text search
-        const searchResponse = await api.post<SearchResponse>('/api/v1/search/text', {
-          query: query.trim(),
-          limit: 20,
-          offset: 0
-        });
-
-        setResults(searchResponse.data.results || []);
-        setTotalResults(searchResponse.data.total_approx || 0);
-        
-        toast({
-          title: 'Text search completed',
-          description: `Found ${searchResponse.data.results?.length || 0} matching images`,
-          status: 'success',
-          duration: 3000,
-          isClosable: true,
-        });
-        setLoading(false);
-      }
+      const response = await api.get<ImageDetails>(`/api/v1/images/${result.id}/info`);
+      setSelectedImageDetails(response.data);
+      onOpen();
     } catch (error) {
-      console.error('Search error:', error);
       toast({
-        title: 'Search failed',
-        description: 'Could not complete the search. Please try again.',
+        title: 'Error',
+        description: 'Failed to load image details',
         status: 'error',
-        duration: 5000,
+        duration: 3000,
         isClosable: true,
       });
-      setLoading(false);
     }
   };
 
-  // Handle Enter key
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      handleSearch();
+  const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) handleImageSelection(file);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    const imageFile = Array.from(e.dataTransfer.files).find(file => file.type.startsWith('image/'));
+    if (imageFile) {
+      handleImageSelection(imageFile);
+    } else {
+      toast({ title: 'Invalid file', description: 'Please drop an image file', status: 'error', duration: 3000 });
     }
+  };
+
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') handleSearch();
   };
 
   return (
     <Box minH="100vh" bg={pageBg}>
-      <Header />
+      <ClientOnly>
+        <Header />
+      </ClientOnly>
       
       <Box maxW="6xl" mx="auto" p={6}>
         <VStack spacing={8} align="stretch">
@@ -286,7 +169,6 @@ export default function SearchPage() {
           <Card>
             <CardBody>
               <VStack spacing={4}>
-                {/* Main Search Input */}
                 <Box
                   w="full"
                   position="relative"
@@ -307,23 +189,18 @@ export default function SearchPage() {
                       _focus={{ borderColor: 'blue.500', boxShadow: '0 0 0 1px blue.500' }}
                       pr="120px"
                       fontSize="md"
-                      transition="all 0.2s"
                     />
                     <InputRightElement width="110px" pr={2}>
                       <HStack spacing={1}>
-                        {/* Search Type Indicator */}
                         {searchType && (
                           <Badge
                             colorScheme={searchType === 'text' ? 'blue' : 'green'}
                             variant="subtle"
-                            fontSize="xs"
                           >
                             <Icon as={searchType === 'text' ? FiType : FiImage} mr={1} />
                             {searchType}
                           </Badge>
                         )}
-                        
-                        {/* File Upload Button */}
                         <IconButton
                           aria-label="Upload image"
                           icon={<FiUpload />}
@@ -331,8 +208,6 @@ export default function SearchPage() {
                           variant="ghost"
                           onClick={() => fileInputRef.current?.click()}
                         />
-                        
-                        {/* Search Button */}
                         <IconButton
                           aria-label="Search"
                           icon={loading ? <Spinner size="sm" /> : <FiSearch />}
@@ -345,7 +220,6 @@ export default function SearchPage() {
                     </InputRightElement>
                   </InputGroup>
 
-                  {/* Hidden File Input */}
                   <input
                     ref={fileInputRef}
                     type="file"
@@ -353,49 +227,22 @@ export default function SearchPage() {
                     onChange={handleFileInputChange}
                     style={{ display: 'none' }}
                   />
-
-                  {/* Drag Overlay */}
-                  {isDragOver && (
-                    <Box
-                      position="absolute"
-                      top={0}
-                      left={0}
-                      right={0}
-                      bottom={0}
-                      bg="blue.500"
-                      opacity={0.1}
-                      borderRadius="md"
-                      border="2px dashed"
-                      borderColor="blue.500"
-                      display="flex"
-                      alignItems="center"
-                      justifyContent="center"
-                      pointerEvents="none"
-                    >
-                      <Text color="blue.500" fontWeight="bold">
-                        Drop image here to search
-                      </Text>
-                    </Box>
-                  )}
                 </Box>
 
-                {/* Image Preview */}
                 {imagePreview && (
                   <HStack spacing={4} w="full" p={4} bg={cardPreviewBg} borderRadius="md">
                     <AspectRatio ratio={1} w="60px">
-                      <Image
+                      <NextImage
                         src={imagePreview}
                         alt="Selected image"
-                        borderRadius="md"
-                        objectFit="cover"
+                        width={60}
+                        height={60}
+                        style={{ borderRadius: 'var(--chakra-radii-md)', objectFit: 'cover' }}
                       />
                     </AspectRatio>
                     <VStack align="start" flex={1} spacing={1}>
                       <Text fontSize="sm" fontWeight="medium">
-                        Selected Image: {selectedImage?.name}
-                      </Text>
-                      <Text fontSize="xs" color={captionText}>
-                        Ready to search for similar images
+                        Selected: {selectedImage?.name}
                       </Text>
                     </VStack>
                     <IconButton
@@ -408,13 +255,10 @@ export default function SearchPage() {
                   </HStack>
                 )}
 
-                {/* Collection Status */}
                 {collection && (
                   <Alert status="info" borderRadius="md">
                     <AlertIcon />
-                    <Text fontSize="sm">
-                      Searching in collection: <strong>{collection}</strong>
-                    </Text>
+                    <Text fontSize="sm">Searching in collection: <strong>{collection}</strong></Text>
                   </Alert>
                 )}
               </VStack>
@@ -424,91 +268,57 @@ export default function SearchPage() {
           {/* Search Results */}
           {(results.length > 0 || loading) && (
             <VStack spacing={6} align="stretch">
-              {/* Results Header */}
-              {!loading && results.length > 0 && (
-                <Flex justify="space-between" align="center">
-                  <Text fontSize="lg" fontWeight="medium">
-                    Found {totalResults} results
-                  </Text>
-                  <Badge colorScheme="blue" variant="subtle">
-                    {searchType === 'image' ? 'Similar Images' : 'Text Search'}
-                  </Badge>
-                </Flex>
-              )}
-
-              {/* Loading State */}
               {loading && (
                 <Center py={12}>
                   <VStack spacing={4}>
                     <Spinner size="xl" color="blue.500" />
-                    <Text>
-                      {searchType === 'image' ? 'Finding similar images...' : 'Searching images...'}
-                    </Text>
+                    <Text>Searching...</Text>
                   </VStack>
                 </Center>
               )}
 
-              {/* Results Grid */}
               {!loading && results.length > 0 && (
-                <SimpleGrid columns={{ base: 1, md: 2, lg: 3, xl: 4 }} spacing={6}>
+                <SimpleGrid columns={{ base: 1, sm: 2, md: 3, lg: 4 }} spacing={6}>
                   {results.map((result) => (
-                    <Card key={result.id} overflow="hidden" _hover={{ transform: 'translateY(-2px)', shadow: 'lg' }} transition="all 0.2s">
-                      <AspectRatio ratio={1}>
-                        <Image
-                          src={result.thumbnail_url || `http://localhost:8002/api/v1/images/${result.id}/thumbnail`}
-                          alt={result.caption || result.filename}
-                          objectFit="cover"
-                          onError={(e) => {
-                            console.log('Image load error for:', result.id, result.filename);
-                            // Try fallback URL
-                            const img = e.target as HTMLImageElement;
-                            if (!img.src.includes('/image/')) {
-                              img.src = `http://localhost:8002/api/v1/images/${result.id}/image`;
-                            }
-                          }}
-                          fallback={
-                            <Center bg={fallbackBg} h="full">
-                              <VStack spacing={2}>
-                                <Icon as={FiImage} boxSize={8} color={fallbackIconColor} />
-                                <Text fontSize="xs" color={fallbackTextColor}>
-                                  {result.filename}
-                                </Text>
-                              </VStack>
-                            </Center>
-                          }
+                    result.payload?.filename && (
+                      <Box
+                        key={result.id}
+                        onClick={() => handleImageClick(result)}
+                        cursor="pointer"
+                        borderWidth={2}
+                        borderColor="transparent"
+                        borderRadius="lg"
+                        overflow="hidden"
+                        position="relative"
+                        _hover={{
+                          borderColor: 'blue.500',
+                          boxShadow: 'lg',
+                        }}
+                      >
+                        <NextImage
+                          src={`/api/v1/images/${result.id}/thumbnail`}
+                          alt={result.payload.filename}
+                          width={300}
+                          height={300}
+                          style={{ objectFit: 'cover', width: '100%', height: '250px' }}
                         />
-                      </AspectRatio>
-                      <CardBody p={4}>
-                        <VStack align="start" spacing={2}>
-                          <Text fontSize="sm" fontWeight="medium" noOfLines={1}>
-                            {result.filename}
+                        <Box p={3} bg={cardPreviewBg}>
+                          <Text fontSize="sm" isTruncated>
+                            {result.payload.filename}
                           </Text>
-                          {result.caption && (
-                            <Text fontSize="xs" color={captionText} noOfLines={2}>
-                              {result.caption}
-                            </Text>
-                          )}
-                          <Badge colorScheme="green" variant="subtle" fontSize="xs">
-                            {Math.round(result.score * 100)}% match
-                          </Badge>
-                        </VStack>
-                      </CardBody>
-                    </Card>
+                        </Box>
+                      </Box>
+                    )
                   ))}
                 </SimpleGrid>
               )}
 
-              {/* No Results */}
               {!loading && results.length === 0 && query && (
                 <Center py={12}>
                   <VStack spacing={4} textAlign="center">
                     <Icon as={FiSearch} boxSize={12} color={noResultsIconColor} />
-                    <Text fontSize="lg" fontWeight="medium">
-                      No results found
-                    </Text>
-                    <Text color={noResultsText}>
-                      Try different keywords or upload a different image
-                    </Text>
+                    <Text fontSize="lg" fontWeight="medium">No results found</Text>
+                    <Text color={noResultsText}>Try different keywords.</Text>
                   </VStack>
                 </Center>
               )}
@@ -516,6 +326,102 @@ export default function SearchPage() {
           )}
         </VStack>
       </Box>
+
+      {/* Image Details Modal */}
+      <Modal isOpen={isOpen} onClose={onClose} size="4xl">
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>Image Details</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            {selectedImageDetails && (
+              <VStack spacing={6} align="stretch">
+                <Center>
+                  <AspectRatio ratio={selectedImageDetails.width / selectedImageDetails.height || 1} w="full" maxW="500px">
+                    <NextImage
+                      src={`/api/v1/images/${selectedImageDetails.id}/image`}
+                      alt={selectedImageDetails.filename}
+                      width={selectedImageDetails.width}
+                      height={selectedImageDetails.height}
+                      style={{ objectFit: 'contain', borderRadius: 'var(--chakra-radii-md)' }}
+                    />
+                  </AspectRatio>
+                </Center>
+                <Divider />
+                <VStack align="stretch" spacing={4}>
+                  <Text fontSize="lg" fontWeight="bold">Information</Text>
+                  <TableContainer>
+                    <Table size="sm">
+                      <Tbody>
+                        <Tr>
+                          <Td fontWeight="medium">Filename</Td>
+                          <Td>{selectedImageDetails.filename}</Td>
+                        </Tr>
+                        <Tr>
+                          <Td fontWeight="medium">Dimensions</Td>
+                          <Td>{selectedImageDetails.width} × {selectedImageDetails.height}</Td>
+                        </Tr>
+                        <Tr>
+                          <Td fontWeight="medium">Format</Td>
+                          <Td>{selectedImageDetails.format}</Td>
+                        </Tr>
+                        <Tr>
+                          <Td fontWeight="medium">Color Mode</Td>
+                          <Td>{selectedImageDetails.mode}</Td>
+                        </Tr>
+                        {selectedImageDetails.caption && (
+                          <Tr>
+                            <Td fontWeight="medium">Caption</Td>
+                            <Td>{selectedImageDetails.caption}</Td>
+                          </Tr>
+                        )}
+                        <Tr>
+                          <Td fontWeight="medium">File Hash</Td>
+                          <Td fontFamily="mono" fontSize="xs">{selectedImageDetails.file_hash}</Td>
+                        </Tr>
+                      </Tbody>
+                    </Table>
+                  </TableContainer>
+                </VStack>
+                {selectedImageDetails.exif && Object.keys(selectedImageDetails.exif).length > 0 && (
+                  <>
+                    <Divider />
+                    <VStack align="stretch" spacing={4}>
+                      <Text fontSize="lg" fontWeight="bold">EXIF Data</Text>
+                      <TableContainer>
+                        <Table size="sm">
+                          <Tbody>
+                            {Object.entries(selectedImageDetails.exif).map(([key, value]) => (
+                              <Tr key={key}>
+                                <Td fontWeight="medium">{key}</Td>
+                                <Td>{value}</Td>
+                              </Tr>
+                            ))}
+                          </Tbody>
+                        </Table>
+                      </TableContainer>
+                    </VStack>
+                  </>
+                )}
+              </VStack>
+            )}
+          </ModalBody>
+          <ModalFooter>
+            <Button
+              leftIcon={<FiDownload />}
+              colorScheme="blue"
+              onClick={() => {
+                if (selectedImageDetails) {
+                  window.open(`/api/v1/images/${selectedImageDetails.id}/image`, '_blank');
+                }
+              }}
+            >
+              Download
+            </Button>
+            <Button variant="ghost" onClick={onClose}>Close</Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
     </Box>
   );
 }
