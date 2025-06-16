@@ -230,26 +230,57 @@ def compute_sha256(file_path: str) -> str:
     return sha256_hash.hexdigest()
 
 def extract_image_metadata(file_path: str) -> Dict[str, Any]:
-    """Extract metadata from image file."""
+    """Extract metadata from an image file.
+
+    RAW formats (e.g. .dng, .cr2) are handled with *rawpy* to avoid the
+    `cannot identify image file` Pillow error that was spamming the logs
+    during ingestion. For standard image formats Pillow is still used to
+    leverage its rich EXIF utilities.
+    """
+    # Common RAW extensions that Pillow cannot open reliably
+    raw_exts = ('.dng', '.cr2', '.nef', '.arw', '.rw2', '.orf')
+    ext = os.path.splitext(file_path)[1].lower()
+
     try:
-        with Image.open(file_path) as img:
-            width, height = img.size
-            metadata = {
-                "width": width,
-                "height": height,
-                "format": img.format,
-                "mode": img.mode
-            }
-            
-            # Extract EXIF data if available
-            if hasattr(img, '_getexif') and img._getexif():
-                exif = img._getexif()
-                if exif:
-                    for tag_id, value in exif.items():
-                        tag = ExifTags.TAGS.get(tag_id, tag_id)
-                        metadata[f"exif_{tag}"] = str(value)
-            
-            return metadata
+        if ext in raw_exts:
+            # Use rawpy for RAW files to obtain basic dimensions. Detailed EXIF
+            # parsing for RAW files is outside the current scope and varies by
+            # camera vendor, so we only capture the most relevant fields.
+            try:
+                with rawpy.imread(file_path) as raw:
+                    width = raw.sizes.width
+                    height = raw.sizes.height
+                    metadata = {
+                        "width": width,
+                        "height": height,
+                        "format": "RAW",
+                        "mode": "RGB"  # rawpy outputs RGB arrays
+                    }
+                    return metadata
+            except Exception as e:
+                # rawpy failed – fall back to minimal metadata but DO NOT raise
+                logger.warning(f"rawpy could not read metadata from {file_path}: {e}")
+                return {"width": 0, "height": 0, "format": "raw", "mode": "unknown"}
+        else:
+            # Standard image handled by Pillow
+            with Image.open(file_path) as img:
+                width, height = img.size
+                metadata = {
+                    "width": width,
+                    "height": height,
+                    "format": img.format,
+                    "mode": img.mode
+                }
+
+                # Extract EXIF data if available
+                if hasattr(img, '_getexif') and img._getexif():
+                    exif = img._getexif()
+                    if exif:
+                        for tag_id, value in exif.items():
+                            tag = ExifTags.TAGS.get(tag_id, tag_id)
+                            metadata[f"exif_{tag}"] = str(value)
+
+                return metadata
     except Exception as e:
         logger.warning(f"Could not extract metadata from {file_path}: {e}")
         return {"width": 0, "height": 0, "format": "unknown", "mode": "unknown"}

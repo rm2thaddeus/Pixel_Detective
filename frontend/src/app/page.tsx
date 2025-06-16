@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { ClientOnly } from '@/components/ClientOnly';
 import {
   Box,
   VStack,
@@ -38,6 +39,15 @@ import { ping } from '@/lib/api';
 import { HomeDashboard } from '@/components/HomeDashboard';
 
 export default function Home() {
+  // Render only on client to avoid hydration mismatches due to theme tokens
+  return (
+    <ClientOnly>
+      <HomeContent />
+    </ClientOnly>
+  );
+}
+
+function HomeContent() {
   const router = useRouter();
   const { collection } = useStore();
   const [backendStatus, setBackendStatus] = useState<'loading' | 'ok' | 'error'>('loading');

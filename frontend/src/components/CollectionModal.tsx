@@ -17,11 +17,22 @@ import {
   useToast,
   Spinner,
   Badge,
-  useColorModeValue
+  useColorModeValue,
+  IconButton,
+  Tooltip,
+  useDisclosure,
+  AlertDialog,
+  AlertDialogBody,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogContent,
+  AlertDialogOverlay
 } from '@chakra-ui/react';
 import { useState, useEffect, useCallback } from 'react';
 import { useStore } from '@/store/useStore';
-import { api } from '@/lib/api';
+import { api, deleteCollection as deleteCollectionApi } from '@/lib/api';
+import { FiTrash2 } from 'react-icons/fi';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 interface CollectionModalProps {
   isOpen: boolean;
@@ -34,7 +45,39 @@ export function CollectionModal({ isOpen, onClose }: CollectionModalProps) {
   const [newCollectionName, setNewCollectionName] = useState('');
   const [loading, setLoading] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [collectionToDelete, setCollectionToDelete] = useState<string | null>(null);
   const toast = useToast();
+
+  const { isOpen: isAlertOpen, onOpen: onAlertOpen, onClose: onAlertClose } = useDisclosure();
+  const queryClient = useQueryClient();
+  const deleteMutation = useMutation({
+    mutationFn: (name: string) => deleteCollectionApi(name),
+    onSuccess: (_, deletedName) => {
+      toast({
+        title: 'Collection deleted',
+        description: `Collection "${deletedName}" has been deleted`,
+        status: 'success',
+        duration: 3000,
+        isClosable: true,
+      });
+      if (collection === deletedName) {
+        setCollection('');
+      }
+      // Refresh list
+      loadCollections();
+      queryClient.invalidateQueries({ queryKey: ['collections'] });
+      onAlertClose();
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Error deleting collection',
+        description: error?.message || 'Could not delete the collection',
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+      });
+    },
+  });
 
   // Dark mode aware colors
   const overlayBg = useColorModeValue('blackAlpha.300', 'blackAlpha.600');
@@ -219,21 +262,36 @@ export function CollectionModal({ isOpen, onClose }: CollectionModalProps) {
                       transition="all 0.2s"
                       _hover={{ shadow: 'sm' }}
                     >
-                      <HStack>
+                      <HStack spacing={3} align="center">
                         <Text color={textColor}>{col}</Text>
                         {collection === col && (
                           <Badge colorScheme="blue" size="sm">Active</Badge>
                         )}
                       </HStack>
-                      <Button
-                        size="sm"
-                        colorScheme="blue"
-                        variant={collection === col ? 'solid' : 'outline'}
-                        onClick={() => selectCollection(col)}
-                        isDisabled={collection === col}
-                      >
-                        {collection === col ? 'Selected' : 'Select'}
-                      </Button>
+                      <HStack spacing={2}>
+                        <Button
+                          size="sm"
+                          colorScheme="blue"
+                          variant={collection === col ? 'solid' : 'outline'}
+                          onClick={() => selectCollection(col)}
+                          isDisabled={collection === col}
+                        >
+                          {collection === col ? 'Selected' : 'Select'}
+                        </Button>
+                        <Tooltip label={`Delete ${col}`} placement="top">
+                          <IconButton
+                            aria-label={`Delete ${col}`}
+                            icon={<FiTrash2 />}
+                            size="sm"
+                            variant="ghost"
+                            colorScheme="red"
+                            onClick={() => {
+                              setCollectionToDelete(col);
+                              onAlertOpen();
+                            }}
+                          />
+                        </Tooltip>
+                      </HStack>
                     </HStack>
                   ))}
                 </VStack>
@@ -245,6 +303,28 @@ export function CollectionModal({ isOpen, onClose }: CollectionModalProps) {
         <ModalFooter>
           <Button onClick={onClose} color={textColor} variant="ghost">Close</Button>
         </ModalFooter>
+
+        <AlertDialog isOpen={isAlertOpen} leastDestructiveRef={null} onClose={onAlertClose}>
+          <AlertDialogOverlay>
+            <AlertDialogContent>
+              <AlertDialogHeader fontSize="lg" fontWeight="bold">
+                Delete Collection
+              </AlertDialogHeader>
+              <AlertDialogBody>
+                Are you sure you want to delete collection{' '}
+                <Text as="span" fontWeight="bold">{collectionToDelete}</Text>? This action cannot be undone.
+              </AlertDialogBody>
+              <AlertDialogFooter>
+                <Button onClick={onAlertClose} mr={3} variant="ghost">
+                  Cancel
+                </Button>
+                <Button colorScheme="red" onClick={() => collectionToDelete && deleteMutation.mutate(collectionToDelete)} isLoading={deleteMutation.isPending}>
+                  Delete
+                </Button>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialogOverlay>
+        </AlertDialog>
       </ModalContent>
     </Modal>
   );

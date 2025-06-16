@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Modal,
   ModalOverlay,
@@ -23,6 +23,8 @@ import {
   Spinner,
   Alert,
   AlertIcon,
+  HStack,
+  Tag,
 } from '@chakra-ui/react';
 import { FiDownload } from 'react-icons/fi';
 import NextImage from 'next/image';
@@ -34,6 +36,7 @@ interface ImageDetails {
     filename: string;
     full_path: string;
     caption?: string;
+    tags?: string[];
     file_hash: string;
     width: number;
     height: number;
@@ -55,11 +58,18 @@ const fetchImageDetails = async (imageId: string): Promise<ImageDetails> => {
 };
 
 export function ImageDetailsModal({ imageId, isOpen, onClose }: ImageDetailsModalProps) {
+    const [fullImageError, setFullImageError] = useState(false);
+    const [clientDimensions, setClientDimensions] = useState<{w:number, h:number} | null>(null);
     const { data: imageDetails, isLoading, error } = useQuery<ImageDetails, Error>({
         queryKey: ['imageDetails', imageId],
         queryFn: () => fetchImageDetails(imageId!),
         enabled: !!imageId,
     });
+
+    useEffect(() => {
+        setFullImageError(false);
+        setClientDimensions(null);
+    }, [imageId]);
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} size="4xl">
@@ -72,15 +82,53 @@ export function ImageDetailsModal({ imageId, isOpen, onClose }: ImageDetailsModa
           {error && <Alert status="error"><AlertIcon />{error.message}</Alert>}
           {imageDetails && (
             <VStack spacing={6} align="stretch">
+              {/* Caption & tags */}
+              {imageDetails.caption && (
+                <Text fontSize="2xl" fontWeight="bold" textAlign="center">
+                  {imageDetails.caption}
+                </Text>
+              )}
+
+              {imageDetails.tags && imageDetails.tags.length > 0 && (
+                <HStack justifyContent="center" spacing={2} flexWrap="wrap">
+                  {imageDetails.tags.map((tag) => (
+                    <Tag key={tag} colorScheme="blue" variant="subtle">
+                      {tag}
+                    </Tag>
+                  ))}
+                </HStack>
+              )}
+
               <Center>
-                <AspectRatio ratio={imageDetails.width / imageDetails.height || 1} w="full" maxW="500px">
-                  <NextImage
-                    src={`/api/v1/images/${imageDetails.id}/image`}
-                    alt={imageDetails.filename}
-                    width={imageDetails.width}
-                    height={imageDetails.height}
-                    style={{ objectFit: 'contain', borderRadius: 'var(--chakra-radii-md)' }}
-                  />
+                <AspectRatio ratio={(imageDetails.width && imageDetails.height) ? imageDetails.width / imageDetails.height : 1} w="full" maxW="800px">
+                  {fullImageError ? (
+                    <NextImage
+                      src={`/api/v1/images/${imageDetails.id}/thumbnail`}
+                      alt={imageDetails.filename}
+                      width={imageDetails.width || 400}
+                      height={imageDetails.height || 400}
+                      onLoadingComplete={(img) => {
+                        if ((!imageDetails.width || !imageDetails.height) && img?.naturalWidth && img?.naturalHeight) {
+                          setClientDimensions({ w: img.naturalWidth, h: img.naturalHeight });
+                        }
+                      }}
+                      style={{ objectFit: 'contain', borderRadius: 'var(--chakra-radii-md)' }}
+                    />
+                  ) : (
+                    <NextImage
+                      src={`/api/v1/images/${imageDetails.id}/image`}
+                      alt={imageDetails.filename}
+                      width={imageDetails.width || 400}
+                      height={imageDetails.height || 400}
+                      onError={() => setFullImageError(true)}
+                      onLoadingComplete={(img) => {
+                        if ((!imageDetails.width || !imageDetails.height) && img?.naturalWidth && img?.naturalHeight) {
+                          setClientDimensions({ w: img.naturalWidth, h: img.naturalHeight });
+                        }
+                      }}
+                      style={{ objectFit: 'contain', borderRadius: 'var(--chakra-radii-md)' }}
+                    />
+                  )}
                 </AspectRatio>
               </Center>
               <Divider />
@@ -95,16 +143,95 @@ export function ImageDetailsModal({ imageId, isOpen, onClose }: ImageDetailsModa
                       </Tr>
                       <Tr>
                         <Td fontWeight="medium">Dimensions</Td>
-                        <Td>{imageDetails.width} × {imageDetails.height}</Td>
+                        <Td>{(imageDetails.width || clientDimensions?.w || '?')} × {(imageDetails.height || clientDimensions?.h || '?')}</Td>
                       </Tr>
                       <Tr>
                         <Td fontWeight="medium">Format</Td>
-                        <Td>{imageDetails.format}</Td>
+                        <Td>{imageDetails.format !== 'unknown' ? imageDetails.format : (imageDetails.filename.split('.').pop()?.toUpperCase() || 'Unknown')}</Td>
                       </Tr>
                       <Tr>
                         <Td fontWeight="medium">File Hash</Td>
                         <Td fontFamily="mono" fontSize="xs">{imageDetails.file_hash}</Td>
                       </Tr>
+                      <Tr>
+                        <Td fontWeight="medium">File Path</Td>
+                        <Td wordBreak="break-all">{imageDetails.full_path}</Td>
+                      </Tr>
+                      <Tr>
+                        <Td fontWeight="medium">Color Mode</Td>
+                        <Td>{imageDetails.mode}</Td>
+                      </Tr>
+                      <Tr>
+                        <Td fontWeight="medium">Image ID</Td>
+                        <Td fontFamily="mono" fontSize="xs">{imageDetails.id}</Td>
+                      </Tr>
+                      <Tr>
+                        <Td fontWeight="medium">Has Thumbnail</Td>
+                        <Td>{imageDetails.has_thumbnail ? 'Yes' : 'No'}</Td>
+                      </Tr>
+                      {/* Additional metadata derived from EXIF if available */}
+                      {imageDetails.exif && (
+                        <>
+                          {(() => {
+                            const exif = imageDetails.exif || {};
+                            const cameraMake = exif["Make"] || exif["Manufacturer"];
+                            const cameraModel = exif["Model"];
+                            const lensModel = exif["LensModel"] || exif["Lens"];
+                            const dateTime = exif["DateTimeOriginal"] || exif["DateTime"];
+                            const iso = exif["ISOSpeedRatings"] || exif["ISO"];
+                            const exposure = exif["ExposureTime"];
+                            const aperture = exif["FNumber"] || exif["ApertureValue"];
+                            const focalLength = exif["FocalLength"];
+
+                            return (
+                              <>
+                                {cameraMake || cameraModel ? (
+                                  <Tr>
+                                    <Td fontWeight="medium">Camera</Td>
+                                    <Td>{[cameraMake, cameraModel].filter(Boolean).join(" ")}</Td>
+                                  </Tr>
+                                ) : null}
+                                {lensModel && (
+                                  <Tr>
+                                    <Td fontWeight="medium">Lens</Td>
+                                    <Td>{lensModel}</Td>
+                                  </Tr>
+                                )}
+                                {dateTime && (
+                                  <Tr>
+                                    <Td fontWeight="medium">Shot Date</Td>
+                                    <Td>{dateTime}</Td>
+                                  </Tr>
+                                )}
+                                {exposure && (
+                                  <Tr>
+                                    <Td fontWeight="medium">Exposure</Td>
+                                    <Td>{exposure}</Td>
+                                  </Tr>
+                                )}
+                                {aperture && (
+                                  <Tr>
+                                    <Td fontWeight="medium">Aperture</Td>
+                                    <Td>{aperture}</Td>
+                                  </Tr>
+                                )}
+                                {iso && (
+                                  <Tr>
+                                    <Td fontWeight="medium">ISO</Td>
+                                    <Td>{iso}</Td>
+                                  </Tr>
+                                )}
+                                {focalLength && (
+                                  <Tr>
+                                    <Td fontWeight="medium">Focal Length</Td>
+                                    <Td>{focalLength}</Td>
+                                  </Tr>
+                                )}
+                              </>
+                            );
+                          })()}
+                        </>
+                      )}
                     </Tbody>
                   </Table>
                 </TableContainer>

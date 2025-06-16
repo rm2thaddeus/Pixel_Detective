@@ -1,10 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException, Body, Query
+from fastapi import APIRouter, Depends, HTTPException, Body, Query, File, UploadFile
 from qdrant_client import QdrantClient, models
 from pydantic import BaseModel, Field
 from typing import List, Dict, Any, Optional, Union
 import logging
 import httpx
 import os
+import base64
 
 # Import the new dependency getters, NOT the main app or old dependencies
 from ..dependencies import get_qdrant_client, get_active_collection
@@ -94,4 +95,72 @@ async def search_images_by_text(
     ]
     
     logger.info(f"Found {len(results)} results for query.")
+    return SearchResponse(results=results)
+
+@router.post("/image", response_model=SearchResponse, summary="Search images by reference image")
+async def search_images_by_image(
+    file: UploadFile = File(...),
+    limit: int = Query(10, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    qdrant_client: QdrantClient = Depends(get_qdrant_client),
+    collection_name: str = Depends(get_active_collection)
+):
+    """Search the collection for images visually similar to an uploaded image.
+
+    Workflow:
+    1. Read the uploaded file and base64-encode it.
+    2. Forward the image to the ML inference service `/embed` endpoint to obtain a
+       CLIP embedding.
+    3. Perform a vector search in the active Qdrant collection with that
+       embedding.
+    """
+    # 1. Read file into memory
+    image_bytes = await file.read()
+    if not image_bytes:
+        raise HTTPException(status_code=400, detail="Uploaded file is empty")
+
+    # 2. Get embedding from ML service
+    try:
+        image_b64 = base64.b64encode(image_bytes).decode()
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(
+                f"{ML_SERVICE_URL}/api/v1/embed",
+                json={
+                    "image_base64": image_b64,
+                    "filename": file.filename or "uploaded_image"
+                },
+                timeout=120.0
+            )
+            resp.raise_for_status()
+            embedding = resp.json().get("embedding")
+            if embedding is None:
+                raise ValueError("ML service did not return an embedding")
+    except Exception as e:
+        logger.error(f"Failed to obtain embedding from ML service: {e}")
+        raise HTTPException(status_code=502, detail="Failed to generate embedding for uploaded image")
+
+    # 3. Vector search in Qdrant
+    try:
+        hits = qdrant_client.search(
+            collection_name=collection_name,
+            query_vector=embedding,
+            limit=limit,
+            offset=offset,
+            with_payload=True
+        )
+    except Exception as e:
+        logger.error(f"Vector search failed: {e}")
+        raise HTTPException(status_code=500, detail="Vector search failed")
+
+    results = [
+        SearchResultItem(
+            id=hit.id,
+            score=hit.score,
+            payload=hit.payload,
+            filename=hit.payload.get("filename") if hit.payload else None,
+            thumbnail_url=f"/api/v1/images/{hit.id}/thumbnail"
+        )
+        for hit in hits
+    ]
+
     return SearchResponse(results=results)

@@ -26,7 +26,7 @@ import {
 import { FiPlus, FiTrash2, FiRefreshCw, FiGrid, FiHome } from 'react-icons/fi';
 import { useStore } from '@/store/useStore';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { api } from '@/lib/api';
+import { api, deleteCollection as deleteCollectionApi } from '@/lib/api';
 import React, { useState } from 'react';
 import NextLink from 'next/link';
 
@@ -39,9 +39,7 @@ const fetchCollections = async (): Promise<string[]> => {
   return response.data;
 };
 
-const deleteCollection = async (collectionName: string) => {
-  await api.delete(`/api/v1/collections/${collectionName}`);
-};
+const deleteCollection = deleteCollectionApi;
 
 export function Sidebar({ onOpenCollectionModal }: SidebarProps) {
   const queryClient = useQueryClient();

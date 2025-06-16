@@ -55,17 +55,23 @@ While the backend APIs and core architecture are complete, some frontend integra
 - **Status**: Backend serving images correctly, frontend config needed
 - **Solution**: Add `remotePatterns` to `next.config.ts`
 
-#### **GAP-03: Metadata Display Polish** 🟡
+#### **GAP-03: Metadata Display Polish** 🟢
 - **Issue**: Image details modal not showing full metadata
 - **Impact**: Reduced user experience richness
-- **Status**: Backend `/images/{id}/info` endpoint functional, frontend integration needed
-- **Solution**: Connect `ImageDetailsModal` to metadata endpoint
+- **Status**: ✅ **COMPLETED** – `/images/{id}/info` data now fully rendered (caption, EXIF, file info, thumbnail flag, ID)
+- **Solution Implemented**: Enhanced `ImageDetailsModal.tsx` with additional fields and dynamic dimension detection; integrated fallback thumbnail handler.
 
-#### **GAP-04: Collection Management UI Polish** 🟡
+#### **GAP-04: Collection Management UI Polish** 🟢
 - **Issue**: Delete collection functionality not visible in UI
-- **Impact**: Users can't see collection management features
-- **Status**: Backend `DELETE /collections/{name}` works, UI integration needed  
-- **Solution**: Add delete buttons and confirmation dialogs
+- **Impact**: Users couldn't manage collections fully
+- **Status**: ✅ **COMPLETED** – Delete buttons with confirmation dialogs implemented in `CollectionModal`, `Sidebar`, and `Collections` page. UI now fully supports collection deletion.
+- **Solution Implemented**: Integrated React Query mutations with backend `DELETE /collections/{name}` endpoint; added confirmations using Chakra UI `AlertDialog`.
+
+#### **GAP-05: Image Similarity Search Endpoint** 🟢
+- **Issue**: Frontend's drag-and-drop image search had no matching backend route, causing 405 errors.
+- **Impact**: Users could not perform visual similarity searches.
+- **Status**: ✅ **COMPLETED** – New `POST /api/v1/search/image` endpoint implemented in `routers/search.py`. Frontend now points to this route.
+- **Solution Implemented**: Endpoint accepts an uploaded image, obtains a CLIP embedding via the ML service, and returns vector-search results identical to text search.
 
 ---
 
@@ -143,8 +149,8 @@ const nextConfig = {
 ### **✅ MUST ACHIEVE (Gap Resolution)**
 - [ ] Zero hydration errors in production builds
 - [ ] All image thumbnails load correctly in search results
-- [ ] Image details modal shows complete metadata (caption, EXIF, file info)
-- [ ] Collection deletion functionality visible and working in UI
+- [x] Image details modal shows complete metadata (caption, EXIF, file info)
+- [x] Collection deletion functionality visible and working in UI
 
 ### **✅ VALIDATION CRITERIA (Documentation Match)**
 - [ ] All features described in PRD.md work as documented

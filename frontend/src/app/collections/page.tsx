@@ -25,7 +25,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { FiPlus, FiTrash2, FiCheckCircle, FiInfo } from 'react-icons/fi';
 import { useState } from 'react';
 import { CollectionModal } from '@/components/CollectionModal';
-import { getCollections, selectCollection, CollectionInfo, getCollectionInfo } from '@/lib/api';
+import { getCollections, selectCollection, deleteCollection } from '@/lib/api';
 import { useStore } from '@/store/useStore';
 
 
@@ -107,17 +107,40 @@ export default function CollectionsPage() {
     },
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: deleteCollection,
+    onSuccess: (_, deletedName) => {
+      toast({
+        title: 'Collection deleted.',
+        description: `Collection '${deletedName}' has been removed.`,
+        status: 'success',
+        duration: 3000,
+        isClosable: true,
+      });
+      if (deletedName === activeCollection) {
+        setActiveCollection('');
+      }
+      queryClient.invalidateQueries({ queryKey: ['collections'] });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Error deleting collection.',
+        description: error.message,
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+      });
+    },
+  });
+
   const handleSelect = (collectionName: string) => {
     selectionMutation.mutate(collectionName);
   };
 
-  // Placeholder functions for delete and view details
   const handleDelete = (collectionName: string) => {
-    toast({
-        title: `Delete clicked for ${collectionName}`,
-        status: 'info',
-        duration: 2000,
-    });
+    if (window.confirm(`Are you sure you want to delete collection '${collectionName}'? This action cannot be undone.`)) {
+      deleteMutation.mutate(collectionName);
+    }
   };
 
   const handleViewDetails = (collectionName: string) => {
