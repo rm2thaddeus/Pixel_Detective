@@ -1,6 +1,6 @@
 ---
-description:
-globs:
+description: 
+globs: /sprint-10
 alwaysApply: false
 ---
 # Sprint 10 Testing Patterns - Prevention Through Testing
@@ -318,3 +318,4 @@ echo "✅ Project ready for sprint work"
 - **Sprint planning**: Verify 100% health score before starting
 
 *These tests prevent the 5 critical Sprint 10 failures from recurring.*
+
