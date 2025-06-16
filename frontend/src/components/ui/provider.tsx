@@ -9,27 +9,30 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 // Create a client
 const queryClient = new QueryClient();
 
-// HYDRATION FIX: Use mounted state to prevent server/client mismatch
-const config: ThemeConfig = {
-  initialColorMode: 'light', // Use light as safe default for SSR
-  useSystemColorMode: false, // Disable system detection during SSR
-  disableTransitionOnChange: false,
+// Define a minimal, server-safe theme config. This avoids generating
+// style tags on the server that would cause a hydration mismatch.
+const ssrConfig: ThemeConfig = {
+  initialColorMode: 'light',
+  useSystemColorMode: false,
 };
 
-interface GlobalStyleProps {
-  colorMode: 'light' | 'dark';
-}
+const ssrTheme = extendTheme({ config: ssrConfig });
 
-// 2. Extend the theme to include the color mode config
-const theme = extendTheme({
-  config,
-  styles: {
-    global: (props: GlobalStyleProps) => ({
-      body: {
-        bg: props.colorMode === 'dark' ? 'gray.900' : 'white',
-        color: props.colorMode === 'dark' ? 'white' : 'gray.800',
-      },
-    }),
+// Define the full client-side theme with semantic tokens and system detection
+const clientTheme = extendTheme({
+  config: {
+    initialColorMode: 'system',
+    useSystemColorMode: true,
+  },
+  semanticTokens: {
+    colors: {
+      pageBg: { default: 'gray.50', _dark: 'gray.900' },
+      cardBg: { default: 'white', _dark: 'gray.800' },
+      cardPreviewBg: { default: 'gray.100', _dark: 'gray.700' },
+      border: { default: 'gray.200', _dark: 'gray.600' },
+      textPrimary: { default: 'gray.800', _dark: 'white' },
+      textSecondary: { default: 'gray.600', _dark: 'gray.400' },
+    },
   },
 });
 
@@ -40,40 +43,17 @@ interface ProviderProps {
 export function Provider({ children }: ProviderProps) {
   const [mounted, setMounted] = useState(false);
 
-  // HYDRATION FIX: Only enable full theme features after client-side hydration
   useEffect(() => {
     setMounted(true);
   }, []);
-
-  // During SSR and initial hydration, render with minimal theme
-  if (!mounted) {
-    return (
-      <QueryClientProvider client={queryClient}>
-        <ChakraProvider theme={theme}>{children}</ChakraProvider>
-      </QueryClientProvider>
-    );
-  }
-
-  // After hydration, render with full theme capabilities
-  const clientTheme = extendTheme({
-    config: {
-      initialColorMode: 'system', // Enable system detection after hydration
-      useSystemColorMode: true, // Enable system detection after hydration
-      disableTransitionOnChange: false,
-    },
-    styles: {
-      global: (props: GlobalStyleProps) => ({
-        body: {
-          bg: props.colorMode === 'dark' ? 'gray.900' : 'white',
-          color: props.colorMode === 'dark' ? 'white' : 'gray.800',
-        },
-      }),
-    },
-  });
+  
+  // On the server, and for the initial client render, use the minimal SSR theme.
+  // After mounting, switch to the full client theme to enable system color mode.
+  const theme = mounted ? clientTheme : ssrTheme;
 
   return (
     <QueryClientProvider client={queryClient}>
-      <ChakraProvider theme={clientTheme}>{children}</ChakraProvider>
+      <ChakraProvider theme={theme}>{children}</ChakraProvider>
     </QueryClientProvider>
   );
 }

@@ -42,6 +42,7 @@ export default function Home() {
   const { collection } = useStore();
   const [backendStatus, setBackendStatus] = useState<'loading' | 'ok' | 'error'>('loading');
   const [setupStep, setSetupStep] = useState(1);
+  const [mounted, setMounted] = useState(false);
   
   const {
     isOpen: isCollectionModalOpen,
@@ -54,6 +55,10 @@ export default function Home() {
     onOpen: onAddImagesModalOpen,
     onClose: onAddImagesModalClose,
   } = useDisclosure();
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Dark mode aware colors - ALL at top level to avoid Hook rule violations
   const sidebarBg = useColorModeValue('white', 'gray.800');
@@ -146,6 +151,10 @@ export default function Home() {
 
   const featuredActions = quickActions.filter(action => action.featured);
   const otherActions = quickActions.filter(action => !action.featured);
+
+  if (!mounted) {
+    return null; // or a loading spinner
+  }
 
   return (
     <Box minH="100vh">

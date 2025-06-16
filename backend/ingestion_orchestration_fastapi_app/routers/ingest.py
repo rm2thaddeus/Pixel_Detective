@@ -97,6 +97,60 @@ async def start_ingestion(
         message=f"Ingestion job started for directory: {request.directory_path}"
     )
 
+@router.post("/scan", response_model=JobResponse)
+async def start_ingestion_from_path(
+    request: IngestRequest,
+    background_tasks: BackgroundTasks,
+    collection_name: str = Depends(get_active_collection)
+):
+    """
+    Start ingestion of images from a directory path on the server
+    into the active collection.
+    Returns a job ID for tracking progress.
+    """
+    logger.info(f"Received ingestion request for server path: directory_path='{request.directory_path}', collection='{collection_name}'")
+    
+    # Validate directory exists on the server
+    if not request.directory_path or not os.path.isabs(request.directory_path):
+        logger.error(f"Invalid path provided: {request.directory_path}")
+        raise HTTPException(status_code=400, detail="An absolute server path is required.")
+    
+    if not os.path.exists(request.directory_path):
+        logger.error(f"Directory not found on server: {request.directory_path}")
+        raise HTTPException(status_code=400, detail=f"Directory not found on server: {request.directory_path}")
+    
+    if not os.path.isdir(request.directory_path):
+        logger.error(f"Path is not a directory: {request.directory_path}")
+        raise HTTPException(status_code=400, detail=f"Path is not a directory: {request.directory_path}")
+    
+    # Generate job ID
+    job_id = str(uuid.uuid4())
+    
+    # Initialize job status
+    job_status[job_id] = {
+        "status": "started",
+        "message": "Ingestion job started",
+        "directory_path": request.directory_path,
+        "collection_name": collection_name,
+        "processed_files": 0,
+        "total_files": 0,
+        "errors": [],
+        "cached_files": 0,
+        "progress": 0.0,
+        "logs": []
+    }
+    
+    # Start background processing
+    background_tasks.add_task(process_directory, job_id, request.directory_path, collection_name)
+    
+    logger.info(f"Started ingestion job {job_id} for server directory: {request.directory_path}")
+    
+    return JobResponse(
+        job_id=job_id,
+        status="started",
+        message=f"Ingestion job started for server directory: {request.directory_path}"
+    )
+
 @router.post("/upload", response_model=JobResponse)
 async def upload_and_ingest_files(
     background_tasks: BackgroundTasks,

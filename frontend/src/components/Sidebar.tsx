@@ -20,20 +20,23 @@ import {
   AlertDialogContent,
   AlertDialogOverlay,
   useToast,
+  Flex,
+  Spinner,
 } from '@chakra-ui/react';
-import { FiPlus, FiTrash2, FiRefreshCw } from 'react-icons/fi';
+import { FiPlus, FiTrash2, FiRefreshCw, FiGrid, FiHome } from 'react-icons/fi';
 import { useStore } from '@/store/useStore';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
-import React from 'react';
+import React, { useState } from 'react';
+import NextLink from 'next/link';
 
 interface SidebarProps {
   onOpenCollectionModal: () => void;
 }
 
-const fetchCollections = async () => {
-  const { data } = await api.get<string[]>('/api/v1/collections');
-  return data;
+const fetchCollections = async (): Promise<string[]> => {
+  const response = await api.get('/api/v1/collections');
+  return response.data;
 };
 
 const deleteCollection = async (collectionName: string) => {
@@ -41,143 +44,146 @@ const deleteCollection = async (collectionName: string) => {
 };
 
 export function Sidebar({ onOpenCollectionModal }: SidebarProps) {
-  const { collection, setCollection } = useStore();
-  const { data: collections, isLoading, refetch } = useQuery({
+  const queryClient = useQueryClient();
+  const toast = useToast();
+  const [collectionToDelete, setCollectionToDelete] = useState<string | null>(null);
+  const { isOpen: isAlertOpen, onOpen: onAlertOpen, onClose: onAlertClose } = useDisclosure();
+
+  const { data: collections, isLoading } = useQuery({
     queryKey: ['collections'],
     queryFn: fetchCollections,
   });
-  const { isOpen, onOpen, onClose } = useDisclosure();
-  const [selectedForDeletion, setSelectedForDeletion] = React.useState<string | null>(null);
-  const cancelRef = React.useRef<HTMLButtonElement>(null);
-  const queryClient = useQueryClient();
-  const toast = useToast();
+  const activeCollection = useStore((state) => state.collection);
+  const setActiveCollection = useStore((state) => state.setCollection);
 
   const mutation = useMutation({
     mutationFn: deleteCollection,
-    onSuccess: (_, deletedCollectionName) => {
-      queryClient.invalidateQueries({ queryKey: ['collections'] });
+    onSuccess: () => {
       toast({
         title: 'Collection deleted.',
-        description: `Successfully deleted '${deletedCollectionName}'.`,
         status: 'success',
         duration: 3000,
         isClosable: true,
       });
-      // If the active collection was deleted, clear it from the store
-      if (collection === deletedCollectionName) {
-        setCollection(null);
+      queryClient.invalidateQueries({ queryKey: ['collections'] });
+      if (collectionToDelete === activeCollection) {
+        setActiveCollection('');
       }
+      onAlertClose();
     },
-    onError: (error: any, deletedCollectionName) => {
+    onError: (error) => {
       toast({
-        title: 'Deletion failed.',
-        description: error.response?.data?.detail || `Could not delete '${deletedCollectionName}'.`,
+        title: 'Error deleting collection.',
+        description: error.message,
         status: 'error',
         duration: 5000,
         isClosable: true,
       });
     },
-    onSettled: () => {
-      handleCloseDialog();
-    }
   });
 
-  const sidebarBg = useColorModeValue('white', 'gray.800');
-  const borderColor = useColorModeValue('gray.200', 'gray.700');
-
   const handleDeleteClick = (collectionName: string) => {
-    setSelectedForDeletion(collectionName);
-    onOpen();
+    setCollectionToDelete(collectionName);
+    onAlertOpen();
   };
 
   const handleConfirmDelete = () => {
-    if (selectedForDeletion) {
-      mutation.mutate(selectedForDeletion);
+    if (collectionToDelete) {
+      mutation.mutate(collectionToDelete);
     }
   };
 
   const handleCloseDialog = () => {
-    setSelectedForDeletion(null);
-    onClose();
+    onAlertClose();
   };
 
   return (
-    <>
-      <Box
-        as="aside"
-        w="280px"
-        bg={sidebarBg}
-        borderRight="1px"
-        borderColor={borderColor}
-        p={4}
-        h="100vh"
-        position="sticky"
-        top={0}
+    <Box
+      as="nav"
+      pos="fixed"
+      top="0"
+      left="0"
+      zIndex="sticky"
+      h="full"
+      pb="10"
+      overflowX="hidden"
+      overflowY="auto"
+      bg={useColorModeValue('white', 'gray.800')}
+      borderColor={useColorModeValue('inherit', 'gray.700')}
+      borderRightWidth="1px"
+      w="60"
+    >
+      <Flex px="4" py="5" align="center">
+        <Text
+          fontSize="2xl"
+          ml="2"
+          color={useColorModeValue('brand.500', 'white')}
+          fontWeight="semibold"
+        >
+          Vibe Coder
+        </Text>
+      </Flex>
+      <Flex
+        direction="column"
+        as="nav"
+        fontSize="sm"
+        color="gray.600"
+        aria-label="Main Navigation"
       >
-        <VStack spacing={4} align="stretch">
-          <HStack justify="space-between" align="center">
-            <Heading size="md">Collections</Heading>
-            <Tooltip label="Refresh list" placement="top">
-              <IconButton
-                aria-label="Refresh collections"
-                icon={<FiRefreshCw />}
+        <Button as={NextLink} href="/" variant="ghost" leftIcon={<FiHome />} justifyContent="start" mb={2}>
+            Home
+        </Button>
+        <Button as={NextLink} href="/collections" variant="ghost" leftIcon={<FiGrid />} justifyContent="start" mb={4}>
+            Collections
+        </Button>
+
+        <HStack px={4} mb={2} justifyContent="space-between">
+            <Text fontWeight="bold">My Collections</Text>
+            <IconButton 
+                aria-label="Create Collection" 
+                icon={<FiPlus />} 
                 size="sm"
-                variant="ghost"
-                onClick={() => refetch()}
-                isLoading={isLoading}
-              />
-            </Tooltip>
-          </HStack>
-          <Divider />
-          <VStack spacing={2} align="stretch" overflowY="auto" flex="1">
-            {isLoading ? (
-              <Text>Loading...</Text>
-            ) : (
-              collections?.map((c) => (
-                <HStack
-                  key={c}
-                  p={2}
-                  borderRadius="md"
-                  bg={collection === c ? 'blue.500' : 'transparent'}
-                  color={collection === c ? 'white' : 'inherit'}
-                  cursor="pointer"
-                  onClick={() => setCollection(c)}
-                  justifyContent="space-between"
-                  _hover={{ bg: collection !== c ? useColorModeValue('gray.100', 'gray.700') : 'blue.600' }}
-                >
-                  <Text isTruncated>{c}</Text>
-                  <Tooltip label={`Delete ${c}`} placement="top">
-                    <IconButton
-                      aria-label={`Delete ${c}`}
-                      icon={<FiTrash2 />}
-                      size="xs"
-                      variant="ghost"
-                      colorScheme="red"
-                      onClick={(e) => {
-                        e.stopPropagation(); // Prevent collection selection
-                        handleDeleteClick(c);
-                      }}
-                      visibility={collection === c ? 'visible' : 'hidden'}
-                      _groupHover={{ visibility: 'visible' }}
-                    />
-                  </Tooltip>
-                </HStack>
-              ))
-            )}
-          </VStack>
-          <Button
-            leftIcon={<FiPlus />}
-            onClick={onOpenCollectionModal}
-            colorScheme="blue"
-          >
-            New Collection
-          </Button>
+                onClick={onOpenCollectionModal}
+            />
+        </HStack>
+        {isLoading && <Spinner mx="auto" />}
+        <VStack spacing={1} align="stretch">
+          {collections?.map((name) => (
+            <HStack
+              key={name}
+              p={2}
+              borderRadius="md"
+              bg={activeCollection === name ? 'blue.500' : 'transparent'}
+              color={activeCollection === name ? 'white' : 'inherit'}
+              cursor="pointer"
+              onClick={() => setActiveCollection(name)}
+              justifyContent="space-between"
+              _hover={{ bg: activeCollection !== name ? useColorModeValue('gray.100', 'gray.700') : 'blue.600' }}
+            >
+              <Text isTruncated>{name}</Text>
+              <Tooltip label={`Delete ${name}`} placement="top">
+                <IconButton
+                  aria-label={`Delete ${name}`}
+                  icon={<FiTrash2 />}
+                  size="xs"
+                  variant="ghost"
+                  colorScheme="red"
+                  onClick={(e) => {
+                    e.stopPropagation(); // Prevent collection selection
+                    handleDeleteClick(name);
+                  }}
+                  visibility={activeCollection === name ? 'visible' : 'hidden'}
+                  _groupHover={{ visibility: 'visible' }}
+                />
+              </Tooltip>
+            </HStack>
+          ))}
         </VStack>
-      </Box>
+      </Flex>
 
       <AlertDialog
-        isOpen={isOpen}
-        leastDestructiveRef={cancelRef}
+        isOpen={isAlertOpen}
+        leastDestructiveRef={null}
         onClose={handleCloseDialog}
       >
         <AlertDialogOverlay>
@@ -188,17 +194,13 @@ export function Sidebar({ onOpenCollectionModal }: SidebarProps) {
 
             <AlertDialogBody>
               Are you sure you want to delete the collection{' '}
-              <Text as="span" fontWeight="bold">{selectedForDeletion}</Text>? This action cannot be undone.
+              <Text as="span" fontWeight="bold">{collectionToDelete}</Text>? This action cannot be undone.
             </AlertDialogBody>
 
             <AlertDialogFooter>
-              <Button ref={cancelRef} onClick={handleCloseDialog}>
-                Cancel
-              </Button>
               <Button
                 colorScheme="red"
                 onClick={handleConfirmDelete}
-                ml={3}
                 isLoading={mutation.isPending}
               >
                 Delete
@@ -207,6 +209,6 @@ export function Sidebar({ onOpenCollectionModal }: SidebarProps) {
           </AlertDialogContent>
         </AlertDialogOverlay>
       </AlertDialog>
-    </>
+    </Box>
   );
 } 

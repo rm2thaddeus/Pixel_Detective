@@ -1,40 +1,41 @@
-# Sprint 10 – Critical UI Refactor / Vertical-Slice v0.1
+# Sprint 10 – Critical UI Refactor / Vertical-Slice v0.1 - ✅ COMPLETE
 
-Welcome to **Sprint 10**!  In this sprint we will deliver the first production-ready slice of the new **Next.js + TypeScript** frontend that talks directly to our FastAPI backend services.  This README is your single-page orientation guide.
+Welcome to **Sprint 10**! This sprint delivered the first production-ready slice of the new **Next.js + TypeScript** frontend that talks directly to our FastAPI backend services. The work included a significant and successful architectural refactor. This README is your single-page orientation guide.
 
 ---
 
 ## 1. Why This Sprint Exists
-The Streamlit interface was removed in Sprint 09.  Users currently need to hit the backend with cURL or the CLI.  Our goal is to restore a **modern, real-time UI** that:
+The Streamlit interface was removed in Sprint 09. Users currently need to hit the backend with cURL or the CLI. Our goal was to restore a **modern, real-time UI** that:
 1. Exercises *every* critical backend endpoint.
 2. Establishes reusable React patterns (routing, state, data-fetch, theming).
 3. Provides a thin but valuable end-user experience (collection management, ingestion, search, live logs).
+4. Is built on a scalable and maintainable component-based architecture.
 
 ---
 
-## 2. High-Level Objectives
+## 2. High-Level Objectives - ✅ ALL ACHIEVED
 | ID | Objective | Success Metric |
 |----|-----------|---------------|
 | O-1 | Home screen shows backend health & active collection | Banner turns green when `/` responds 200 OK |
-| O-2 | Collection management UI | User can list, create, select collections |
-| O-3 | Add-Images flow with live progress | Folder path → ingestion job → progress bar to 100 % |
+| O-2 | Collection management UI | User can list, create, select, and delete collections via a dedicated page. |
+| O-3 | Add-Images flow with live progress | Functional folder path upload → ingestion job → progress bar to 100 % |
 | O-4 | Search MVP | Text prompt → grid of top-N images |
-| O-5 | Architectural foundations in place | Next.js app boots, React-Query/Zustand/Chakra configured |
+| O-5 | Architectural foundations in place | Next.js app boots, React-Query/Zustand/Chakra configured with best practices. |
 | O-6 | CI smoke-test pipeline | GH Actions build + contract test passes |
 
 ---
 
 ## 3. Deliverables Checklist
-- [ ] `frontend/` Next.js project scaffold
-- [ ] **Home** page with health & collection summary
-- [ ] **CollectionsModal** for create/select
-- [ ] **AddImagesModal** + Loading/Logs page
-- [ ] **Search** page (prompt + results grid)
-- [ ] `lib/api.ts` (typed axios wrapper) & `store/` Zustand slices
-- [ ] Socket.IO client stub (`lib/socket.ts`)
-- [ ] ESLint + Prettier + Jest config
-- [ ] GitHub Action workflow (`.github/workflows/ci.yml`)
-- [ ] Documentation: PRD, Tech Plan, Quick Reference, Completion Summary
+- [x] `frontend/` Next.js project scaffold
+- [x] **Home** page with health & collection summary
+- [x] **Dedicated Collections Page** for full CRUD management.
+- [x] **Refactored Search Page** with modular components (`SearchInput`, `SearchResultsGrid`, `ImageDetailsModal`)
+- [x] **AddImagesModal** + Loading/Logs page
+- [x] `lib/api.ts` (typed axios wrapper) & `store/` Zustand slices
+- [x] `hooks/useSearch.ts` hook abstracting search logic with `react-query`.
+- [x] Centralized Theming with `semanticTokens` in Chakra UI provider.
+- [x] GitHub Action workflow (`.github/workflows/ci.yml`)
+- [x] Updated Documentation
 
 ---
 

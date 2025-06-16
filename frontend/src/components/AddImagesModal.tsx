@@ -18,12 +18,19 @@ import {
   Input,
   Progress,
   HStack,
+  Tabs,
+  TabList,
+  Tab,
+  TabPanels,
+  TabPanel,
+  InputGroup,
+  InputLeftElement,
 } from '@chakra-ui/react';
 import { useState, useRef } from 'react';
 import { useStore } from '@/store/useStore';
 import { api } from '@/lib/api';
 import { useRouter } from 'next/navigation';
-import { FiFolder, FiUploadCloud } from 'react-icons/fi';
+import { FiFolder, FiUploadCloud, FiServer } from 'react-icons/fi';
 import { useMutation } from '@tanstack/react-query';
 
 interface AddImagesModalProps {
@@ -31,23 +38,29 @@ interface AddImagesModalProps {
   onClose: () => void;
 }
 
-const uploadFiles = async (files: FileList) => {
-  const formData = new FormData();
-  Array.from(files).forEach(file => {
-    formData.append('files', file);
-  });
+type IngestVariables = { type: 'upload'; files: FileList } | { type: 'path'; path: string };
 
-  const { data } = await api.post('/api/v1/ingest/upload', formData, {
-    headers: {
-      'Content-Type': 'multipart/form-data',
-    },
-  });
-  return data;
+const startIngestion = async (variables: IngestVariables) => {
+  if (variables.type === 'upload') {
+    const formData = new FormData();
+    Array.from(variables.files).forEach(file => {
+      formData.append('files', file);
+    });
+    const { data } = await api.post('/api/v1/ingest/upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return data;
+  } else {
+    const { data } = await api.post('/api/v1/ingest/scan', { directory_path: variables.path });
+    return data;
+  }
 };
 
 export function AddImagesModal({ isOpen, onClose }: AddImagesModalProps) {
   const { collection } = useStore();
   const [selectedFiles, setSelectedFiles] = useState<FileList | null>(null);
+  const [serverPath, setServerPath] = useState('');
+  const [tabIndex, setTabIndex] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const toast = useToast();
   const router = useRouter();
@@ -55,9 +68,10 @@ export function AddImagesModal({ isOpen, onClose }: AddImagesModalProps) {
   const dropzoneBorder = useColorModeValue('gray.300', 'gray.600');
   const dropzoneBg = useColorModeValue('gray.50', 'gray.800');
   const dropzoneBgHover = useColorModeValue('gray.100', 'gray.700');
+  const selectedBg = useColorModeValue('gray.100', 'gray.700');
 
   const mutation = useMutation({
-    mutationFn: uploadFiles,
+    mutationFn: startIngestion,
     onSuccess: (data) => {
       toast({
         title: 'Upload successful',
@@ -91,13 +105,17 @@ export function AddImagesModal({ isOpen, onClose }: AddImagesModalProps) {
       toast({ title: 'No collection selected', status: 'warning' });
       return;
     }
-    if (selectedFiles) {
-      mutation.mutate(selectedFiles);
+    if (tabIndex === 0 && selectedFiles) {
+      mutation.mutate({ type: 'upload', files: selectedFiles });
+    } else if (tabIndex === 1 && serverPath) {
+      mutation.mutate({ type: 'path', path: serverPath });
     }
   };
 
   const handleClose = () => {
     setSelectedFiles(null);
+    setServerPath('');
+    setTabIndex(0);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -112,50 +130,76 @@ export function AddImagesModal({ isOpen, onClose }: AddImagesModalProps) {
         <ModalHeader>Add Images to &quot;{collection}&quot;</ModalHeader>
         <ModalCloseButton />
         <ModalBody>
-          <VStack spacing={4}>
-            <Text>Select a folder containing your images to upload and ingest them into the current collection.</Text>
-            <Box
-              p={6}
-              border="2px dashed"
-              borderColor={dropzoneBorder}
-              borderRadius="md"
-              w="full"
-              textAlign="center"
-              bg={dropzoneBg}
-              _hover={{ bg: dropzoneBgHover }}
-              cursor="pointer"
-              onClick={() => fileInputRef.current?.click()}
-            >
-              <VStack>
-                <Icon as={FiUploadCloud} boxSize={12} color="gray.500" />
-                <Text fontWeight="medium">Click to select a folder</Text>
-                <Text fontSize="sm" color="gray.500">
-                  You will be prompted to select a directory from your computer.
-                </Text>
-              </VStack>
-              <Input
-                type="file"
-                ref={fileInputRef}
-                onChange={handleFileSelect}
-                style={{ display: 'none' }}
-                {...{ webkitdirectory: 'true', mozdirectory: 'true' }}
-              />
-            </Box>
-            {selectedFiles && (
-              <HStack w="full" bg={useColorModeValue('gray.100', 'gray.700')} p={3} borderRadius="md">
-                <Icon as={FiFolder} />
-                <Text fontSize="sm" isTruncated>
-                  {selectedFiles.length} file(s) selected from folder.
-                </Text>
-              </HStack>
-            )}
-            {mutation.isPending && (
-              <VStack w="full">
-                <Progress size="xs" isIndeterminate w="full" />
-                <Text fontSize="sm" color="gray.500">Uploading...</Text>
-              </VStack>
-            )}
-          </VStack>
+          <Tabs index={tabIndex} onChange={(index) => setTabIndex(index)}>
+            <TabList>
+              <Tab>Upload from this Computer</Tab>
+              <Tab>Ingest from Server Path</Tab>
+            </TabList>
+            <TabPanels>
+              <TabPanel>
+                <VStack spacing={4}>
+                  <Text>Select a folder containing your images to upload and ingest them into the current collection.</Text>
+                  <Box
+                    p={6}
+                    border="2px dashed"
+                    borderColor={dropzoneBorder}
+                    borderRadius="md"
+                    w="full"
+                    textAlign="center"
+                    bg={dropzoneBg}
+                    _hover={{ bg: dropzoneBgHover }}
+                    cursor="pointer"
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    <VStack>
+                      <Icon as={FiUploadCloud} boxSize={12} color="gray.500" />
+                      <Text fontWeight="medium">Click to select a folder</Text>
+                      <Text fontSize="sm" color="gray.500">
+                        You will be prompted to select a directory from your computer.
+                      </Text>
+                    </VStack>
+                    <Input
+                      type="file"
+                      ref={fileInputRef}
+                      onChange={handleFileSelect}
+                      style={{ display: 'none' }}
+                      {...{ webkitdirectory: 'true', mozdirectory: 'true' }}
+                    />
+                  </Box>
+                  {selectedFiles && (
+                    <HStack w="full" bg={selectedBg} p={3} borderRadius="md">
+                      <Icon as={FiFolder} />
+                      <Text fontSize="sm" isTruncated>
+                        {selectedFiles.length} file(s) selected from folder.
+                      </Text>
+                    </HStack>
+                  )}
+                </VStack>
+              </TabPanel>
+              <TabPanel>
+                <VStack spacing={4}>
+                    <Text>Provide a full directory path on the server where the application is running. The system will scan this directory for images.</Text>
+                    <InputGroup>
+                        <InputLeftElement pointerEvents='none'>
+                            <Icon as={FiServer} color='gray.500' />
+                        </InputLeftElement>
+                        <Input 
+                            placeholder="/path/to/images/on/server"
+                            value={serverPath}
+                            onChange={(e) => setServerPath(e.target.value)}
+                        />
+                    </InputGroup>
+                </VStack>
+              </TabPanel>
+            </TabPanels>
+          </Tabs>
+          
+          {mutation.isPending && (
+            <VStack w="full" pt={4}>
+              <Progress size="xs" isIndeterminate w="full" />
+              <Text fontSize="sm" color="gray.500">Uploading...</Text>
+            </VStack>
+          )}
         </ModalBody>
         <ModalFooter>
           <Button variant="ghost" mr={3} onClick={handleClose}>
@@ -164,10 +208,10 @@ export function AddImagesModal({ isOpen, onClose }: AddImagesModalProps) {
           <Button
             colorScheme="blue"
             onClick={handleUpload}
-            isDisabled={!selectedFiles || mutation.isPending}
+            isDisabled={mutation.isPending || (tabIndex === 0 && !selectedFiles) || (tabIndex === 1 && !serverPath)}
             isLoading={mutation.isPending}
           >
-            Upload and Ingest
+            Start Ingestion
           </Button>
         </ModalFooter>
       </ModalContent>

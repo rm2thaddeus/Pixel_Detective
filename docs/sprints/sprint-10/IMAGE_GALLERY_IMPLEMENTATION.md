@@ -1,7 +1,7 @@
 # Image Gallery Implementation - Sprint 10
 
 ## Overview
-This document describes the implementation of the image gallery functionality for the search interface, providing thumbnail display and detailed metadata viewing capabilities.
+This document describes the implementation of the image gallery functionality for the search interface, which has been refactored into a modular, component-based architecture for improved maintainability and performance.
 
 ## Problem Statement
 The search functionality was returning results but images were not displaying properly:
@@ -13,90 +13,57 @@ The search functionality was returning results but images were not displaying pr
 ## Solution Architecture
 
 ### Backend Enhancements
+The backend provides a robust set of endpoints to support the gallery:
+-   `GET /api/v1/images/{image_id}/image`: Serves the full, original image file.
+-   `GET /api/v1/images/{image_id}/thumbnail`: Serves an optimized 200x200 JPEG thumbnail.
+-   `GET /api/v1/images/{image_id}/info`: Returns detailed image metadata, including EXIF data.
 
-#### 1. Image Serving Endpoints (`backend/ingestion_orchestration_fastapi_app/routers/images.py`)
+### Frontend Implementation (Refactored)
 
-**Added Full Image Endpoint:**
-```python
-@router.get("/{image_id}/image", summary="Get full image")
-async def get_full_image(image_id: str, ...)
-```
+The monolithic `SearchPage` has been decomposed into a container component that orchestrates several single-responsibility child components.
 
-**Features:**
-- Serves original image files from filesystem
-- Proper MIME type detection based on file extension
-- Caching headers for performance
-- Error handling for missing files
-- Support for multiple image formats (JPG, PNG, GIF, BMP, TIFF, WebP, DNG)
+#### 1. `hooks/useSearch.ts`
+-   This custom hook now encapsulates all search-related logic.
+-   It uses `@tanstack/react-query`'s `useMutation` to handle both text and image search, managing loading, error, and data states automatically.
 
-**Existing Thumbnail Endpoint:**
-```python
-@router.get("/{image_id}/thumbnail", summary="Get image thumbnail")
-async def get_image_thumbnail(image_id: str, ...)
-```
+#### 2. `components/SearchInput.tsx`
+-   **Responsibility:** Manages all user input for search.
+-   **Features:**
+    -   Handles text input and drag-and-drop for image searches.
+    -   Displays a preview of the selected image.
+    -   Provides clear visual feedback for the current search type (text vs. image).
 
-**Features:**
-- Serves base64-encoded thumbnails stored in Qdrant
-- 200x200 pixel thumbnails generated during ingestion
-- JPEG format for optimal size/quality balance
-- 1-hour cache headers
+#### 3. `components/SearchResultsGrid.tsx`
+-   **Responsibility:** Displays the grid of search results.
+-   **Features:**
+    -   Renders image thumbnails using the optimized `next/image` component.
+    -   Shows a loading spinner during searches.
+    -   Displays an informative "No results found" message.
+    -   Handles user clicks on images to trigger the details view.
 
-**Image Info Endpoint:**
-```python
-@router.get("/{image_id}/info", summary="Get image information")
-async def get_image_info(image_id: str, ...)
-```
+#### 4. `components/ImageDetailsModal.tsx`
+-   **Responsibility:** Displays detailed information for a selected image in a modal dialog.
+-   **Features:**
+    -   Fetches detailed image data using `useQuery`, ensuring it only requests data when the modal is open for a specific image.
+    -   Shows a full-size preview of the image.
+    -   Presents all metadata (filename, dimensions, EXIF data) in a clean, readable format.
+    -   Includes a "Download" button.
 
-**Features:**
-- Returns comprehensive metadata without image data
-- Includes EXIF data extraction
-- File hash for deduplication tracking
-- Dimensions, format, and color mode information
+#### 5. `app/search/page.tsx`
+-   This file now acts as a lean **container component**.
+-   It uses the `useSearch` hook to manage the state.
+-   It renders the `SearchInput`, `SearchResultsGrid`, and `ImageDetailsModal` components, passing down the necessary props and state.
 
-### Frontend Implementation
+## Data Flow (Refactored)
 
-#### 2. Enhanced Search Interface (`frontend/src/app/search/page.tsx`)
-
-**Key Improvements:**
-
-**Thumbnail Display:**
-- Primary source: `/api/v1/images/{id}/thumbnail`
-- Fallback: `/api/v1/images/{id}/image` (full image)
-- Graceful error handling with placeholder icons
-- Proper aspect ratio maintenance
-
-**Interactive Image Cards:**
-```tsx
-<Card 
-  onClick={() => handleImageClick(result)}
-  _hover={{ transform: 'translateY(-2px)', shadow: 'lg', cursor: 'pointer' }}
->
-```
-
-**Features:**
-- Click-to-view functionality
-- Hover effects for better UX
-- Match percentage badges
-- Info icon indicators
-
-#### 3. Image Details Modal
-
-**Comprehensive Metadata Display:**
-- Full-size image preview with proper aspect ratios
-- Basic information table (filename, dimensions, format, etc.)
-- EXIF data display when available
-- File hash for technical users
-- Download functionality
-
-**Modal Features:**
-```tsx
-<Modal isOpen={isOpen} onClose={onClose} size="4xl">
-```
-
-- Large modal for detailed viewing
-- Responsive image display
-- Organized information sections
-- Download button for full image access
+The data flow is now orchestrated by hooks and components:
+1.  **User interacts** with `SearchInput`.
+2.  `SearchInput` calls a handler function from `useSearch`.
+3.  `useSearch` triggers its `useMutation` hook to call the backend API.
+4.  `isLoading` state from the hook is passed to `SearchResultsGrid` to show a spinner.
+5.  When the search completes, the `results` are passed to `SearchResultsGrid` for rendering.
+6.  User clicks an image in the grid, opening `ImageDetailsModal`.
+7.  `ImageDetailsModal` uses its `useQuery` hook to fetch and display the full details for that specific image.
 
 ## Technical Implementation Details
 
@@ -107,16 +74,6 @@ async def get_image_info(image_id: str, ...)
    - Thumbnail → Full Image → Placeholder
 3. **Modal Display**: Full image with proper aspect ratio
 4. **Error Handling**: Graceful degradation with informative placeholders
-
-### Data Flow
-
-```
-Search Request → Backend Search → Results with IDs
-    ↓
-Frontend Grid → Thumbnail Requests → Image Display
-    ↓
-User Click → Info Request → Modal Display → Full Image
-```
 
 ### Performance Optimizations
 
@@ -206,11 +163,4 @@ docs/sprints/sprint-10/
 
 ## Conclusion
 
-The image gallery implementation successfully transforms the search interface from a text-based list to a rich, visual browsing experience. Users can now:
-
-1. **Browse Visually**: Thumbnail grid for quick scanning
-2. **Explore Details**: Comprehensive metadata viewing
-3. **Access Originals**: Direct download functionality
-4. **Search Effectively**: Both text and image-based queries
-
-This implementation provides the foundation for a professional image management and search system, with room for future enhancements based on user feedback and requirements. 
+The refactored image gallery is now a prime example of our new frontend architecture. It is more performant, easier to maintain, and separates concerns effectively between state management and UI rendering. This modular approach provides a solid foundation for future enhancements to the search experience. 

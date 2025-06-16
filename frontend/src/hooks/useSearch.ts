@@ -2,6 +2,7 @@
 
 import { useState, useRef } from 'react';
 import { useToast } from '@chakra-ui/react';
+import { useMutation } from '@tanstack/react-query';
 import { api, mlApi } from '@/lib/api';
 
 // Define more specific and consistent interfaces for our data
@@ -18,46 +19,101 @@ export interface SearchResult {
 
 interface SearchResponse {
   results: SearchResult[];
-  total_approx?: number;
 }
 
-interface EmbedResponse {
-  embedding: number[];
+interface TextSearchVariables {
+  type: 'text';
+  query: string;
+}
+
+interface ImageSearchVariables {
+  type: 'image';
+  file: File;
+}
+
+type SearchVariables = TextSearchVariables | ImageSearchVariables;
+
+async function performSearch(variables: SearchVariables): Promise<SearchResponse> {
+  if (variables.type === 'text') {
+    const response = await api.post<SearchResponse>('/api/v1/search/text', {
+      query: variables.query,
+      limit: 20,
+      offset: 0,
+    });
+    return response.data;
+  } else {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(variables.file);
+      reader.onload = async (e) => {
+        try {
+          const base64Image = e.target?.result as string;
+          const embedResponse = await mlApi.post<{ embedding: number[] }>('/api/v1/embed', {
+            image_base64: base64Image.split(',')[1],
+            filename: variables.file.name,
+          });
+
+          const searchResponse = await api.post<SearchResponse>('/api/v1/search', {
+            embedding: embedResponse.data.embedding,
+            limit: 20,
+            offset: 0,
+          });
+          resolve(searchResponse.data);
+        } catch (error) {
+          reject(error);
+        }
+      };
+      reader.onerror = (error) => reject(error);
+    });
+  }
 }
 
 export function useSearch() {
   const [query, setQuery] = useState('');
-  const [results, setResults] = useState<SearchResult[]>([]);
-  const [loading, setLoading] = useState(false);
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [searchType, setSearchType] = useState<'text' | 'image' | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const toast = useToast();
 
+  const searchMutation = useMutation<SearchResponse, Error, SearchVariables>({
+    mutationFn: performSearch,
+    onError: (error) => {
+      toast({
+        title: 'Search failed',
+        description: error.message || 'An unexpected error occurred.',
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+      });
+    },
+  });
+
   const handleImageSelection = (file: File) => {
     setSelectedImage(file);
-    setSearchType('image');
     setQuery('');
-
     const reader = new FileReader();
-    reader.onload = (e) => {
-      setImagePreview(e.target?.result as string);
-    };
+    reader.onload = (e) => setImagePreview(e.target?.result as string);
     reader.readAsDataURL(file);
+    searchMutation.mutate({ type: 'image', file });
   };
 
   const handleTextChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setQuery(value);
-
-    if (value.trim()) {
-      setSearchType('text');
-      clearImage();
-    } else {
-      setSearchType(null);
-    }
+    setQuery(e.target.value);
   };
+  
+  const handleTextSearch = () => {
+    if (!query.trim()) {
+      toast({
+        title: 'Search query is empty',
+        status: 'warning',
+        duration: 3000,
+        isClosable: true,
+      });
+      return;
+    }
+    clearImage();
+    searchMutation.mutate({ type: 'text', query: query.trim() });
+  }
 
   const clearImage = () => {
     setSelectedImage(null);
@@ -67,76 +123,18 @@ export function useSearch() {
     }
   };
 
-  const handleSearch = async () => {
-    if (!query.trim() && !selectedImage) {
-      toast({
-        title: 'Search required',
-        description: 'Please enter a query or select an image',
-        status: 'warning',
-        duration: 3000,
-        isClosable: true,
-      });
-      return;
-    }
-
-    setLoading(true);
-    setResults([]);
-
-    try {
-      let searchResponse;
-      if (searchType === 'image' && selectedImage) {
-        const reader = new FileReader();
-        reader.readAsDataURL(selectedImage);
-        reader.onload = async (e) => {
-            const base64Image = e.target?.result as string;
-            
-            const embedResponse = await mlApi.post<EmbedResponse>('/api/v1/embed', {
-              image_base64: base64Image.split(',')[1],
-              filename: selectedImage.name
-            });
-
-            searchResponse = await api.post<SearchResponse>('/api/v1/search', {
-              embedding: embedResponse.data.embedding,
-              limit: 20,
-              offset: 0
-            });
-            setResults(searchResponse.data.results || []);
-            setLoading(false);
-        };
-      } else {
-        searchResponse = await api.post<SearchResponse>('/api/v1/search/text', {
-          query: query.trim(),
-          limit: 20,
-          offset: 0
-        });
-        setResults(searchResponse.data.results || []);
-        setLoading(false);
-      }
-    } catch (error) {
-      console.error("Search failed:", error);
-      toast({
-        title: 'Search failed',
-        description: 'An error occurred during the search.',
-        status: 'error',
-        duration: 5000,
-        isClosable: true,
-      });
-      setLoading(false);
-    }
-  };
-
   return {
     query,
     setQuery,
-    results,
-    loading,
+    results: searchMutation.data?.results || [],
+    isLoading: searchMutation.isPending,
+    error: searchMutation.error,
     selectedImage,
     imagePreview,
-    searchType,
     fileInputRef,
     handleImageSelection,
     handleTextChange,
-    handleSearch,
+    handleTextSearch,
     clearImage,
   };
 } 

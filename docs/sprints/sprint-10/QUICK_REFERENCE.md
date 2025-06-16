@@ -66,93 +66,57 @@ npm run dev       # http://localhost:3000
 
 ---
 
-## 4. Frontend Architecture - Extended
-
-### ✅ Phase 1 Complete
+## 4. Frontend Architecture - FINAL
 ```
 frontend/src/
   app/
     page.tsx              # ✅ Main dashboard
     layout.tsx            # ✅ Root layout with providers
-    search/page.tsx       # ✅ Search interface
+    search/page.tsx       # ✅ Search page (Container)
+    collections/page.tsx  # ✅ Collection Management page
     logs/[jobId]/page.tsx # ✅ Job tracking page
   components/
     Header.tsx            # ✅ Status bar with health & collection
-    CollectionModal.tsx   # ✅ Collection management
-    AddImagesModal.tsx    # ✅ Image ingestion form
-    ui/provider.tsx       # ✅ Chakra UI provider
-  lib/
-    api.ts               # ✅ Axios client
-    polyfills.ts         # ✅ structuredClone polyfill
-  store/
-    useStore.ts          # ✅ Zustand state management
-```
-
-### 🔄 Phase 2 - To Be Added
-```
-  components/
-    ThemeToggle.tsx      # 🔄 Dark mode toggle
-    ErrorBoundary.tsx    # 🔄 Error boundary component
-  lib/
-    websocket.ts         # 🔄 WebSocket client
-    theme.ts             # 🔄 Dark mode theme configuration
+    Sidebar.tsx           # ✅ Main navigation
+    SearchInput.tsx       # ✅ Refactored search input component
+    SearchResultsGrid.tsx # ✅ Refactored search results component
+    ImageDetailsModal.tsx # ✅ Refactored image details modal
+    CollectionModal.tsx   # ✅ Collection creation modal
+    ui/provider.tsx       # ✅ Chakra UI provider with semantic tokens
   hooks/
-    useWebSocket.ts      # 🔄 WebSocket hook
-    useTheme.ts          # 🔄 Theme management hook
+    useSearch.ts          # ✅ Refactored search hook with react-query
+  lib/
+    api.ts                # ✅ Axios client
+  store/
+    useStore.ts           # ✅ Zustand state management
 ```
 
 ---
 
-## 5. ✅ Issues Resolved & Fixes (Phase 1)
-| Issue | Cause | Solution | Status | Prevention |
-|-------|-------|----------|--------|------------|
-| `Cannot read properties of undefined (reading '_config')` | Chakra UI v3 + Next.js 15 incompatibility | Added `structuredClone` polyfill | ✅ Fixed | Test compatibility early |
-| `Network Error` on API calls | CORS not configured | Added CORSMiddleware to FastAPI | ✅ Fixed | Configure CORS first |
-| `Module not found: '@chakra-ui/next-js'` | Wrong package for v3 | Removed, used direct ChakraProvider | ✅ Fixed | Check package docs |
-| Missing `/health` endpoint | Backend didn't have health check | Added health endpoint | ✅ Fixed | API-first development |
-| ESLint conflicts | Next.js 15 + Chakra UI conflicts | Custom ESLint config | ✅ Fixed | Standardize linting |
+## 5. ✅ Issues Resolved & Fixes
+| Issue | Cause | Solution | Status |
+|-------|-------|----------|--------|
+| "God Components" | Monolithic page components | Refactored into smaller, single-responsibility components and hooks. | ✅ Fixed |
+| Manual State Fetching | `useEffect` + `useState` for API calls | Migrated all server state to `@tanstack/react-query`. | ✅ Fixed |
+| Theming Inconsistency | `useColorModeValue` used everywhere | Centralized colors in `semanticTokens` in the theme provider. | ✅ Fixed |
+| `Cannot read properties of undefined (reading '_config')` | Chakra UI v3 + Next.js 15 incompatibility | Added `structuredClone` polyfill | ✅ Fixed |
+| `Network Error` on API calls | CORS not configured | Added CORSMiddleware to FastAPI | ✅ Fixed |
 
 ---
 
-## 6. 🔄 Phase 2 Requirements & Status
+## 6. 🚀 Features Status - FINAL
 
-### 🌙 Dark Mode Implementation - 🔄 Not Started
-| Component | Requirement | Status |
-|-----------|-------------|--------|
-| Theme Provider | Chakra UI color mode setup | 🔄 Not implemented |
-| Header Toggle | Dark/light mode switch | 🔄 Not implemented |
-| Persistence | localStorage theme preference | 🔄 Not implemented |
-| System Detection | Respect OS theme preference | 🔄 Not implemented |
-| Component Updates | All components support both modes | 🔄 Not implemented |
-
-### 🔌 Backend Integration - 🔄 Partial
-| API Category | Status | Priority |
-|--------------|--------|----------|
-| Collection CRUD | 🔄 Backend needed | High |
-| Image Ingestion | 🔄 Backend needed | High |
-| Vector Search | 🔄 Backend needed | High |
-| Thumbnail Service | 🔄 Backend needed | Medium |
-| WebSocket Logs | 🔄 Backend needed | Medium |
-
----
-
-## 7. 🚀 Features Status
-
-### ✅ Phase 1 - Complete
 - ✅ **Home Dashboard**: Status cards, quick actions, guided setup
 - ✅ **Backend Health**: Real-time monitoring with auto-refresh
-- ✅ **Collection UI**: Modal for create/select (UI only)
-- ✅ **Image Ingestion UI**: Form with job tracking (UI only)
-- ✅ **Search Interface**: Natural language search UI (UI only)
-- ✅ **Real-time Logs UI**: Job progress tracking page (UI only)
+- ✅ **Collection Management**: Full CRUD on a dedicated page and in the sidebar.
+- ✅ **Image Ingestion**: Functional folder upload with real-time progress.
+- ✅ **Search Interface**: Modular, performant search powered by `react-query`.
+- ✅ **Dark Mode**: Complete theme system with persistence.
 - ✅ **Responsive Design**: Works on mobile and desktop
-- ✅ **Error Handling**: Comprehensive user feedback
 - ✅ **TypeScript**: 100% type coverage
 - ✅ **Build System**: Next.js 15 with optimizations
 
 ### 🔄 Phase 2 - In Progress
-- 🔄 **Dark Mode**: Complete theme system
-- 🔄 **Full Backend Integration**: All APIs functional
 - 🔄 **Real-time Updates**: WebSocket integration
 - 🔄 **Image Thumbnails**: Proper image display
 - 🔄 **Performance Optimization**: Lighthouse audit
@@ -162,7 +126,7 @@ frontend/src/
 
 ---
 
-## 8. 📚 Critical Lessons Learned
+## 7. 📚 Critical Lessons Learned
 
 ### 🔧 Technical Lessons
 - **Chakra UI v3 Compatibility**: Always test major version upgrades early
@@ -197,7 +161,7 @@ frontend/src/
 
 ---
 
-## 9. 🔄 Phase 2 Implementation Roadmap
+## 8. 🔄 Phase 2 Implementation Roadmap
 
 ### **Week 1: Dark Mode & Core APIs**
 - [ ] **Dark Mode System**: Implement Chakra UI color mode
@@ -225,7 +189,7 @@ frontend/src/
 
 ---
 
-## 10. 🎯 Current Status Summary
+## 9. 🎯 Current Status Summary
 
 ### **Phase 1: ✅ COMPLETED**
 - **Frontend UI**: 100% complete and production-ready
@@ -249,7 +213,7 @@ frontend/src/
 
 ---
 
-## 11. 🚨 Critical Next Steps
+## 10. 🚨 Critical Next Steps
 
 ### **Immediate Priorities (This Week)**
 1. **Dark Mode Implementation** - Critical user requirement
@@ -266,7 +230,7 @@ frontend/src/
 
 ---
 
-## 12. Useful Links & Resources
+## 11. Useful Links & Resources
 - ✅ Sprint 10 docs – `docs/sprints/sprint-10/`
 - ✅ Backend architecture – `backend/ARCHITECTURE.md`
 - 🔄 Chakra UI color mode – https://v2.chakra-ui.com/docs/styled-system/color-mode

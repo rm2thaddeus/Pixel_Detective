@@ -8,6 +8,7 @@ from typing import Dict, Any
 from pydantic import BaseModel
 import diskcache
 from PIL import Image
+import asyncio
 
 # Import the global state manager and the routers
 from .dependencies import app_state, get_qdrant_client
@@ -92,13 +93,22 @@ def read_root():
 # A simple health check endpoint
 @app.get("/health")
 async def health():
-    # Check Qdrant connection
-    try:
-        qdrant_info = app_state.qdrant_client.get_collections()
-        qdrant_status = "ok"
-    except Exception:
-        qdrant_status = "error"
-
+    # Check Qdrant connection with retries to handle startup races
+    max_retries = 5
+    retry_delay_seconds = 2
+    for attempt in range(max_retries):
+        try:
+            # This is the operation that might fail during startup
+            app_state.qdrant_client.get_collections()
+            qdrant_status = "ok"
+            break  # Success, exit the loop
+        except Exception as e:
+            logger.warning(f"Health check attempt {attempt + 1}/{max_retries} failed: {e}")
+            if attempt < max_retries - 1:
+                await asyncio.sleep(retry_delay_seconds)
+            else:
+                qdrant_status = "error"
+    
     # We don't check ML model here anymore since we use the ML service
     
     if qdrant_status == "ok":

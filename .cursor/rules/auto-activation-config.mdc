@@ -1,6 +1,6 @@
 ---
-description:
-globs:
+description: 
+globs: 
 alwaysApply: false
 ---
 # Auto-Activation Configuration - Universal Rule Application
@@ -178,3 +178,4 @@ Level 3: Specific Rules (task-specific, contextual)
 ---
 
 *This auto-activation system ensures that critical rules are always applied, providing bulletproof protection without user intervention. The PowerShell rule, Sprint lessons, and MCP setup are now impossible to bypass or forget.*
+
