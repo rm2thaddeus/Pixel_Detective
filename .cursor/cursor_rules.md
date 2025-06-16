@@ -154,6 +154,21 @@ const { data, isLoading, error } = useQuery({
 
 *This architecture prevents the Sprint 10 failures that cost days of debugging time. Follow religiously.*
 
+## 🤖 **Universal Auto-Activation System**
+
+### **Mandatory Rule Auto-Application**
+- **PowerShell Syntax**: Auto-applied for ALL Windows terminal commands (prevents && errors)
+- **Sprint Lessons**: Auto-applied for ALL development work (prevents known failures)
+- **MCP Setup**: Auto-applied for ALL frontend work (ensures tools work)
+- **Configuration**: See `.cursor/rules/auto-activation-config.mdc` for details
+
+### **AI Assistant Integration**
+All AI assistants automatically:
+1. **Detect environment** (Windows → PowerShell protection mandatory)
+2. **Apply prevention rules** BEFORE generating any commands
+3. **Integrate seamlessly** with context-specific rules
+4. **Provide bulletproof results** without user intervention
+
 # Pixel Detective Project Rules
 
 ## MCP Integration & Sprint Planning

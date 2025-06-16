@@ -1,6 +1,6 @@
 ---
-description:
-globs:
+description: Use of browser tools MCP for UI debugging
+globs: 
 alwaysApply: false
 ---
 # MCP Browser Tools Setup & Troubleshooting Protocol
@@ -192,3 +192,4 @@ Browser Tools MCP not working?
 ---
 
 *Browser Tools MCP setup is complex but powerful when properly configured. Always verify all three components.*
+

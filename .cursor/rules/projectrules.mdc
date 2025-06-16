@@ -1,5 +1,5 @@
 ---
-description: Avoiding overwritting comments
+description: Project rules
 globs: 
 alwaysApply: false
 ---
@@ -36,3 +36,10 @@ These project-specific rules ensure that all generated code is **well-documented
 ```python
 # WARNING: This function previously caused an off-by-one error due to X.
 # Ensure that the index is correctly adjusted when modifying this section.
+
+```
+
+## 🤖 AI Assistant Auto-Routing
+- **Smart Context Detection**: Follow `@smart-entry-points` for automatic rule selection
+- **File-Based Activation**: Rules auto-activate based on file patterns
+- **Emergency Routing**: Errors automatically route to correct solutions

@@ -1,6 +1,6 @@
 ---
-description:
-globs:
+description: 
+globs: *.tsx,/backend/**.py
 alwaysApply: false
 ---
 # Sprint 10 Critical Lessons Learned - Master Reference
@@ -211,3 +211,4 @@ payload = {"file_hash": sha256_hash}  # ✅ For deduplication
 ---
 
 *Sprint 10 taught us these lessons the hard way. Don't repeat these mistakes.*
+

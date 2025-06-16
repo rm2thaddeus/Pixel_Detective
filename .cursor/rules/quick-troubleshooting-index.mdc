@@ -1,6 +1,6 @@
 ---
-description:
-globs:
+description: Troubleshooting frontend and backend in the app
+globs: 
 alwaysApply: false
 ---
 # Quick Troubleshooting Index - Sprint 10 Edition
@@ -200,3 +200,4 @@ mcp_browser-tools_wipeLogs  # Should succeed
 3. **Detailed Solution** - Link to comprehensive rule file
 
 *This index prevents repeating the time-consuming debugging from Sprint 10.*
+
