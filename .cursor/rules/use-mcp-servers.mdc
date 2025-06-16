@@ -1,11 +1,9 @@
-<<<<<<< HEAD
 ---
-description: MCP server starting and correct use
+description: 
 globs: 
 alwaysApply: false
 ---
-=======
->>>>>>> e999a0dbfc5b1dedbbf2bc17b574607da607c9fb
+
 # MCP Interaction Rule for Pixel Detective
 
 **Repository:** [Pixel_Detective](mdc:https:/github.com/rm2thaddeus/Pixel_**Branches:**
@@ -247,12 +245,3 @@ mcp_browser-tools_takeScreenshot  # Should capture screenshot or show specific e
 - Sprint planning workflows detailed in `sprint-planning.mdc`
 - Feature development follows `feature-request.mdc` within sprint context
 - Debugging during sprints follows `debugging.mdc` protocols
-
----
-
-<<<<<<< HEAD
-_This comprehensive rule ensures safe, efficient, and well-documented collaboration between human developers and all available MCP AI assistants in the Pixel Detective project, including full integration of sprint planning workflows and critical Browser Tools MCP setup procedures._
-
-=======
-_This comprehensive rule ensures safe, efficient, and well-documented collaboration between human developers and all available MCP AI assistants in the Pixel Detective project, including full integration of sprint planning workflows and critical Browser Tools MCP setup procedures._
->>>>>>> e999a0dbfc5b1dedbbf2bc17b574607da607c9fb
