@@ -1,0 +1,475 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+# FastAPI Microservice Development Patterns
+
+## 🏗️ SERVICE ARCHITECTURE PATTERNS (From Vibe Coding Backend)
+
+Based on proven patterns from `ingestion_orchestration_fastapi_app` and `ml_inference_fastapi_app`.
+
+### **✅ MANDATORY SERVICE STRUCTURE:**
+
+#### 1. Application Lifecycle Management
+```python
+# ✅ ALWAYS use lifespan context manager for startup/shutdown
+from contextlib import asynccontextmanager
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application lifespan manager for startup/shutdown."""
+    # --- Startup ---
+    logger.info("Starting up services...")
+    
+    # Initialize dependencies (database clients, ML models, etc.)
+    app_state.qdrant_client = QdrantClient(host=qdrant_host, port=qdrant_port)
+    
+    # Perform health checks and capability probing
+    _probe_safe_batch_size()  # Example from ML service
+    
+    logger.info("Startup complete.")
+    yield
+    
+    # --- Shutdown ---
+    logger.info("Shutting down services...")
+    # Cleanup resources
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+    logger.info("Shutdown complete.")
+
+# ✅ Create app with lifespan
+app = FastAPI(title="Your Service Name", lifespan=lifespan)
+```
+
+#### 2. Router Organization Pattern
+```python
+# ✅ ALWAYS organize endpoints in separate router modules
+# Structure: /routers/{domain}.py
+
+# backend/{service}/routers/collections.py
+router = APIRouter(prefix="/api/v1/collections", tags=["collections"])
+
+# backend/{service}/main.py
+from .routers import search, images, collections, ingest
+
+app.include_router(search.router)
+app.include_router(images.router)
+app.include_router(collections.router)
+app.include_router(ingest.router)
+```
+
+#### 3. Dependencies Module Pattern
+```python
+# ✅ ALWAYS create centralized dependencies.py
+# backend/{service}/dependencies.py
+
+class AppState:
+    """Centralized application state container."""
+    def __init__(self):
+        self.client: SomeClient | None = None
+        self.config: Dict[str, Any] = {}
+
+app_state = AppState()
+
+def get_client() -> SomeClient:
+    """Dependency function to get initialized client."""
+    if app_state.client is None:
+        raise RuntimeError("Client has not been initialized.")
+    return app_state.client
+```
+
+### **🚀 ASYNC & BACKGROUND TASK PATTERNS:**
+
+#### 1. Background Job Processing
+```python
+# ✅ Pattern from ingestion service
+from fastapi import BackgroundTasks
+import uuid
+
+# In-memory job tracking (use Redis/DB in production)
+job_status = {}
+
+@router.post("/process", response_model=JobResponse)
+async def start_processing(
+    request: ProcessRequest,
+    background_tasks: BackgroundTasks,
+    client: SomeClient = Depends(get_client)
+):
+    job_id = str(uuid.uuid4())
+    
+    # Initialize job status
+    job_status[job_id] = {
+        "status": "started",
+        "message": "Processing started",
+        "progress": 0.0,
+        "logs": [],
+        "errors": []
+    }
+    
+    # Start background processing
+    background_tasks.add_task(process_data, job_id, request.data)
+    
+    return JobResponse(job_id=job_id, status="started")
+
+@router.get("/status/{job_id}")
+async def get_job_status(job_id: str):
+    if job_id not in job_status:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return job_status[job_id]
+```
+
+#### 2. Thread Pool for CPU-Bound Tasks
+```python
+# ✅ Pattern from ML service
+from concurrent.futures import ThreadPoolExecutor
+import asyncio
+
+# Global thread pool for CPU-bound tasks
+cpu_executor = ThreadPoolExecutor(max_workers=os.cpu_count())
+
+async def process_heavy_computation(data):
+    """Offload CPU-intensive work to thread pool."""
+    result = await asyncio.to_thread(expensive_computation, data)
+    return result
+
+# Or using executor directly
+def _sync_heavy_work(data):
+    # CPU-intensive synchronous work
+    return processed_data
+
+async def async_endpoint():
+    loop = asyncio.get_event_loop()
+    result = await loop.run_in_executor(cpu_executor, _sync_heavy_work, data)
+    return result
+```
+
+### **🔒 CONCURRENCY CONTROL PATTERNS:**
+
+#### 1. Resource Locking (GPU/Database)
+```python
+# ✅ Pattern from ML service for exclusive resource access
+import asyncio
+
+# Global locks for shared resources
+gpu_lock = asyncio.Lock()
+db_lock = asyncio.Lock()
+
+async def gpu_intensive_operation(data):
+    """Ensure only one GPU operation at a time."""
+    async with gpu_lock:
+        # GPU computation here
+        result = await process_on_gpu(data)
+        torch.cuda.empty_cache()  # Cleanup
+    return result
+```
+
+#### 2. Lazy Loading with Thread Safety
+```python
+# ✅ Pattern from ML service for expensive resource initialization
+model_load_lock = asyncio.Lock()
+model_instance = None
+
+async def get_model():
+    """Lazy-load expensive resources with thread safety."""
+    global model_instance
+    if model_instance is None:
+        async with model_load_lock:
+            if model_instance is None:  # Double-check pattern
+                logger.info("Loading model...")
+                model_instance = await load_expensive_model()
+    
+    if model_instance == "failed":
+        raise HTTPException(status_code=503, detail="Model failed to load")
+    
+    return model_instance
+```
+
+### **🎯 API DESIGN PATTERNS:**
+
+#### 1. Consistent Request/Response Models
+```python
+# ✅ Pattern from both services
+from pydantic import BaseModel, Field
+from typing import List, Optional, Dict, Any
+
+class ProcessRequest(BaseModel):
+    data_path: str = Field(..., description="Path to data for processing")
+    options: Optional[Dict[str, Any]] = Field(default_factory=dict)
+
+class ProcessResponse(BaseModel):
+    job_id: str
+    status: str
+    message: str
+
+class StatusResponse(BaseModel):
+    job_id: str
+    status: str
+    progress: float
+    message: str
+    logs: List[str]
+    errors: List[str]
+    result: Optional[Dict[str, Any]] = None
+```
+
+#### 2. Error Handling Pattern
+```python
+# ✅ Structured error handling from ingestion service
+class ServiceError(Exception):
+    def __init__(self, code: str, message: str, details: dict = None):
+        self.code = code
+        self.message = message
+        self.details = details or {}
+
+# Standard error codes
+ERROR_CODES = {
+    "RESOURCE_NOT_FOUND": "Requested resource not found",
+    "DEPENDENCY_UNAVAILABLE": "Required service dependency unavailable", 
+    "PROCESSING_FAILED": "Data processing failed",
+    "INVALID_INPUT": "Invalid input parameters",
+    "RESOURCE_BUSY": "Resource temporarily unavailable"
+}
+
+# In endpoints:
+try:
+    result = await process_data(request.data)
+    return result
+except ServiceError as e:
+    raise HTTPException(
+        status_code=400 if e.code.startswith("INVALID") else 500,
+        detail={"code": e.code, "message": e.message, "details": e.details}
+    )
+except Exception as e:
+    logger.error(f"Unexpected error: {e}", exc_info=True)
+    raise HTTPException(status_code=500, detail="Internal server error")
+```
+
+### **⚡ PERFORMANCE OPTIMIZATION PATTERNS:**
+
+#### 1. Batch Processing Pattern
+```python
+# ✅ Pattern from ML service
+class BatchRequest(BaseModel):
+    items: List[BatchItemRequest]
+
+class BatchResponse(BaseModel):
+    results: List[BatchItemResult]
+
+@router.post("/batch_process", response_model=BatchResponse)
+async def batch_process(request: BatchRequest):
+    """Process multiple items efficiently in batches."""
+    # 1. Parallel preprocessing
+    prepped_items = await preprocess_items_parallel(request.items)
+    
+    # 2. Batch GPU/expensive operations
+    async with gpu_lock:
+        results = await process_batch_on_gpu(prepped_items)
+    
+    # 3. Post-process and return
+    return BatchResponse(results=results)
+
+async def preprocess_items_parallel(items):
+    """Preprocess items in parallel using thread pool."""
+    tasks = [asyncio.to_thread(preprocess_item, item) for item in items]
+    return await asyncio.gather(*tasks)
+```
+
+#### 2. Resource Probing Pattern
+```python
+# ✅ Pattern from ML service for capability detection
+def probe_system_capabilities():
+    """Probe system to determine optimal parameters."""
+    try:
+        if torch.cuda.is_available():
+            # Test memory allocation
+            test_tensor = torch.zeros(1000, 1000).cuda()
+            free_mem, total_mem = torch.cuda.mem_get_info()
+            
+            # Calculate safe batch size
+            safe_batch_size = calculate_safe_size(free_mem, test_tensor.element_size())
+            
+            del test_tensor
+            torch.cuda.empty_cache()
+            
+            return {"safe_batch_size": safe_batch_size, "device": "cuda"}
+    except Exception as e:
+        logger.warning(f"GPU probing failed: {e}")
+    
+    return {"safe_batch_size": 1, "device": "cpu"}
+```
+
+### **🔧 SERVICE INTEGRATION PATTERNS:**
+
+#### 1. Service-to-Service Communication
+```python
+# ✅ Pattern from ingestion service calling ML service
+import httpx
+
+class ServiceClient:
+    def __init__(self, base_url: str, timeout: float = 300.0):
+        self.base_url = base_url
+        self.timeout = timeout
+    
+    async def call_service(self, endpoint: str, data: dict):
+        async with httpx.AsyncClient(timeout=self.timeout) as client:
+            try:
+                response = await client.post(f"{self.base_url}{endpoint}", json=data)
+                response.raise_for_status()
+                return response.json()
+            except httpx.TimeoutException:
+                raise ServiceError("TIMEOUT", f"Service call timeout: {endpoint}")
+            except httpx.HTTPStatusError as e:
+                raise ServiceError("SERVICE_ERROR", f"Service error: {e.response.status_code}")
+```
+
+#### 2. Capability Negotiation Pattern
+```python
+# ✅ Pattern from ingestion service querying ML capabilities
+async def get_service_capabilities(service_url: str) -> dict:
+    """Query service capabilities for dynamic configuration."""
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.get(f"{service_url}/api/v1/capabilities")
+            response.raise_for_status()
+            return response.json()
+        except Exception as e:
+            logger.warning(f"Failed to get capabilities: {e}")
+            return {"safe_batch_size": 1}  # Conservative fallback
+
+# At startup, adapt batch size based on downstream service
+ml_capabilities = await get_service_capabilities(ML_SERVICE_URL)
+batch_size = min(ML_BATCH_SIZE, ml_capabilities.get("safe_batch_size", 1))
+```
+
+### **💾 DATA PATTERNS:**
+
+#### 1. Caching with Deduplication
+```python
+# ✅ Pattern from ingestion service
+import diskcache
+import hashlib
+
+cache = diskcache.Cache('.diskcache')
+
+async def process_with_cache(data: bytes, processor_func):
+    """Process data with deduplication caching."""
+    # Calculate hash for deduplication
+    data_hash = hashlib.sha256(data).hexdigest()
+    cache_key = f"processed:{data_hash}"
+    
+    # Check cache first
+    cached_result = cache.get(cache_key)
+    if cached_result:
+        logger.info(f"Cache hit for {data_hash[:8]}")
+        return cached_result
+    
+    # Process and cache result
+    result = await processor_func(data)
+    cache.set(cache_key, result)
+    
+    return result
+```
+
+#### 2. Progress Tracking Pattern
+```python
+# ✅ Pattern from ingestion service
+def update_job_progress(job_id: str, current: int, total: int, message: str):
+    """Update job progress with detailed tracking."""
+    progress = (current / total) * 100 if total > 0 else 0
+    
+    job_status[job_id].update({
+        "progress": progress,
+        "processed_items": current,
+        "total_items": total,
+        "message": message,
+        "logs": job_status[job_id]["logs"] + [f"{message} ({current}/{total})"]
+    })
+    
+    # Log every 10% or significant milestones
+    if current % max(1, total // 10) == 0:
+        logger.info(f"Job {job_id}: {progress:.1f}% complete")
+```
+
+### **🏥 HEALTH & MONITORING PATTERNS:**
+
+#### 1. Comprehensive Health Checks
+```python
+# ✅ Pattern from both services
+@app.get("/health")
+async def health_check():
+    """Comprehensive health check with dependency status."""
+    health_status = {"status": "ok", "services": {}}
+    overall_healthy = True
+    
+    # Check database connection
+    try:
+        await check_database_connection()
+        health_status["services"]["database"] = "ok"
+    except Exception as e:
+        health_status["services"]["database"] = f"error: {e}"
+        overall_healthy = False
+    
+    # Check external service dependencies
+    try:
+        await check_external_service()
+        health_status["services"]["external_service"] = "ok"
+    except Exception as e:
+        health_status["services"]["external_service"] = f"error: {e}"
+        overall_healthy = False
+    
+    if not overall_healthy:
+        raise HTTPException(status_code=503, detail=health_status)
+    
+    return health_status
+```
+
+### **🚫 ANTI-PATTERNS TO AVOID:**
+
+#### ❌ Never Do These:
+```python
+# ❌ NEVER import main.py from routers (causes circular imports)
+from ..main import app  # FORBIDDEN
+
+# ❌ NEVER use global variables without proper initialization
+some_client = SomeClient()  # Initialize without lifecycle management
+
+# ❌ NEVER block event loop with synchronous operations
+def blocking_operation():
+    time.sleep(10)  # Blocks entire service
+
+# ❌ NEVER ignore GPU memory management
+result = gpu_operation(data)
+# Missing: torch.cuda.empty_cache()
+
+# ❌ NEVER use bare exceptions in endpoints
+@router.get("/data")
+async def get_data():
+    try:
+        return process_data()
+    except:  # Too broad, loses error context
+        return {"error": "something went wrong"}
+```
+
+### **📋 IMPLEMENTATION CHECKLIST:**
+
+#### For New Services:
+- [ ] **Lifespan Management**: Proper startup/shutdown with `@asynccontextmanager`
+- [ ] **Dependency Injection**: Centralized `dependencies.py` with typed providers
+- [ ] **Router Organization**: Domain-specific routers with consistent prefixes
+- [ ] **Background Tasks**: Job tracking with progress and error handling
+- [ ] **Thread Pool**: CPU-bound work offloaded to `asyncio.to_thread`
+- [ ] **Resource Locking**: Exclusive access for shared resources (GPU, DB)
+- [ ] **Error Handling**: Structured errors with codes and details
+- [ ] **Health Checks**: Comprehensive dependency status monitoring
+- [ ] **Batch Processing**: Efficient batch operations for performance
+- [ ] **Caching**: Deduplication and result caching where appropriate
+
+#### For Service Integration:
+- [ ] **Capability Negotiation**: Query downstream service limits
+- [ ] **Timeout Handling**: Proper async HTTP client configuration
+- [ ] **Fallback Strategies**: Graceful degradation when services unavailable
+- [ ] **Service Discovery**: Environment-based service URL configuration
+
+---
+
+*These patterns are battle-tested from the Vibe Coding backend services and prevent the architectural issues encountered in Sprint 10.*

@@ -1,0 +1,533 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+# API Design & Data Modeling Patterns
+
+## 🔌 RESTFUL API DESIGN PATTERNS (From Backend Services)
+
+Proven patterns for building consistent, scalable REST APIs with FastAPI.
+
+### **📋 PYDANTIC MODEL PATTERNS:**
+
+#### 1. Request/Response Model Structure
+```python
+# ✅ Consistent model organization pattern
+from pydantic import BaseModel, Field
+from typing import List, Optional, Dict, Any, Union
+from datetime import datetime
+
+# Base models for common fields
+class BaseResponse(BaseModel):
+    """Base response with common fields."""
+    status: str = Field(..., description="Operation status")
+    message: str = Field(..., description="Human-readable message")
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+
+# Request models with validation
+class ProcessRequest(BaseModel):
+    """Request model with comprehensive validation."""
+    data_path: str = Field(..., min_length=1, description="Path to data")
+    options: Optional[Dict[str, Any]] = Field(default_factory=dict)
+    
+    class Config:
+        # Enable validation on assignment
+        validate_assignment = True
+        # Example values for documentation
+        schema_extra = {
+            "example": {
+                "data_path": "/path/to/data",
+                "options": {"batch_size": 32, "format": "jpeg"}
+            }
+        }
+
+# Response models with detailed typing
+class ProcessResponse(BaseResponse):
+    """Response model with job tracking."""
+    job_id: str = Field(..., description="Unique job identifier")
+    result: Optional[Dict[str, Any]] = Field(None, description="Processing result")
+```
+
+#### 2. Collection Management Models
+```python
+# ✅ Pattern from collections router
+class CreateCollectionRequest(BaseModel):
+    collection_name: str = Field(..., min_length=1, max_length=128)
+    vector_size: int = Field(512, gt=0, description="Vector dimensionality")
+    distance: str = Field('Cosine', description="Distance metric: Cosine|Dot|Euclid")
+
+class CollectionInfo(BaseModel):
+    """Comprehensive collection information."""
+    name: str
+    status: str
+    points_count: int
+    vectors_count: int
+    config: Dict[str, Any]
+    sample_points: List[Dict[str, Any]]
+    is_active: bool
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+```
+
+#### 3. Batch Processing Models
+```python
+# ✅ Pattern from ML service batch endpoints
+class BatchItemRequest(BaseModel):
+    """Individual item in a batch request."""
+    unique_id: str = Field(..., description="Unique identifier for the item")
+    data: str = Field(..., description="Base64 encoded data or file path")
+    metadata: Optional[Dict[str, Any]] = Field(default_factory=dict)
+
+class BatchRequest(BaseModel):
+    """Batch processing request."""
+    items: List[BatchItemRequest] = Field(..., min_items=1, max_items=100)
+    options: Optional[Dict[str, Any]] = Field(default_factory=dict)
+
+class BatchItemResult(BaseModel):
+    """Result for individual batch item."""
+    unique_id: str
+    success: bool
+    result: Optional[Dict[str, Any]] = None
+    error: Optional[str] = None
+    processing_time: Optional[float] = None
+
+class BatchResponse(BaseModel):
+    """Batch processing response."""
+    total_items: int
+    successful_items: int
+    failed_items: int
+    results: List[BatchItemResult]
+    total_processing_time: float
+```
+
+### **🛣️ URL DESIGN PATTERNS:**
+
+#### 1. RESTful Resource Naming
+```python
+# ✅ Consistent URL patterns from both services
+from fastapi import APIRouter
+
+# Resource-based naming
+collections_router = APIRouter(prefix="/api/v1/collections", tags=["collections"])
+images_router = APIRouter(prefix="/api/v1/images", tags=["images"])
+search_router = APIRouter(prefix="/api/v1/search", tags=["search"])
+
+# Actions as HTTP methods, not URL paths
+@collections_router.post("/")  # CREATE
+@collections_router.get("/")   # LIST
+@collections_router.get("/{collection_id}")  # READ
+@collections_router.put("/{collection_id}")  # UPDATE
+@collections_router.delete("/{collection_id}")  # DELETE
+
+# Sub-resources and actions
+@collections_router.get("/{collection_id}/info")     # Get detailed info
+@collections_router.post("/{collection_id}/select")  # Action: select
+@collections_router.post("/cache/clear")              # Action: clear cache
+```
+
+#### 2. Query Parameter Patterns
+```python
+# ✅ Consistent query parameter handling
+from fastapi import Query
+from typing import Optional
+
+@router.get("/images/")
+async def list_images(
+    # Pagination parameters
+    page: int = Query(1, ge=1, description="Page number"),
+    per_page: int = Query(10, ge=1, le=100, description="Items per page"),
+    
+    # Filtering parameters
+    filters: Optional[str] = Query(None, description="JSON filter string"),
+    search: Optional[str] = Query(None, description="Search term"),
+    
+    # Sorting parameters
+    sort_by: Optional[str] = Query("created_at", description="Sort field"),
+    sort_order: Optional[str] = Query("desc", regex="^(asc|desc)$"),
+    
+    # Response formatting
+    include_metadata: bool = Query(False, description="Include full metadata")
+):
+    """List images with comprehensive filtering and pagination."""
+    pass
+```
+
+### **🔍 SEARCH & FILTERING PATTERNS:**
+
+#### 1. Advanced Filtering Pattern
+```python
+# ✅ JSON-based filtering from images router
+import json
+from qdrant_client.http.models import Filter, FieldCondition, Range
+
+def build_filter_from_params(filters_json: Optional[str]) -> Optional[Filter]:
+    """Build Qdrant filter from JSON parameters."""
+    if not filters_json:
+        return None
+    
+    try:
+        filter_dict = json.loads(filters_json)
+        must_conditions = []
+        
+        for key, value in filter_dict.items():
+            if isinstance(value, dict):
+                # Range filter: {"date": {"gte": "2023-01-01", "lte": "2023-12-31"}}
+                if "gte" in value and "lte" in value:
+                    must_conditions.append(
+                        FieldCondition(key=key, range=Range(gte=value["gte"], lte=value["lte"]))
+                    )
+            elif isinstance(value, list):
+                # Multiple values: {"tags": ["nature", "landscape"]}
+                should_conditions = [FieldCondition(key=key, match={"value": v}) for v in value]
+                if should_conditions:
+                    must_conditions.append(Filter(should=should_conditions))
+            else:
+                # Exact match: {"category": "photo"}
+                must_conditions.append(FieldCondition(key=key, match={"value": value}))
+        
+        return Filter(must=must_conditions) if must_conditions else None
+        
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="Invalid JSON in filters parameter")
+```
+
+#### 2. Search Response Pattern
+```python
+# ✅ Consistent search response structure
+class SearchResult(BaseModel):
+    """Individual search result."""
+    id: Union[str, int]
+    score: float
+    payload: Dict[str, Any]
+    highlights: Optional[Dict[str, str]] = None  # Highlighted search terms
+
+class SearchResponse(BaseModel):
+    """Search response with metadata."""
+    query: str
+    total_results: int
+    results: List[SearchResult]
+    search_time: float
+    page: int
+    per_page: int
+    has_more: bool
+    facets: Optional[Dict[str, Any]] = None  # Aggregations/facets
+
+@router.post("/search/text")
+async def search_text(
+    query: str = Field(..., min_length=1),
+    limit: int = Field(10, ge=1, le=100),
+    offset: int = Field(0, ge=0),
+    filters: Optional[str] = None
+) -> SearchResponse:
+    """Text search with comprehensive response."""
+    start_time = time.time()
+    
+    # Perform search
+    results = await perform_search(query, limit, offset, filters)
+    
+    return SearchResponse(
+        query=query,
+        total_results=results.total,
+        results=results.items,
+        search_time=time.time() - start_time,
+        page=(offset // limit) + 1,
+        per_page=limit,
+        has_more=results.total > offset + limit
+    )
+```
+
+### **📊 PAGINATION PATTERNS:**
+
+#### 1. Offset-Based Pagination
+```python
+# ✅ Standard pagination from images router
+class PaginatedResponse(BaseModel):
+    """Standard paginated response."""
+    total: int
+    page: int
+    per_page: int
+    results: List[Any]
+    next_page_offset: Optional[int] = None
+    has_next: bool
+    has_previous: bool
+
+def paginate_results(items: List, total: int, page: int, per_page: int):
+    """Create paginated response."""
+    offset = (page - 1) * per_page
+    
+    return PaginatedResponse(
+        total=total,
+        page=page,
+        per_page=per_page,
+        results=items,
+        next_page_offset=offset + per_page if offset + per_page < total else None,
+        has_next=offset + per_page < total,
+        has_previous=page > 1
+    )
+```
+
+#### 2. Cursor-Based Pagination (for large datasets)
+```python
+# ✅ For large datasets with stable ordering
+class CursorPaginatedResponse(BaseModel):
+    """Cursor-based pagination for large datasets."""
+    results: List[Any]
+    next_cursor: Optional[str] = None
+    has_next: bool
+    limit: int
+
+def encode_cursor(last_item_id: str, timestamp: datetime) -> str:
+    """Encode cursor for next page."""
+    import base64
+    cursor_data = f"{last_item_id}:{timestamp.isoformat()}"
+    return base64.b64encode(cursor_data.encode()).decode()
+
+def decode_cursor(cursor: str) -> Tuple[str, datetime]:
+    """Decode cursor for query."""
+    import base64
+    cursor_data = base64.b64decode(cursor.encode()).decode()
+    item_id, timestamp_str = cursor_data.split(":", 1)
+    return item_id, datetime.fromisoformat(timestamp_str)
+```
+
+### **📝 STATUS & PROGRESS PATTERNS:**
+
+#### 1. Job Status Tracking
+```python
+# ✅ Comprehensive job tracking from ingestion service
+class JobStatus(BaseModel):
+    """Detailed job status information."""
+    job_id: str
+    status: str  # started, processing, completed, failed
+    progress: float = Field(..., ge=0, le=100)
+    message: str
+    
+    # Detailed progress information
+    processed_items: int = 0
+    total_items: int = 0
+    cached_items: int = 0
+    
+    # Timing information
+    started_at: datetime
+    updated_at: datetime
+    completed_at: Optional[datetime] = None
+    
+    # Logs and errors
+    logs: List[str] = Field(default_factory=list)
+    errors: List[str] = Field(default_factory=list)
+    
+    # Final result (when completed)
+    result: Optional[Dict[str, Any]] = None
+
+def update_job_status(job_id: str, **updates):
+    """Update job status with automatic timestamp."""
+    if job_id in job_storage:
+        job_storage[job_id].update({
+            "updated_at": datetime.utcnow(),
+            **updates
+        })
+```
+
+#### 2. Progress Reporting Pattern
+```python
+# ✅ Detailed progress tracking
+class ProgressInfo(BaseModel):
+    """Detailed progress information."""
+    current_step: str
+    step_number: int
+    total_steps: int
+    step_progress: float  # Progress within current step
+    overall_progress: float  # Overall job progress
+    estimated_completion: Optional[datetime] = None
+
+def calculate_eta(start_time: datetime, progress: float) -> Optional[datetime]:
+    """Calculate estimated time of completion."""
+    if progress <= 0:
+        return None
+    
+    elapsed = datetime.utcnow() - start_time
+    total_estimated = elapsed / progress
+    eta = start_time + total_estimated
+    return eta
+```
+
+### **🔄 BACKGROUND TASK PATTERNS:**
+
+#### 1. Task Queue Pattern
+```python
+# ✅ Background task management
+from fastapi import BackgroundTasks
+from enum import Enum
+
+class TaskStatus(str, Enum):
+    PENDING = "pending"
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+
+class TaskInfo(BaseModel):
+    """Task information model."""
+    task_id: str
+    task_type: str
+    status: TaskStatus
+    progress: float = 0.0
+    result: Optional[Dict[str, Any]] = None
+    error: Optional[str] = None
+    created_at: datetime
+    started_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
+
+# Task registry
+task_registry: Dict[str, TaskInfo] = {}
+
+async def run_background_task(task_id: str, task_func, *args, **kwargs):
+    """Execute background task with status tracking."""
+    task_registry[task_id].status = TaskStatus.RUNNING
+    task_registry[task_id].started_at = datetime.utcnow()
+    
+    try:
+        result = await task_func(task_id, *args, **kwargs)
+        task_registry[task_id].status = TaskStatus.COMPLETED
+        task_registry[task_id].result = result
+    except Exception as e:
+        task_registry[task_id].status = TaskStatus.FAILED
+        task_registry[task_id].error = str(e)
+        logger.error(f"Task {task_id} failed: {e}", exc_info=True)
+    finally:
+        task_registry[task_id].completed_at = datetime.utcnow()
+```
+
+### **⚠️ ERROR RESPONSE PATTERNS:**
+
+#### 1. Structured Error Responses
+```python
+# ✅ Consistent error structure
+class ErrorDetail(BaseModel):
+    """Structured error detail."""
+    code: str
+    message: str
+    field: Optional[str] = None  # For validation errors
+    details: Optional[Dict[str, Any]] = None
+
+class ErrorResponse(BaseModel):
+    """Standard error response."""
+    error: bool = True
+    message: str
+    details: List[ErrorDetail]
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    request_id: Optional[str] = None
+
+# Standard error codes
+ERROR_CODES = {
+    "VALIDATION_ERROR": "Input validation failed",
+    "RESOURCE_NOT_FOUND": "Requested resource not found",
+    "PERMISSION_DENIED": "Insufficient permissions",
+    "RATE_LIMIT_EXCEEDED": "Request rate limit exceeded",
+    "SERVICE_UNAVAILABLE": "Service temporarily unavailable",
+    "PROCESSING_ERROR": "Error during processing"
+}
+
+@app.exception_handler(ValidationError)
+async def validation_exception_handler(request: Request, exc: ValidationError):
+    """Handle Pydantic validation errors."""
+    details = [
+        ErrorDetail(
+            code="VALIDATION_ERROR",
+            message=error["msg"],
+            field=".".join(str(loc) for loc in error["loc"])
+        )
+        for error in exc.errors()
+    ]
+    
+    return JSONResponse(
+        status_code=422,
+        content=ErrorResponse(
+            message="Validation failed",
+            details=details
+        ).dict()
+    )
+```
+
+### **🔧 MIDDLEWARE PATTERNS:**
+
+#### 1. Request/Response Logging
+```python
+# ✅ Comprehensive request logging
+import time
+import uuid
+from fastapi import Request, Response
+
+@app.middleware("http")
+async def logging_middleware(request: Request, call_next):
+    """Log requests and responses with timing."""
+    request_id = str(uuid.uuid4())
+    start_time = time.time()
+    
+    # Add request ID to request state
+    request.state.request_id = request_id
+    
+    # Log incoming request
+    logger.info(
+        f"Request {request_id}: {request.method} {request.url}",
+        extra={
+            "request_id": request_id,
+            "method": request.method,
+            "url": str(request.url),
+            "client_ip": request.client.host if request.client else None
+        }
+    )
+    
+    # Process request
+    response = await call_next(request)
+    
+    # Calculate processing time
+    process_time = time.time() - start_time
+    
+    # Add timing header
+    response.headers["X-Process-Time"] = str(process_time)
+    response.headers["X-Request-ID"] = request_id
+    
+    # Log response
+    logger.info(
+        f"Response {request_id}: {response.status_code} in {process_time:.3f}s",
+        extra={
+            "request_id": request_id,
+            "status_code": response.status_code,
+            "process_time": process_time
+        }
+    )
+    
+    return response
+```
+
+### **📋 API DESIGN CHECKLIST:**
+
+#### Data Models:
+- [ ] **Pydantic Models**: All requests/responses use typed Pydantic models
+- [ ] **Field Validation**: Comprehensive validation with Field() constraints
+- [ ] **Documentation**: Schema examples and descriptions for all fields
+- [ ] **Base Models**: Common fields extracted to base classes
+
+#### URL Design:
+- [ ] **RESTful Resources**: Noun-based URLs with HTTP methods for actions
+- [ ] **Consistent Naming**: snake_case for parameters, consistent prefixes
+- [ ] **Version Prefix**: All APIs under `/api/v1/` namespace
+- [ ] **Logical Grouping**: Related endpoints grouped in routers
+
+#### Request/Response:
+- [ ] **Consistent Structure**: Standard response format across endpoints
+- [ ] **Error Handling**: Structured error responses with codes
+- [ ] **Status Tracking**: Progress information for long-running operations
+- [ ] **Pagination**: Consistent pagination for list endpoints
+
+#### Performance:
+- [ ] **Batch Endpoints**: Efficient batch operations where applicable
+- [ ] **Filtering**: JSON-based filtering for complex queries
+- [ ] **Caching Headers**: Appropriate cache headers for static content
+- [ ] **Response Optimization**: Only return necessary data by default
+
+---
+
+*These API patterns ensure consistency, discoverability, and maintainability across all backend services.*

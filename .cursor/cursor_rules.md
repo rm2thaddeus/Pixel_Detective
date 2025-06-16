@@ -4,6 +4,152 @@
 # ⚙️ Key Logic: Guidelines for maintaining the UI styling and development workflows.
 # 🧠 Reasoning: Ensures consistent styling, behavior, and sprint planning across the codebase.
 
+# Pixel Detective Project Rules - Next.js/FastAPI Architecture
+
+## 🚨 CRITICAL: Sprint 10 Lessons Integration
+
+This project follows comprehensive rules based on Sprint 10 debugging experiences. **ALWAYS consult nested rules before starting work.**
+
+### 📁 Rule Structure Overview
+
+```
+.cursor/rules/                    # Project-wide rules
+├── sprint-lessons-learned.mdc    # 🔥 MASTER reference - Sprint 10 failures
+├── mcp-browser-tools-setup.mdc   # 3-component MCP setup protocol
+├── sprint-planning.mdc           # Sprint workflow and planning
+├── use-mcp-servers.mdc          # MCP server integration patterns
+├── debugging.mdc                # General debugging protocols
+└── [other project rules...]
+
+frontend/.cursor/rules/           # Frontend-specific rules
+├── nextjs-hydration-prevention.mdc  # Hydration error prevention (critical)
+└── react-query-api-integration.mdc  # Server state management patterns
+
+backend/.cursor/rules/            # Backend-specific rules
+└── fastapi-dependency-injection.mdc # Circular import prevention
+```
+
+### 🎯 MANDATORY PRE-WORK PROTOCOL
+
+**Before ANY development work, check these rules in order:**
+
+1. **Sprint Context**: Review `.cursor/rules/sprint-lessons-learned.mdc` for applicable lessons
+2. **Frontend Work**: Check `frontend/.cursor/rules/` for Next.js/React patterns
+3. **Backend Work**: Check `backend/.cursor/rules/` for FastAPI patterns
+4. **MCP Usage**: Verify setup with `.cursor/rules/mcp-browser-tools-setup.mdc`
+
+## 🔥 Critical Technical Patterns (From Sprint 10)
+
+### Next.js Hydration Prevention
+```tsx
+// ✅ ALWAYS use mounted state for client-only features
+const [mounted, setMounted] = useState(false);
+useEffect(() => setMounted(true), []);
+if (!mounted) return <PlaceholderComponent />;
+```
+
+### FastAPI Dependency Injection
+```python
+# ✅ ALWAYS use dependencies.py, NEVER import main.py in routers
+from ..dependencies import get_qdrant_client
+def endpoint(client: QdrantClient = Depends(get_qdrant_client)):
+```
+
+### React Query for Server State
+```tsx
+// ✅ ALWAYS use React Query, NEVER manual useEffect for API calls
+const { data, isLoading, error } = useQuery({
+  queryKey: ['collections'],
+  queryFn: () => api.get('/api/v1/collections')
+});
+```
+
+## 🚀 MCP-Driven Development Workflow
+
+### Before Using Any MCP Tools
+1. **Verify Setup**: Follow `.cursor/rules/mcp-browser-tools-setup.mdc` verification protocol
+2. **Node.js Check**: `node --version` must show ≥18.0.0
+3. **Server Check**: Browser Tools server running on port 3025
+4. **Extension Check**: Chrome extension installed and connected
+
+### Sprint Planning Integration
+1. **Context7 Research**: Use Context7 MCP for technology research
+2. **Documentation**: Follow `.cursor/rules/sprint-planning.mdc` for PRD generation
+3. **GitHub Integration**: Use GitHub MCP for milestone management
+4. **Visual Planning**: Use Mindmap MCP for architecture planning
+
+## 🧪 Testing & Quality Assurance
+
+### Frontend Testing Protocol
+- [ ] **Hydration Check**: `npm run build && npm start` - no console errors
+- [ ] **Theme Testing**: Both light/dark modes work without flash
+- [ ] **Client-Only**: All browser API usage wrapped in mounted state
+- [ ] **Query Integration**: All server state uses React Query
+
+### Backend Testing Protocol
+- [ ] **Import Check**: No circular imports detected
+- [ ] **Dependency Injection**: All shared resources use `Depends()`
+- [ ] **Startup Clean**: uvicorn starts without errors
+- [ ] **Type Safety**: All dependencies properly typed
+
+### MCP Testing Protocol
+- [ ] **3-Component Verification**: Node.js ≥18, server on 3025, extension installed
+- [ ] **Basic Connectivity**: `mcp_browser-tools_wipeLogs` succeeds
+- [ ] **Full Functionality**: Screenshot capture works
+- [ ] **Fallback Strategy**: Manual debugging available if MCP fails
+
+## 📊 Emergency Recovery Protocols
+
+### Hydration Error Recovery
+```bash
+1. rm -rf .next && npm run dev
+2. Check browser console for specific mismatch
+3. Apply mounted state pattern to problematic component
+4. Last resort: Dynamic import with ssr: false
+```
+
+### Backend Circular Import Recovery
+```bash
+1. python -m py_compile main.py
+2. Verify dependencies.py exists and is importable
+3. Check lifespan function is properly async
+4. Use dependency injection everywhere
+```
+
+### MCP Connection Failure Recovery
+```bash
+1. node --version ≥18
+2. curl localhost:3025/health
+3. Reinstall Chrome extension
+4. Check DevTools "BrowserTools" tab
+```
+
+## 🎯 Success Metrics
+
+- **Zero hydration errors** in console during development
+- **Clean backend startup** without circular import warnings
+- **First-try MCP success** rate >90%
+- **All server state** managed by React Query
+- **All point IDs** are valid UUIDs (not SHA256 hashes)
+
+---
+
+**⚡ Quick Reference Links:**
+- **🧭 Rule Navigation**: `.cursor/rules/cross-reference-guide.mdc` (START HERE for navigation)
+- **🚨 Emergency Issues**: `.cursor/rules/quick-troubleshooting-index.mdc` (30-sec fixes)
+- **🔥 Sprint 10 Failures**: `.cursor/rules/sprint-lessons-learned.mdc` (master reference)
+- **🧪 Testing Patterns**: `.cursor/rules/sprint10-testing-patterns.mdc` (prevention)
+- **💧 Hydration Prevention**: `frontend/.cursor/rules/nextjs-hydration-prevention.mdc`
+- **🔄 API Integration**: `frontend/.cursor/rules/react-query-api-integration.mdc`
+- **📋 Backend Development**: `backend/.cursor/rules/backend-development-index.mdc` (START HERE for backend work)
+- **🔗 Backend Architecture**: `backend/.cursor/rules/fastapi-dependency-injection.mdc`
+- **🏗️ Service Patterns**: `backend/.cursor/rules/fastapi-microservice-patterns.mdc` (comprehensive FastAPI patterns)
+- **🤖 ML Integration**: `backend/.cursor/rules/ml-service-integration.mdc` (GPU-optimized ML services)
+- **🔌 API Design**: `backend/.cursor/rules/api-design-patterns.mdc` (RESTful design patterns)
+- **🔧 MCP Setup**: `.cursor/rules/mcp-browser-tools-setup.mdc`
+
+*This architecture prevents the Sprint 10 failures that cost days of debugging time. Follow religiously.*
+
 # Pixel Detective Project Rules
 
 ## MCP Integration & Sprint Planning
