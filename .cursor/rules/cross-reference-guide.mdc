@@ -1,6 +1,6 @@
 ---
-description:
-globs:
+description: 
+globs: 
 alwaysApply: false
 ---
 # Cross-Reference Guide - Comprehensive Rule Navigation
@@ -22,8 +22,12 @@ Your `.cursor` rules are organized into **3 tiers** with **cross-cutting concern
 └── 📖 cross-reference-guide.mdc         # This navigation guide
 
 🎨 FRONTEND (frontend/.cursor/rules/)
+├── 📋 frontend-development-index.mdc    # Master index - START HERE for frontend work
 ├── 💧 nextjs-hydration-prevention.mdc   # Server/client consistency
-└── 🔄 react-query-api-integration.mdc   # Server state management
+├── 🔄 react-query-api-integration.mdc   # Server state management
+├── 🏗️ component-architecture-patterns.mdc # Component design & composition patterns
+├── 🎨 ux-workflow-patterns.mdc          # User experience & workflow patterns
+└── ⚡ nextjs-performance-optimization.mdc # Next.js performance optimization
 
 ⚙️ BACKEND (backend/.cursor/rules/)
 ├── 📋 backend-development-index.mdc     # Master index - START HERE for backend work
@@ -52,7 +56,11 @@ Your `.cursor` rules are organized into **3 tiers** with **cross-cutting concern
    - Check mandatory pre-work checklists
 
 **2. Choose Development Track:**
-   - **Frontend work** → `frontend/.cursor/rules/` (both files)
+   - **Frontend work (any)** → `frontend/.cursor/rules/frontend-development-index.mdc` (comprehensive guide)
+   - **Frontend components** → `frontend/.cursor/rules/component-architecture-patterns.mdc`
+   - **Frontend UX** → `frontend/.cursor/rules/ux-workflow-patterns.mdc`
+   - **Frontend performance** → `frontend/.cursor/rules/nextjs-performance-optimization.mdc`
+   - **Hydration issues** → `frontend/.cursor/rules/nextjs-hydration-prevention.mdc`
    - **Backend work (any)** → `backend/.cursor/rules/backend-development-index.mdc` (comprehensive guide)
    - **Backend API work** → `backend/.cursor/rules/api-design-patterns.mdc`
    - **Backend ML work** → `backend/.cursor/rules/ml-service-integration.mdc`
@@ -203,3 +211,5 @@ New team members should be able to:
 - 🧪 Testing → `sprint10-testing-patterns.mdc`
 
 *This cross-reference system ensures no Sprint 10 failure pattern is ever repeated.*
+
+

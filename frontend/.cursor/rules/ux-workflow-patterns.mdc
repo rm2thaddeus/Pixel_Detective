@@ -1,0 +1,677 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+# UX Workflow Patterns
+
+## 🎯 USER EXPERIENCE PATTERNS (From Sprint 10 UX Lessons)
+
+Based on critical UX discoveries, user feedback, and workflow improvements implemented during Sprint 10.
+
+### **🚨 CRITICAL UX FLAW DISCOVERED & FIXED**
+
+#### The "Add Images" Workflow Disaster
+```tsx
+// ❌ CRITICAL UX FLAW: Browser security violation
+function AddImagesModal() {
+  const [directoryPath, setDirectoryPath] = useState('')
+  
+  return (
+    <Modal>
+      <ModalBody>
+        <Text>Enter the directory path containing your images:</Text>
+        <Input 
+          placeholder="C:\Users\username\Pictures\..." 
+          value={directoryPath}
+          onChange={(e) => setDirectoryPath(e.target.value)}
+        />
+        <Button onClick={() => processDirectory(directoryPath)}>
+          Process Directory
+        </Button>
+      </ModalBody>
+    </Modal>
+  )
+}
+```
+
+**Why this was a disaster:**
+- **Security Violation**: Browsers cannot access local file system paths
+- **100% Failure Rate**: This workflow would fail for every user
+- **Confusing UX**: Users don't understand why it doesn't work
+- **Backend Mismatch**: Backend expects server paths, not client paths
+
+#### ✅ SOLUTION: Proper File Upload Workflow
+```tsx
+// ✅ CORRECT: Browser-compatible file upload
+function AddImagesModal() {
+  const [selectedFiles, setSelectedFiles] = useState<FileList | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  
+  const handleFolderSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (event.target.files) {
+      setSelectedFiles(event.target.files)
+    }
+  }
+  
+  const handleUpload = async () => {
+    if (!selectedFiles) return
+    
+    const formData = new FormData()
+    Array.from(selectedFiles).forEach(file => {
+      formData.append('files', file)
+    })
+    
+    const response = await api.post('/api/v1/ingest/upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+    
+    // Navigate to job tracking
+    router.push(`/logs/${response.data.job_id}`)
+  }
+  
+  return (
+    <Modal>
+      <ModalBody>
+        <VStack spacing={4}>
+          <Text>Select a folder containing your images:</Text>
+          
+          <Box
+            p={6}
+            border="2px dashed"
+            borderColor="gray.300"
+            borderRadius="md"
+            cursor="pointer"
+            onClick={() => fileInputRef.current?.click()}
+            _hover={{ bg: 'gray.50' }}
+          >
+            <VStack>
+              <Icon as={FiUploadCloud} boxSize={12} color="gray.500" />
+              <Text fontWeight="medium">Click to select a folder</Text>
+              <Text fontSize="sm" color="gray.500">
+                Files will be uploaded to the server for processing
+              </Text>
+            </VStack>
+          </Box>
+          
+          <Input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFolderSelect}
+            style={{ display: 'none' }}
+            {...{ webkitdirectory: 'true', mozdirectory: 'true' }}
+          />
+          
+          {selectedFiles && (
+            <Alert status="success">
+              <AlertIcon />
+              <Text>{selectedFiles.length} files selected</Text>
+            </Alert>
+          )}
+        </VStack>
+      </ModalBody>
+      
+      <ModalFooter>
+        <Button 
+          colorScheme="blue" 
+          onClick={handleUpload}
+          isDisabled={!selectedFiles}
+        >
+          Upload and Process
+        </Button>
+      </ModalFooter>
+    </Modal>
+  )
+}
+```
+
+### **🔄 REAL-TIME FEEDBACK PATTERNS**
+
+#### 1. Job Progress Tracking (Sprint 10 Success)
+```tsx
+// ✅ PATTERN: Real-time job progress with user guidance
+function JobProgressPage() {
+  const { jobId } = useParams()
+  const { data: jobStatus, isLoading } = useQuery({
+    queryKey: ['job-status', jobId],
+    queryFn: () => api.get(`/api/v1/ingest/status/${jobId}`),
+    refetchInterval: (data) => {
+      // Stop polling when job is complete
+      if (data?.status === 'completed' || data?.status === 'failed') {
+        return false
+      }
+      return 2000 // Poll every 2 seconds
+    },
+    retry: false,
+  })
+  
+  return (
+    <VStack spacing={6}>
+      <JobHeader jobId={jobId} status={jobStatus?.status} />
+      
+      <ProgressSection 
+        progress={jobStatus?.progress || 0}
+        processed={jobStatus?.processed_files}
+        total={jobStatus?.total_files}
+      />
+      
+      {jobStatus?.status === 'completed' && (
+        <Alert status="success">
+          <AlertIcon />
+          <Box flex="1">
+            <Text fontWeight="bold">Job Completed Successfully!</Text>
+            <Text>All images have been processed and added to the collection.</Text>
+          </Box>
+          <Button
+            colorScheme="green"
+            size="sm"
+            onClick={() => router.push('/search')}
+          >
+            Go to Search
+          </Button>
+        </Alert>
+      )}
+      
+      {jobStatus?.status === 'failed' && (
+        <Alert status="error">
+          <AlertIcon />
+          <Box>
+            <Text fontWeight="bold">Job Failed</Text>
+            <Text>{jobStatus.error_message}</Text>
+            <Button mt={2} size="sm" onClick={() => router.push('/')}>
+              Try Again
+            </Button>
+          </Box>
+        </Alert>
+      )}
+      
+      <LiveLogsSection logs={jobStatus?.logs || []} />
+    </VStack>
+  )
+}
+```
+
+#### 2. Immediate Visual Feedback
+```tsx
+// ✅ PATTERN: Instant feedback for user actions
+function SearchInterface() {
+  const [query, setQuery] = useState('')
+  const [searchType, setSearchType] = useState<'text' | 'image' | null>(null)
+  
+  const handleTextChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value
+    setQuery(value)
+    
+    // Immediate visual feedback
+    if (value.trim()) {
+      setSearchType('text')
+    } else {
+      setSearchType(null)
+    }
+  }
+  
+  return (
+    <InputGroup>
+      <Input
+        placeholder="Search for images..."
+        value={query}
+        onChange={handleTextChange}
+        // Visual feedback through border color
+        borderColor={searchType ? 'blue.500' : 'gray.300'}
+      />
+      <InputRightElement>
+        {searchType && (
+          <Badge colorScheme={searchType === 'text' ? 'blue' : 'green'}>
+            <Icon as={searchType === 'text' ? FiType : FiImage} mr={1} />
+            {searchType}
+          </Badge>
+        )}
+      </InputRightElement>
+    </InputGroup>
+  )
+}
+```
+
+### **🎯 GUIDED USER WORKFLOWS**
+
+#### 1. Progressive Setup Flow (Sprint 10 Pattern)
+```tsx
+// ✅ PATTERN: Step-by-step user guidance
+function SetupProgressTracker() {
+  const { backendStatus, collection } = useAppState()
+  
+  const setupSteps = useMemo(() => {
+    const steps = [
+      {
+        id: 'backend',
+        label: 'Connect to Services',
+        status: backendStatus === 'ok' ? 'complete' : 'pending',
+        description: 'Checking backend services...',
+      },
+      {
+        id: 'collection',
+        label: 'Select Collection',
+        status: collection ? 'complete' : backendStatus === 'ok' ? 'current' : 'pending',
+        description: 'Choose or create a collection for your images',
+      },
+      {
+        id: 'ready',
+        label: 'Ready to Search',
+        status: collection && backendStatus === 'ok' ? 'complete' : 'pending',
+        description: 'Start searching and managing your images',
+      },
+    ]
+    
+    return steps
+  }, [backendStatus, collection])
+  
+  const currentStep = setupSteps.find(step => step.status === 'current')
+  const completedSteps = setupSteps.filter(step => step.status === 'complete').length
+  const progress = (completedSteps / setupSteps.length) * 100
+  
+  return (
+    <Card>
+      <CardBody>
+        <VStack spacing={4} align="stretch">
+          <HStack justify="space-between">
+            <Text fontWeight="semibold">Setup Progress</Text>
+            <Text fontSize="sm" color="gray.500">
+              {completedSteps}/{setupSteps.length} complete
+            </Text>
+          </HStack>
+          
+          <Progress value={progress} colorScheme="blue" />
+          
+          <VStack spacing={3} align="stretch">
+            {setupSteps.map((step, index) => (
+              <SetupStep
+                key={step.id}
+                step={step}
+                isActive={step.status === 'current'}
+                isComplete={step.status === 'complete'}
+                stepNumber={index + 1}
+              />
+            ))}
+          </VStack>
+          
+          {currentStep && (
+            <NextStepAction step={currentStep} />
+          )}
+        </VStack>
+      </CardBody>
+    </Card>
+  )
+}
+
+function NextStepAction({ step }: { step: SetupStep }) {
+  const { onOpen: openCollectionModal } = useCollectionModal()
+  
+  if (step.id === 'collection') {
+    return (
+      <Button
+        colorScheme="blue"
+        size="sm"
+        onClick={openCollectionModal}
+        leftIcon={<Icon as={FiFolder} />}
+      >
+        Select Collection
+      </Button>
+    )
+  }
+  
+  return null
+}
+```
+
+#### 2. Contextual Help and Guidance
+```tsx
+// ✅ PATTERN: Context-aware help system
+function ContextualHelp() {
+  const location = useLocation()
+  const { collection, backendStatus } = useAppState()
+  
+  const getHelpContent = () => {
+    if (location.pathname === '/search' && !collection) {
+      return {
+        type: 'warning',
+        title: 'No Collection Selected',
+        message: 'You need to select a collection before you can search.',
+        action: { label: 'Select Collection', onClick: openCollectionModal },
+      }
+    }
+    
+    if (location.pathname === '/search' && backendStatus !== 'ok') {
+      return {
+        type: 'error',
+        title: 'Backend Services Unavailable',
+        message: 'Search functionality requires backend services to be running.',
+        action: { label: 'Check Status', onClick: () => router.push('/') },
+      }
+    }
+    
+    if (location.pathname === '/' && collection && backendStatus === 'ok') {
+      return {
+        type: 'success',
+        title: 'Ready to Go!',
+        message: 'Your system is set up. You can now search images or add new ones.',
+        action: { label: 'Start Searching', onClick: () => router.push('/search') },
+      }
+    }
+    
+    return null
+  }
+  
+  const helpContent = getHelpContent()
+  
+  if (!helpContent) return null
+  
+  return (
+    <Alert status={helpContent.type} borderRadius="md">
+      <AlertIcon />
+      <Box flex="1">
+        <Text fontWeight="bold">{helpContent.title}</Text>
+        <Text fontSize="sm">{helpContent.message}</Text>
+      </Box>
+      {helpContent.action && (
+        <Button
+          size="sm"
+          colorScheme={helpContent.type === 'error' ? 'red' : 'blue'}
+          onClick={helpContent.action.onClick}
+        >
+          {helpContent.action.label}
+        </Button>
+      )}
+    </Alert>
+  )
+}
+```
+
+### **🔄 ERROR RECOVERY PATTERNS**
+
+#### 1. Actionable Error Messages
+```tsx
+// ✅ PATTERN: Errors with clear recovery actions
+function ErrorBoundary({ children }: { children: React.ReactNode }) {
+  return (
+    <ChakraErrorBoundary
+      fallback={(error, errorInfo) => (
+        <Alert status="error" flexDirection="column" p={6}>
+          <AlertIcon boxSize="40px" mr={0} />
+          <Text fontWeight="bold" mt={4} mb={2}>
+            Something went wrong
+          </Text>
+          <Text textAlign="center" mb={4}>
+            {error.message || 'An unexpected error occurred'}
+          </Text>
+          
+          <VStack spacing={2}>
+            <Button
+              colorScheme="red"
+              size="sm"
+              onClick={() => window.location.reload()}
+            >
+              Reload Page
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => router.push('/')}
+            >
+              Go Home
+            </Button>
+          </VStack>
+          
+          {process.env.NODE_ENV === 'development' && (
+            <Box mt={4} p={4} bg="gray.100" borderRadius="md" fontSize="xs">
+              <Text fontWeight="bold">Debug Info:</Text>
+              <Text>{errorInfo.componentStack}</Text>
+            </Box>
+          )}
+        </Alert>
+      )}
+    >
+      {children}
+    </ChakraErrorBoundary>
+  )
+}
+```
+
+#### 2. Network Error Recovery
+```tsx
+// ✅ PATTERN: Graceful network error handling
+function useApiWithRetry() {
+  const toast = useToast()
+  
+  const apiCall = useCallback(async (endpoint: string, options?: any) => {
+    try {
+      return await api.request({ url: endpoint, ...options })
+    } catch (error) {
+      if (error.code === 'NETWORK_ERROR') {
+        toast({
+          title: 'Connection Error',
+          description: 'Unable to connect to server. Check your connection.',
+          status: 'error',
+          duration: 5000,
+          isClosable: true,
+          action: (
+            <Button
+              size="sm"
+              onClick={() => apiCall(endpoint, options)}
+            >
+              Retry
+            </Button>
+          ),
+        })
+      } else if (error.response?.status >= 500) {
+        toast({
+          title: 'Server Error',
+          description: 'Server is experiencing issues. Please try again.',
+          status: 'error',
+          duration: 5000,
+          isClosable: true,
+        })
+      }
+      throw error
+    }
+  }, [toast])
+  
+  return { apiCall }
+}
+```
+
+### **📱 RESPONSIVE UX PATTERNS**
+
+#### 1. Mobile-First Navigation
+```tsx
+// ✅ PATTERN: Adaptive navigation for different screen sizes
+function ResponsiveNavigation() {
+  const { isOpen, onOpen, onClose } = useDisclosure()
+  const isMobile = useBreakpointValue({ base: true, md: false })
+  
+  if (isMobile) {
+    return (
+      <>
+        <IconButton
+          aria-label="Open menu"
+          icon={<FiMenu />}
+          onClick={onOpen}
+        />
+        
+        <Drawer isOpen={isOpen} placement="left" onClose={onClose}>
+          <DrawerOverlay />
+          <DrawerContent>
+            <DrawerCloseButton />
+            <DrawerHeader>Menu</DrawerHeader>
+            <DrawerBody>
+              <VStack spacing={4} align="stretch">
+                <NavigationLink href="/" icon={FiHome}>Home</NavigationLink>
+                <NavigationLink href="/search" icon={FiSearch}>Search</NavigationLink>
+                <NavigationLink href="/collections" icon={FiFolder}>Collections</NavigationLink>
+              </VStack>
+            </DrawerBody>
+          </DrawerContent>
+        </Drawer>
+      </>
+    )
+  }
+  
+  return (
+    <HStack spacing={6}>
+      <NavigationLink href="/" icon={FiHome}>Home</NavigationLink>
+      <NavigationLink href="/search" icon={FiSearch}>Search</NavigationLink>
+      <NavigationLink href="/collections" icon={FiFolder}>Collections</NavigationLink>
+    </HStack>
+  )
+}
+```
+
+#### 2. Touch-Friendly Interactions
+```tsx
+// ✅ PATTERN: Mobile-optimized interactions
+function TouchFriendlyImageGrid({ images }: { images: SearchResult[] }) {
+  const isMobile = useBreakpointValue({ base: true, md: false })
+  
+  return (
+    <SimpleGrid
+      columns={{ base: 1, sm: 2, md: 3, lg: 4 }}
+      spacing={isMobile ? 3 : 6}
+    >
+      {images.map((image) => (
+        <Box
+          key={image.id}
+          cursor="pointer"
+          borderRadius="lg"
+          overflow="hidden"
+          // Larger touch targets on mobile
+          minH={isMobile ? "200px" : "250px"}
+          _hover={{ transform: 'scale(1.02)' }}
+          _active={{ transform: 'scale(0.98)' }}
+          transition="transform 0.2s"
+          onClick={() => handleImageClick(image)}
+        >
+          <NextImage
+            src={`/api/v1/images/${image.id}/thumbnail`}
+            alt={image.payload.filename}
+            width={300}
+            height={300}
+            style={{ 
+              objectFit: 'cover', 
+              width: '100%', 
+              height: '100%' 
+            }}
+          />
+        </Box>
+      ))}
+    </SimpleGrid>
+  )
+}
+```
+
+### **🎯 UX PERFORMANCE PATTERNS**
+
+#### 1. Optimistic Updates
+```tsx
+// ✅ PATTERN: Immediate UI feedback with rollback
+function useOptimisticCollections() {
+  const queryClient = useQueryClient()
+  
+  const createCollection = useMutation({
+    mutationFn: (name: string) => api.post('/api/v1/collections', { name }),
+    onMutate: async (newCollection) => {
+      // Cancel outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ['collections'] })
+      
+      // Snapshot previous value
+      const previousCollections = queryClient.getQueryData(['collections'])
+      
+      // Optimistically update
+      queryClient.setQueryData(['collections'], (old: string[]) => 
+        [...(old || []), newCollection]
+      )
+      
+      // Return context for rollback
+      return { previousCollections }
+    },
+    onError: (err, newCollection, context) => {
+      // Rollback on error
+      queryClient.setQueryData(['collections'], context?.previousCollections)
+      
+      toast({
+        title: 'Failed to create collection',
+        description: 'Please try again',
+        status: 'error',
+      })
+    },
+    onSettled: () => {
+      // Always refetch after error or success
+      queryClient.invalidateQueries({ queryKey: ['collections'] })
+    },
+  })
+  
+  return { createCollection }
+}
+```
+
+#### 2. Skeleton Loading States
+```tsx
+// ✅ PATTERN: Skeleton screens for better perceived performance
+function SearchResultsSkeleton() {
+  return (
+    <SimpleGrid columns={{ base: 1, sm: 2, md: 3, lg: 4 }} spacing={6}>
+      {Array.from({ length: 8 }).map((_, index) => (
+        <Box key={index}>
+          <Skeleton height="250px" borderRadius="lg" />
+          <SkeletonText mt={3} noOfLines={1} />
+        </Box>
+      ))}
+    </SimpleGrid>
+  )
+}
+
+function SearchResults({ results, loading }: SearchResultsProps) {
+  if (loading) {
+    return <SearchResultsSkeleton />
+  }
+  
+  if (results.length === 0) {
+    return <EmptySearchState />
+  }
+  
+  return <ImageGrid images={results} />
+}
+```
+
+### **📋 UX WORKFLOW CHECKLIST**
+
+#### Before Implementing a Workflow:
+- [ ] **User Journey Mapping**: Document each step from user's perspective
+- [ ] **Error Scenarios**: Plan for every possible failure point
+- [ ] **Mobile Experience**: Ensure workflow works on touch devices
+- [ ] **Accessibility**: Support keyboard navigation and screen readers
+- [ ] **Performance**: Optimize for perceived performance
+
+#### During Development:
+- [ ] **Immediate Feedback**: Every action has instant visual response
+- [ ] **Progress Indicators**: Long operations show clear progress
+- [ ] **Error Recovery**: Users can recover from errors without losing work
+- [ ] **Contextual Help**: Guidance appears when users need it
+- [ ] **Responsive Design**: Works across all screen sizes
+
+#### Testing Checklist:
+- [ ] **Happy Path**: Primary workflow works smoothly
+- [ ] **Error Paths**: All error scenarios are handled gracefully
+- [ ] **Edge Cases**: Unusual inputs and states are handled
+- [ ] **Performance**: Workflows feel fast and responsive
+- [ ] **Accessibility**: Works with assistive technologies
+
+---
+
+**🎯 UX SUCCESS METRICS:**
+
+- **Task Completion Rate**: ≥ 95% for primary workflows
+- **Error Recovery Rate**: ≥ 90% of users recover from errors
+- **Time to First Success**: ≤ 2 minutes for new users
+- **Mobile Usability**: Same success rate on mobile as desktop
+- **User Satisfaction**: Positive feedback on workflow clarity
+
+*UX patterns based on real Sprint 10 user experience discoveries and improvements.*

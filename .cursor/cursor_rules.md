@@ -139,8 +139,12 @@ const { data, isLoading, error } = useQuery({
 - **🚨 Emergency Issues**: `.cursor/rules/quick-troubleshooting-index.mdc` (30-sec fixes)
 - **🔥 Sprint 10 Failures**: `.cursor/rules/sprint-lessons-learned.mdc` (master reference)
 - **🧪 Testing Patterns**: `.cursor/rules/sprint10-testing-patterns.mdc` (prevention)
+- **📋 Frontend Development**: `frontend/.cursor/rules/frontend-development-index.mdc` (START HERE for frontend work)
 - **💧 Hydration Prevention**: `frontend/.cursor/rules/nextjs-hydration-prevention.mdc`
 - **🔄 API Integration**: `frontend/.cursor/rules/react-query-api-integration.mdc`
+- **🏗️ Component Architecture**: `frontend/.cursor/rules/component-architecture-patterns.mdc` (component design patterns)
+- **🎨 UX Workflows**: `frontend/.cursor/rules/ux-workflow-patterns.mdc` (user experience patterns)
+- **⚡ Performance**: `frontend/.cursor/rules/nextjs-performance-optimization.mdc` (Next.js optimization)
 - **📋 Backend Development**: `backend/.cursor/rules/backend-development-index.mdc` (START HERE for backend work)
 - **🔗 Backend Architecture**: `backend/.cursor/rules/fastapi-dependency-injection.mdc`
 - **🏗️ Service Patterns**: `backend/.cursor/rules/fastapi-microservice-patterns.mdc` (comprehensive FastAPI patterns)

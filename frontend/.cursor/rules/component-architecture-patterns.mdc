@@ -1,0 +1,531 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+# Component Architecture Patterns
+
+## 🏗️ COMPONENT DESIGN PATTERNS (From Sprint 10 Lessons)
+
+Based on architectural review findings and real refactoring experiences during Sprint 10.
+
+### **🚨 ANTI-PATTERN: "God Components" (Sprint 10 Discovery)**
+
+#### The Problem - Large Monolithic Components
+```tsx
+// ❌ ANTI-PATTERN: 424-line HomePage component
+export default function HomePage() {
+  // State management (50+ lines)
+  const [backendStatus, setBackendStatus] = useState<'loading' | 'ok' | 'error'>('loading')
+  const [setupStep, setSetupStep] = useState(1)
+  const [healthStatus, setHealthStatus] = useState<'loading' | 'ok' | 'error'>('loading')
+  
+  // Color mode values (20+ lines)
+  const sidebarBg = useColorModeValue('white', 'gray.800')
+  const textColor = useColorModeValue('gray.800', 'white')
+  const mutedTextColor = useColorModeValue('gray.600', 'gray.300')
+  // ... 15+ more color definitions
+  
+  // Effects and handlers (100+ lines)
+  useEffect(() => {
+    const checkBackendHealth = async () => {
+      // Complex health check logic
+    }
+    checkBackendHealth()
+    const interval = setInterval(checkBackendHealth, 30000)
+    return () => clearInterval(interval)
+  }, [])
+  
+  // More effects...
+  useEffect(() => {
+    if (backendStatus === 'ok' && collection) {
+      setSetupStep(3)
+    } else if (backendStatus === 'ok') {
+      setSetupStep(2)
+    } else {
+      setSetupStep(1)
+    }
+  }, [backendStatus, collection])
+  
+  // Complex render logic (200+ lines)
+  return (
+    <Box minH="100vh">
+      {/* Massive JSX structure */}
+    </Box>
+  )
+}
+```
+
+**Problems with this approach:**
+- **Performance**: Entire component re-renders on any state change
+- **Maintainability**: Hard to understand and modify
+- **Testing**: Difficult to test individual features
+- **Reusability**: Logic tied to specific component
+- **Debugging**: Hard to isolate issues
+
+### **✅ SOLUTION: Component Composition Pattern**
+
+#### 1. Extract Logical Sections
+```tsx
+// ✅ PATTERN: Focused, single-responsibility components
+export default function HomePage() {
+  return (
+    <Box minH="100vh">
+      <Header />
+      <Flex>
+        <SystemStatusSidebar />
+        <MainContent />
+      </Flex>
+      <CollectionModal />
+      <AddImagesModal />
+    </Box>
+  )
+}
+
+// ✅ Each component has a single responsibility
+function SystemStatusSidebar() {
+  const { backendStatus, setupProgress } = useSystemHealth()
+  
+  return (
+    <Sidebar>
+      <SetupProgress progress={setupProgress} />
+      <SystemStatus status={backendStatus} />
+      <CollectionStats />
+    </Sidebar>
+  )
+}
+
+function MainContent() {
+  const { setupStep } = useSystemHealth()
+  
+  return (
+    <Container>
+      <HeroSection />
+      {setupStep >= 3 ? <FeaturedActions /> : <SetupGuidance />}
+      <AdditionalTools />
+    </Container>
+  )
+}
+```
+
+#### 2. Custom Hooks for Logic Extraction
+```tsx
+// ✅ PATTERN: Extract complex logic into custom hooks
+export function useSystemHealth() {
+  const [backendStatus, setBackendStatus] = useState<'loading' | 'ok' | 'error'>('loading')
+  const [setupStep, setSetupStep] = useState(1)
+  const { collection } = useStore()
+  
+  useEffect(() => {
+    const checkBackendHealth = async () => {
+      try {
+        await ping()
+        setBackendStatus('ok')
+      } catch (error) {
+        console.error('Backend health check failed:', error)
+        setBackendStatus('error')
+      }
+    }
+
+    checkBackendHealth()
+    const interval = setInterval(checkBackendHealth, 30000)
+    return () => clearInterval(interval)
+  }, [])
+
+  useEffect(() => {
+    if (backendStatus === 'ok' && collection) {
+      setSetupStep(3)
+    } else if (backendStatus === 'ok') {
+      setSetupStep(2)
+    } else {
+      setSetupStep(1)
+    }
+  }, [backendStatus, collection])
+
+  const setupProgress = useMemo(() => {
+    switch (setupStep) {
+      case 1: return { progress: 0, label: 'Connecting to services...', color: 'red' }
+      case 2: return { progress: 50, label: 'Select or create a collection', color: 'yellow' }
+      case 3: return { progress: 100, label: 'Ready to search!', color: 'green' }
+      default: return { progress: 0, label: 'Initializing...', color: 'gray' }
+    }
+  }, [setupStep])
+
+  return { backendStatus, setupStep, setupProgress }
+}
+```
+
+#### 3. Theme Hook Pattern
+```tsx
+// ✅ PATTERN: Centralize theme values in custom hook
+export function useAppTheme() {
+  const sidebarBg = useColorModeValue('white', 'gray.800')
+  const borderColor = useColorModeValue('gray.200', 'gray.600')
+  const textColor = useColorModeValue('gray.800', 'white')
+  const mutedTextColor = useColorModeValue('gray.600', 'gray.300')
+  const cardBgColor = useColorModeValue('white', 'gray.800')
+  const brandGradient = useColorModeValue(
+    'linear(to-r, blue.500, purple.600)',
+    'linear(to-r, blue.300, purple.400)'
+  )
+  
+  return {
+    sidebarBg,
+    borderColor,
+    textColor,
+    mutedTextColor,
+    cardBgColor,
+    brandGradient,
+  }
+}
+
+// ✅ USAGE: Clean and reusable
+function StatusCard() {
+  const { cardBgColor, textColor, borderColor } = useAppTheme()
+  
+  return (
+    <Card bg={cardBgColor} borderColor={borderColor}>
+      <CardBody>
+        <Text color={textColor}>Status content</Text>
+      </CardBody>
+    </Card>
+  )
+}
+```
+
+### **🔍 SEARCH PAGE REFACTORING (521 Lines → Manageable)**
+
+#### Before: Monolithic SearchPage
+```tsx
+// ❌ PROBLEM: 521-line SearchPage with mixed concerns
+export default function SearchPage() {
+  // Search state (20+ lines)
+  const [query, setQuery] = useState('')
+  const [results, setResults] = useState<SearchResult[]>([])
+  const [loading, setLoading] = useState(false)
+  const [selectedImage, setSelectedImage] = useState<File | null>(null)
+  const [imagePreview, setImagePreview] = useState<string | null>(null)
+  const [searchType, setSearchType] = useState<'text' | 'image' | null>(null)
+  
+  // Modal state (10+ lines)
+  const [selectedImageDetails, setSelectedImageDetails] = useState<ImageDetails | null>(null)
+  const { isOpen, onOpen, onClose } = useDisclosure()
+  
+  // Drag and drop state (10+ lines)
+  const [isDragOver, setIsDragOver] = useState(false)
+  
+  // Color mode values (20+ lines)
+  const bgColor = useColorModeValue('white', 'gray.800')
+  // ... many more
+  
+  // Complex handlers (100+ lines)
+  const handleImageClick = async (result: SearchResult) => {
+    // Complex logic
+  }
+  
+  const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    // Complex logic
+  }
+  
+  const handleDragOver = (e: React.DragEvent) => {
+    // Complex logic
+  }
+  
+  // More handlers...
+  
+  // Massive render (300+ lines)
+  return (
+    <Box minH="100vh" bg={pageBg}>
+      {/* Complex JSX structure */}
+    </Box>
+  )
+}
+```
+
+#### After: Composed Architecture
+```tsx
+// ✅ SOLUTION: Clean, focused SearchPage
+export default function SearchPage() {
+  return (
+    <Box minH="100vh">
+      <ClientOnly>
+        <Header />
+      </ClientOnly>
+      
+      <Container maxW="6xl" p={6}>
+        <VStack spacing={8} align="stretch">
+          <SearchHeader />
+          <SearchInterface />
+          <SearchResults />
+        </VStack>
+      </Container>
+      
+      <ImageDetailsModal />
+    </Box>
+  )
+}
+
+// ✅ Focused search interface component
+function SearchInterface() {
+  const {
+    query,
+    selectedImage,
+    imagePreview,
+    searchType,
+    loading,
+    handleTextChange,
+    handleSearch,
+    handleImageSelection,
+    clearImage,
+  } = useSearch()
+  
+  const { isDragOver, dragHandlers } = useDragAndDrop(handleImageSelection)
+  
+  return (
+    <Card>
+      <CardBody>
+        <VStack spacing={4}>
+          <SearchInput
+            query={query}
+            onChange={handleTextChange}
+            onSearch={handleSearch}
+            loading={loading}
+            searchType={searchType}
+            dragHandlers={dragHandlers}
+            isDragOver={isDragOver}
+          />
+          
+          {imagePreview && (
+            <ImagePreview
+              image={selectedImage}
+              preview={imagePreview}
+              onClear={clearImage}
+            />
+          )}
+          
+          <CollectionAlert />
+        </VStack>
+      </CardBody>
+    </Card>
+  )
+}
+```
+
+### **🎯 COMPONENT COMPOSITION PATTERNS**
+
+#### 1. Container/Presentational Pattern
+```tsx
+// ✅ PATTERN: Separate logic from presentation
+// Container: Handles logic and state
+function SearchContainer() {
+  const { query, results, loading, handleSearch } = useSearch()
+  const { collection } = useStore()
+  
+  return (
+    <SearchPresentation
+      query={query}
+      results={results}
+      loading={loading}
+      collection={collection}
+      onSearch={handleSearch}
+    />
+  )
+}
+
+// Presentational: Pure UI component
+interface SearchPresentationProps {
+  query: string
+  results: SearchResult[]
+  loading: boolean
+  collection: string | null
+  onSearch: () => void
+}
+
+function SearchPresentation({ query, results, loading, collection, onSearch }: SearchPresentationProps) {
+  return (
+    <VStack spacing={6}>
+      <SearchInput value={query} onSearch={onSearch} loading={loading} />
+      {collection && <CollectionBadge name={collection} />}
+      <SearchResults results={results} loading={loading} />
+    </VStack>
+  )
+}
+```
+
+#### 2. Compound Component Pattern
+```tsx
+// ✅ PATTERN: Related components that work together
+function SearchInterface({ children }: { children: React.ReactNode }) {
+  const searchContext = useSearch()
+  
+  return (
+    <SearchContext.Provider value={searchContext}>
+      <Card>
+        <CardBody>
+          <VStack spacing={4}>
+            {children}
+          </VStack>
+        </CardBody>
+      </Card>
+    </SearchContext.Provider>
+  )
+}
+
+// Sub-components that use the context
+SearchInterface.Input = function SearchInput() {
+  const { query, handleTextChange, handleSearch, loading } = useContext(SearchContext)
+  
+  return (
+    <InputGroup>
+      <Input value={query} onChange={handleTextChange} />
+      <InputRightElement>
+        <IconButton icon={<FiSearch />} onClick={handleSearch} isLoading={loading} />
+      </InputRightElement>
+    </InputGroup>
+  )
+}
+
+SearchInterface.Results = function SearchResults() {
+  const { results, loading } = useContext(SearchContext)
+  
+  if (loading) return <Spinner />
+  
+  return (
+    <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={4}>
+      {results.map(result => (
+        <SearchResultCard key={result.id} result={result} />
+      ))}
+    </SimpleGrid>
+  )
+}
+
+// Usage
+function SearchPage() {
+  return (
+    <SearchInterface>
+      <SearchInterface.Input />
+      <SearchInterface.Results />
+    </SearchInterface>
+  )
+}
+```
+
+#### 3. Render Props Pattern
+```tsx
+// ✅ PATTERN: Flexible component composition
+interface SearchProviderProps {
+  children: (searchState: SearchState) => React.ReactNode
+}
+
+function SearchProvider({ children }: SearchProviderProps) {
+  const searchState = useSearch()
+  return <>{children(searchState)}</>
+}
+
+// Usage: Maximum flexibility
+function SearchPage() {
+  return (
+    <SearchProvider>
+      {({ query, results, loading, handleSearch }) => (
+        <VStack spacing={6}>
+          <SearchInput 
+            value={query} 
+            onSearch={handleSearch} 
+            loading={loading} 
+          />
+          <SearchResults results={results} loading={loading} />
+        </VStack>
+      )}
+    </SearchProvider>
+  )
+}
+```
+
+### **🧪 TESTING PATTERNS**
+
+#### 1. Component Testing Strategy
+```tsx
+// ✅ PATTERN: Test components in isolation
+describe('SearchInput', () => {
+  it('calls onSearch when Enter is pressed', () => {
+    const mockOnSearch = jest.fn()
+    render(<SearchInput value="test" onSearch={mockOnSearch} />)
+    
+    fireEvent.keyPress(screen.getByRole('textbox'), { key: 'Enter' })
+    
+    expect(mockOnSearch).toHaveBeenCalled()
+  })
+})
+
+// ✅ PATTERN: Test custom hooks separately
+describe('useSearch', () => {
+  it('updates query state when handleTextChange is called', () => {
+    const { result } = renderHook(() => useSearch())
+    
+    act(() => {
+      result.current.handleTextChange({ target: { value: 'new query' } } as any)
+    })
+    
+    expect(result.current.query).toBe('new query')
+  })
+})
+```
+
+#### 2. Integration Testing
+```tsx
+// ✅ PATTERN: Test component composition
+describe('SearchPage Integration', () => {
+  it('performs search when user types and presses Enter', async () => {
+    const mockApi = jest.spyOn(api, 'post').mockResolvedValue({ data: { results: [] } })
+    
+    render(<SearchPage />)
+    
+    const input = screen.getByPlaceholderText(/search for images/i)
+    fireEvent.change(input, { target: { value: 'cats' } })
+    fireEvent.keyPress(input, { key: 'Enter' })
+    
+    await waitFor(() => {
+      expect(mockApi).toHaveBeenCalledWith('/api/v1/search/text', {
+        query: 'cats',
+        limit: 20,
+        offset: 0
+      })
+    })
+  })
+})
+```
+
+### **📋 COMPONENT ARCHITECTURE CHECKLIST**
+
+#### Before Creating a Component:
+- [ ] **Single Responsibility**: Does this component have one clear purpose?
+- [ ] **Size Check**: Is it under 200 lines? If not, can it be broken down?
+- [ ] **State Scope**: Is state managed at the right level?
+- [ ] **Reusability**: Can this component be reused elsewhere?
+- [ ] **Testing**: Can this component be easily tested in isolation?
+
+#### During Development:
+- [ ] **Extract Logic**: Move complex logic to custom hooks
+- [ ] **Separate Concerns**: Keep data fetching separate from UI
+- [ ] **Optimize Re-renders**: Use React.memo, useMemo, useCallback appropriately
+- [ ] **Type Safety**: Ensure proper TypeScript interfaces
+- [ ] **Error Boundaries**: Handle errors gracefully
+
+#### Code Review Checklist:
+- [ ] **No God Components**: No single component over 300 lines
+- [ ] **Clear Interfaces**: Props and return types are well-defined
+- [ ] **Performance**: No unnecessary re-renders
+- [ ] **Accessibility**: Proper ARIA labels and keyboard navigation
+- [ ] **Responsive**: Works on all screen sizes
+
+---
+
+**🎯 SUCCESS METRICS:**
+
+- **Component Size**: Average component ≤ 150 lines
+- **Reusability**: 80% of components used in multiple places
+- **Test Coverage**: 90% of components have unit tests
+- **Performance**: No unnecessary re-renders in React DevTools
+- **Maintainability**: New features can be added without modifying existing components
+
+*Component architecture patterns based on real Sprint 10 refactoring experiences.*

@@ -1,0 +1,386 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+# Next.js Performance Optimization Rules
+
+## 🚀 PERFORMANCE PATTERNS (From Sprint 10 Architecture Review)
+
+Based on comprehensive analysis of the frontend application and performance bottlenecks identified during Sprint 10.
+
+### **⚡ IMAGE OPTIMIZATION - CRITICAL**
+
+#### 1. Use Next.js Image Component (Not Chakra Image)
+```tsx
+// ❌ NEVER: Bypasses Next.js optimization
+import { Image } from '@chakra-ui/react'
+<Image src="/api/v1/images/123/thumbnail" alt="..." />
+
+// ✅ ALWAYS: Use Next.js optimized images
+import NextImage from 'next/image'
+<NextImage 
+  src="/api/v1/images/123/thumbnail"
+  alt="..."
+  width={300}
+  height={300}
+  style={{ objectFit: 'cover' }}
+  priority={isAboveTheFold}
+/>
+```
+
+#### 2. Configure Image Domains in next.config.ts
+```typescript
+// ✅ MANDATORY: Whitelist backend domains
+const nextConfig: NextConfig = {
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'http',
+        hostname: 'localhost',
+        port: '8002',
+        pathname: '/api/v1/images/**',
+      },
+      {
+        protocol: 'https',
+        hostname: process.env.NEXT_PUBLIC_API_HOST || 'api.example.com',
+        pathname: '/api/v1/images/**',
+      },
+    ],
+  },
+}
+```
+
+#### 3. Image Loading Strategies
+```tsx
+// ✅ Search results grid optimization
+<NextImage
+  src={`/api/v1/images/${result.id}/thumbnail`}
+  alt={result.payload.filename}
+  width={300}
+  height={300}
+  style={{ objectFit: 'cover' }}
+  loading="lazy"           // Lazy load below fold
+  placeholder="blur"       // Show blur while loading
+  blurDataURL="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQ..." // Tiny base64
+/>
+
+// ✅ Hero images - load immediately
+<NextImage
+  src="/hero-image.jpg"
+  alt="Hero"
+  width={1200}
+  height={600}
+  priority={true}          // Load immediately
+  quality={90}             // Higher quality for hero
+/>
+```
+
+### **🔄 COMPONENT RE-RENDER OPTIMIZATION**
+
+#### 1. Break Down "God Components" (Sprint 10 Lesson)
+```tsx
+// ❌ PROBLEM: 424-line HomePage causes full re-renders
+export default function HomePage() {
+  const [query, setQuery] = useState('')
+  const [results, setResults] = useState([])
+  const [loading, setLoading] = useState(false)
+  // ... 400+ more lines
+}
+
+// ✅ SOLUTION: Extract into focused components
+export default function HomePage() {
+  return (
+    <Box>
+      <SearchSection />
+      <ResultsSection />
+      <StatusSection />
+    </Box>
+  )
+}
+
+// ✅ Each component manages only its own state
+function SearchSection() {
+  const [query, setQuery] = useState('')
+  // Only re-renders when query changes
+}
+```
+
+#### 2. Custom Hooks for Logic Extraction
+```tsx
+// ✅ Extract search logic from SearchPage (521 lines → manageable)
+export function useSearch() {
+  const [query, setQuery] = useState('')
+  const [results, setResults] = useState<SearchResult[]>([])
+  const [loading, setLoading] = useState(false)
+  
+  const handleSearch = useCallback(async () => {
+    // Search logic here
+  }, [query])
+  
+  return { query, setQuery, results, loading, handleSearch }
+}
+
+// ✅ Clean component using the hook
+export default function SearchPage() {
+  const { query, setQuery, results, loading, handleSearch } = useSearch()
+  
+  return (
+    <SearchInterface 
+      query={query}
+      onQueryChange={setQuery}
+      onSearch={handleSearch}
+      results={results}
+      loading={loading}
+    />
+  )
+}
+```
+
+#### 3. Memoization for Expensive Operations
+```tsx
+// ✅ Memoize expensive calculations
+const searchResults = useMemo(() => {
+  return results.map(result => ({
+    ...result,
+    thumbnailUrl: `/api/v1/images/${result.id}/thumbnail`,
+    formattedScore: (result.score * 100).toFixed(1)
+  }))
+}, [results])
+
+// ✅ Memoize callback functions
+const handleImageClick = useCallback((imageId: string) => {
+  router.push(`/image/${imageId}`)
+}, [router])
+```
+
+### **🎨 THEME PERFORMANCE OPTIMIZATION**
+
+#### 1. Centralize Color Tokens (Sprint 10 Lesson)
+```tsx
+// ❌ REPETITIVE: useColorModeValue in every component
+function MyComponent() {
+  const cardBg = useColorModeValue('white', 'gray.800')
+  const borderColor = useColorModeValue('gray.200', 'gray.600')
+  const textColor = useColorModeValue('gray.800', 'white')
+  // Repeated in 20+ components
+}
+
+// ✅ CENTRALIZED: Define semantic tokens in theme
+const theme = extendTheme({
+  semanticTokens: {
+    colors: {
+      'card-bg': {
+        default: 'white',
+        _dark: 'gray.800',
+      },
+      'card-border': {
+        default: 'gray.200',
+        _dark: 'gray.600',
+      },
+      'text-primary': {
+        default: 'gray.800',
+        _dark: 'white',
+      },
+    },
+  },
+})
+
+// ✅ USAGE: Simple and consistent
+<Box bg="card-bg" borderColor="card-border" color="text-primary">
+```
+
+#### 2. Optimize Theme Switching Performance
+```tsx
+// ✅ Prevent layout shifts during theme changes
+const theme = extendTheme({
+  config: {
+    disableTransitionOnChange: false, // Smooth transitions
+  },
+  styles: {
+    global: {
+      '*': {
+        transition: 'background-color 0.2s, border-color 0.2s, color 0.2s',
+      },
+    },
+  },
+})
+```
+
+### **📱 RESPONSIVE PERFORMANCE**
+
+#### 1. Mobile-First Loading Strategies
+```tsx
+// ✅ Load different image sizes for different screens
+<NextImage
+  src={`/api/v1/images/${id}/thumbnail`}
+  alt="..."
+  sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+  style={{
+    width: '100%',
+    height: 'auto',
+  }}
+/>
+
+// ✅ Conditional component loading
+const AdvancedFilters = dynamic(() => import('./AdvancedFilters'), {
+  loading: () => <Skeleton height="200px" />,
+  ssr: false, // Only load on client for mobile
+})
+
+function SearchPage() {
+  const { isLargerThan768 } = useBreakpointValue({ base: false, md: true })
+  
+  return (
+    <Box>
+      <SearchInput />
+      {isLargerThan768 && <AdvancedFilters />}
+    </Box>
+  )
+}
+```
+
+### **🔄 STATE MANAGEMENT PERFORMANCE**
+
+#### 1. Optimize Zustand Store Updates
+```tsx
+// ✅ Selective subscriptions to prevent unnecessary re-renders
+const useStore = create<AppState>((set) => ({
+  collection: null,
+  searchResults: [],
+  setCollection: (name) => set({ collection: name }),
+  setSearchResults: (results) => set({ searchResults: results }),
+}))
+
+// ✅ Subscribe only to needed state slices
+function CollectionDisplay() {
+  const collection = useStore((state) => state.collection) // Only re-renders when collection changes
+  return <Text>{collection}</Text>
+}
+
+function SearchResults() {
+  const results = useStore((state) => state.searchResults) // Only re-renders when results change
+  return <ResultsGrid results={results} />
+}
+```
+
+### **⚡ BUNDLE SIZE OPTIMIZATION**
+
+#### 1. Dynamic Imports for Large Components
+```tsx
+// ✅ Lazy load heavy components
+const ImageEditor = dynamic(() => import('./ImageEditor'), {
+  loading: () => <Spinner />,
+  ssr: false,
+})
+
+const AdvancedSearch = dynamic(() => import('./AdvancedSearch'), {
+  loading: () => <Skeleton height="400px" />,
+})
+
+// ✅ Only load when needed
+function SearchPage() {
+  const [showAdvanced, setShowAdvanced] = useState(false)
+  
+  return (
+    <Box>
+      <BasicSearch />
+      <Button onClick={() => setShowAdvanced(true)}>
+        Advanced Search
+      </Button>
+      {showAdvanced && <AdvancedSearch />}
+    </Box>
+  )
+}
+```
+
+#### 2. Tree Shaking Optimization
+```tsx
+// ❌ IMPORTS ENTIRE LIBRARY
+import * as Icons from 'react-icons/fi'
+
+// ✅ IMPORT ONLY WHAT YOU NEED
+import { FiSearch, FiUpload, FiSettings } from 'react-icons/fi'
+
+// ✅ CONFIGURE NEXT.JS FOR BETTER TREE SHAKING
+// next.config.ts
+const nextConfig = {
+  experimental: {
+    optimizePackageImports: ['@chakra-ui/react', 'react-icons'],
+  },
+}
+```
+
+### **📊 PERFORMANCE MONITORING**
+
+#### 1. Core Web Vitals Tracking
+```tsx
+// ✅ Monitor performance in production
+export function reportWebVitals(metric: NextWebVitalsMetric) {
+  switch (metric.name) {
+    case 'FCP':
+      // First Contentful Paint
+      console.log('FCP:', metric.value)
+      break
+    case 'LCP':
+      // Largest Contentful Paint
+      console.log('LCP:', metric.value)
+      break
+    case 'CLS':
+      // Cumulative Layout Shift
+      console.log('CLS:', metric.value)
+      break
+    case 'FID':
+      // First Input Delay
+      console.log('FID:', metric.value)
+      break
+  }
+}
+```
+
+#### 2. Performance Budget Enforcement
+```typescript
+// ✅ Set performance budgets in next.config.ts
+const nextConfig = {
+  experimental: {
+    bundlePagesRouterDependencies: true,
+  },
+  // Warn if bundles exceed limits
+  onDemandEntries: {
+    maxInactiveAge: 25 * 1000,
+    pagesBufferLength: 2,
+  },
+}
+```
+
+### **🎯 PERFORMANCE TARGETS**
+
+#### Sprint 10 Benchmarks:
+- **First Contentful Paint**: ≤ 1.5s (Current: ~800ms ✅)
+- **Largest Contentful Paint**: ≤ 2.5s
+- **Cumulative Layout Shift**: ≤ 0.1
+- **First Input Delay**: ≤ 100ms
+- **Time to Interactive**: ≤ 3.5s
+
+#### Image Performance:
+- **Thumbnail Loading**: ≤ 200ms
+- **Search Results Grid**: ≤ 500ms for 20 images
+- **Image Modal**: ≤ 300ms to open
+
+#### Theme Performance:
+- **Theme Toggle**: ≤ 100ms transition
+- **No Layout Shift**: During theme changes
+- **Smooth Animations**: 60fps transitions
+
+---
+
+**🧪 TESTING CHECKLIST:**
+
+- [ ] **Lighthouse Audit**: Performance score ≥ 85
+- [ ] **Bundle Analyzer**: No unexpected large dependencies
+- [ ] **Network Tab**: Optimized image loading
+- [ ] **React DevTools**: No unnecessary re-renders
+- [ ] **Mobile Testing**: Smooth performance on 3G
+- [ ] **Theme Switching**: No performance degradation
+
+*Performance optimization based on real Sprint 10 findings and architecture review insights.*
