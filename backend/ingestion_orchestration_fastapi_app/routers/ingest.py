@@ -17,6 +17,7 @@ import io
 import rawpy
 import tempfile
 import shutil
+import exifread
 
 from ..dependencies import get_qdrant_client, get_active_collection
 
@@ -34,6 +35,13 @@ QDRANT_BATCH_SIZE = int(os.getenv("QDRANT_UPSERT_BATCH_SIZE", "32"))
 
 # Initialize disk cache for deduplication
 cache = diskcache.Cache('.diskcache')
+
+# Attempt optional import for XMP reading
+try:
+    from libxmp import XMPFiles, consts as xmp_consts
+except ImportError:  # pragma: no cover
+    XMPFiles = None  # type: ignore
+    xmp_consts = None  # type: ignore
 
 class IngestRequest(BaseModel):
     directory_path: str = Field(..., description="Absolute path to the directory containing images")
@@ -229,6 +237,53 @@ def compute_sha256(file_path: str) -> str:
             sha256_hash.update(byte_block)
     return sha256_hash.hexdigest()
 
+from typing import List as TypingList
+
+def _extract_keyword_tags(path: str) -> TypingList[str]:
+    """Attempt to extract keyword tags from IPTC/XMP metadata."""
+    tags: TypingList[str] = []
+    # Try EXIF XPKeywords first (Windows specific UTF-16LE)
+    try:
+        with open(path, 'rb') as fh:
+            exif_tags = exifread.process_file(fh, details=False, stop_tag="Image XPKeywords")
+            xp_val = exif_tags.get("Image XPKeywords")
+            if xp_val:
+                raw_bytes = xp_val.values
+                if isinstance(raw_bytes, bytes):
+                    try:
+                        decoded = raw_bytes.decode('utf-16le').rstrip('\x00')
+                        keywords = [k.strip() for k in decoded.split(';') if k.strip()]
+                        tags.extend(keywords)
+                    except Exception:
+                        pass
+    except Exception:
+        pass
+
+    # Try XMP subject / hierarchicalSubject if libxmp available
+    if XMPFiles is not None:
+        try:
+            xmpfile = XMPFiles(filename=path, open_forupdate=False)
+            xmp = xmpfile.get_xmp()
+            if xmp:
+                # dc:subject
+                if xmp.does_property_exist(xmp_consts.XMP_NS_DC, 'subject'):
+                    count = xmp.count_array_items(xmp_consts.XMP_NS_DC, 'subject')
+                    for i in range(1, count + 1):
+                        item = xmp.get_array_item(xmp_consts.XMP_NS_DC, 'subject', i)
+                        if item and item not in tags:
+                            tags.append(item)
+                # lr:hierarchicalSubject
+                LR_NS = 'http://ns.adobe.com/lightroom/1.0/'
+                if xmp.does_property_exist(LR_NS, 'hierarchicalSubject'):
+                    count = xmp.count_array_items(LR_NS, 'hierarchicalSubject')
+                    for i in range(1, count + 1):
+                        item = xmp.get_array_item(LR_NS, 'hierarchicalSubject', i)
+                        if item and item not in tags:
+                            tags.append(item)
+        except Exception:
+            pass
+    return tags
+
 def extract_image_metadata(file_path: str) -> Dict[str, Any]:
     """Extract metadata from an image file.
 
@@ -246,23 +301,44 @@ def extract_image_metadata(file_path: str) -> Dict[str, Any]:
             # Use rawpy for RAW files to obtain basic dimensions. Detailed EXIF
             # parsing for RAW files is outside the current scope and varies by
             # camera vendor, so we only capture the most relevant fields.
-            try:
-                with rawpy.imread(file_path) as raw:
-                    width = raw.sizes.width
-                    height = raw.sizes.height
-                    metadata = {
-                        "width": width,
-                        "height": height,
-                        "format": "RAW",
-                        "mode": "RGB"  # rawpy outputs RGB arrays
+            with rawpy.imread(file_path) as raw:
+                width = raw.sizes.width
+                height = raw.sizes.height
+                metadata = {
+                    "width": width,
+                    "height": height,
+                    "format": "RAW",
+                    "mode": "RGB"  # rawpy outputs RGB arrays
+                }
+                # Attempt to extract EXIF tags from RAW container using exifread
+                try:
+                    with open(file_path, 'rb') as fh:
+                        tags = exifread.process_file(fh, details=False)
+
+                    exif_map = {
+                        "Image Make": "Make",
+                        "Image Model": "Model",
+                        "EXIF LensModel": "LensModel",
+                        "EXIF DateTimeOriginal": "DateTimeOriginal",
+                        "EXIF ISOSpeedRatings": "ISO",
+                        "EXIF FNumber": "FNumber",
+                        "EXIF ExposureTime": "ExposureTime",
+                        "EXIF FocalLength": "FocalLength",
                     }
-                    return metadata
-            except Exception as e:
-                # rawpy failed – fall back to minimal metadata but DO NOT raise
-                logger.warning(f"rawpy could not read metadata from {file_path}: {e}")
-                return {"width": 0, "height": 0, "format": "raw", "mode": "unknown"}
+
+                    for tag_name, friendly in exif_map.items():
+                        if tag_name in tags:
+                            metadata[f"exif_{friendly}"] = str(tags[tag_name])
+                except Exception as ex:
+                    logger.debug(f"EXIF extraction for RAW file {file_path} failed: {ex}")
+
+                # Tags
+                kw = _extract_keyword_tags(file_path)
+                if kw:
+                    metadata["tags"] = kw
+                return metadata
         else:
-            # Standard image handled by Pillow
+            # --- Standard image path ---
             with Image.open(file_path) as img:
                 width, height = img.size
                 metadata = {
@@ -272,15 +348,33 @@ def extract_image_metadata(file_path: str) -> Dict[str, Any]:
                     "mode": img.mode
                 }
 
-                # Extract EXIF data if available
-                if hasattr(img, '_getexif') and img._getexif():
-                    exif = img._getexif()
-                    if exif:
-                        for tag_id, value in exif.items():
-                            tag = ExifTags.TAGS.get(tag_id, tag_id)
-                            metadata[f"exif_{tag}"] = str(value)
+            # EXIF extraction via exifread for broader format support
+            try:
+                with open(file_path, 'rb') as fh:
+                    tags = exifread.process_file(fh, details=False)
 
-                return metadata
+                exif_map = {
+                    "Image Make": "Make",
+                    "Image Model": "Model",
+                    "EXIF LensModel": "LensModel",
+                    "EXIF DateTimeOriginal": "DateTimeOriginal",
+                    "EXIF ISOSpeedRatings": "ISO",
+                    "EXIF FNumber": "FNumber",
+                    "EXIF ExposureTime": "ExposureTime",
+                    "EXIF FocalLength": "FocalLength",
+                }
+
+                for tag_name, friendly in exif_map.items():
+                    if tag_name in tags:
+                        metadata[f"exif_{friendly}"] = str(tags[tag_name])
+            except Exception as ex:
+                logger.debug(f"EXIF extraction with exifread failed for {file_path}: {ex}")
+
+            # Tags
+            kw = _extract_keyword_tags(file_path)
+            if kw:
+                metadata["tags"] = kw
+            return metadata
     except Exception as e:
         logger.warning(f"Could not extract metadata from {file_path}: {e}")
         return {"width": 0, "height": 0, "format": "unknown", "mode": "unknown"}

@@ -25,6 +25,12 @@ import {
   AlertIcon,
   HStack,
   Tag,
+  Accordion,
+  AccordionItem,
+  AccordionButton,
+  AccordionPanel,
+  AccordionIcon,
+  Image as CImage,
 } from '@chakra-ui/react';
 import { FiDownload } from 'react-icons/fi';
 import NextImage from 'next/image';
@@ -51,6 +57,8 @@ interface ImageDetailsModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
 
 const fetchImageDetails = async (imageId: string): Promise<ImageDetails> => {
     const response = await api.get(`/api/v1/images/${imageId}/info`);
@@ -103,7 +111,7 @@ export function ImageDetailsModal({ imageId, isOpen, onClose }: ImageDetailsModa
                 <AspectRatio ratio={(imageDetails.width && imageDetails.height) ? imageDetails.width / imageDetails.height : 1} w="full" maxW="800px">
                   {fullImageError ? (
                     <NextImage
-                      src={`/api/v1/images/${imageDetails.id}/thumbnail`}
+                      src={`${API_URL}/api/v1/images/${imageDetails.id}/thumbnail`}
                       alt={imageDetails.filename}
                       width={imageDetails.width || 400}
                       height={imageDetails.height || 400}
@@ -115,18 +123,18 @@ export function ImageDetailsModal({ imageId, isOpen, onClose }: ImageDetailsModa
                       style={{ objectFit: 'contain', borderRadius: 'var(--chakra-radii-md)' }}
                     />
                   ) : (
-                    <NextImage
-                      src={`/api/v1/images/${imageDetails.id}/image`}
+                    <CImage
+                      src={`${API_URL}/api/v1/images/${imageDetails.id}/image`}
                       alt={imageDetails.filename}
-                      width={imageDetails.width || 400}
-                      height={imageDetails.height || 400}
+                      maxH="80vh"
                       onError={() => setFullImageError(true)}
-                      onLoadingComplete={(img) => {
-                        if ((!imageDetails.width || !imageDetails.height) && img?.naturalWidth && img?.naturalHeight) {
-                          setClientDimensions({ w: img.naturalWidth, h: img.naturalHeight });
+                      onLoad={({currentTarget}) => {
+                        if ((!imageDetails.width || !imageDetails.height) && currentTarget.naturalWidth && currentTarget.naturalHeight) {
+                          setClientDimensions({ w: currentTarget.naturalWidth, h: currentTarget.naturalHeight });
                         }
                       }}
-                      style={{ objectFit: 'contain', borderRadius: 'var(--chakra-radii-md)' }}
+                      objectFit="contain"
+                      borderRadius="md"
                     />
                   )}
                 </AspectRatio>
@@ -149,26 +157,6 @@ export function ImageDetailsModal({ imageId, isOpen, onClose }: ImageDetailsModa
                         <Td fontWeight="medium">Format</Td>
                         <Td>{imageDetails.format !== 'unknown' ? imageDetails.format : (imageDetails.filename.split('.').pop()?.toUpperCase() || 'Unknown')}</Td>
                       </Tr>
-                      <Tr>
-                        <Td fontWeight="medium">File Hash</Td>
-                        <Td fontFamily="mono" fontSize="xs">{imageDetails.file_hash}</Td>
-                      </Tr>
-                      <Tr>
-                        <Td fontWeight="medium">File Path</Td>
-                        <Td wordBreak="break-all">{imageDetails.full_path}</Td>
-                      </Tr>
-                      <Tr>
-                        <Td fontWeight="medium">Color Mode</Td>
-                        <Td>{imageDetails.mode}</Td>
-                      </Tr>
-                      <Tr>
-                        <Td fontWeight="medium">Image ID</Td>
-                        <Td fontFamily="mono" fontSize="xs">{imageDetails.id}</Td>
-                      </Tr>
-                      <Tr>
-                        <Td fontWeight="medium">Has Thumbnail</Td>
-                        <Td>{imageDetails.has_thumbnail ? 'Yes' : 'No'}</Td>
-                      </Tr>
                       {/* Additional metadata derived from EXIF if available */}
                       {imageDetails.exif && (
                         <>
@@ -185,6 +173,12 @@ export function ImageDetailsModal({ imageId, isOpen, onClose }: ImageDetailsModa
 
                             return (
                               <>
+                                {dateTime && (
+                                  <Tr>
+                                    <Td fontWeight="medium">Shot Date</Td>
+                                    <Td>{dateTime}</Td>
+                                  </Tr>
+                                )}
                                 {cameraMake || cameraModel ? (
                                   <Tr>
                                     <Td fontWeight="medium">Camera</Td>
@@ -195,12 +189,6 @@ export function ImageDetailsModal({ imageId, isOpen, onClose }: ImageDetailsModa
                                   <Tr>
                                     <Td fontWeight="medium">Lens</Td>
                                     <Td>{lensModel}</Td>
-                                  </Tr>
-                                )}
-                                {dateTime && (
-                                  <Tr>
-                                    <Td fontWeight="medium">Shot Date</Td>
-                                    <Td>{dateTime}</Td>
                                   </Tr>
                                 )}
                                 {exposure && (
@@ -235,6 +223,44 @@ export function ImageDetailsModal({ imageId, isOpen, onClose }: ImageDetailsModa
                     </Tbody>
                   </Table>
                 </TableContainer>
+
+                {/* Advanced details accordion */}
+                <Accordion allowToggle mt={4}>
+                  <AccordionItem>
+                    <AccordionButton>
+                      <Text flex="1" textAlign="left" fontWeight="bold">Advanced</Text>
+                      <AccordionIcon />
+                    </AccordionButton>
+                    <AccordionPanel pb={4}>
+                      <TableContainer>
+                        <Table size="sm">
+                          <Tbody>
+                            <Tr>
+                              <Td fontWeight="medium">Image ID</Td>
+                              <Td fontFamily="mono" fontSize="xs">{imageDetails.id}</Td>
+                            </Tr>
+                            <Tr>
+                              <Td fontWeight="medium">File Hash</Td>
+                              <Td fontFamily="mono" fontSize="xs">{imageDetails.file_hash}</Td>
+                            </Tr>
+                            <Tr>
+                              <Td fontWeight="medium">File Path</Td>
+                              <Td wordBreak="break-all">{imageDetails.full_path}</Td>
+                            </Tr>
+                            <Tr>
+                              <Td fontWeight="medium">Color Mode</Td>
+                              <Td>{imageDetails.mode}</Td>
+                            </Tr>
+                            <Tr>
+                              <Td fontWeight="medium">Has Thumbnail</Td>
+                              <Td>{imageDetails.has_thumbnail ? 'Yes' : 'No'}</Td>
+                            </Tr>
+                          </Tbody>
+                        </Table>
+                      </TableContainer>
+                    </AccordionPanel>
+                  </AccordionItem>
+                </Accordion>
               </VStack>
               {imageDetails.exif && Object.keys(imageDetails.exif).length > 0 && (
                 <>
@@ -266,7 +292,7 @@ export function ImageDetailsModal({ imageId, isOpen, onClose }: ImageDetailsModa
             isDisabled={!imageDetails}
             onClick={() => {
               if (imageDetails) {
-                window.open(`/api/v1/images/${imageDetails.id}/image`, '_blank');
+                window.open(`${API_URL}/api/v1/images/${imageDetails.id}/image`, '_blank');
               }
             }}
           >

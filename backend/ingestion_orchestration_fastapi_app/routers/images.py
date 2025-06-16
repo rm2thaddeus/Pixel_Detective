@@ -197,31 +197,46 @@ async def get_full_image(
         if not os.path.exists(full_path):
             raise HTTPException(status_code=404, detail=f"Image file not found at {full_path}")
         
-        # Determine media type based on file extension
         file_extension = os.path.splitext(full_path)[1].lower()
-        media_type_map = {
-            '.jpg': 'image/jpeg',
-            '.jpeg': 'image/jpeg',
-            '.png': 'image/png',
-            '.gif': 'image/gif',
-            '.bmp': 'image/bmp',
-            '.tiff': 'image/tiff',
-            '.webp': 'image/webp',
-            '.dng': 'image/x-adobe-dng'
-        }
-        media_type = media_type_map.get(file_extension, 'application/octet-stream')
-        
-        # Read and return the file
+
+        # Browsers cannot render RAW files like .dng/.nef/etc. Convert to JPEG on-the-fly
+        raw_exts = ('.dng', '.cr2', '.nef', '.arw', '.rw2', '.orf')
+
         try:
-            with open(full_path, 'rb') as f:
-                image_data = f.read()
-            
+            if file_extension in raw_exts:
+                import rawpy
+                from PIL import Image
+                import io
+
+                with rawpy.imread(full_path) as raw:
+                    rgb = raw.postprocess(use_camera_wb=True)
+                img = Image.fromarray(rgb).convert('RGB')
+                buf = io.BytesIO()
+                img.save(buf, format='JPEG', quality=90)
+                image_data = buf.getvalue()
+                media_type = 'image/jpeg'
+                filename = os.path.splitext(os.path.basename(full_path))[0] + '.jpg'
+            else:
+                media_type_map = {
+                    '.jpg': 'image/jpeg',
+                    '.jpeg': 'image/jpeg',
+                    '.png': 'image/png',
+                    '.gif': 'image/gif',
+                    '.bmp': 'image/bmp',
+                    '.tiff': 'image/tiff',
+                    '.webp': 'image/webp'
+                }
+                media_type = media_type_map.get(file_extension, 'application/octet-stream')
+                with open(full_path, 'rb') as f:
+                    image_data = f.read()
+                filename = os.path.basename(full_path)
+
             return Response(
                 content=image_data,
                 media_type=media_type,
                 headers={
-                    "Cache-Control": "public, max-age=3600",  # Cache for 1 hour
-                    "Content-Disposition": f"inline; filename=\"{os.path.basename(full_path)}\""
+                    "Cache-Control": "public, max-age=3600",
+                    "Content-Disposition": f"inline; filename=\"{filename}\""
                 }
             )
         except Exception as e:
@@ -274,6 +289,10 @@ async def get_image_info(
             "mode": payload.get("mode"),
             "has_thumbnail": bool(payload.get("thumbnail_base64"))
         }
+        
+        # Include tags if present
+        if "tags" in payload:
+            info["tags"] = payload.get("tags")
         
         # Add EXIF data if available
         exif_data = {}

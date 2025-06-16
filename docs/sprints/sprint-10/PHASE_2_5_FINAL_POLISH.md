@@ -58,8 +58,10 @@ While the backend APIs and core architecture are complete, some frontend integra
 #### **GAP-03: Metadata Display Polish** 🟢
 - **Issue**: Image details modal not showing full metadata
 - **Impact**: Reduced user experience richness
-- **Status**: ✅ **COMPLETED** – `/images/{id}/info` data now fully rendered (caption, EXIF, file info, thumbnail flag, ID)
-- **Solution Implemented**: Enhanced `ImageDetailsModal.tsx` with additional fields and dynamic dimension detection; integrated fallback thumbnail handler.
+- **Status**: ✅ **COMPLETED** – Full metadata pipeline in place
+- **Backend Upgrade**: Added `exifread`-powered extraction in `routers/ingest.py`; now captures camera make/model, lens, ISO, aperture, shutter, focal length for RAW & JPEG alike.
+- **Frontend Upgrade**: `ImageDetailsModal.tsx` redesigned – shows a tidy *Information* table (Filename, Dimensions, Format, Camera + Exposure) and collapses internal fields (ID, hash, path, has-thumbnail) into an *Advanced* accordion; complete raw-EXIF dump still available below.
+- **Bonus**: Dynamic dimension detection and thumbnail fallback retained.
 
 #### **GAP-04: Collection Management UI Polish** 🟢
 - **Issue**: Delete collection functionality not visible in UI

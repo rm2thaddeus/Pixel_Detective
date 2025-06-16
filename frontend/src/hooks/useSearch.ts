@@ -42,29 +42,14 @@ async function performSearch(variables: SearchVariables): Promise<SearchResponse
     });
     return response.data;
   } else {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.readAsDataURL(variables.file);
-      reader.onload = async (e) => {
-        try {
-          const base64Image = e.target?.result as string;
-          const embedResponse = await mlApi.post<{ embedding: number[] }>('/api/v1/embed', {
-            image_base64: base64Image.split(',')[1],
-            filename: variables.file.name,
-          });
-
-          const searchResponse = await api.post<SearchResponse>('/api/v1/search', {
-            embedding: embedResponse.data.embedding,
-            limit: 20,
-            offset: 0,
-          });
-          resolve(searchResponse.data);
-        } catch (error) {
-          reject(error);
-        }
-      };
-      reader.onerror = (error) => reject(error);
+    // Use new backend endpoint that handles embedding + search in one step
+    const form = new FormData();
+    form.append('file', variables.file);
+    const response = await api.post<SearchResponse>('/api/v1/search/image', form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      params: { limit: 20, offset: 0 },
     });
+    return response.data;
   }
 }
 

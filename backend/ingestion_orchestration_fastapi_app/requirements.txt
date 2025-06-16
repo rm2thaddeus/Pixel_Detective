@@ -8,3 +8,5 @@ python-multipart
 brotli
 rawpy
 Pillow
+exifread
+python-xmp-toolkit
