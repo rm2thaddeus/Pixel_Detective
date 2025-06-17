@@ -1,0 +1,417 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+# ML Service Integration Patterns
+
+## 🤖 GPU-ACCELERATED ML SERVICE PATTERNS (From ml_inference_fastapi_app)
+
+Proven patterns for building high-performance ML inference services with GPU optimization.
+
+### **⚡ GPU RESOURCE MANAGEMENT:**
+
+#### 1. GPU Lock Pattern for Exclusive Access
+```python
+# ✅ MANDATORY for GPU services - prevents OOM crashes
+import asyncio
+import torch
+
+# Global GPU resource lock
+gpu_lock = asyncio.Lock()
+
+async def gpu_inference_operation(data):
+    """Ensure only one operation uses GPU at a time."""
+    async with gpu_lock:
+        try:
+            # GPU computation here
+            with torch.inference_mode():
+                with torch.amp.autocast("cuda", enabled=(device.type == "cuda")):
+                    result = model(data)
+            return result
+        finally:
+            # CRITICAL: Always cleanup GPU memory
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+```
+
+#### 2. GPU Memory Probing Pattern
+```python
+# ✅ Dynamic batch size calculation based on available GPU memory
+def probe_safe_batch_size(model, input_shape):
+    """Determine safe batch size to prevent OOM errors."""
+    if device.type != "cuda":
+        return 1
+    
+    try:
+        # Create dummy input
+        dummy_input = torch.zeros(*input_shape).to(device)
+        if device.type == "cuda":
+            dummy_input = dummy_input.half()
+        
+        # Measure memory usage for single item
+        torch.cuda.empty_cache()
+        mem_before = torch.cuda.memory_allocated()
+        
+        with torch.inference_mode():
+            model(dummy_input)
+        
+        mem_after = torch.cuda.memory_allocated()
+        torch.cuda.empty_cache()
+        
+        per_item_memory = mem_after - mem_before
+        free_memory, _ = torch.cuda.mem_get_info()
+        
+        # Use 80% of free memory as safety margin
+        safe_batch_size = int((free_memory * 0.8) // per_item_memory)
+        return max(1, safe_batch_size)
+        
+    except Exception as e:
+        logger.error(f"GPU probing failed: {e}")
+        return 1
+```
+
+#### 3. Model Loading with Optimization
+```python
+# ✅ Optimized model loading pattern
+async def load_model_optimized(model_name: str, device: torch.device):
+    """Load model with GPU optimizations."""
+    logger.info(f"Loading model {model_name} on {device}")
+    
+    # Load model
+    model = load_pretrained_model(model_name)
+    
+    # Move to device with precision optimization
+    if device.type == "cuda":
+        model = model.to(device).half()  # Use FP16 for memory efficiency
+        
+        # Apply torch.compile for performance (PyTorch 2.0+)
+        try:
+            model = torch.compile(model, mode="reduce-overhead")
+            logger.info("Applied torch.compile optimization")
+        except Exception as e:
+            logger.warning(f"torch.compile failed: {e}")
+    else:
+        model = model.to(device)
+    
+    model.eval()  # Set to evaluation mode
+    return model
+```
+
+### **🔄 ASYNC PATTERNS FOR ML SERVICES:**
+
+#### 1. Thread Pool for CPU-Bound Preprocessing
+```python
+# ✅ Offload CPU-intensive work to prevent blocking
+from concurrent.futures import ThreadPoolExecutor
+import asyncio
+
+cpu_executor = ThreadPoolExecutor(max_workers=os.cpu_count())
+
+def preprocess_image_sync(image_data: bytes) -> Image:
+    """Synchronous image preprocessing."""
+    # CPU-intensive operations: decoding, resizing, etc.
+    image = Image.open(io.BytesIO(image_data))
+    # ... preprocessing logic
+    return processed_image
+
+async def preprocess_batch_parallel(batch_items):
+    """Preprocess multiple images in parallel."""
+    tasks = [
+        asyncio.to_thread(preprocess_image_sync, item.image_data) 
+        for item in batch_items
+    ]
+    return await asyncio.gather(*tasks)
+```
+
+#### 2. Lazy Loading with Thread Safety
+```python
+# ✅ Expensive model lazy loading pattern
+from asyncio import Lock
+
+model_load_lock = Lock()
+expensive_model = None
+
+async def get_expensive_model():
+    """Lazy-load expensive models with thread safety."""
+    global expensive_model
+    
+    if expensive_model is None:
+        async with model_load_lock:
+            # Double-check pattern
+            if expensive_model is None:
+                logger.info("Loading expensive model...")
+                expensive_model = await load_model_optimized(MODEL_NAME, device)
+    
+    if expensive_model == "failed":
+        raise HTTPException(status_code=503, detail="Model failed to load")
+    
+    return expensive_model
+```
+
+### **📊 BATCH PROCESSING PATTERNS:**
+
+#### 1. Efficient Batch Inference Pattern
+```python
+# ✅ High-throughput batch processing from ML service
+@router.post("/batch_infer")
+async def batch_inference(request: BatchRequest):
+    """Process batch with parallel preprocessing and batched inference."""
+    
+    # 1. Parallel CPU preprocessing
+    preprocessed_items = await preprocess_batch_parallel(request.items)
+    
+    # 2. Batched GPU inference with lock
+    async with gpu_lock:
+        # Create batch tensors
+        batch_tensor = torch.stack([
+            transform(item) for item in preprocessed_items
+        ]).to(device)
+        
+        if device.type == "cuda":
+            batch_tensor = batch_tensor.half()
+        
+        # Single GPU forward pass for entire batch
+        with torch.inference_mode():
+            with torch.amp.autocast("cuda", enabled=(device.type == "cuda")):
+                batch_results = model(batch_tensor)
+        
+        # Convert to CPU and process results
+        results = batch_results.cpu().numpy()
+        
+        # Cleanup
+        torch.cuda.empty_cache()
+    
+    return {"results": results.tolist()}
+```
+
+#### 2. Chunked Processing for Large Batches
+```python
+# ✅ Handle batches larger than GPU memory allows
+async def process_large_batch(items: List, safe_batch_size: int):
+    """Process large batches in chunks to prevent OOM."""
+    all_results = []
+    
+    for i in range(0, len(items), safe_batch_size):
+        chunk = items[i:i + safe_batch_size]
+        logger.info(f"Processing chunk {i//safe_batch_size + 1}")
+        
+        # Process chunk with GPU lock
+        async with gpu_lock:
+            chunk_results = await process_chunk(chunk)
+            all_results.extend(chunk_results)
+    
+    return all_results
+```
+
+### **🎛️ SERVICE CAPABILITIES PATTERN:**
+
+#### 1. Dynamic Capability Reporting
+```python
+# ✅ Let clients adapt to service capabilities
+@router.get("/capabilities")
+async def get_service_capabilities():
+    """Report current service capabilities for client adaptation."""
+    
+    # Probe current system state
+    gpu_info = {}
+    if torch.cuda.is_available():
+        gpu_info = {
+            "device_name": torch.cuda.get_device_name(),
+            "memory_total": torch.cuda.get_device_properties(0).total_memory,
+            "memory_free": torch.cuda.memory_reserved() - torch.cuda.memory_allocated(),
+        }
+    
+    return {
+        "safe_batch_size": SAFE_BATCH_SIZE,
+        "max_image_size": MAX_IMAGE_SIZE,
+        "supported_formats": SUPPORTED_FORMATS,
+        "gpu_available": torch.cuda.is_available(),
+        "gpu_info": gpu_info,
+        "models_loaded": {
+            "clip": clip_model is not None,
+            "blip": blip_model is not None
+        }
+    }
+```
+
+#### 2. Client Capability Negotiation
+```python
+# ✅ Client adapts batch size based on service capabilities
+class MLServiceClient:
+    def __init__(self, base_url: str):
+        self.base_url = base_url
+        self.safe_batch_size = 1  # Conservative default
+        
+    async def initialize(self):
+        """Initialize client by querying service capabilities."""
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(f"{self.base_url}/capabilities")
+                caps = response.json()
+                self.safe_batch_size = caps.get("safe_batch_size", 1)
+                logger.info(f"ML service supports batch size: {self.safe_batch_size}")
+        except Exception as e:
+            logger.warning(f"Failed to get ML capabilities: {e}")
+    
+    async def process_batch(self, items: List):
+        """Process items respecting service batch limits."""
+        # Split into safe chunks
+        results = []
+        for i in range(0, len(items), self.safe_batch_size):
+            chunk = items[i:i + self.safe_batch_size]
+            chunk_results = await self._send_batch(chunk)
+            results.extend(chunk_results)
+        return results
+```
+
+### **🔧 RAW IMAGE HANDLING PATTERNS:**
+
+#### 1. Multi-Format Image Decoding
+```python
+# ✅ Handle different image formats including RAW
+import rawpy
+import tempfile
+
+def decode_image_universal(image_data: bytes, filename: str) -> Image:
+    """Decode images supporting RAW formats."""
+    
+    # Handle RAW formats with rawpy
+    if filename.lower().endswith(('.dng', '.cr2', '.nef', '.arw')):
+        return decode_raw_image(image_data)
+    
+    # Handle standard formats with PIL
+    try:
+        return Image.open(io.BytesIO(image_data)).convert('RGB')
+    except Exception as e:
+        raise ValueError(f"Failed to decode image {filename}: {e}")
+
+def decode_raw_image(raw_data: bytes) -> Image:
+    """Decode RAW images using temporary file."""
+    with tempfile.NamedTemporaryFile(suffix='.dng', delete=False) as tmp:
+        tmp.write(raw_data)
+        tmp.flush()
+        tmp_path = tmp.name
+    
+    try:
+        with rawpy.imread(tmp_path) as raw:
+            # Use camera white balance for better results
+            rgb_array = raw.postprocess(use_camera_wb=True)
+        return Image.fromarray(rgb_array).convert('RGB')
+    finally:
+        os.remove(tmp_path)
+```
+
+### **📈 PERFORMANCE OPTIMIZATION PATTERNS:**
+
+#### 1. Mixed Precision Training/Inference
+```python
+# ✅ Use automatic mixed precision for performance
+async def inference_with_amp(model, input_tensor):
+    """Inference with automatic mixed precision."""
+    with torch.inference_mode():
+        with torch.amp.autocast("cuda", enabled=(device.type == "cuda")):
+            return model(input_tensor)
+```
+
+#### 2. Tensor Memory Optimization
+```python
+# ✅ Optimize tensor operations for memory efficiency
+def create_batch_tensor_optimized(images: List[Image], device: torch.device):
+    """Create batch tensor with memory optimization."""
+    
+    # Pre-allocate tensor with pinned memory for faster GPU transfer
+    batch_size = len(images)
+    tensor_shape = (batch_size, 3, 224, 224)  # Example shape
+    
+    if device.type == "cuda":
+        # Use pinned memory for faster transfer
+        batch_tensor = torch.empty(tensor_shape, pin_memory=True)
+        
+        # Fill tensor
+        for i, img in enumerate(images):
+            batch_tensor[i] = transform(img)
+        
+        # Transfer to GPU with non_blocking=True
+        return batch_tensor.to(device, non_blocking=True).half()
+    else:
+        return torch.stack([transform(img) for img in images])
+```
+
+### **🚨 ERROR HANDLING PATTERNS:**
+
+#### 1. GPU-Specific Error Handling
+```python
+# ✅ Handle GPU-specific errors gracefully
+async def safe_gpu_operation(operation_func, *args, **kwargs):
+    """Wrapper for GPU operations with error handling."""
+    try:
+        return await operation_func(*args, **kwargs)
+    except torch.cuda.OutOfMemoryError:
+        logger.error("GPU out of memory - clearing cache and retrying")
+        torch.cuda.empty_cache()
+        
+        # Retry with smaller batch or different strategy
+        raise HTTPException(
+            status_code=503, 
+            detail="GPU memory exhausted - reduce batch size"
+        )
+    except RuntimeError as e:
+        if "CUDA" in str(e):
+            logger.error(f"CUDA runtime error: {e}")
+            raise HTTPException(status_code=503, detail="GPU processing error")
+        raise
+```
+
+#### 2. Model Loading Error Recovery
+```python
+# ✅ Graceful model loading with fallbacks
+async def load_model_with_fallback(model_configs: List[Dict]):
+    """Try loading models with fallback configurations."""
+    
+    for config in model_configs:
+        try:
+            model = await load_model_optimized(
+                config["name"], 
+                config["device"]
+            )
+            logger.info(f"Successfully loaded {config['name']}")
+            return model
+        except Exception as e:
+            logger.warning(f"Failed to load {config['name']}: {e}")
+            continue
+    
+    # All configs failed
+    raise RuntimeError("Failed to load any model configuration")
+```
+
+### **📋 ML SERVICE CHECKLIST:**
+
+#### GPU Optimization:
+- [ ] **GPU Lock**: Exclusive access with `async with gpu_lock:`
+- [ ] **Memory Management**: Always call `torch.cuda.empty_cache()`
+- [ ] **Batch Size Probing**: Dynamic determination of safe batch sizes
+- [ ] **Mixed Precision**: Use FP16 for memory efficiency
+- [ ] **Torch Compile**: Apply `torch.compile` for PyTorch 2.0+
+
+#### Async Patterns:
+- [ ] **Thread Pool**: Offload CPU work with `asyncio.to_thread`
+- [ ] **Lazy Loading**: Thread-safe lazy initialization of expensive resources
+- [ ] **Parallel Preprocessing**: Process items concurrently before batching
+- [ ] **Proper Locking**: Use locks for shared resources
+
+#### Service Integration:
+- [ ] **Capability Reporting**: `/capabilities` endpoint for clients
+- [ ] **Batch Processing**: Efficient chunked processing
+- [ ] **Error Handling**: GPU-specific error recovery
+- [ ] **Health Checks**: Model availability and GPU status
+
+#### Performance:
+- [ ] **Batch Operations**: Process multiple items together
+- [ ] **Memory Pinning**: Use pinned memory for faster GPU transfer
+- [ ] **Tensor Optimization**: Pre-allocate tensors when possible
+- [ ] **Format Support**: Handle multiple image formats including RAW
+
+---
+
+*These patterns enable high-performance ML services that can handle production workloads without memory issues or performance bottlenecks.*

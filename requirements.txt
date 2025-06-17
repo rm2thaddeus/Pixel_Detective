@@ -75,6 +75,7 @@ torchaudio==2.7.0+cu118
 tornado==6.4.2
 tqdm==4.67.1
 transformers==4.49.0
+tf-keras==2.19.0
 typing_extensions==4.12.2
 tzdata==2025.1
 urllib3==2.3.0
@@ -84,3 +85,20 @@ wcwidth==0.2.13
 
 # Dependencies for latent space visualization - REMOVED as frontend is deprecated
 # umap-learn>=0.5.3
+
+fastapi
+uvicorn[standard]
+httpx
+qdrant-client~=1.14.0
+aiofiles
+diskcache
+python-multipart
+brotli
+rawpy
+Pillow
+torch
+openai-clip
+transformers
+numpy
+pytest
+pytest-asyncio

@@ -1,0 +1,106 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+# Next.js Hydration Error Prevention Rules
+
+## 🚨 CRITICAL: Server/Client Rendering Consistency
+
+### **MANDATORY PATTERNS - ALWAYS USE:**
+
+#### 1. Theme Provider Setup (Chakra UI)
+```tsx
+// ✅ CORRECT: Two-stage rendering to prevent mismatches
+const [mounted, setMounted] = useState(false);
+
+useEffect(() => {
+  setMounted(true);
+}, []);
+
+// During SSR - minimal theme
+if (!mounted) {
+  return <ChakraProvider theme={ssrTheme}>{children}</ChakraProvider>;
+}
+
+// After hydration - full theme
+return <ChakraProvider theme={clientTheme}>{children}</ChakraProvider>;
+```
+
+#### 2. ColorModeScript Placement
+```tsx
+// ✅ ALWAYS in layout.tsx <head>
+export default function RootLayout({ children }) {
+  return (
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <ColorModeScript initialColorMode="light" />
+      </head>
+      <body><Provider>{children}</Provider></body>
+    </html>
+  );
+}
+```
+
+#### 3. Client-Only Components
+```tsx
+// ✅ Use mounted state for browser-specific logic
+const [mounted, setMounted] = useState(false);
+
+useEffect(() => {
+  setMounted(true);
+}, []);
+
+if (!mounted) {
+  return <PlaceholderComponent />; // Server-safe fallback
+}
+
+return <BrowserSpecificComponent />; // Full functionality
+```
+
+### **FORBIDDEN PATTERNS - NEVER USE:**
+
+#### ❌ Direct Browser API Access in Render
+```tsx
+// ❌ NEVER: Causes hydration mismatch
+function BadComponent() {
+  return <div>Width: {window.innerWidth}</div>;
+}
+
+// ❌ NEVER: Different values on server/client
+function BadComponent() {
+  return <div>{Math.random()}</div>;
+}
+
+// ❌ NEVER: Time-dependent rendering
+function BadComponent() {
+  return <div>{new Date().toLocaleTimeString()}</div>;
+}
+```
+
+### **DEBUGGING CHECKLIST:**
+
+Before any commit involving themes, client-only features, or dynamic content:
+
+- [ ] **Test in production build**: `npm run build && npm start`
+- [ ] **Console clean**: No hydration error messages
+- [ ] **Theme consistency**: Both light/dark modes work without flash
+- [ ] **suppressHydrationWarning**: Only on `<html>` tag, nowhere else
+- [ ] **ColorModeScript**: Always in `<head>`, matches theme config
+
+### **EMERGENCY FIXES:**
+
+If hydration errors appear:
+1. **Clear caches**: `rm -rf .next && npm run dev`
+2. **Check browser console**: Look for specific mismatch details
+3. **Apply mounted pattern**: Wrap problematic component with mounted state check
+4. **Last resort**: Dynamic import with `{ ssr: false }`
+
+### **CRITICAL FILES TO MONITOR:**
+- `app/layout.tsx` - ColorModeScript placement
+- `components/ui/provider.tsx` - Theme configuration  
+- Any component using `useColorMode`, `localStorage`, `window`, or browser APIs
+
+---
+
+*This rule prevents the hydration errors that plagued Sprint 10. Follow religiously.*

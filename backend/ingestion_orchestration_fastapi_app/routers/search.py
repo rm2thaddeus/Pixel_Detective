@@ -1,145 +1,166 @@
-from fastapi import APIRouter, HTTPException, Query, Body, Depends
-from qdrant_client import QdrantClient
-from qdrant_client.http.models import Filter, FieldCondition, Range, PointStruct, Distance, VectorParams, SearchRequest
-from typing import List, Dict, Any, Optional
+from fastapi import APIRouter, Depends, HTTPException, Body, Query, File, UploadFile
+from qdrant_client import QdrantClient, models
+from pydantic import BaseModel, Field
+from typing import List, Dict, Any, Optional, Union
 import logging
+import httpx
+import os
+import base64
 
-# Assuming main.py is in the parent directory of 'routers'
-# Adjust the import path if your structure is different.
-from ..dependencies import get_qdrant_dependency 
+# Import the new dependency getters, NOT the main app or old dependencies
+from ..dependencies import get_qdrant_client, get_active_collection
 
-# Configure logging
 logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO)
 
-router = APIRouter()
+router = APIRouter(
+    prefix="/api/v1/search",
+    tags=["search"]
+)
 
-# Dependency to get the global Qdrant client instance from main.py
-# This assumes main.py initializes `app.state.qdrant_client` or provides it via a similar mechanism.
-# For this to work, main.py needs to attach the client to app.state or use a global that this can access.
-# A common way is to use a dependency in main.py that yields the client.
+# Configuration
+ML_SERVICE_URL = os.getenv("ML_SERVICE_URL", "http://localhost:8001")
 
-# Simplified: We'll modify this to expect it from app.state after updating main.py
-# For now, this is a placeholder for the refactored dependency.
-# from ..main import get_qdrant_client_dependency # This would be ideal if main.py provides it
+# --- Pydantic Models for API validation and documentation ---
 
-# Placeholder until main.py is updated
-# def get_qdrant_client():
-#    from ..main import qdrant_client # Access global client from main
-#    if qdrant_client is None:
-#        logger.error("Qdrant client not initialized globally.")
-#        raise HTTPException(status_code=503, detail="Qdrant service not available - client not initialized.")
-#    return qdrant_client
+class SearchRequest(BaseModel):
+    query: str
+    limit: int = Field(default=10, ge=1, le=100)
+    offset: int = Field(default=0, ge=0)
 
-# We will define a common qdrant client dependency in main.py and import it here.
-# For now, let's assume it will be available as `from ..dependencies import get_qdrant_client_dep`
-# So, the Depends will look like: Depends(get_qdrant_client_dep)
-# I will adjust this after creating the dependency in main.py.
-# For now, I will keep the original local get_qdrant_client to ensure the file is runnable in isolation temporarily
-# and will make a note to update it once main.py is refactored.
+class SearchResultItem(BaseModel):
+    id: Union[str, int]
+    score: float
+    payload: Optional[Dict[str, Any]] = None
+    filename: Optional[str] = None
+    thumbnail_url: Optional[str] = None
 
-# Removed get_qdrant_client_local_temp as we now use the dependency from main.py
 
-# TODO: Define Pydantic models for request and response bodies for better validation and OpenAPI docs
-# Example:
-# class SearchQuery(BaseModel):
-#     embedding: List[float]
-#     filters: Optional[Dict[str, Any]] = None
-#     limit: int = 10
-#     offset: int = 0
+class SearchResponse(BaseModel):
+    results: List[SearchResultItem]
 
-# class SearchResultItem(BaseModel):
-#     id: str
-#     payload: Dict[str, Any]
-#     score: float
 
-# class SearchResponse(BaseModel):
-#     total: int
-#     page: int
-#     per_page: int
-#     results: List[SearchResultItem]
+# --- API Endpoints ---
 
-@router.post("/search", summary="Search images by vector and filters")
-async def search_images(
-    # Using Body(...) for now, replace with Pydantic model later
-    embedding: List[float] = Body(..., description="Query vector for similarity search."),
-    filters: Optional[Dict[str, Any]] = Body(None, description="Key-value pairs for filtering metadata."),
-    limit: int = Query(10, ge=1, le=100, description="Number of results to return per page."),
-    offset: int = Query(0, ge=0, description="Offset for pagination."),
-    qdrant: QdrantClient = Depends(get_qdrant_dependency) # Use dependency from main.py
+@router.post("/text", response_model=SearchResponse, summary="Search images by text query")
+async def search_images_by_text(
+    search_request: SearchRequest,
+    qdrant_client: QdrantClient = Depends(get_qdrant_client),
+    collection_name: str = Depends(get_active_collection)
 ):
     """
-    Search for images based on a query vector and optional metadata filters.
-    Returns paginated results with image metadata.
+    Performs a vector search based on a natural language text query.
+    1. Encodes the text query into a vector using the ML service.
+    2. Searches for the most similar vectors in the specified Qdrant collection.
     """
-    # This collection_name should come from config or constants
-    COLLECTION_NAME = "images" # Example collection name
+    logger.info(f"Searching in collection '{collection_name}' for: '{search_request.query}'")
 
+    # 1. Encode the text query into a vector using the ML service
     try:
-        qdrant_filter = None
-        if filters:
-            must_conditions = []
-            for key, value in filters.items():
-                # This is a simplistic filter creation. Qdrant supports more complex conditions.
-                # Adjust based on actual metadata structure and filtering needs.
-                if isinstance(value, dict) and "gte" in value and "lte" in value: # Range filter
-                     must_conditions.append(FieldCondition(key=key, range=Range(gte=value["gte"], lte=value["lte"])))
-                elif isinstance(value, list): # Match any of these values
-                    should_conditions = [FieldCondition(key=key, match={"value": v}) for v in value]
-                    if should_conditions:
-                         must_conditions.append(Filter(should=should_conditions)) # Or logic for list of values
-                else: # Exact match
-                    must_conditions.append(FieldCondition(key=key, match={"value": value}))
-            
-            if must_conditions:
-                qdrant_filter = Filter(must=must_conditions)
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                f"{ML_SERVICE_URL}/api/v1/embed_text",
+                json={"text": search_request.query, "description": f"Search query: {search_request.query}"}
+            )
+            response.raise_for_status()
+            query_vector = response.json()["embedding"]
+    except Exception as e:
+        logger.error(f"Failed to encode query '{search_request.query}': {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to encode query: {e}")
 
-        search_result = qdrant.search(
-            collection_name=COLLECTION_NAME,
+    # 2. Perform the search in Qdrant
+    try:
+        hits = qdrant_client.search(
+            collection_name=collection_name,
+            query_vector=query_vector,
+            limit=search_request.limit,
+            offset=search_request.offset,
+            with_payload=True  # Ensure we get metadata back
+        )
+    except Exception as e:
+        # This is a critical error, often because the collection doesn't exist
+        # or Qdrant is unavailable.
+        logger.error(f"Search failed for collection '{collection_name}'. Error: {e}", exc_info=True)
+        raise HTTPException(status_code=404, detail=f"Search failed. Collection '{collection_name}' may not exist or Qdrant is down.")
+
+    # 3. Format the results into our response model
+    results = [
+        SearchResultItem(
+            id=hit.id,
+            score=hit.score,
+            payload=hit.payload,
+            filename=hit.payload.get("filename") if hit.payload else None,
+            thumbnail_url=f"/api/v1/images/{hit.id}/thumbnail" # Example URL
+        )
+        for hit in hits
+    ]
+    
+    logger.info(f"Found {len(results)} results for query.")
+    return SearchResponse(results=results)
+
+@router.post("/image", response_model=SearchResponse, summary="Search images by reference image")
+async def search_images_by_image(
+    file: UploadFile = File(...),
+    limit: int = Query(10, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    qdrant_client: QdrantClient = Depends(get_qdrant_client),
+    collection_name: str = Depends(get_active_collection)
+):
+    """Search the collection for images visually similar to an uploaded image.
+
+    Workflow:
+    1. Read the uploaded file and base64-encode it.
+    2. Forward the image to the ML inference service `/embed` endpoint to obtain a
+       CLIP embedding.
+    3. Perform a vector search in the active Qdrant collection with that
+       embedding.
+    """
+    # 1. Read file into memory
+    image_bytes = await file.read()
+    if not image_bytes:
+        raise HTTPException(status_code=400, detail="Uploaded file is empty")
+
+    # 2. Get embedding from ML service
+    try:
+        image_b64 = base64.b64encode(image_bytes).decode()
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(
+                f"{ML_SERVICE_URL}/api/v1/embed",
+                json={
+                    "image_base64": image_b64,
+                    "filename": file.filename or "uploaded_image"
+                },
+                timeout=120.0
+            )
+            resp.raise_for_status()
+            embedding = resp.json().get("embedding")
+            if embedding is None:
+                raise ValueError("ML service did not return an embedding")
+    except Exception as e:
+        logger.error(f"Failed to obtain embedding from ML service: {e}")
+        raise HTTPException(status_code=502, detail="Failed to generate embedding for uploaded image")
+
+    # 3. Vector search in Qdrant
+    try:
+        hits = qdrant_client.search(
+            collection_name=collection_name,
             query_vector=embedding,
-            query_filter=qdrant_filter,
             limit=limit,
             offset=offset,
-            with_payload=True, # To get metadata
-            with_vectors=False # Usually not needed for search results display
+            with_payload=True
         )
-
-        results = []
-        for hit in search_result:
-            results.append({
-                "id": hit.id,
-                "payload": hit.payload,
-                "score": hit.score
-            })
-        
-        # For 'total', Qdrant doesn't directly give total matching filter without iterating all.
-        # A common approach is to get count for the filter separately if exact total is needed,
-        # or rely on client-side understanding that more pages might exist.
-        # For simplicity, we'll estimate total based on if we got 'limit' results or less for this page + offset.
-        # A more accurate count requires a count API call.
-        
-        # Simplified total for now. Replace with actual count from Qdrant if performance allows.
-        # count_result = qdrant.count(collection_name=COLLECTION_NAME, query_filter=qdrant_filter, exact=True)
-        # total_hits = count_result.count
-        
-        # This is a placeholder for total.
-        # In a real scenario, you might need a separate count or adjust how total is reported.
-        total_hits_approximation = offset + len(results)
-        if len(results) == limit:
-             # Could be more, this is just an approximation
-             total_hits_approximation += limit 
-
-        return {
-            "total_approx": total_hits_approximation, # Emphasize this is an approximation
-            "page": (offset // limit) + 1 if limit > 0 else 1,
-            "per_page": limit,
-            "results": results
-        }
-
-    except HTTPException:
-        raise # Re-raise HTTPException from get_qdrant_client
     except Exception as e:
-        logger.error(f"Error during image search: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Internal server error during search: {str(e)}")
+        logger.error(f"Vector search failed: {e}")
+        raise HTTPException(status_code=500, detail="Vector search failed")
 
-# Placeholder for further Pydantic models and refinements 
+    results = [
+        SearchResultItem(
+            id=hit.id,
+            score=hit.score,
+            payload=hit.payload,
+            filename=hit.payload.get("filename") if hit.payload else None,
+            thumbnail_url=f"/api/v1/images/{hit.id}/thumbnail"
+        )
+        for hit in hits
+    ]
+
+    return SearchResponse(results=results)

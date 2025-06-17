@@ -6,7 +6,7 @@ import logging
 from concurrent.futures import ThreadPoolExecutor
 import asyncio
 
-from ..dependencies import get_qdrant_dependency
+from ..dependencies import get_qdrant_client, get_active_collection
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -87,7 +87,8 @@ async def find_duplicates(
     background_tasks: BackgroundTasks,
     # threshold: float = Body(0.98, ge=0.0, le=1.0, description="Similarity threshold for duplicates."),
     # limit_per_image: int = Body(5, ge=1, description="Max duplicates per image."),
-    qdrant: QdrantClient = Depends(get_qdrant_dependency)
+    qdrant: QdrantClient = Depends(get_qdrant_client),
+    collection_name: str = Depends(get_active_collection)
 ):
     """
     Triggers a background task to find duplicate images in the collection.
@@ -97,12 +98,10 @@ async def find_duplicates(
     For now, this endpoint will simulate starting the task and return an immediate acknowledgment.
     A more advanced implementation would use WebSockets, task queues (Celery), or polling for status.
     """
-    COLLECTION_NAME = "images"
-    
-    logger.info(f"Received request to find duplicates in '{COLLECTION_NAME}'.")
+    logger.info(f"Received request to find duplicates in '{collection_name}'.")
     
     # This is how you would run the task in the background using FastAPI's BackgroundTasks
-    # background_tasks.add_task(_detect_duplicates_task, qdrant, COLLECTION_NAME, threshold, limit_per_image)
+    # background_tasks.add_task(_detect_duplicates_task, qdrant, collection_name, threshold, limit_per_image)
     
     # For ThreadPoolExecutor with asyncio, you'd run_in_executor:
     # loop = asyncio.get_event_loop()
@@ -110,7 +109,7 @@ async def find_duplicates(
     #     thread_pool_executor, 
     #     _detect_duplicates_task, 
     #     qdrant, # Pass the client instance if it's thread-safe, or re-initialize in thread
-    #     COLLECTION_NAME,
+    #     collection_name,
     #     threshold,
     #     limit_per_image
     # )

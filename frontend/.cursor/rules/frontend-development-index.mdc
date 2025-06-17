@@ -1,0 +1,328 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+# Frontend Development Master Index
+
+## 🎯 COMPLETE FRONTEND DEVELOPMENT GUIDE
+
+This index provides comprehensive guidance for frontend development based on proven patterns from Sprint 10 experiences and architectural lessons learned.
+
+### 📋 **RULE SELECTION GUIDE - Choose Your Path:**
+
+#### 🚀 **New Component Development**
+**START HERE:** `component-architecture-patterns.mdc`
+- Component composition patterns and anti-patterns
+- Breaking down "God Components" (424+ line components)
+- Custom hooks for logic extraction
+- Container/Presentational patterns
+- Testing strategies for components
+
+#### 💧 **Hydration Issues (CRITICAL)**
+**START HERE:** `nextjs-hydration-prevention.mdc`
+- Two-stage rendering patterns for SSR/CSR compatibility
+- ColorModeScript placement in document `<head>`
+- Mounted state patterns for client-only components
+- Forbidden browser API usage in render phase
+- Emergency hydration debugging protocols
+
+#### 🔄 **API Integration & State Management**
+**START HERE:** `react-query-api-integration.mdc`
+- Mandatory React Query for all server state
+- Query/mutation patterns with error handling
+- Background polling and cache management
+- API client setup with interceptors
+- Query key conventions and invalidation
+
+#### 🎨 **User Experience & Workflows**
+**START HERE:** `ux-workflow-patterns.mdc`
+- Critical UX flaw fixes (file upload workflows)
+- Real-time feedback patterns
+- Progressive setup flows
+- Error recovery patterns
+- Mobile-first responsive design
+
+#### ⚡ **Performance Optimization**
+**START HERE:** `nextjs-performance-optimization.mdc`
+- Next.js Image component optimization
+- Bundle analysis and code splitting
+- Memory leak prevention
+- Performance monitoring
+- Core Web Vitals optimization
+
+### 🔥 **SPRINT 10 CRITICAL LESSONS INTEGRATION**
+
+#### **The Big 5 Frontend Issues (From Sprint 10):**
+
+1. **Hydration Errors** → `nextjs-hydration-prevention.mdc`
+   - Server/client HTML mismatch in dark mode
+   - ColorModeScript placement issues
+   - Client-only component patterns
+
+2. **Component Architecture** → `component-architecture-patterns.mdc`
+   - 424-line HomePage component breakdown
+   - 521-line SearchPage refactoring
+   - Custom hooks extraction patterns
+
+3. **UX Workflow Disasters** → `ux-workflow-patterns.mdc`
+   - File upload security violations
+   - Browser compatibility issues
+   - User guidance and feedback
+
+4. **API State Management** → `react-query-api-integration.mdc`
+   - Manual useEffect + useState complexity
+   - Race conditions and error handling
+   - Background polling patterns
+
+5. **Performance Issues** → `nextjs-performance-optimization.mdc`
+   - Image optimization bypassing
+   - Bundle size and loading performance
+   - Memory leaks in long-running operations
+
+### 🎯 **DEVELOPMENT WORKFLOW PATTERNS**
+
+#### **1. Pre-Development Checklist**
+```bash
+# Before starting any frontend work:
+□ Check current hydration status: npm run build
+□ Review component size: wc -l src/components/*.tsx
+□ Verify React Query setup for API calls
+□ Plan component breakdown if >200 lines
+□ Consider mobile-first responsive design
+```
+
+#### **2. Component Development Flow**
+```tsx
+// ✅ STANDARD PATTERN: Start with this template
+export default function NewComponent() {
+  // 1. Custom hooks for logic
+  const { data, loading, error } = useApiData()
+  const { theme } = useAppTheme()
+  
+  // 2. Early returns for loading/error states
+  if (loading) return <ComponentSkeleton />
+  if (error) return <ErrorBoundary error={error} />
+  
+  // 3. Main render with composition
+  return (
+    <Container>
+      <ComponentHeader />
+      <ComponentBody data={data} />
+      <ComponentFooter />
+    </Container>
+  )
+}
+
+// 4. Extract sub-components
+function ComponentHeader() { /* focused logic */ }
+function ComponentBody({ data }: Props) { /* focused logic */ }
+function ComponentFooter() { /* focused logic */ }
+```
+
+#### **3. Hydration-Safe Development**
+```tsx
+// ✅ MANDATORY PATTERN: For any client-side only features
+function ClientOnlyComponent() {
+  const [mounted, setMounted] = useState(false)
+  
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+  
+  if (!mounted) {
+    return <div>Loading...</div> // Server-safe fallback
+  }
+  
+  return (
+    <div>
+      {/* Client-only content here */}
+    </div>
+  )
+}
+```
+
+#### **4. API Integration Pattern**
+```tsx
+// ✅ MANDATORY: Use React Query for all server state
+function DataComponent() {
+  const { data, isLoading, error, refetch } = useQuery({
+    queryKey: ['data', id],
+    queryFn: () => api.get(`/api/v1/data/${id}`),
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    retry: 3,
+  })
+  
+  const mutation = useMutation({
+    mutationFn: (newData) => api.post('/api/v1/data', newData),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['data'] })
+    },
+  })
+  
+  return (
+    <div>
+      {/* Component logic */}
+    </div>
+  )
+}
+```
+
+### 🧪 **TESTING INTEGRATION PATTERNS**
+
+#### **Component Testing Strategy**
+```tsx
+// ✅ PATTERN: Test components in isolation
+describe('ComponentName', () => {
+  it('renders without hydration errors', () => {
+    const { container } = render(<ComponentName />)
+    expect(container.innerHTML).toMatchSnapshot()
+  })
+  
+  it('handles loading states correctly', () => {
+    render(<ComponentName loading={true} />)
+    expect(screen.getByTestId('skeleton')).toBeInTheDocument()
+  })
+  
+  it('handles error states gracefully', () => {
+    const error = new Error('Test error')
+    render(<ComponentName error={error} />)
+    expect(screen.getByText(/something went wrong/i)).toBeInTheDocument()
+  })
+})
+```
+
+#### **Integration Testing**
+```tsx
+// ✅ PATTERN: Test user workflows end-to-end
+describe('Search Workflow', () => {
+  it('completes search from input to results', async () => {
+    render(<SearchPage />)
+    
+    const input = screen.getByPlaceholderText(/search for images/i)
+    fireEvent.change(input, { target: { value: 'cats' } })
+    fireEvent.keyPress(input, { key: 'Enter' })
+    
+    await waitFor(() => {
+      expect(screen.getByText(/search results/i)).toBeInTheDocument()
+    })
+  })
+})
+```
+
+### 📱 **RESPONSIVE DEVELOPMENT PATTERNS**
+
+#### **Mobile-First Approach**
+```tsx
+// ✅ PATTERN: Design for mobile, enhance for desktop
+function ResponsiveComponent() {
+  const isMobile = useBreakpointValue({ base: true, md: false })
+  
+  return (
+    <Stack
+      direction={{ base: 'column', md: 'row' }}
+      spacing={{ base: 4, md: 8 }}
+      p={{ base: 4, md: 8 }}
+    >
+      <Box flex={1}>
+        {/* Content adapts to screen size */}
+      </Box>
+    </Stack>
+  )
+}
+```
+
+### 🔧 **DEBUGGING WORKFLOWS**
+
+#### **Hydration Debugging Protocol**
+```bash
+# 1. Check for hydration errors
+npm run build && npm start
+# Open browser console, look for hydration warnings
+
+# 2. Identify problematic components
+# Look for components using browser APIs in render
+grep -r "window\|document\|localStorage" src/components/
+
+# 3. Apply mounted state pattern
+# Wrap client-only logic in mounted checks
+
+# 4. Verify fix
+npm run build && npm start
+# Confirm no hydration errors in console
+```
+
+#### **Performance Debugging**
+```bash
+# 1. Analyze bundle size
+npm run build
+npx @next/bundle-analyzer
+
+# 2. Check for memory leaks
+# Use React DevTools Profiler
+# Look for components that don't unmount properly
+
+# 3. Optimize images
+# Ensure all images use Next.js Image component
+grep -r "img src\|Image.*src" src/ --exclude-dir=node_modules
+```
+
+### 📋 **DEVELOPMENT CHECKLIST**
+
+#### **Before Starting Development:**
+- [ ] **Architecture Review**: Will this be >200 lines? Plan breakdown
+- [ ] **Hydration Safety**: Does this use browser APIs? Plan mounted state
+- [ ] **API Integration**: Will this fetch data? Plan React Query usage
+- [ ] **Mobile Design**: How will this work on mobile? Plan responsive layout
+- [ ] **Error Handling**: What can go wrong? Plan error boundaries
+
+#### **During Development:**
+- [ ] **Component Size**: Keep components <200 lines
+- [ ] **Logic Extraction**: Move complex logic to custom hooks
+- [ ] **Type Safety**: Ensure proper TypeScript interfaces
+- [ ] **Performance**: Use React.memo, useMemo, useCallback appropriately
+- [ ] **Accessibility**: Add proper ARIA labels and keyboard navigation
+
+#### **Before Committing:**
+- [ ] **Build Test**: `npm run build` succeeds without errors
+- [ ] **Hydration Test**: No hydration errors in browser console
+- [ ] **Mobile Test**: Component works on mobile viewport
+- [ ] **Error Test**: Component handles error states gracefully
+- [ ] **Performance Test**: No unnecessary re-renders in React DevTools
+
+### 🎯 **SUCCESS METRICS**
+
+- **Component Size**: Average component ≤ 150 lines
+- **Hydration Errors**: Zero hydration errors in production
+- **Performance**: Core Web Vitals in green zone
+- **Mobile Usability**: Same functionality on mobile as desktop
+- **Error Recovery**: 90% of errors handled gracefully
+
+### 🚨 **EMERGENCY PROTOCOLS**
+
+#### **Hydration Error Emergency**
+1. **Immediate**: Add `<ClientOnly>` wrapper around problematic component
+2. **Short-term**: Implement mounted state pattern
+3. **Long-term**: Refactor to be SSR-compatible
+
+#### **Performance Emergency**
+1. **Immediate**: Add `loading="lazy"` to images
+2. **Short-term**: Implement code splitting with `dynamic()`
+3. **Long-term**: Full performance audit and optimization
+
+#### **Component Size Emergency**
+1. **Immediate**: Extract largest functions to custom hooks
+2. **Short-term**: Break component into logical sub-components
+3. **Long-term**: Implement proper component architecture patterns
+
+---
+
+**🎯 NAVIGATION QUICK REFERENCE:**
+
+- **🏗️ Component Issues** → `component-architecture-patterns.mdc`
+- **💧 Hydration Problems** → `nextjs-hydration-prevention.mdc`
+- **🔄 API/State Issues** → `react-query-api-integration.mdc`
+- **🎨 UX Problems** → `ux-workflow-patterns.mdc`
+- **⚡ Performance Issues** → `nextjs-performance-optimization.mdc`
+
+*Frontend development patterns based on real Sprint 10 experiences and architectural lessons learned.*

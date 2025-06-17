@@ -1,0 +1,205 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+# React Query & API Integration Patterns
+
+## 🎯 MANDATORY: Use React Query for ALL Server State
+
+Sprint 10 revealed that manual `useEffect` + `useState` patterns for API calls create unnecessary complexity and bugs. **ALWAYS use React Query**.
+
+### **✅ CORRECT PATTERNS:**
+
+#### 1. Query Hook Pattern
+```tsx
+// ✅ Use useQuery for data fetching
+function useCollections() {
+  return useQuery({
+    queryKey: ['collections'],
+    queryFn: async () => {
+      const response = await api.get('/api/v1/collections');
+      return response.data;
+    },
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    retry: 3,
+  });
+}
+
+// ✅ Component usage
+function CollectionsList() {
+  const { data: collections, isLoading, error } = useCollections();
+  
+  if (isLoading) return <Spinner />;
+  if (error) return <ErrorAlert message={error.message} />;
+  
+  return <CollectionGrid collections={collections} />;
+}
+```
+
+#### 2. Mutation Pattern
+```tsx
+// ✅ Use useMutation for server modifications
+function useCreateCollection() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async (data: CreateCollectionRequest) => {
+      const response = await api.post('/api/v1/collections', data);
+      return response.data;
+    },
+    onSuccess: () => {
+      // Invalidate and refetch collections
+      queryClient.invalidateQueries({ queryKey: ['collections'] });
+      toast.success('Collection created successfully');
+    },
+    onError: (error) => {
+      toast.error(`Failed to create collection: ${error.message}`);
+    },
+  });
+}
+```
+
+#### 3. Background Polling Pattern
+```tsx
+// ✅ Job status polling with automatic cleanup
+function useJobStatus(jobId: string | null) {
+  return useQuery({
+    queryKey: ['job-status', jobId],
+    queryFn: async () => {
+      if (!jobId) throw new Error('No job ID provided');
+      const response = await api.get(`/api/v1/ingest/status/${jobId}`);
+      return response.data;
+    },
+    enabled: !!jobId, // Only run when jobId exists
+    refetchInterval: (data) => {
+      // Stop polling when job is complete
+      if (data?.status === 'completed' || data?.status === 'failed') {
+        return false;
+      }
+      return 2000; // Poll every 2 seconds
+    },
+    retry: false, // Don't retry failed polls
+  });
+}
+```
+
+### **❌ FORBIDDEN PATTERNS:**
+
+#### Never Use Manual useEffect for API Calls
+```tsx
+// ❌ NEVER: Manual API state management
+function BadComponent() {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        const response = await api.get('/data');
+        setData(response.data);
+      } catch (err) {
+        setError(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchData();
+  }, []); // ❌ Missing dependency tracking, race conditions, no caching
+  
+  return <div>{/* Complex manual state handling */}</div>;
+}
+```
+
+### **API CLIENT SETUP:**
+
+#### Axios Configuration
+```tsx
+// ✅ Centralized API client with interceptors
+import axios from 'axios';
+
+const api = axios.create({
+  baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8002',
+  timeout: 10000,
+});
+
+// Response interceptor for error handling
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 404) {
+      throw new Error('Resource not found');
+    }
+    if (error.response?.status >= 500) {
+      throw new Error('Server error - please try again later');
+    }
+    throw error;
+  }
+);
+```
+
+### **QUERY KEY CONVENTIONS:**
+
+```tsx
+// ✅ Consistent query key patterns
+const queryKeys = {
+  collections: ['collections'] as const,
+  collection: (id: string) => ['collections', id] as const,
+  search: (query: string) => ['search', query] as const,
+  jobStatus: (jobId: string) => ['job-status', jobId] as const,
+  health: ['health'] as const,
+};
+```
+
+### **ERROR HANDLING PATTERNS:**
+
+```tsx
+// ✅ Consistent error boundaries and toast patterns
+function QueryErrorBoundary({ children }: { children: React.ReactNode }) {
+  return (
+    <ErrorBoundary
+      fallback={<ErrorFallback />}
+      onError={(error) => {
+        console.error('Query error:', error);
+        toast.error('Something went wrong. Please try again.');
+      }}
+    >
+      {children}
+    </ErrorBoundary>
+  );
+}
+```
+
+### **PERFORMANCE OPTIMIZATIONS:**
+
+```tsx
+// ✅ Smart query configuration
+const defaultQueryOptions = {
+  staleTime: 5 * 60 * 1000, // 5 minutes
+  gcTime: 10 * 60 * 1000,   // 10 minutes (formerly cacheTime)
+  retry: (failureCount: number, error: any) => {
+    // Don't retry 4xx errors
+    if (error.response?.status >= 400 && error.response?.status < 500) {
+      return false;
+    }
+    return failureCount < 3;
+  },
+};
+```
+
+### **IMPLEMENTATION CHECKLIST:**
+
+- [ ] **All API calls use React Query** - No manual useEffect + useState
+- [ ] **Proper query key structure** - Consistent, hierarchical keys
+- [ ] **Error boundaries** - Comprehensive error handling
+- [ ] **Loading states** - Spinner/skeleton components
+- [ ] **Optimistic updates** - For better UX on mutations
+- [ ] **Background polling** - For real-time data updates
+- [ ] **Cache invalidation** - Proper data freshness
+
+---
+
+*React Query eliminates 90% of server state bugs. Use it religiously.*

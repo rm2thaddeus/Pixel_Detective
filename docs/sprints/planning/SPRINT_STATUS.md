@@ -2,6 +2,21 @@
 
 ## Current Sprint Status
 
+### 🚧 Sprint 10: Critical UI Refactor / Vertical-Slice v0.1
+**Status**: **IN PROGRESS** 🔄  
+**Start Date**: 2025-06-12  
+**Objective**: Deliver a Next.js + TypeScript vertical slice (health banner, collection management, ingestion flow with live logs, search MVP) that reconnects the backend to an end-user UI.
+
+#### Key Planned Deliverables
+- 🟢 Next.js project scaffold & CI pipeline
+- 🟢 Home screen with backend health indicator
+- 🟢 Collection modal (list / create / select)
+- 🟢 Add-Images modal & Logs page (polls `/ingest/status`)
+- 🟢 Search page (text prompt → grid results)
+- 🟢 Sprint documents (`docs/sprints/sprint-10/*`)
+
+---
+
 ### ✅ Sprint 01: UI/UX Architecture Integration 
 **Status**: **COMPLETED** ✅  
 **Completion Date**: Implementation Session  

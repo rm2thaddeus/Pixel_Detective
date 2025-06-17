@@ -1,6 +1,6 @@
 ---
-description:
-globs:
+description: Docker operations should go through MCP server
+globs: 
 alwaysApply: false
 ---
 # Docker MCP Operations

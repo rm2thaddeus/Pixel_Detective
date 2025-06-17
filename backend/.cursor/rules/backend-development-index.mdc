@@ -1,0 +1,210 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+# Backend Development Master Index
+
+## 🎯 COMPLETE BACKEND DEVELOPMENT GUIDE
+
+This index provides comprehensive guidance for backend development based on proven patterns from `ingestion_orchestration_fastapi_app` and `ml_inference_fastapi_app`.
+
+### 📋 **RULE SELECTION GUIDE - Choose Your Path:**
+
+#### 🚀 **New Service Development**
+**START HERE:** `fastapi-microservice-patterns.mdc`
+- Complete service lifecycle management patterns
+- Lifespan context managers for startup/shutdown
+- Background task orchestration
+- Service health monitoring
+- Production deployment patterns
+
+#### 🤖 **ML/AI Service Development** 
+**START HERE:** `ml-service-integration.mdc`
+- GPU resource management patterns
+- Model loading and inference optimization
+- Async ML processing workflows
+- Memory-efficient batch processing
+- CUDA acceleration patterns
+
+#### 🔌 **API Design & Data Modeling**
+**START HERE:** `api-design-patterns.mdc`
+- RESTful endpoint design patterns
+- Pydantic model organization
+- Request/response validation
+- Error handling strategies
+- API versioning approaches
+
+#### 🔗 **Dependency Management & Architecture**
+**START HERE:** `fastapi-dependency-injection.mdc`
+- Circular import prevention
+- Dependency injection patterns
+- Shared resource management
+- Application state management
+- Testing with dependencies
+
+---
+
+## 🏗️ **ARCHITECTURE DECISION FLOWCHART**
+
+### Step 1: Service Type Classification
+```
+Is your service primarily for:
+├── Data Processing/Ingestion → Use `fastapi-microservice-patterns.mdc`
+├── ML Inference/Training → Use `ml-service-integration.mdc`  
+├── API Gateway/CRUD → Use `api-design-patterns.mdc`
+└── Complex Multi-Service → Use ALL rules in sequence
+```
+
+### Step 2: Implementation Pattern Selection
+```
+For Data Processing:
+├── Background Tasks → Celery + Redis patterns (microservice-patterns)
+├── Real-time Processing → WebSocket patterns (api-design-patterns)
+├── Batch Processing → Job queue patterns (microservice-patterns)
+└── File Processing → Async file handling (microservice-patterns)
+
+For ML Services:
+├── GPU Inference → Lock patterns (ml-service-integration)
+├── Model Serving → FastAPI + torch patterns (ml-service-integration)
+├── Batch Inference → Queue patterns (microservice-patterns + ml-integration)
+└── Real-time Inference → Streaming patterns (ml-service-integration)
+
+For API Services:
+├── CRUD Operations → Repository patterns (api-design-patterns)
+├── Complex Queries → Query builder patterns (api-design-patterns)
+├── File Uploads → Streaming upload patterns (api-design-patterns)
+└── Authentication → JWT patterns (api-design-patterns)
+```
+
+---
+
+## 🔄 **INTEGRATION PATTERNS BETWEEN SERVICES**
+
+### Service-to-Service Communication
+Based on patterns from your `ingestion_orchestration_fastapi_app` ↔ `ml_inference_fastapi_app`:
+
+#### 1. **Async HTTP Client Pattern**
+```python
+# ✅ Use for service-to-service communication
+async with httpx.AsyncClient() as client:
+    response = await client.post(
+        f"{ML_SERVICE_URL}/inference",
+        json=request_data
+    )
+```
+**Detailed implementation:** `api-design-patterns.mdc` → "Service Communication"
+
+#### 2. **Background Task Coordination**
+```python
+# ✅ Use for long-running cross-service operations
+@app.post("/process-and-infer")
+async def process_and_infer(background_tasks: BackgroundTasks):
+    background_tasks.add_task(orchestrate_ml_pipeline, data)
+```
+**Detailed implementation:** `fastapi-microservice-patterns.mdc` → "Background Task Orchestration"
+
+#### 3. **Shared Database Pattern**
+```python
+# ✅ Use for persistent state sharing
+@app.on_event("startup")
+async def startup():
+    app.state.qdrant_client = QdrantClient(host=qdrant_host, port=qdrant_port)
+```
+**Detailed implementation:** `fastapi-dependency-injection.mdc` → "Shared Resources"
+
+---
+
+## 🧪 **TESTING INTEGRATION MATRIX**
+
+### Rule → Test Type Mapping
+| Rule File | Primary Test Focus | Secondary Test Focus |
+|-----------|-------------------|---------------------|
+| `fastapi-microservice-patterns.mdc` | Service lifecycle, Background tasks | API endpoints, Health checks |
+| `ml-service-integration.mdc` | GPU resource management, Model loading | Inference accuracy, Performance |
+| `api-design-patterns.mdc` | Request/response validation, Error handling | Authentication, Rate limiting |
+| `fastapi-dependency-injection.mdc` | Circular imports, Dependency resolution | Service startup, Resource cleanup |
+
+### Cross-Rule Testing Protocol
+**Before committing ANY backend changes:**
+1. **Import Validation:** `python -c "import main"` (dependency-injection)
+2. **Service Health:** `curl localhost:8000/health` (microservice-patterns)
+3. **API Contract:** Run OpenAPI schema validation (api-design-patterns)
+4. **ML Readiness:** Verify GPU lock mechanism if ML service (ml-service-integration)
+
+---
+
+## 📊 **PERFORMANCE OPTIMIZATION MATRIX**
+
+### Rule → Optimization Focus
+| Development Area | Primary Rule | Optimization Patterns |
+|-----------------|--------------|----------------------|
+| **Database Operations** | `api-design-patterns.mdc` | Connection pooling, Query optimization, Async operations |
+| **ML Inference** | `ml-service-integration.mdc` | GPU memory management, Batch processing, Model caching |
+| **Background Processing** | `fastapi-microservice-patterns.mdc` | Worker scaling, Queue management, Task prioritization |
+| **Service Communication** | `fastapi-dependency-injection.mdc` | Connection reuse, Circuit breakers, Timeout handling |
+
+---
+
+## 🔧 **TROUBLESHOOTING GUIDE**
+
+### Common Issue → Rule Reference
+| Symptom | Most Likely Rule | Quick Fix Section |
+|---------|------------------|------------------|
+| "Circular import error on startup" | `fastapi-dependency-injection.mdc` | → Circular Import Prevention |
+| "CUDA out of memory" | `ml-service-integration.mdc` | → GPU Resource Management |
+| "Background task not executing" | `fastapi-microservice-patterns.mdc` | → Background Task Debugging |  
+| "API returning 422 validation errors" | `api-design-patterns.mdc` | → Request Validation Patterns |
+| "Service won't start up" | `fastapi-microservice-patterns.mdc` | → Lifespan Management |
+
+---
+
+## 📚 **LEARNING PATH FOR NEW BACKEND DEVELOPERS**
+
+### Week 1: Foundation Patterns
+1. **Day 1-2:** `fastapi-dependency-injection.mdc` (understand app architecture)
+2. **Day 3-4:** `api-design-patterns.mdc` (learn API design principles)
+3. **Day 5:** Build a simple CRUD API applying both rules
+
+### Week 2: Service Architecture
+1. **Day 1-3:** `fastapi-microservice-patterns.mdc` (service lifecycle, background tasks)
+2. **Day 4-5:** Extend Week 1 API with background processing
+
+### Week 3: Specialized Systems (Choose Based on Role)
+- **ML Engineers:** `ml-service-integration.mdc` + build inference service
+- **Backend Engineers:** Advanced patterns from `fastapi-microservice-patterns.mdc`
+
+### Week 4: Integration & Production
+- Apply all patterns to build a production-ready service
+- Integration testing across multiple services
+- Performance optimization using rule optimization matrices
+
+---
+
+## 🎯 **SUCCESS CRITERIA**
+
+### Developer Competency Checkpoints
+- [ ] Can create new FastAPI service following microservice patterns
+- [ ] Implements proper dependency injection without circular imports  
+- [ ] Designs RESTful APIs with comprehensive validation
+- [ ] Integrates ML services with proper resource management (if applicable)
+- [ ] Writes integration tests covering service interactions
+- [ ] Deploys services with proper health monitoring
+
+### Code Quality Standards
+- [ ] All services start without errors using lifespan patterns
+- [ ] Zero circular import warnings during startup
+- [ ] API documentation auto-generated and accurate
+- [ ] Background tasks execute reliably
+- [ ] ML services manage GPU resources efficiently
+- [ ] Comprehensive error handling at all layers
+
+---
+
+**🧭 Quick Navigation:**
+- 🏗️ **Service Architecture** → `fastapi-microservice-patterns.mdc`
+- 🤖 **ML Integration** → `ml-service-integration.mdc`
+- 🔌 **API Design** → `api-design-patterns.mdc`
+- 🔗 **Dependencies** → `fastapi-dependency-injection.mdc`
+
+*This index ensures consistent, high-quality backend development following proven patterns from your production services.*

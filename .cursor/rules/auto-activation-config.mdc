@@ -1,0 +1,181 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Auto-Activation Configuration - Universal Rule Application
+
+## 🎯 **Mandatory Rule Auto-Activation**
+
+This configuration ensures critical rules are **automatically applied** without manual intervention.
+
+---
+
+## **Universal Auto-Activation Rules**
+
+### **PowerShell Syntax Auto-Activation (Windows Users)**
+```yaml
+rule_name: "powershell-syntax"
+activation_trigger: "ALWAYS"
+conditions:
+  - user_os: "win32"
+  - shell_detected: "PowerShell"
+  - tool_usage: "run_terminal_cmd"
+  
+activation_mode: "preventive"
+description: "Automatically prevents PowerShell syntax errors"
+mandatory: true
+bypass_allowed: false
+
+auto_behaviors:
+  - split_compound_commands: true
+  - quote_all_paths: true
+  - add_workspace_navigation: true
+  - validate_powershell_compatibility: true
+```
+
+### **Sprint Lessons Auto-Activation (All Users)**
+```yaml
+rule_name: "sprint-lessons-learned"
+activation_trigger: "development_work"
+conditions:
+  - work_type: ["frontend", "backend", "fullstack"]
+  - file_modifications: true
+  
+activation_mode: "contextual"
+description: "Always check Sprint 10 lessons before development"
+mandatory: true
+bypass_allowed: false
+```
+
+### **MCP Setup Auto-Activation (Frontend Work)**
+```yaml
+rule_name: "mcp-browser-tools-setup"
+activation_trigger: "frontend_context"
+conditions:
+  - file_patterns: ["frontend/**/*", "**/*.tsx", "**/*.jsx"]
+  - work_type: ["frontend", "debugging", "testing"]
+  
+activation_mode: "contextual"
+description: "Verify MCP setup before frontend work"
+mandatory: true
+bypass_allowed: false
+```
+
+---
+
+## **AI Assistant Integration Instructions**
+
+### **Automatic Rule Loading Protocol**
+```markdown
+# AI assistants MUST follow this sequence:
+
+1. **Detect User Environment**
+   - Check user OS (win32 → PowerShell rule mandatory)
+   - Check file context (frontend → MCP setup required)
+   - Check work type (development → Sprint lessons required)
+
+2. **Auto-Load Mandatory Rules**
+   - Load rules based on environment detection
+   - Apply rules BEFORE generating any commands
+   - Cannot proceed without mandatory rule compliance
+
+3. **Seamless Integration**
+   - Mandatory rules work WITH context-specific rules
+   - No rule conflicts or overrides
+   - Transparent to user (they don't see rule activation)
+```
+
+### **Rule Activation Hierarchy**
+```yaml
+# Rules are applied in this order:
+Level 1: Environment Rules (OS-specific, mandatory)
+  - PowerShell syntax (Windows)
+  - Shell compatibility (Linux/Mac)
+  
+Level 2: Context Rules (work-specific, mandatory)
+  - Sprint lessons (all development)
+  - MCP setup (frontend work)
+  
+Level 3: Specific Rules (task-specific, contextual)
+  - Feature implementation patterns
+  - Debugging workflows
+  - Testing patterns
+```
+
+---
+
+## **User Experience Benefits**
+
+### **Invisible Protection**
+- **PowerShell errors**: Prevented automatically, user never sees them
+- **Sprint mistakes**: Lessons applied automatically, no repeated failures
+- **MCP issues**: Setup verified automatically, tools always work
+
+### **Zero Configuration Required**
+- **Auto-detection**: Rules activate based on environment
+- **Smart defaults**: Always-safe behavior without user input
+- **Seamless operation**: Works transparently with existing workflow
+
+### **Consistency Guarantee**
+- **Same behavior**: Identical experience across all AI assistants
+- **Reliable patterns**: Bulletproof command generation
+- **Error prevention**: Issues caught before they occur
+
+---
+
+## **Implementation Verification**
+
+### **PowerShell Rule Test**
+```bash
+# Test: AI should automatically do this when user asks for git commands:
+✅ Auto-detect: Windows + PowerShell environment
+✅ Auto-apply: PowerShell syntax rule
+✅ Auto-generate: Separate run_terminal_cmd calls
+✅ Auto-quote: All paths properly quoted
+✅ Auto-navigate: Workspace directory included
+
+# Result: Commands that always work, no && errors possible
+```
+
+### **Sprint Lessons Test**
+```bash
+# Test: AI should automatically do this for any development work:
+✅ Auto-detect: Development file modifications
+✅ Auto-apply: Sprint lessons learned
+✅ Auto-check: Hydration patterns (frontend)
+✅ Auto-check: Dependency injection (backend)
+✅ Auto-prevent: Known failure patterns
+
+# Result: Sprint 10 mistakes never repeated
+```
+
+### **MCP Setup Test**
+```bash
+# Test: AI should automatically do this for frontend work:
+✅ Auto-detect: Frontend file context
+✅ Auto-apply: MCP browser tools setup
+✅ Auto-verify: 3-component setup protocol
+✅ Auto-ensure: Tools ready before debugging
+
+# Result: MCP tools always work when needed
+```
+
+---
+
+## **Success Metrics**
+
+### **Error Prevention Effectiveness**
+- **PowerShell errors**: 0% occurrence (100% prevention)
+- **Sprint 10 mistakes**: 0% repetition (100% learning application)
+- **MCP failures**: 0% setup issues (100% verification)
+
+### **User Experience Quality**
+- **Invisible operation**: User never needs to think about rules
+- **Consistent results**: Same quality output every time
+- **Reduced friction**: No manual rule management required
+
+---
+
+*This auto-activation system ensures that critical rules are always applied, providing bulletproof protection without user intervention. The PowerShell rule, Sprint lessons, and MCP setup are now impossible to bypass or forget.*
+

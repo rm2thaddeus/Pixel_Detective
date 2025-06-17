@@ -1,0 +1,218 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+# FastAPI Dependency Injection & Architecture Rules
+
+## 🚨 CRITICAL: Prevent Circular Import Dependencies
+
+Sprint 10 suffered from circular import issues between `main.py` and router files. **ALWAYS use dependency injection**.
+
+### **✅ MANDATORY PATTERN: Dependency Injection**
+
+#### 1. Dependencies Module Setup
+```python
+# backend/dependencies.py
+from qdrant_client import QdrantClient
+from sentence_transformers import SentenceTransformer
+
+class AppState:
+    """Centralized application state container."""
+    def __init__(self):
+        self.qdrant_client: QdrantClient | None = None
+        self.ml_model: SentenceTransformer | None = None
+        self.active_collection: str | None = None
+
+# Global instance - safe because it's explicitly typed
+app_state = AppState()
+
+# Dependency provider functions
+def get_qdrant_client() -> QdrantClient:
+    """Dependency function to get the initialized Qdrant client."""
+    if app_state.qdrant_client is None:
+        raise RuntimeError("Qdrant client has not been initialized.")
+    return app_state.qdrant_client
+
+def get_ml_model() -> SentenceTransformer:
+    """Dependency function to get the initialized ML model."""
+    if app_state.ml_model is None:
+        raise RuntimeError("ML model has not been initialized.")
+    return app_state.ml_model
+
+def get_active_collection() -> str:
+    """Dependency function to get the currently active collection name."""
+    if app_state.active_collection is None:
+        return "default_collection"  # Or raise HTTPException
+    return app_state.active_collection
+```
+
+#### 2. Main App Initialization
+```python
+# backend/main.py
+from contextlib import asynccontextmanager
+from fastapi import FastAPI
+from .dependencies import app_state
+from .routers import search, images, collections
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application lifespan manager for startup/shutdown."""
+    # --- Startup ---
+    print("INFO:     Starting up services...")
+    
+    # Initialize services into app_state
+    app_state.qdrant_client = QdrantClient(host="localhost", port=6333)
+    app_state.ml_model = SentenceTransformer("clip-ViT-B-32")
+    app_state.active_collection = "default_collection"
+    
+    print("INFO:     Startup complete.")
+    yield
+    
+    # --- Shutdown ---
+    print("INFO:     Shutting down services...")
+
+# Create app with lifespan
+app = FastAPI(lifespan=lifespan)
+
+# Include routers - NO circular imports
+app.include_router(search.router)
+app.include_router(images.router)
+app.include_router(collections.router)
+```
+
+#### 3. Router Implementation
+```python
+# backend/routers/search.py
+from fastapi import APIRouter, Depends, HTTPException
+from qdrant_client import QdrantClient
+from sentence_transformers import SentenceTransformer
+
+# Import dependency providers, NOT main app
+from ..dependencies import get_qdrant_client, get_ml_model, get_active_collection
+
+router = APIRouter(prefix="/api/v1/search", tags=["search"])
+
+@router.post("/")
+async def search_images(
+    search_request: SearchRequest,
+    qdrant_client: QdrantClient = Depends(get_qdrant_client),
+    ml_model: SentenceTransformer = Depends(get_ml_model),
+    collection_name: str = Depends(get_active_collection)
+):
+    """Search endpoint with injected dependencies."""
+    # All dependencies provided by FastAPI's dependency injection
+    try:
+        query_vector = ml_model.encode(search_request.query).tolist()
+        hits = qdrant_client.search(
+            collection_name=collection_name,
+            query_vector=query_vector,
+            limit=search_request.limit
+        )
+        return [{"id": hit.id, "score": hit.score} for hit in hits]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+```
+
+### **❌ FORBIDDEN PATTERNS:**
+
+#### Never Import main.py from Routers
+```python
+# ❌ NEVER: Circular import disaster
+from ..main import app  # ❌ Creates circular dependency
+
+@router.post("/search")
+async def search_images(request: Request):
+    # ❌ Accessing app state through request
+    qdrant_client = request.app.state.qdrant_client  # Fragile and circular
+```
+
+#### Never Use Global Variables for State
+```python
+# ❌ NEVER: Global state without dependency injection
+qdrant_client = None  # ❌ Untyped, not injectable
+
+def init_client():
+    global qdrant_client
+    qdrant_client = QdrantClient()  # ❌ Hard to test, no lifecycle management
+```
+
+### **DEPENDENCY PATTERNS:**
+
+#### Database Dependencies
+```python
+def get_database_session() -> Session:
+    """Get database session with automatic cleanup."""
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+@router.get("/users")
+async def get_users(db: Session = Depends(get_database_session)):
+    return db.query(User).all()
+```
+
+#### Authentication Dependencies
+```python
+def get_current_user(token: str = Depends(oauth2_scheme)) -> User:
+    """Validate token and return current user."""
+    # Token validation logic
+    return user
+
+@router.get("/profile")
+async def get_profile(user: User = Depends(get_current_user)):
+    return {"username": user.username}
+```
+
+### **ERROR HANDLING:**
+
+```python
+def handle_qdrant_errors(func):
+    """Decorator for consistent Qdrant error handling."""
+    async def wrapper(*args, **kwargs):
+        try:
+            return await func(*args, **kwargs)
+        except QdrantException as e:
+            raise HTTPException(status_code=503, detail=f"Database error: {e}")
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Internal error: {e}")
+    return wrapper
+```
+
+### **TESTING PATTERNS:**
+
+```python
+# test_dependencies.py
+from fastapi.testclient import TestClient
+from unittest.mock import Mock
+
+def override_qdrant_client():
+    """Mock Qdrant client for testing."""
+    mock_client = Mock()
+    mock_client.search.return_value = []
+    return mock_client
+
+# Override dependencies for testing
+app.dependency_overrides[get_qdrant_client] = override_qdrant_client
+```
+
+### **IMPLEMENTATION CHECKLIST:**
+
+- [ ] **No circular imports** - Routers never import main.py
+- [ ] **Dependency injection** - All shared resources use Depends()
+- [ ] **Type safety** - All dependencies properly typed
+- [ ] **Lifecycle management** - Startup/shutdown events for resources
+- [ ] **Error handling** - Graceful degradation for missing dependencies
+- [ ] **Testability** - Dependencies can be mocked/overridden
+- [ ] **Documentation** - All dependency functions have docstrings
+
+### **CRITICAL FILES:**
+- `dependencies.py` - Central dependency definitions
+- `main.py` - Lifespan events, NO business logic
+- `routers/*.py` - Use Depends(), never import main
+
+---
+
+*Dependency injection prevents the circular import hell that crashed Sprint 10 backends.*
