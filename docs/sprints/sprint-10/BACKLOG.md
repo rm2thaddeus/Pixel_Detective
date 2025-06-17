@@ -55,6 +55,12 @@ Production testing revealed some gaps between documentation and current working 
 - **Effort**: 3-4 hours
 - **Files**: `CollectionCard.tsx`, collection management pages
 
+#### **POLISH-05: UMAP Projection API & Visualisation Hook** 🟢
+- **Issue**: No endpoint to obtain 2-D projections of CLIP vectors for scatter-plot exploration.
+- **Impact**: Could not build similarity map / gallery layout features planned for Phase 3.
+- **Status**: ✅ **COMPLETED** – New `GET /api/v1/umap/projection` endpoint added (`routers/umap.py`). Returns `{id, x, y, thumbnail_base64, filename}` for a random sample of points.
+- **Solution Implemented**: Integrated `umap-learn`, registered router in `main.py`; added `umap-learn` dependency to `requirements.txt`. Frontend can now request projections and render interactive layouts.
+
 ---
 
 ## 🛠️ **IMPLEMENTATION STRATEGY**

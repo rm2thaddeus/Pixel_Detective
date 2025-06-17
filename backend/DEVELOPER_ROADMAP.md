@@ -38,6 +38,14 @@ This file gathers *all* outstanding technical tasks across the two backend servi
    *Change*: SHA-256 computation is now off-loaded to `asyncio.to_thread`, reducing event-loop blocking.  
    *Files*: `ingestion_orchestration_fastapi_app/main.py`.
 
+9. **UMAP 2-D Projection Endpoint** ✅ _Implemented 2025-06-17_
+   *Change*: Added `/umap/projection` endpoint returning 2-D UMAP coordinates for scatter-plot visualisation of embeddings.
+   *Files*: `ingestion_orchestration_fastapi_app/routers/umap.py`.
+
+10. **Server-Side Upload & Scan Endpoints** ✅ _Implemented 2025-06-17_
+    *Change*: Added `/api/v1/ingest/upload` (multipart file upload) and `/api/v1/ingest/scan` (absolute path ingestion) endpoints, improving UX for browser-based clients.
+    *Files*: `ingestion_orchestration_fastapi_app/routers/ingest.py`.
+
 ---
 
 ## 🔴 Critical (do these first)
@@ -195,3 +203,4 @@ Success rate: 100% (0 failures)
 |------|--------|-------|
 | 2025-06-12 | Senior Backend Architect (AI) | Initial roadmap with optimization priorities. |
 | 2024-12-19 | AI Assistant | Updated with recent implementations: thumbnails, collection info, image serving, text search, enhanced job tracking. Added frontend integration challenges and current system status. |
+| 2025-06-17 | AI Assistant | Added new UMAP projection and server-side upload/scan completions; reflected latest backend capabilities and easy-win opportunities. |

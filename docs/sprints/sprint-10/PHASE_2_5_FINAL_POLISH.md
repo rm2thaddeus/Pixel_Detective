@@ -75,6 +75,12 @@ While the backend APIs and core architecture are complete, some frontend integra
 - **Status**: ✅ **COMPLETED** – New `POST /api/v1/search/image` endpoint implemented in `routers/search.py`. Frontend now points to this route.
 - **Solution Implemented**: Endpoint accepts an uploaded image, obtains a CLIP embedding via the ML service, and returns vector-search results identical to text search.
 
+#### **GAP-06: UMAP Projection Endpoint** 🟢
+- **Issue**: Lack of backend utility to generate 2-D projections for vector galleries (planned Phase-3 feature).
+- **Impact**: Frontend could not display similarity map visualisations.
+- **Status**: ✅ **COMPLETED** – Implemented `routers/umap.py` with `GET /api/v1/umap/projection`. Adds `umap-learn` dependency and exposes `id, x, y, thumbnail_base64` for sampled points.
+- **Solution Implemented**: Router registered in `main.py`; sample size configurable via query param; cosine metric consistent with search.
+
 ---
 
 ## 🛠️ **PHASE 2.5 IMPLEMENTATION PLAN**

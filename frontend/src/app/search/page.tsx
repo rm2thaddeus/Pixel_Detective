@@ -12,7 +12,6 @@ import {
   AlertIcon,
 } from '@chakra-ui/react';
 import { Header } from '@/components/Header';
-import { ClientOnly } from '@/components/ClientOnly';
 import { useSearch, type SearchResult } from '@/hooks/useSearch';
 import { SearchInput } from '@/components/SearchInput';
 import { SearchResultsGrid } from '@/components/SearchResultsGrid';
@@ -43,57 +42,55 @@ export default function SearchPage() {
   };
 
   return (
-    <ClientOnly>
-      <Box minH="100vh" bg="pageBg">
-        <Header />
-        
-        <Box maxW="6xl" mx="auto" p={6}>
-          <VStack spacing={8} align="stretch">
-            <VStack spacing={4} textAlign="center">
-              <Text fontSize="3xl" fontWeight="bold">
-                Search Your Images
-              </Text>
-              <Text fontSize="lg" color="textSecondary">
-                Search by typing a description or drag & drop an image to find similar ones
-              </Text>
-            </VStack>
-
-            <Card bg="cardBg">
-              <CardBody>
-                  <SearchInput
-                      query={query}
-                      onQueryChange={handleTextChange}
-                      onSearch={handleTextSearch}
-                      onImageSelect={handleImageSelection}
-                      onClearImage={clearImage}
-                      isLoading={isLoading}
-                      imagePreview={imagePreview}
-                      selectedImage={selectedImage}
-                      fileInputRef={fileInputRef}
-                  />
-                  {activeCollection && (
-                    <Alert status="info" borderRadius="md" mt={4}>
-                      <AlertIcon />
-                      <Text fontSize="sm">Searching in collection: <strong>{activeCollection}</strong></Text>
-                    </Alert>
-                  )}
-              </CardBody>
-            </Card>
-
-            <SearchResultsGrid
-              isLoading={isLoading}
-              results={results}
-              onImageClick={handleImageClick}
-            />
+    <Box minH="100vh" bg="pageBg">
+      <Header />
+      
+      <Box maxW="6xl" mx="auto" p={6}>
+        <VStack spacing={8} align="stretch">
+          <VStack spacing={4} textAlign="center">
+            <Text fontSize="3xl" fontWeight="bold">
+              Search Your Images
+            </Text>
+            <Text fontSize="lg" color="textSecondary">
+              Search by typing a description or drag & drop an image to find similar ones
+            </Text>
           </VStack>
-        </Box>
 
-        <ImageDetailsModal
-          isOpen={isOpen}
-          onClose={onClose}
-          imageId={selectedImageId}
-        />
+          <Card bg="cardBg">
+            <CardBody>
+                <SearchInput
+                    query={query}
+                    onQueryChange={handleTextChange}
+                    onSearch={handleTextSearch}
+                    onImageSelect={handleImageSelection}
+                    onClearImage={clearImage}
+                    isLoading={isLoading}
+                    imagePreview={imagePreview}
+                    selectedImage={selectedImage}
+                    fileInputRef={fileInputRef}
+                />
+                {activeCollection && (
+                  <Alert status="info" borderRadius="md" mt={4}>
+                    <AlertIcon />
+                    <Text fontSize="sm">Searching in collection: <strong>{activeCollection}</strong></Text>
+                  </Alert>
+                )}
+            </CardBody>
+          </Card>
+
+          <SearchResultsGrid
+            isLoading={isLoading}
+            results={results}
+            onImageClick={handleImageClick}
+          />
+        </VStack>
       </Box>
-    </ClientOnly>
+
+      <ImageDetailsModal
+        isOpen={isOpen}
+        onClose={onClose}
+        imageId={selectedImageId}
+      />
+    </Box>
   );
 }

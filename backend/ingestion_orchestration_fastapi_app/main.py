@@ -12,7 +12,7 @@ import asyncio
 
 # Import the global state manager and the routers
 from .dependencies import app_state, get_qdrant_client
-from .routers import search, images, duplicates, random, collections # and any others
+from .routers import search, images, duplicates, random, collections, umap # and any others
 
 # Configure logging
 logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO").upper())
@@ -74,6 +74,7 @@ app.include_router(images.router)
 app.include_router(duplicates.router)
 app.include_router(random.router)
 app.include_router(collections.router)
+app.include_router(umap.router)
 
 # Import and include the ingest router
 from .routers import ingest

@@ -116,6 +116,8 @@ Total Time: 64.71s (down from 110.78s after optimizations)
 
 **Recommendation**: Start with Option B for immediate improvement, consider Option A for broader compatibility.
 
+**Update (2025-06-17)**: Backend now exposes `/api/v1/ingest/upload` and `/api/v1/ingest/scan` which bypass browser directory restrictions by allowing direct file uploads or server-side path ingestion. Frontend integration (drag-and-drop UI or path picker) remains outstanding.
+
 #### 1.2 Enhanced Error Handling
 **Current Issue**: Generic error messages confuse users.
 
@@ -309,5 +311,5 @@ async def find_duplicates(collection_name: str, threshold: float = 0.95):
 ---
 
 **Document Maintainer**: AI Assistant  
-**Last Updated**: December 19, 2024  
-**Next Review**: January 15, 2025 
+**Last Updated**: June 17, 2025  
+**Next Review**: July 15, 2025 

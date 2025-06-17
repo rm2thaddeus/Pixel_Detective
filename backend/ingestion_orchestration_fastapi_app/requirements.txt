@@ -10,3 +10,4 @@ rawpy
 Pillow
 exifread
 python-xmp-toolkit
+umap-learn

@@ -270,12 +270,19 @@ export function ImageDetailsModal({ imageId, isOpen, onClose }: ImageDetailsModa
                     <TableContainer>
                       <Table size="sm">
                         <Tbody>
-                          {Object.entries(imageDetails.exif).map(([key, value]) => (
-                            <Tr key={key}>
-                              <Td fontWeight="medium">{key}</Td>
-                              <Td>{String(value)}</Td>
-                            </Tr>
-                          ))}
+                          {Object.entries(imageDetails.exif)
+                            .filter(([key]) => {
+                              const filtered = [
+                                'Make','Model','LensModel','DateTimeOriginal','DateTime','ISOSpeedRatings','ISO','ExposureTime','FNumber','ApertureValue','FocalLength'
+                              ];
+                              return !filtered.includes(key);
+                            })
+                            .map(([key, value]) => (
+                              <Tr key={key}>
+                                <Td fontWeight="medium">{key}</Td>
+                                <Td>{String(value)}</Td>
+                              </Tr>
+                            ))}
                         </Tbody>
                       </Table>
                     </TableContainer>

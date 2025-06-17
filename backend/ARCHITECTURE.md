@@ -35,6 +35,10 @@
 | `GET` | `/images/{id}/info` | *–* | `{ id, filename, full_path, caption, file_hash, width, height, format, mode, has_thumbnail, exif? }` |
 | `GET` | `/random` | *–* | `{ id, payload }` |
 | `POST` | `/duplicates` | *(optional JSON body for threshold/limit)* | `{ status: "acknowledged", message: str }` |
+| `POST` | `/ingest/scan` | `{ directory_path: str }` | `{ job_id: str, status: str, message: str }` (202 response) |
+| `POST` | `/ingest/upload` | `multipart/form-data (files[])` | `{ job_id: str, status: str, message: str }` (202 response) |
+| `GET` | `/images/{id}/image` | *–* | Binary image file (JPEG/PNG; RAW formats auto-converted to JPEG) |
+| `GET` | `/umap/projection` | query param `sample_size` | `{ points: [ { id, x, y, thumbnail_base64, filename } ], collection }` |
 
 ### 2.2  ML Inference API (`/api/v1`)
 
@@ -56,14 +60,15 @@
 
 | Field | Type | Notes |
 |-------|------|-------|
-| `id` | UUID / hash (`unique_id`) | Primary point identifier (SHA-256 hash). |
+| `id` | UUID (string) | Primary point identifier, generated per image. Deduplication hash stored separately (`file_hash`). |
 | `vector` | `float[512]` | CLIP embedding (ViT-B/32 FP16). |
-| `payload` | JSON | `{ filename, full_path, caption?, width, height, format, mode, file_hash, thumbnail_base64, exif_* }`. |
+| `payload` | JSON | `{ filename, full_path, caption?, width, height, format, mode, file_hash, thumbnail_base64, exif_*, tags }`. |
 
 **Key Payload Fields:**
 - `thumbnail_base64`: Base64-encoded JPEG thumbnail (200x200px) for fast display
 - `file_hash`: SHA-256 hash for deduplication
 - `exif_*`: EXIF metadata fields (e.g., `exif_DateTime`, `exif_Make`)
+- `tags`: Optional list of keyword tags extracted from IPTC/XMP metadata
 
 *Initialization*: Upon first run the ingestion service checks for the configured collection and creates it via Qdrant HTTP API if missing (see `create_collection` endpoint). `vector_size` & `distance` parameters default to *512 / Cosine*.
 
@@ -176,4 +181,5 @@ graph TD
 | Date | Author | Notes |
 |------|--------|-------|
 | 2025-06-12 | Senior Backend Architect (AI) | Initial architecture spec covering both backend services and data stores. |
-| 2024-12-19 | AI Assistant | Updated with thumbnail support, collection info endpoint, text search, enhanced job tracking, and corrected port numbers (8002 for ingestion). | 
+| 2024-12-19 | AI Assistant | Updated with thumbnail support, collection info endpoint, text search, enhanced job tracking, and corrected port numbers (8002 for ingestion). |
+| 2025-06-17 | AI Assistant | Added new ingestion scan/upload, full-image, and UMAP endpoints; updated database point ID semantics and payload docs. | 
