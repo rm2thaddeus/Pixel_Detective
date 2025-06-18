@@ -11,7 +11,8 @@ import {
   Grid,
   GridItem,
   Spinner,
-  Center
+  Center,
+  HStack
 } from '@chakra-ui/react';
 import { Header } from '@/components/Header';
 import { ClientOnly } from '@/components/ClientOnly';
@@ -34,12 +35,16 @@ export default function LatentSpacePage() {
     setProjectionData, 
     projectionData, 
     setSelectedCluster, 
-    selectedCluster 
+    selectedCluster,
+    selectedPoints,
+    hoveredPoint,
+    clusterLabels,
+    setSelectedPoints,
+    setHoveredPoint
   } = useLatentSpaceStore();
 
-  const { basicProjection, isLoading, error } = useUMAP(2000); // Increase sample size
+  const { basicProjection, isLoading, error } = useUMAP();
 
-  const [hoveredPoint, setHoveredPoint] = useState<UMAPPoint | null>(null);
   const [mousePosition, setMousePosition] = useState<{ x: number, y: number } | null>(null);
 
   useEffect(() => {
@@ -63,68 +68,62 @@ export default function LatentSpacePage() {
     }
   };
 
-  const renderContent = () => {
-    if (!collection) {
-      return (
-        <Alert status="warning" mt={6}>
-          <AlertIcon />
-          Please select a collection to visualize its latent space representation.
-        </Alert>
-      );
-    }
-
-    if (isLoading) {
-      return (
-        <Center h="50vh">
-          <VStack>
-            <Spinner size="xl" />
-            <Text>Loading and projecting {collection}...</Text>
+  // Loading state
+  if (isLoading) {
+    return (
+      <Box p={6} minH="100vh">
+        <VStack spacing={6} align="center" justify="center" minH="60vh">
+          <Spinner size="xl" color="purple.500" thickness="4px" />
+          <VStack spacing={2}>
+            <Text fontSize="lg" fontWeight="semibold">
+              Loading Latent Space Visualization
+            </Text>
+            <Text color="gray.600" textAlign="center" maxW="md">
+              Fetching embeddings and computing 2D projections...
+              <br />
+              This may take a few moments for large collections.
+            </Text>
           </VStack>
-        </Center>
-      );
-    }
+        </VStack>
+      </Box>
+    );
+  }
 
-    if (error) {
-      return (
-        <Alert status="error" mt={6}>
+  // Error state
+  if (error) {
+    return (
+      <Box p={6}>
+        <Alert status="error" borderRadius="md">
           <AlertIcon />
-          Error loading projection: {error.message}
+          <VStack align="start" spacing={2}>
+            <Text fontWeight="semibold">Failed to load latent space data</Text>
+            <Text fontSize="sm">
+              {error instanceof Error ? error.message : 'Unknown error occurred'}
+            </Text>
+          </VStack>
         </Alert>
-      );
-    }
-    
-    if (projectionData) {
-      return (
-        <Grid
-          templateAreas={`"main sidebar"`}
-          templateColumns={'3fr 1fr'}
-          gap={6}
-          h="calc(100vh - 200px)"
-        >
-          <GridItem area="main" position="relative">
-            <UMAPScatterPlot 
-              data={projectionData}
-              onPointHover={setHoveredPoint}
-              onPointClick={handlePointClick}
-              selectedClusterId={selectedCluster}
-            />
-          </GridItem>
-          <GridItem area="sidebar" overflowY="auto" >
-            <VStack spacing={6} align="stretch">
-              <ClusteringControls />
-              <MetricsPanel 
-                clusteringInfo={projectionData.clustering_info}
-                totalPoints={projectionData.points.length}
-              />
-              <ClusterLabelingPanel />
-            </VStack>
-          </GridItem>
-        </Grid>
-      );
-    }
+      </Box>
+    );
+  }
 
-    return null;
-  };
+  // No data state
+  if (!basicProjection.data || !basicProjection.data.points || basicProjection.data.points.length === 0) {
+    return (
+      <Box p={6}>
+        <Alert status="info" borderRadius="md">
+          <AlertIcon />
+          <VStack align="start" spacing={2}>
+            <Text fontWeight="semibold">No images found</Text>
+            <Text fontSize="sm">
+              Add some images to your collection to see them in the latent space visualization.
+            </Text>
+          </VStack>
+        </Alert>
+      </Box>
+    );
+  }
+
+  const points = basicProjection.data.points;
 
   return (
     <ClientOnly>
@@ -138,7 +137,24 @@ export default function LatentSpacePage() {
                 Interactive 2D embedding space for collection analysis and auto-cataloging.
               </Text>
             </Box>
-            {renderContent()}
+            <HStack spacing={6} align="start" flex={1}>
+              <VStack spacing={4} w="300px" align="stretch">
+                <ClusteringControls />
+                <MetricsPanel />
+                <ClusterLabelingPanel 
+                  selectedPoints={selectedPoints}
+                  clusterLabels={clusterLabels}
+                />
+              </VStack>
+              <Box flex={1} h="600px" borderRadius="lg" overflow="hidden" boxShadow="md">
+                <UMAPScatterPlot
+                  data={basicProjection.data}
+                  onPointHover={setHoveredPoint}
+                  onPointClick={handlePointClick}
+                  selectedClusterId={selectedCluster}
+                />
+              </Box>
+            </HStack>
           </VStack>
         </Container>
       </Box>

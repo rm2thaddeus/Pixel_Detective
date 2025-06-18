@@ -4,33 +4,42 @@ import { UMAPProjectionResponse, ClusteringRequest, ClusterLabelRequest } from '
 import { useStore } from '@/store/useStore';
 
 const fetchUMAPProjection = async (
-  collection: string,
+  collection: string | null,
   sampleSize: number = 500
 ): Promise<UMAPProjectionResponse> => {
-  const response = await api.get(`/umap/projection`, {
-    params: { sample_size: sampleSize }
-  });
+  const params: any = { sample_size: sampleSize };
+  if (collection) {
+    params.collection_name = collection;
+  }
+  
+  const response = await api.get(`/umap/projection`, { params });
   return response.data;
 };
 
 const fetchUMAPWithClustering = async (
-  collection: string,
+  collection: string | null,
   clusteringRequest: ClusteringRequest,
   sampleSize: number = 500
 ): Promise<UMAPProjectionResponse> => {
-  const response = await api.post(`/umap/projection_with_clustering`, clusteringRequest, {
-    params: { sample_size: sampleSize }
-  });
+  const params: any = { sample_size: sampleSize };
+  if (collection) {
+    params.collection_name = collection;
+  }
+  
+  const response = await api.post(`/umap/projection_with_clustering`, clusteringRequest, { params });
   return response.data;
 };
 
 const postClusterLabel = async (
-  collection: string,
+  collection: string | null,
   labelRequest: ClusterLabelRequest
 ): Promise<void> => {
-  await api.post(`/umap/cluster_label`, labelRequest, {
-    params: { collection_name: collection }
-  });
+  const params: any = {};
+  if (collection) {
+    params.collection_name = collection;
+  }
+  
+  await api.post(`/umap/cluster_label`, labelRequest, { params });
 };
 
 export function useUMAP(sampleSize: number = 500) {
@@ -40,7 +49,7 @@ export function useUMAP(sampleSize: number = 500) {
   const basicProjection = useQuery({
     queryKey: ['umap', 'projection', collection, sampleSize],
     queryFn: () => fetchUMAPProjection(collection, sampleSize),
-    enabled: !!collection,
+    enabled: true, // Always enabled - works without collection
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
 

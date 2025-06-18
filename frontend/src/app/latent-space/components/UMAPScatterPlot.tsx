@@ -51,7 +51,13 @@ export function UMAPScatterPlot({
           if (d.cluster_id === undefined) return [150, 150, 150, 200];
           
           const color = colorScale(d.cluster_id);
-          const rgb = color.substring(4, color.length-1).replace(/ /g, '').split(',').map(Number);
+          // Convert hex color to RGB
+          const hex = color.replace('#', '');
+          const rgb = [
+            parseInt(hex.substring(0, 2), 16),
+            parseInt(hex.substring(2, 4), 16),
+            parseInt(hex.substring(4, 6), 16)
+          ];
           
           // Dim non-selected clusters
           if (selectedClusterId !== null && d.cluster_id !== selectedClusterId) {
