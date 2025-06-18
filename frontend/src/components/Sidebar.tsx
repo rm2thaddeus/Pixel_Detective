@@ -23,7 +23,7 @@ import {
   Flex,
   Spinner,
 } from '@chakra-ui/react';
-import { FiPlus, FiTrash2, FiRefreshCw, FiGrid, FiHome } from 'react-icons/fi';
+import { FiPlus, FiTrash2, FiRefreshCw, FiGrid, FiHome, FiScatter } from 'react-icons/fi';
 import { useStore } from '@/store/useStore';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, deleteCollection as deleteCollectionApi } from '@/lib/api';
@@ -131,8 +131,11 @@ export function Sidebar({ onOpenCollectionModal }: SidebarProps) {
         <Button as={NextLink} href="/" variant="ghost" leftIcon={<FiHome />} justifyContent="start" mb={2}>
             Home
         </Button>
-        <Button as={NextLink} href="/collections" variant="ghost" leftIcon={<FiGrid />} justifyContent="start" mb={4}>
+        <Button as={NextLink} href="/collections" variant="ghost" leftIcon={<FiGrid />} justifyContent="start" mb={2}>
             Collections
+        </Button>
+        <Button as={NextLink} href="/latent-space" variant="ghost" leftIcon={<FiScatter />} justifyContent="start" mb={4}>
+            Latent Space
         </Button>
 
         <HStack px={4} mb={2} justifyContent="space-between">
