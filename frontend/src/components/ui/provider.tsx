@@ -2,27 +2,18 @@
 
 // Import polyfill first
 import '@/lib/polyfills';
-import { ChakraProvider, extendTheme, type ThemeConfig } from '@chakra-ui/react';
-import { ReactNode, useState, useEffect } from 'react';
+import { ChakraProvider, extendTheme } from '@chakra-ui/react';
+import { ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 // Create a client
 const queryClient = new QueryClient();
 
-// Define a minimal, server-safe theme config. This avoids generating
-// style tags on the server that would cause a hydration mismatch.
-const ssrConfig: ThemeConfig = {
-  initialColorMode: 'light',
-  useSystemColorMode: false,
-};
-
-const ssrTheme = extendTheme({ config: ssrConfig });
-
-// Define the full client-side theme with semantic tokens and system detection
-const clientTheme = extendTheme({
+// Define the theme with semantic tokens
+const theme = extendTheme({
   config: {
-    initialColorMode: 'system',
-    useSystemColorMode: true,
+    initialColorMode: 'light',
+    useSystemColorMode: false,
   },
   semanticTokens: {
     colors: {
@@ -41,19 +32,11 @@ interface ProviderProps {
 }
 
 export function Provider({ children }: ProviderProps) {
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-  
-  // On the server, and for the initial client render, use the minimal SSR theme.
-  // After mounting, switch to the full client theme to enable system color mode.
-  const theme = mounted ? clientTheme : ssrTheme;
-
   return (
     <QueryClientProvider client={queryClient}>
-      <ChakraProvider theme={theme}>{children}</ChakraProvider>
+      <ChakraProvider theme={theme} suppressHydrationWarning>
+        {children}
+      </ChakraProvider>
     </QueryClientProvider>
   );
 }
