@@ -239,6 +239,38 @@ curl "http://localhost:8000/umap/projection?sample_size=25"
 3. **Connect clustering controls** - Wire UI controls to backend mutations
 4. **Integrate thumbnail system** - Add image preview overlays
 
+## ⚡ NEW: GPU-Accelerated UMAP Micro-Service & Docker Dev Flow (June 2025)
+
+Sprint 11 also birthed a **stand-alone FastAPI micro-service** dedicated to GPU-accelerated UMAP + clustering:
+
+| Path | Purpose |
+|------|---------|
+| `backend/gpu_umap_service/` | FastAPI package exposing `/fit_transform`, `/transform`, `/cluster` |
+| `backend/gpu_umap_service/Dockerfile` | CUDA-enabled image based on `rapidsai/base:24.08-cuda12.2-py3.11` |
+| `backend/gpu_umap_service/docker-compose.dev.yml` | Hot-reload dev stack with volume-mount + `uvicorn --reload` |
+
+### Why a Separate Service?
+1. Keeps the heavy RAPIDS / cuML deps out of the main ingestion image.
+2. Allows us to **scale GPU workloads independently** (K8s node-selector for GPU nodes).
+3. Simplifies local hacking—just start the dev compose and edit Python files; the container auto-reloads.
+
+### Quick Dev Spin-Up
+```bash
+# One-time: ensure the shared network exists
+docker network create vibe_net || true
+
+# From repo root – build & run with hot-reload
+docker compose -f backend/gpu_umap_service/docker-compose.dev.yml up --build
+```
+The service exposes **http://localhost:8001**. Example:
+```bash
+curl -X POST http://localhost:8001/cluster -H "Content-Type: application/json" \
+     -d '{"data": [[0.1,0.2,0.3],[0.4,0.5,0.6]], "algorithm": "kmeans", "n_clusters": 2}'
+```
+
+### Known Gotcha
+The container currently throws `ImportError: attempted relative import with no known parent package`. A PR is in flight to convert the relative import in `backend/gpu_umap_service/main.py` to an absolute one.
+
 ---
 
 **🎉 POC Milestone Achieved:** Basic latent space visualization working with DeckGL and 25 points  

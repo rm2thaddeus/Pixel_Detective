@@ -464,3 +464,21 @@ logger.info(f"UMAP projection: {duration:.2f}s for {len(vectors)} points")
 ---
 
 *Last Updated: Sprint 11 Phase 2 - CUDA Acceleration Analysis Complete* 
+
+### GPU-UMAP Micro-Service (Hot-Reload)
+```bash
+# Build & run with live-reload on port 8001
+cd backend/gpu_umap_service
+# Ensure network exists once
+docker network create vibe_net || true
+# Launch
+docker compose -f docker-compose.dev.yml up --build
+
+# Simple smoke test
+autocurl () {
+  curl -s -X POST http://localhost:8001/fit_transform \
+    -H "Content-Type: application/json" \
+    -d '{"data": [[0.1,0.2,0.3,0.4],[0.4,0.5,0.6,0.7]]}' | jq
+}
+```
+> The image already bundles cuML 24.08; **do not** add `cuml` to `requirements.txt`. 

@@ -372,3 +372,46 @@ The implementation maintains backward compatibility while providing a clear path
 **Status:** Phase 2 Core Implementation Complete ✅  
 **Next Milestone:** Advanced Features & Performance Optimization (Week 3)  
 **Development Ready:** Phase 3 implementation can begin immediately 
+
+## 🛠️ Branch Back-Story: Codex-Assisted GPU-UMAP Service & Dockerisation (June 2025)
+
+> **Context.**  After the CUDA research in Sprint 11 highlighted the need for a standalone, GPU-accelerated micro-service to off-load UMAP & clustering, we spun up a **`gpu_umap_service`** package inside `backend/` and created a dedicated *development-friendly* container workflow.  The branch was implemented live with GitHub Copilot / Codex pair-programming; this section records that history so future contributors understand *why* certain choices were made.
+
+### 1  Initial Goals
+
+1. Provide a **FastAPI** micro-service that exposes the existing `umap_service` router on port `8001`.
+2. Package it in a **CUDA-enabled RAPIDS** image so we automatically inherit cuML 24.08 and friends.
+3. Make local hacking painless: *hot reload* inside Docker, no rebuild after every edit.
+
+### 2  Key Commits & Decisions
+
+| No.| Commit/Change   | Rationale |
+|---|---|---|
+| 1 | `backend/gpu_umap_service/docker-compose.dev.yml` added | Development-only stack with volume-mount + `uvicorn --reload`.  Joins `vibe_net` so other services can see it. |
+| 2 | Dockerfile created from `rapidsai/base:24.08-cuda12.2-py3.11` | Smallest officially-tagged RAPIDS image that ships cuML for **Python 3.11**.  Switched away from the (now defunct) `rapidsai/rapidsai-core:24.08-cuda12.0-runtime-ubuntu22.04-py3.9`. |
+| 3 | Removed `cuml` from `requirements.txt` | The RAPIDS image already contains cuML via **conda**; attempting a `pip install cuml` fails with the "please install via conda" stub package. |
+| 4 | Dropped multi-stage build / `--prefix=/install` trick | The first approach wrote Python wheels under `/install` then copied them to `/usr/local`.  This broke when we removed the prefix flag.  We simplified to a **single-stage** image and install straight into the default conda env. |
+| 5 | Fixed permissions error (`OSError: [Errno 13] /install`) | Side-effect of point 4.  Removing the custom prefix resolved it. |
+| 6 | Corrected `uvicorn` target to `main:app` | The FastAPI instance lives in `backend/gpu_umap_service/main.py`.  Earlier we targeted `umap_service.main:app`, which caused "Attribute "+app+" not found" errors. |
+| 7 | Runtime import bug (`ImportError: attempted relative import with no known parent package`) | Container now launches but complains because `main.py` attempted a relative import (`from .umap_service.main import router`).  The fix (pending) will be to convert that to an absolute import path or to mark `gpu_umap_service` as a package in `PYTHONPATH`. |
+
+### 3  Current Status (20 June 2025)
+
+* Image builds in **~24 s** on warm cache.
+* `uvicorn` boots with auto-reload; code changes inside `gpu_umap_service/` trigger immediate restart.
+* Remaining blocker: **relative-import error** described above.
+
+### 4  Lessons Learned
+
+1. **RAPIDS ≠ PyPI.**  Always prefer official RAPIDS Docker images; the PyPI `cuml` stub exists *only* to fail fast.
+2. **Keep it simple.**  The single-stage Dockerfile is easier to reason about and avoids permission pitfalls.
+3. **Match `CMD` & compose override.**  Both Dockerfile *and* `docker-compose.dev.yml` must reference the same module path.
+4. **Fail early with ‑-reload.**  Hot-reload surfaces import mistakes instantly without a rebuild cycle.
+
+### 5  Next Steps
+
+1. Patch the import path inside `backend/gpu_umap_service/main.py`.
+2. Write integration tests in `gpu_umap_service/tests/` to cover `/fit_transform`, `/transform`, and `/cluster` routes.
+3. Add a Makefile target `make gpu-dev` for one-shot spin-up.
+
+--- 
