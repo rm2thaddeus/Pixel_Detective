@@ -1,11 +1,15 @@
-FROM rapidsai/rapidsai-core:24.08-cuda12.0-runtime-ubuntu22.04-py3.9 AS builder
-WORKDIR /app
-COPY requirements.txt .
-RUN pip install --prefix=/install --no-cache-dir -r requirements.txt
+FROM rapidsai/base:24.08-cuda12.2-py3.11
 
-FROM rapidsai/rapidsai-core:24.08-cuda12.0-runtime-ubuntu22.04-py3.9
+# Set working directory
 WORKDIR /app
-COPY --from=builder /install /usr/local
+
+# Install additional Python dependencies that are **not** already provided by the RAPIDS image.
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application source
 COPY . .
+
+# Expose port and launch FastAPI with auto-reload (overridden in docker-compose.dev)
 EXPOSE 8001
-CMD ["uvicorn","umap_service.main:app","--host","0.0.0.0","--port","8001"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8001"]

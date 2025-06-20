@@ -1,0 +1,37 @@
+version: "3.9"
+
+services:
+  gpu_umap_service:
+    # Build the Docker image from the existing production Dockerfile
+    build:
+      context: .
+      dockerfile: Dockerfile
+    # Override the default command so uvicorn reloads on any file change
+    command: >-
+      uvicorn main:app --host 0.0.0.0 --port 8001 --reload
+    ports:
+      - "8001:8001"
+    # Mount the project directory so code changes instantly reflect inside the container
+    volumes:
+      - ./:/app
+      # Optional: cache heavy model downloads on host to avoid re-downloads
+      - ~/.cache/huggingface:/root/.cache/huggingface
+    # GPU access – requires Docker >= 19.03 with the NVIDIA runtime and drivers installed
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    environment:
+      PYTHONUNBUFFERED: "1"
+    networks:
+      - vibe_net
+
+# Reuse the same network that the root docker-compose.yml defines so this
+# service can talk to other containers (e.g., Qdrant) if they are started
+# with the root compose file.
+networks:
+  vibe_net:
+    external: true 
