@@ -9,17 +9,28 @@ import {
   Alert, 
   AlertIcon, 
   Spinner,
-  HStack
+  HStack,
+  Grid,
+  GridItem,
+  Divider
 } from '@chakra-ui/react';
 import { Header } from '@/components/Header';
 import { UMAPScatterPlot } from './components/UMAPScatterPlot';
+import { ClusteringControls } from './components/ClusteringControls';
+import { MetricsPanel } from './components/MetricsPanel';
+import { ThumbnailOverlay } from './components/ThumbnailOverlay';
 import { useUMAP } from './hooks/useUMAP';
 import { useStore } from '@/store/useStore';
+import { useLatentSpaceStore } from './hooks/useLatentSpaceStore';
+import { UMAPPoint } from './types/latent-space';
 import React, { useEffect } from 'react';
 
 export default function LatentSpacePage() {
   const { collection } = useStore();
   const { basicProjection, isLoading, error } = useUMAP();
+  const { selectedCluster, setSelectedCluster } = useLatentSpaceStore();
+  const [hoveredPoint, setHoveredPoint] = useState<UMAPPoint | null>(null);
+  const [mousePosition, setMousePosition] = useState<{ x: number; y: number } | null>(null);
   const [debugInfo, setDebugInfo] = useState<any>({});
 
   // Debug logging
@@ -30,12 +41,40 @@ export default function LatentSpacePage() {
       error: error?.message,
       hasData: !!basicProjection.data,
       pointsCount: basicProjection.data?.points?.length,
+      clusteringInfo: basicProjection.data?.clustering_info,
+      selectedCluster,
       timestamp: new Date().toISOString(),
     };
     
     console.log('🔍 Latent Space Debug:', info);
     setDebugInfo(info);
-  }, [collection, isLoading, error, basicProjection.data]);
+  }, [collection, isLoading, error, basicProjection.data, selectedCluster]);
+
+  // Handle mouse movement for thumbnail overlay
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      setMousePosition({ x: e.clientX, y: e.clientY });
+    };
+
+    if (hoveredPoint) {
+      document.addEventListener('mousemove', handleMouseMove);
+      return () => document.removeEventListener('mousemove', handleMouseMove);
+    }
+  }, [hoveredPoint]);
+
+  const handlePointHover = (point: UMAPPoint | null) => {
+    setHoveredPoint(point);
+    if (!point) {
+      setMousePosition(null);
+    }
+  };
+
+  const handlePointClick = (point: UMAPPoint) => {
+    console.log('🖱️ Point clicked:', point);
+    if (point.cluster_id !== undefined && point.cluster_id !== null) {
+      setSelectedCluster(selectedCluster === point.cluster_id ? null : point.cluster_id);
+    }
+  };
 
   // Loading state
   if (isLoading) {
@@ -114,42 +153,113 @@ export default function LatentSpacePage() {
   }
 
   const points = basicProjection.data.points;
+  const clusteringInfo = basicProjection.data.clustering_info;
   console.log('✅ Rendering latent space with', points.length, 'points');
 
   return (
     <Box minH="100vh">
       <Header />
       <Container maxW="full" p={6}>
-        <VStack spacing={4} align="stretch">
+        <VStack spacing={6} align="stretch">
+          {/* Header Section */}
           <Box>
             <Text fontSize="2xl" fontWeight="bold" mb={1}>Latent Space Visualization</Text>
             <Text color="gray.600">
-              Interactive 2D embedding space for collection analysis.
+              Interactive 2D embedding space for collection analysis and clustering.
             </Text>
-            <Text fontSize="sm" color="blue.500" mt={2}>
-              Debug: {points.length} points loaded from collection "{collection || 'default'}"
-            </Text>
+            <HStack spacing={4} mt={2} fontSize="sm">
+              <Text color="blue.500">
+                {points.length} points • {clusteringInfo?.n_clusters || 0} clusters
+              </Text>
+              {clusteringInfo?.algorithm && (
+                <Text color="green.500">
+                  Algorithm: {clusteringInfo.algorithm}
+                </Text>
+              )}
+              {selectedCluster !== null && (
+                <Text color="purple.500">
+                  Selected cluster: {selectedCluster}
+                </Text>
+              )}
+            </HStack>
           </Box>
 
-          {/* Debug Info Panel */}
-          <Box bg="gray.50" p={3} borderRadius="md" fontSize="xs">
-            <Text fontWeight="bold" mb={2}>Debug Information:</Text>
-            <pre>{JSON.stringify(debugInfo, null, 2)}</pre>
-          </Box>
+          <Divider />
 
-          {/* Main Visualization */}
-          <Box>
-            <Text fontSize="lg" fontWeight="semibold" mb={4}>Visualization</Text>
-            <Box h="600px" borderRadius="lg" overflow="hidden" boxShadow="md">
-              <UMAPScatterPlot
-                data={basicProjection.data}
-                onPointHover={(point) => console.log('Point hovered:', point?.id)}
-                onPointClick={(point) => console.log('Point clicked:', point?.id)}
-              />
-            </Box>
-          </Box>
+          {/* Main Content Grid */}
+          <Grid templateColumns={{ base: "1fr", lg: "1fr 300px" }} gap={6}>
+            
+            {/* Main Visualization */}
+            <GridItem>
+              <VStack spacing={4} align="stretch">
+                <Box>
+                  <Text fontSize="lg" fontWeight="semibold" mb={4}>
+                    Cluster Visualization
+                  </Text>
+                  <Box borderRadius="lg" overflow="hidden" boxShadow="md">
+                    <UMAPScatterPlot
+                      data={basicProjection.data}
+                      onPointHover={handlePointHover}
+                      onPointClick={handlePointClick}
+                      selectedClusterId={selectedCluster}
+                    />
+                  </Box>
+                </Box>
+                
+                {/* Instructions */}
+                <Box bg="blue.50" p={4} borderRadius="md" fontSize="sm">
+                  <Text fontWeight="semibold" mb={2}>💡 Interaction Guide:</Text>
+                  <VStack align="start" spacing={1}>
+                    <Text>• <strong>Hover</strong> over points to see image details</Text>
+                    <Text>• <strong>Click</strong> points to select/deselect clusters</Text>
+                    <Text>• <strong>Drag</strong> to pan and <strong>scroll</strong> to zoom</Text>
+                    <Text>• Outliers are highlighted in red</Text>
+                  </VStack>
+                </Box>
+              </VStack>
+            </GridItem>
+
+            {/* Controls and Metrics Sidebar */}
+            <GridItem>
+              <VStack spacing={6} align="stretch">
+                
+                {/* Clustering Controls */}
+                <ClusteringControls />
+                
+                {/* Metrics Panel */}
+                <MetricsPanel 
+                  clusteringInfo={clusteringInfo}
+                  totalPoints={points.length}
+                  points={points}
+                />
+                
+                {/* Debug Panel - Remove in production */}
+                <Box bg="gray.50" p={3} borderRadius="md" fontSize="xs">
+                  <Text fontWeight="bold" mb={2}>Debug Information:</Text>
+                  <Box as="pre" overflow="auto" maxH="200px">
+                    {JSON.stringify({
+                      collection: collection || 'default',
+                      pointsCount: points.length,
+                      clusteringInfo: clusteringInfo,
+                      selectedCluster,
+                      hoveredPoint: hoveredPoint?.id || null,
+                    }, null, 2)}
+                  </Box>
+                </Box>
+                
+              </VStack>
+            </GridItem>
+            
+          </Grid>
         </VStack>
       </Container>
+
+      {/* Thumbnail Overlay */}
+      <ThumbnailOverlay
+        point={hoveredPoint}
+        mousePosition={mousePosition}
+        onImageClick={handlePointClick}
+      />
     </Box>
   );
 } 

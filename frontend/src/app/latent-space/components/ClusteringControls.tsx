@@ -24,21 +24,24 @@ import {
 import { ClusteringRequest } from '../types/latent-space';
 import { useLatentSpaceStore } from '../hooks/useLatentSpaceStore';
 import { useUMAP } from '../hooks/useUMAP';
-import { debounce } from 'lodash';
+import { debounce } from 'lodash-es';
 
 interface ClusteringControlsProps {
   onParametersChange?: (params: ClusteringRequest) => void;
 }
 
 export function ClusteringControls({ onParametersChange }: ClusteringControlsProps) {
-  const { clusteringParams, updateClusteringParams } = useLatentSpaceStore();
+  const { clusteringParams, updateClusteringParams, setProjectionData } = useLatentSpaceStore();
   const { clusteringMutation } = useUMAP();
   const toast = useToast();
 
   const debouncedParameterUpdate = useCallback(
     debounce((params: ClusteringRequest) => {
+      console.log('🔄 Applying clustering with params:', params);
       clusteringMutation.mutate(params, {
-        onSuccess: () => {
+        onSuccess: (data) => {
+          console.log('✅ Clustering update successful:', data);
+          setProjectionData(data);
           toast({
             title: 'Clustering updated',
             status: 'success',
@@ -46,6 +49,7 @@ export function ClusteringControls({ onParametersChange }: ClusteringControlsPro
           });
         },
         onError: (error) => {
+          console.error('❌ Clustering update failed:', error);
           toast({
             title: 'Clustering failed',
             description: error.message,
@@ -55,14 +59,24 @@ export function ClusteringControls({ onParametersChange }: ClusteringControlsPro
         },
       });
     }, 1000),
-    [clusteringMutation, toast]
+    [clusteringMutation, toast, setProjectionData]
   );
 
   const handleParameterChange = (newParams: Partial<ClusteringRequest>) => {
     const updatedParams = { ...clusteringParams, ...newParams };
     updateClusteringParams(newParams);
     onParametersChange?.(updatedParams);
-    debouncedParameterUpdate(updatedParams);
+    
+    // Only auto-update if we have significant parameter changes
+    const shouldAutoUpdate = 
+      newParams.algorithm ||
+      (newParams.n_clusters && Math.abs((newParams.n_clusters || 0) - (clusteringParams.n_clusters || 0)) > 0) ||
+      (newParams.eps && Math.abs(newParams.eps - clusteringParams.eps) > 0.05) ||
+      (newParams.min_samples && newParams.min_samples !== clusteringParams.min_samples);
+    
+    if (shouldAutoUpdate) {
+      debouncedParameterUpdate(updatedParams);
+    }
   };
 
   const renderAlgorithmSpecificControls = () => {

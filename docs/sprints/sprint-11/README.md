@@ -83,6 +83,21 @@ Sprint 11 focuses on implementing an interactive **Latent Space Visualization Ta
 3. **Click Selection:** Implement point selection and detail view
 4. **Control Wiring:** Connect ClusteringControls to clustering mutations
 
+### 🚀 CUDA Acceleration Opportunities (NEW)
+**Performance Enhancement Analysis:**
+- **Current State:** CPU-only UMAP and clustering (2s for 25 points)
+- **CUDA Potential:** Up to 312x speedup with NVIDIA RAPIDS cuML
+- **Implementation:** Zero-code change acceleration available
+- **Scalability:** Handle 10K+ points with sub-3s load times
+
+**Key Benefits:**
+- **UMAP Acceleration:** 21x-312x speedup for large datasets
+- **Clustering Speedup:** 10x-216x improvement for DBSCAN/K-Means
+- **Memory Efficiency:** Unified memory for datasets larger than GPU RAM
+- **Backward Compatibility:** Automatic CPU fallback when CUDA unavailable
+
+**Next Steps:** See [CUDA_ACCELERATION_GUIDE.md](./CUDA_ACCELERATION_GUIDE.md) for detailed implementation
+
 ### Backend Integration
 **✅ Verified Working Endpoints:**
 - `GET /umap/projection` - Returns 25 points with clustering data
@@ -187,6 +202,8 @@ Sprint 11 focuses on implementing an interactive **Latent Space Visualization Ta
 - **[QUICK_REFERENCE.md](./QUICK_REFERENCE.md)** - Updated with POC completion status
 - **[technical-implementation-plan.md](./technical-implementation-plan.md)** - Next phase implementation details
 - **[PRD.md](./PRD.md)** - Complete product requirements and specifications
+- **[CUDA_ACCELERATION_GUIDE.md](./CUDA_ACCELERATION_GUIDE.md)** - 🆕 CUDA acceleration implementation guide
+- **[IMPLEMENTATION_IMPROVEMENTS_SUMMARY.md](./IMPLEMENTATION_IMPROVEMENTS_SUMMARY.md)** - Phase 2 improvements and CUDA opportunities
 - **[o3 research](./o3%20research)** - Advanced implementation patterns and research
 
 ### ✅ Verified Working Code

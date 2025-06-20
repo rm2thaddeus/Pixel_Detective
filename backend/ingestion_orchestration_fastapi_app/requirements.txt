@@ -11,3 +11,7 @@ Pillow
 exifread
 python-xmp-toolkit
 umap-learn
+
+# CUDA-accelerated ML libraries (optional, fallback to CPU)
+cuml>=25.02.0; sys_platform != "win32" and platform_machine == "x86_64"
+cupy-cuda12x>=12.0.0

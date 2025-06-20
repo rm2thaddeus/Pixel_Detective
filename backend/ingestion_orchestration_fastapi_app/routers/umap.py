@@ -4,12 +4,34 @@ from ..dependencies import get_qdrant_client, get_active_collection
 from qdrant_client import QdrantClient
 from qdrant_client.http.models import PointStruct, Filter, FieldCondition, MatchValue
 import numpy as np
+import logging
+import time
+from pydantic import BaseModel, Field
+
+logger = logging.getLogger(__name__)
+
+# CUDA Acceleration Setup
+CUDA_ACCELERATION_ENABLED = False
+try:
+    import cuml.accel
+    cuml.accel.install()
+    CUDA_ACCELERATION_ENABLED = True
+    logger.info("🚀 CUDA acceleration enabled via cuML.accel")
+except ImportError:
+    logger.info("💻 cuML not available, using CPU-only implementations")
+except Exception as e:
+    logger.warning(f"Failed to enable CUDA acceleration: {e}")
+
+# Standard imports - automatically accelerated if cuML available
 import umap
 from sklearn.cluster import DBSCAN, KMeans, AgglomerativeClustering
 from sklearn.metrics import silhouette_score
-from pydantic import BaseModel, Field
 
 router = APIRouter(prefix="/umap", tags=["umap"])
+
+def log_performance_metrics(operation: str, duration: float, data_shape: tuple, cuda_enabled: bool):
+    """Log performance metrics for monitoring acceleration benefits."""
+    logger.info(f"Performance: {operation} - {duration:.2f}s - Shape: {data_shape} - CUDA: {cuda_enabled}")
 
 class ClusteringRequest(BaseModel):
     algorithm: str = Field("dbscan", description="Clustering algorithm: dbscan, kmeans, hierarchical")
@@ -40,6 +62,8 @@ async def umap_projection(
     interactive 2-D layout.
     """
     try:
+        start_time = time.time()
+        
         # 1. Sample points (random seed fixed for determinism per call)
         search_result = qdrant.scroll(
             collection_name=collection_name,
@@ -54,9 +78,12 @@ async def umap_projection(
         ids = [p.id for p in points]
         vectors = np.vstack([p.vector for p in points]).astype(np.float32)
 
-        # 2. Run UMAP on the embeddings
+        # 2. Run UMAP on the embeddings (now automatically accelerated)
         reducer = umap.UMAP(n_components=2, metric="cosine", random_state=42)
         embedding_2d = reducer.fit_transform(vectors)
+        
+        duration = time.time() - start_time
+        log_performance_metrics("UMAP_projection", duration, vectors.shape, CUDA_ACCELERATION_ENABLED)
 
         # 3. Build response objects
         results: List[Dict[str, Any]] = []
@@ -89,6 +116,8 @@ async def umap_projection_with_clustering(
 ):
     """Generate UMAP projection with automatic clustering using robust algorithms."""
     try:
+        start_time = time.time()
+        
         # 1. Sample points and get vectors
         search_result = qdrant.scroll(
             collection_name=collection_name,
@@ -103,14 +132,20 @@ async def umap_projection_with_clustering(
         ids = [p.id for p in points]
         vectors = np.vstack([p.vector for p in points]).astype(np.float32)
 
-        # 2. Run UMAP projection
+        # 2. Run UMAP projection (now automatically accelerated)
+        umap_start = time.time()
         reducer = umap.UMAP(n_components=2, metric="cosine", random_state=42)
         embedding_2d = reducer.fit_transform(vectors)
+        umap_duration = time.time() - umap_start
+        log_performance_metrics("UMAP_clustering", umap_duration, vectors.shape, CUDA_ACCELERATION_ENABLED)
 
-        # 3. Apply clustering algorithm
+        # 3. Apply clustering algorithm (now automatically accelerated)
+        clustering_start = time.time()
         cluster_labels, clustering_info = _apply_clustering(
             embedding_2d, vectors, clustering_config
         )
+        clustering_duration = time.time() - clustering_start
+        log_performance_metrics(f"Clustering_{clustering_config.algorithm}", clustering_duration, embedding_2d.shape, CUDA_ACCELERATION_ENABLED)
 
         # 4. Build response with cluster information
         results: List[Dict[str, Any]] = []
@@ -261,4 +296,31 @@ async def get_cluster_analysis(
         "cluster_id": cluster_id,
         "analysis": "Detailed cluster analysis to be implemented",
         "collection": collection_name
-    } 
+    }
+
+@router.get("/performance_info")
+async def get_performance_info():
+    """Get information about CUDA acceleration status and performance."""
+    
+    cuda_info = {
+        "cuda_available": False,
+        "cuml_version": None,
+        "gpu_memory": None,
+        "acceleration_enabled": CUDA_ACCELERATION_ENABLED
+    }
+    
+    try:
+        import torch
+        if torch.cuda.is_available():
+            cuda_info["cuda_available"] = True
+            cuda_info["gpu_memory"] = torch.cuda.get_device_properties(0).total_memory // (1024**3)
+    except ImportError:
+        pass
+    
+    try:
+        import cuml
+        cuda_info["cuml_version"] = cuml.__version__
+    except ImportError:
+        pass
+    
+    return cuda_info 

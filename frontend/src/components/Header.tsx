@@ -88,7 +88,13 @@ export function Header() {
           >
             Search
           </Button>
-
+          <Button
+            variant="ghost"
+            leftIcon={<Icon as={FiZap} />}
+            onClick={() => router.push('/latent-space')}
+          >
+            Latent Space
+          </Button>
           <Button
             variant="ghost"
             leftIcon={<Icon as={FiFolder} />}
