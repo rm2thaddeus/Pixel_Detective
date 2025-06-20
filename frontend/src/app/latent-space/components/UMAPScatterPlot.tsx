@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useMemo, useEffect } from 'react';
+import React, { useMemo, useEffect, useState } from 'react';
 import { Box, Spinner, Center, Text, VStack, Alert, AlertIcon } from '@chakra-ui/react';
 import { UMAPProjectionResponse, UMAPPoint } from '../types/latent-space';
+import { getClusterColor, getOptimalViewState, calculateBounds } from '../utils/visualization';
 
 // Lazy load DeckGL to avoid SSR issues
 const DeckGL = React.lazy(() => import('@deck.gl/react'));
@@ -15,48 +16,7 @@ interface UMAPScatterPlotProps {
   selectedClusterId?: number | null;
 }
 
-// Calculate bounds for the points
-function calculateBounds(points: UMAPPoint[]) {
-  if (points.length === 0) return { minX: -1, maxX: 1, minY: -1, maxY: 1 };
-  
-  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-  
-  points.forEach(point => {
-    minX = Math.min(minX, point.x);
-    maxX = Math.max(maxX, point.x);
-    minY = Math.min(minY, point.y);
-    maxY = Math.max(maxY, point.y);
-  });
-  
-  console.log('📏 Calculated bounds:', { minX, maxX, minY, maxY });
-  return { minX, maxX, minY, maxY };
-}
-
-// Calculate initial view state to fit all points
-function getInitialViewState(points: UMAPPoint[]) {
-  const bounds = calculateBounds(points);
-  const centerX = (bounds.minX + bounds.maxX) / 2;
-  const centerY = (bounds.minY + bounds.maxY) / 2;
-  
-  // Calculate zoom to fit all points with some padding
-  const width = bounds.maxX - bounds.minX;
-  const height = bounds.maxY - bounds.minY;
-  const maxDimension = Math.max(width, height);
-  
-  // Base zoom calculation (adjust as needed)
-  const zoom = maxDimension > 0 ? Math.log2(400 / maxDimension) : 5;
-  
-  const viewState = {
-    longitude: centerX,
-    latitude: centerY,
-    zoom: Math.max(0, Math.min(zoom, 10)), // Clamp zoom between 0 and 10
-    pitch: 0,
-    bearing: 0,
-  };
-  
-  console.log('🗺️ Initial view state:', viewState);
-  return viewState;
-}
+// Note: Utility functions moved to utils/visualization.ts
 
 export function UMAPScatterPlot({
   data,
@@ -64,6 +24,7 @@ export function UMAPScatterPlot({
   onPointClick,
   selectedClusterId,
 }: UMAPScatterPlotProps) {
+  const [hoveredPoint, setHoveredPoint] = useState<UMAPPoint | null>(null);
 
   // Debug logging
   useEffect(() => {
@@ -73,6 +34,7 @@ export function UMAPScatterPlot({
       selectedClusterId,
       firstPoint: data?.points?.[0],
       samplePoints: data?.points?.slice(0, 3),
+      clusteringInfo: data?.clustering_info,
     });
   }, [data, selectedClusterId]);
 
@@ -114,32 +76,42 @@ export function UMAPScatterPlot({
       >
         <SimpleDeckGLVisualization 
           points={data.points} 
-          onPointHover={onPointHover}
+          clusteringInfo={data.clustering_info}
+          onPointHover={(point) => {
+            setHoveredPoint(point);
+            onPointHover?.(point);
+          }}
           onPointClick={onPointClick}
           selectedClusterId={selectedClusterId}
         />
       </React.Suspense>
       
-      {/* Debug overlay */}
+      {/* Info overlays */}
       <Box position="absolute" top={2} left={2} bg="blackAlpha.700" color="white" px={2} py={1} borderRadius="md" fontSize="xs">
-        {data.points.length} points loaded
+        {data.points.length} points • {data.clustering_info?.n_clusters || 0} clusters
       </Box>
       
-      {/* Coordinates debug overlay */}
-      <Box position="absolute" top={2} right={2} bg="blackAlpha.700" color="white" px={2} py={1} borderRadius="md" fontSize="xs">
-        Sample: ({data.points[0]?.x.toFixed(2)}, {data.points[0]?.y.toFixed(2)})
-      </Box>
+      {hoveredPoint && (
+        <Box position="absolute" top={2} right={2} bg="blackAlpha.800" color="white" px={3} py={2} borderRadius="md" fontSize="xs" maxW="200px">
+          <Text fontWeight="bold">{hoveredPoint.filename || hoveredPoint.id}</Text>
+          <Text>Cluster: {hoveredPoint.cluster_id ?? 'None'}</Text>
+          <Text>Position: ({hoveredPoint.x.toFixed(2)}, {hoveredPoint.y.toFixed(2)})</Text>
+          {hoveredPoint.is_outlier && <Text color="red.300">Outlier</Text>}
+        </Box>
+      )}
     </Box>
   );
 }
 
 function SimpleDeckGLVisualization({ 
   points, 
+  clusteringInfo,
   onPointHover, 
   onPointClick, 
   selectedClusterId 
 }: {
   points: UMAPPoint[];
+  clusteringInfo?: any;
   onPointHover?: (point: UMAPPoint | null) => void;
   onPointClick?: (point: UMAPPoint) => void;
   selectedClusterId?: number | null;
@@ -169,55 +141,78 @@ function SimpleDeckGLVisualization({
   }, []);
 
   const initialViewState = useMemo(() => {
-    return getInitialViewState(points);
+    return getOptimalViewState(points);
   }, [points]);
 
   const layers = useMemo(() => {
     if (!ScatterplotLayerComponent) return [];
 
     console.log('🔧 Creating layer with', points.length, 'points');
-    console.log('📍 First few points:', points.slice(0, 3).map(p => ({ id: p.id, x: p.x, y: p.y })));
+    console.log('📍 First few points:', points.slice(0, 3).map(p => ({ id: p.id, x: p.x, y: p.y, cluster_id: p.cluster_id })));
+
+    const totalClusters = clusteringInfo?.n_clusters || Math.max(...points.map(p => p.cluster_id || 0)) + 1;
 
     return [
       new ScatterplotLayerComponent({
-        id: 'simple-scatterplot',
+        id: 'clustered-scatterplot',
         data: points,
         getPosition: (d: UMAPPoint) => {
           const pos = [d.x, d.y, 0];
-          if (points.indexOf(d) < 3) {
-            console.log('📍 Point position for', d.id, ':', pos);
-          }
           return pos;
         },
-        getFillColor: [255, 100, 100, 200], // Bright red color for visibility
-        getRadius: 10, // Larger radius for visibility
+        getFillColor: (d: UMAPPoint) => {
+          const baseColor = getClusterColor(d, totalClusters);
+          
+          // Highlight selected cluster
+          if (selectedClusterId !== null && selectedClusterId !== undefined) {
+            if (d.cluster_id === selectedClusterId) {
+              return [baseColor[0], baseColor[1], baseColor[2], 255]; // Full opacity
+            } else {
+              return [baseColor[0], baseColor[1], baseColor[2], 100]; // Dimmed
+            }
+          }
+          
+          return baseColor;
+        },
+        getRadius: (d: UMAPPoint) => {
+          // Slightly larger radius for selected cluster or outliers
+          if (d.is_outlier) return 12;
+          if (selectedClusterId !== null && d.cluster_id === selectedClusterId) return 14;
+          return 10;
+        },
         radiusUnits: 'pixels',
         radiusMinPixels: 5,
-        radiusMaxPixels: 20,
+        radiusMaxPixels: 25,
         pickable: true,
         onHover: (info: any) => {
           if (info.object) {
-            console.log('🖱️ Point hover:', info.object.id, 'at', info.object.x, info.object.y);
+            console.log('🖱️ Point hover:', info.object.id, 'cluster:', info.object.cluster_id);
+            onPointHover?.(info.object);
+          } else {
+            onPointHover?.(null);
           }
-          onPointHover?.(info.object as UMAPPoint);
         },
         onClick: (info: any) => {
           if (info.object) {
-            console.log('🖱️ Point click:', info.object.id, 'at', info.object.x, info.object.y);
+            console.log('🖱️ Point click:', info.object.id, 'cluster:', info.object.cluster_id);
+            onPointClick?.(info.object);
           }
-          onPointClick?.(info.object as UMAPPoint);
         },
-      })
+        updateTriggers: {
+          getFillColor: [selectedClusterId, totalClusters],
+          getRadius: [selectedClusterId],
+        },
+      }),
     ];
-  }, [ScatterplotLayerComponent, points, onPointHover, onPointClick]);
+  }, [ScatterplotLayerComponent, points, selectedClusterId, clusteringInfo, onPointHover, onPointClick]);
 
   if (error) {
     return (
       <Center h="600px">
-        <Alert status="error" maxW="md">
+        <Alert status="error">
           <AlertIcon />
           <VStack align="start">
-            <Text fontWeight="bold">DeckGL Error</Text>
+            <Text>Failed to load DeckGL</Text>
             <Text fontSize="sm">{error}</Text>
           </VStack>
         </Alert>
@@ -236,27 +231,16 @@ function SimpleDeckGLVisualization({
     );
   }
 
-  console.log('🎨 Rendering DeckGL with', layers.length, 'layers and view state:', initialViewState);
-
   return (
     <DeckGLComponent
       initialViewState={initialViewState}
       controller={true}
       layers={layers}
-      width="100%"
-      height="100%"
-      onViewStateChange={({viewState}: any) => {
-        console.log('🗺️ View state changed:', viewState);
-      }}
-      onLoad={() => {
-        console.log('🎨 DeckGL loaded successfully');
-      }}
-      onError={(error: any) => {
-        console.error('❌ DeckGL error:', error);
-        setError(error.message || 'DeckGL rendering error');
-      }}
-      onAfterRender={() => {
-        console.log('🎨 DeckGL rendered frame');
+      style={{ width: '100%', height: '100%' }}
+      getCursor={({ isDragging, isHovering }) => {
+        if (isDragging) return 'grabbing';
+        if (isHovering) return 'pointer';
+        return 'grab';
       }}
     />
   );

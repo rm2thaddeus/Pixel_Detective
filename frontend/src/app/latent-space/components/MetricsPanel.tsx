@@ -20,20 +20,26 @@ import {
   useColorModeValue,
 } from '@chakra-ui/react';
 import { ClusteringInfo } from '../types/latent-space';
+import { calculateClusterStatistics, formatNumber } from '../utils/visualization';
 
 interface MetricsPanelProps {
   clusteringInfo: ClusteringInfo | null;
   totalPoints: number;
   loadingTime?: number;
+  points?: any[]; // Add points for statistics calculation
 }
 
 export function MetricsPanel({ 
   clusteringInfo, 
   totalPoints, 
-  loadingTime 
+  loadingTime,
+  points = []
 }: MetricsPanelProps) {
   const cardBg = useColorModeValue('white', 'gray.800');
   const statBg = useColorModeValue('gray.50', 'gray.700');
+  
+  // Calculate detailed statistics from points
+  const statistics = points.length > 0 ? calculateClusterStatistics(points) : null;
 
   if (!clusteringInfo) {
     return (
