@@ -1,0 +1,6 @@
+fastapi
+uvicorn[standard]
+cuml
+scikit-learn
+hdbscan
+numpy

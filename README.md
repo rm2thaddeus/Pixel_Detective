@@ -1,3 +1,7 @@
+<!-- Sprint-11 requirements summary:
+Functional: interactive UMAP visualization with clustering (DBSCAN, K-Means, Hierarchical), parameter controls, thumbnail previews, and cluster quality metrics integrated with collections.
+Non-functional: performance <3s for 1000 points, accessibility >90%, mobile responsiveness, memory usage <100MB.
+-->
 # Pixel Detective - AI-Powered Media Search Engine
 
 A sophisticated, locally-hosted media search platform that leverages cutting-edge AI models to provide intelligent search capabilities across personal media libraries. Built with a modern microservices architecture featuring FastAPI backends and a Next.js frontend.
