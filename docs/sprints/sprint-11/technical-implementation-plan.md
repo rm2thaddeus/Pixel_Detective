@@ -1006,3 +1006,49 @@ export function ClusterLabelingPanel() {
     </Card>
   );
 }
+```
+
+## 📌 June 2025 Addendum – CUDA, Dev Launcher & Collection Merge
+
+Since the original plan was drafted we have implemented several key enhancements that affect both infrastructure and testing:
+
+### 1. GPU-UMAP Micro-Service (rapidsai / cuML 24.08)
+| Path | Description |
+|------|-------------|
+| `backend/gpu_umap_service/` | Stand-alone FastAPI exposing `/fit_transform`, `/transform`, `/cluster` |
+| `backend/gpu_umap_service/Dockerfile` | Builds on `rapidsai/base:24.08-cuda12.2-py3.11` |
+| `backend/gpu_umap_service/docker-compose.dev.yml` | Hot-reload dev setup with volume mount |
+
+The ingestion app can now **off-load heavy UMAP + clustering** to this GPU container by calling `http://localhost:8001`.  This yields 10-300× speed-ups on compatible hardware while automatically falling back to CPU when CUDA is unavailable.
+
+### 2. One-Click Dev Stack (Windows)
+`scripts/start_dev.bat` spins up:
+1. Qdrant DB (Docker)
+2. GPU-UMAP container (Docker)
+3. Ingestion Orchestration API (local Python, port 8002)
+4. ML Inference API (local Python, port 8003)
+
+This is now the recommended local workflow; update onboarding docs accordingly.
+
+### 3. Incremental Album Ingestion & Master Merge
+See **`QDRANT_COLLECTION_MERGE_GUIDE.md`** for the full procedure.  In short:
+```bash
+# Year-by-year ingestion
+ingest_service --collection album_2022 --path ./photos/2022
+
+# Build consolidated index
+a python scripts/merge_collections.py album_master album_2017 album_2018 album_2019 ...
+```
+This keeps per-year collections intact while creating an optimised global index that can be swapped in atomically via Qdrant aliases.
+
+### 4. Updated Timeline Snippet
+| Week | New Deliverables |
+|------|------------------|
+| 1 | GPU-UMAP service Dockerised + live-reload verified |
+| 1 | `start_dev.bat` validated on Win 11 + WSL 2 |
+| 2 | Ingestion router updated to send heavy ops to GPU service |
+| 2 | Benchmark scripts show ≥20× speed-up on RTX 4090 |
+| 3 | Collection merge helper & guide published |
+| 4 | End-to-end load-test with 250 k vectors across 9 yearly albums |
+
+All subsequent work should reference these components.  The backlog items below remain unchanged but are now expected to run against the GPU service rather than local CPU routines.

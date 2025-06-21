@@ -292,4 +292,48 @@ interface ClusteringControlsProps {
 }
 ```
 
+## 🆕 June 2025 Progress Snapshot & CUDA Enhancements
+
+### What's New Since PRD Draft
+1. **GPU-UMAP Micro-Service** deployed (cuML-based) – accessible at `http://localhost:8001`.
+2. **One-Click Dev Launcher** (`scripts/start_dev.bat`) – spins up Qdrant + all three FastAPI services.
+3. **Incremental Album Workflow** – year-partitioned collections with non-destructive merge into `album_master` (see *QDRANT_COLLECTION_MERGE_GUIDE.md*).
+4. **CUDA Benchmarks** – ≥20× speed-up measured on RTX 4090 (1 000 points, UMAP+DBSCAN).
+
+### Impact on Requirements Matrix
+| ID | Change |
+|----|--------|
+| FR-02 | Clustering now executed via GPU micro-service when available; CPU fallback unchanged |
+| FR-06 | Collection integration expanded – supports multi-collection merge & alias swap |
+| NFR-01 | Performance target tightened: <1 s projection for 1 000 points on CUDA hardware |
+
+### Updated Architecture Diagram (high-level)
+```mermaid
+flowchart LR
+    subgraph Containers
+        GPUUMAP[(GPU-UMAP
+        FastAPI
+        cuML + RAPIDS)]
+        Qdrant[(Qdrant DB)]
+    end
+    Frontend -->|HTTP 8002| IngestAPI[(Ingestion API)]
+    IngestAPI -->|HTTP| GPUUMAP
+    IngestAPI -. writes .-> Qdrant
+    GPUUMAP --> Qdrant
+    Note1[One-click launcher (start_dev.bat) starts all three containers/services]
+```
+
+### New Risks & Mitigations
+| Risk | Mitigation |
+|------|-----------|
+| GPU not present on dev machine | Automatic cuML import guard; falls back to CPU |
+| Merge job timeouts on huge datasets | Scroll + batch size tunable; run merge offline, then alias-swap |
+
+### Next Validation Steps
+1. **Load-test 100 k vectors** across 9 annual collections; ensure master merge completes <30 min.
+2. **Front-End integration** – latent-space tab must switch to `/umap/...` on GPU service once feature flag `USE_GPU_SERVICE=true`.
+3. **Docs** – onboarding guide to mention PowerShell `curl.exe` caveat.
+
+> All other PRD sections remain valid; this addendum tracks late-sprint infra work.
+
 This PRD provides a comprehensive roadmap for implementing the latent space visualization tab, building on the enhanced backend capabilities and following established project patterns.

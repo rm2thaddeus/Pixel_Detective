@@ -482,3 +482,50 @@ autocurl () {
 }
 ```
 > The image already bundles cuML 24.08; **do not** add `cuml` to `requirements.txt`. 
+
+## 🧪 TESTING THE FULL DEV STACK (June 2025)
+
+### One-Click Startup (Windows)
+```powershell
+# From repo root
+scripts\start_dev.bat
+```
+This spawns:
+• Qdrant DB → port 6333  
+• GPU-UMAP micro-service → `http://localhost:8001`  
+• Ingestion Orchestration API → `http://localhost:8002`  
+• ML Inference API → `http://localhost:8003`
+
+### Health Checks
+```powershell
+Invoke-RestMethod http://localhost:8001/health
+Invoke-RestMethod http://localhost:8002/health
+Invoke-RestMethod http://localhost:8003/health
+```
+
+### Smoke-Test UMAP GPU Service
+```powershell
+curl.exe -X POST http://localhost:8001/fit_transform `
+         -H "Content-Type: application/json" `
+         -d '{"data": [[0.1,0.2,0.3,0.4],[0.4,0.5,0.6,0.7]]}'
+```
+> Use **`curl.exe`** (not the PowerShell alias) so flags work.
+
+### End-to-End Ingestion → Clustering
+1. Upload images via `/ingest/images` (Ingestion API).  
+2. Trigger `/umap/projection_with_clustering` on Ingestion API **or** call GPU micro-service directly.  
+3. Visualise in Frontend `latent-space` tab – verify cluster colours.
+
+---
+
+## 🗄️  Incremental Albums & Master Merge (Qdrant)
+See new **`QDRANT_COLLECTION_MERGE_GUIDE.md`** for a full workflow.  Quick gist:
+```bash
+# Year-by-year ingestion
+ingest_service --collection album_2019 --path ./photos/2019
+# … later …
+python scripts/merge_collections.py album_master album_2017 album_2018 album_2019
+# Atomically swap in the new master
+curl -X POST localhost:6333/aliases -H "Content-Type: application/json" -d '{"actions":[{"swap_alias": {"alias_name":"album_master","collection_name":"album_master_new"}}]}'
+```
+Master stays in sync while originals remain untouched. 
