@@ -271,6 +271,39 @@ curl -X POST http://localhost:8001/cluster -H "Content-Type: application/json" \
 ### Known Gotcha
 The container currently throws `ImportError: attempted relative import with no known parent package`. A PR is in flight to convert the relative import in `backend/gpu_umap_service/main.py` to an absolute one.
 
+## 🖥️  One-Click Dev Environment (NEW)
+
+To spin up **all** backend components & the vector DB in one step on Windows:
+```powershell
+scripts\start_dev.bat
+```
+This creates/uses the shared Docker network `vibe_net`, starts **Qdrant**, builds & runs the **GPU-UMAP** container with hot-reload, then opens two terminals for the CPU FastAPI apps.
+
+| Service | URL | Notes |
+|---------|-----|-------|
+| GPU-UMAP | http://localhost:8001 | cuML 24.08 inside RAPIDS image |
+| Ingestion Orchestration | http://localhost:8002 | CPU – orchestrates bulk ingestion |
+| ML Inference | http://localhost:8003 | CPU – CLIP/BLIP etc. |
+
+### Quick Validation
+```powershell
+# Smoke test UMAP fit_transform (use curl.exe)
+curl.exe -X POST http://localhost:8001/fit_transform `
+         -H "Content-Type: application/json" `
+         -d '{"data": [[0.1,0.2,0.3,0.4],[0.4,0.5,0.6,0.7]]}'
+```
+You should receive a 2-D array of embeddings.  Open `/docs` on each port to explore the full API.
+
+---
+
+## 📦  Year-Partitioned Albums & Master Collection
+A new guide – **`QDRANT_COLLECTION_MERGE_GUIDE.md`** – details how to:
+1. Ingest images into annual collections (`album_2017` … `album_2025`).
+2. Periodically build a consolidated **`album_master`** collection via *scroll → upsert*.
+3. Atomically swap the new master into production with `swap_alias`, leaving sources untouched for rollback.
+
+This gives you both granular per-year analysis *and* a single mega-collection for global clustering with the CUDA micro-service.
+
 ---
 
 **🎉 POC Milestone Achieved:** Basic latent space visualization working with DeckGL and 25 points  
