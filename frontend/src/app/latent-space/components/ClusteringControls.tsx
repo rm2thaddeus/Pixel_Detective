@@ -24,21 +24,36 @@ import {
 import { ClusteringRequest } from '../types/latent-space';
 import { useLatentSpaceStore } from '../hooks/useLatentSpaceStore';
 import { useUMAP } from '../hooks/useUMAP';
-import { debounce } from 'lodash-es';
+import { debounce } from 'lodash';
 
 interface ClusteringControlsProps {
   onParametersChange?: (params: ClusteringRequest) => void;
 }
 
 export function ClusteringControls({ onParametersChange }: ClusteringControlsProps) {
-  const { clusteringParams, updateClusteringParams, setProjectionData } = useLatentSpaceStore();
+  const { 
+    clusteringParams, 
+    updateClusteringParams, 
+    setProjectionData, 
+    projectionData 
+  } = useLatentSpaceStore();
   const { clusteringMutation } = useUMAP();
   const toast = useToast();
 
   const debouncedParameterUpdate = useCallback(
     debounce((params: ClusteringRequest) => {
+      if (!projectionData?.points || projectionData.points.length === 0) {
+        toast({
+          title: 'No data available',
+          description: 'Cannot apply clustering without projection data.',
+          status: 'warning',
+          duration: 3000,
+        });
+        return;
+      }
+
       console.log('🔄 Applying clustering with params:', params);
-      clusteringMutation.mutate(params, {
+      clusteringMutation.mutate({ ...params, points: projectionData.points }, {
         onSuccess: (data) => {
           console.log('✅ Clustering update successful:', data);
           setProjectionData(data);
@@ -59,7 +74,7 @@ export function ClusteringControls({ onParametersChange }: ClusteringControlsPro
         },
       });
     }, 1000),
-    [clusteringMutation, toast, setProjectionData]
+    [clusteringMutation, toast, setProjectionData, projectionData]
   );
 
   const handleParameterChange = (newParams: Partial<ClusteringRequest>) => {
@@ -75,7 +90,7 @@ export function ClusteringControls({ onParametersChange }: ClusteringControlsPro
       (newParams.min_samples && newParams.min_samples !== clusteringParams.min_samples);
     
     if (shouldAutoUpdate) {
-      debouncedParameterUpdate(updatedParams);
+      debouncedParameterUpdate({ ...clusteringParams, ...newParams });
     }
   };
 
@@ -87,7 +102,7 @@ export function ClusteringControls({ onParametersChange }: ClusteringControlsPro
             <FormControl>
               <FormLabel>Eps (neighborhood distance)</FormLabel>
               <NumberInput
-                value={clusteringParams.eps}
+                value={clusteringParams.eps ?? 0.5}
                 min={0.1}
                 max={2.0}
                 step={0.1}
@@ -103,9 +118,9 @@ export function ClusteringControls({ onParametersChange }: ClusteringControlsPro
             <FormControl>
               <FormLabel>Min Samples</FormLabel>
               <NumberInput
-                value={clusteringParams.min_samples}
+                value={clusteringParams.min_samples ?? 5}
                 min={1}
-                max={20}
+                max={50}
                 onChange={(_, value) => handleParameterChange({ min_samples: value })}
               >
                 <NumberInputField />
@@ -123,9 +138,9 @@ export function ClusteringControls({ onParametersChange }: ClusteringControlsPro
           <FormControl>
             <FormLabel>Number of Clusters</FormLabel>
             <NumberInput
-              value={clusteringParams.n_clusters || 5}
+              value={clusteringParams.n_clusters ?? 5}
               min={2}
-              max={20}
+              max={50}
               onChange={(_, value) => handleParameterChange({ n_clusters: value })}
             >
               <NumberInputField />

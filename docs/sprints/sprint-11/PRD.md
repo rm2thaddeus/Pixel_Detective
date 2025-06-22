@@ -331,8 +331,11 @@ flowchart LR
 
 ### Next Validation Steps
 1. **Load-test 100 k vectors** across 9 annual collections; ensure master merge completes <30 min.
-2. **Front-End integration** – latent-space tab must switch to `/umap/...` on GPU service once feature flag `USE_GPU_SERVICE=true`.
+2. **Front-End integration** – latent-space tab must switch to `/umap/...` on GPU service once feature flag `USE_GPU_SERVICE=true`. **(✅ COMPLETED)**
 3. **Docs** – onboarding guide to mention PowerShell `curl.exe` caveat.
+
+### New Feature Backlog
+- **Create Collection from Visualization**: Add functionality to allow users to make a visual selection (e.g., using a lasso tool) on the UMAP scatter plot and create a new, persistent Qdrant collection from the selected points. This enables rapid, visually-driven data curation.
 
 > All other PRD sections remain valid; this addendum tracks late-sprint infra work.
 
