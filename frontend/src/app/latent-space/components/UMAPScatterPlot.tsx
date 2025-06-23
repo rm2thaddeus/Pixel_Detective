@@ -12,6 +12,8 @@ import {
   getClusterSummary
 } from '../utils/visualization';
 import { COORDINATE_SYSTEM, OrthographicView } from '@deck.gl/core';
+import { luma } from '@luma.gl/core';
+import { webgl2Adapter } from '@luma.gl/webgl';
 
 // Lazy load DeckGL to avoid SSR issues
 const DeckGL = React.lazy(() => import('@deck.gl/react'));
@@ -27,6 +29,15 @@ interface UMAPScatterPlotProps {
 }
 
 // Note: Utility functions moved to utils/visualization.ts
+
+// Register the WebGL-2 adapter once. luma.registerAdapters() is idempotent,
+// so calling it multiple times (e.g. during hot-reload) is safe.
+try {
+  luma.registerAdapters?.([webgl2Adapter]);
+} catch (err) {
+  /* eslint-disable no-console */
+  console.warn('[UMAPScatterPlot] WebGL2 adapter registration failed', err);
+}
 
 export function UMAPScatterPlot({
   data,
@@ -100,7 +111,7 @@ export function UMAPScatterPlot({
   console.log('🎯 Rendering visualization with', data.points.length, 'points');
   
   return (
-    <Box position="relative" h="600px" bg="white" borderRadius="md" border="1px solid" borderColor="gray.200" overflow="hidden">
+    <Box w="100%" position="relative" h="600px" bg="white" borderRadius="md" border="1px solid" borderColor="gray.200" overflow="hidden">
       <React.Suspense 
         fallback={
           <Center h="600px">
@@ -275,6 +286,19 @@ function EnhancedDeckGLVisualization({
   useEffect(() => {
     const loadComponents = async () => {
       try {
+        // ====== Runtime capability check ===================================
+        // deck.gl v9 requires WebGL2. Abort early if the browser/GPU cannot
+        // create a WebGL2 context so we can show a friendly message instead
+        // of crashing deep inside luma.gl internal code.
+        const testCanvas = document.createElement('canvas');
+        const gl2 = testCanvas.getContext('webgl2');
+        if (!gl2) {
+          throw new Error(
+            'WebGL2 is not supported in this browser / GPU. Enable hardware acceleration or use a more recent browser to view the 2-D embedding.'
+          );
+        }
+        // ====================================================================
+
         console.log('📦 Loading DeckGL components...');
         
         const deckModule = await import('@deck.gl/react');
@@ -375,7 +399,10 @@ function EnhancedDeckGLVisualization({
       id: 'umap-points',
       data: filteredPoints,
       pickable: true,
-      stroked: false,
+      stroked: true,
+      lineWidthUnits: 'pixels',
+      lineWidthMinPixels: 1,
+      getLineColor: [0, 0, 0, 200],
       filled: true,
       radiusUnits: 'pixels',
       radiusMinPixels: pointSize,
@@ -468,22 +495,19 @@ function EnhancedDeckGLVisualization({
         console.log('✅ DeckGL loaded successfully - WebGL context ready');
       }}
       onError={(error) => {
-        console.error('❌ DeckGL error:', error);
-        console.error('❌ Error details:', JSON.stringify(error, null, 2));
+        // deck.gl can sometimes forward non-Error objects – ensure we
+        // always log something human readable to aid debugging.
+        const details = error instanceof Error ? error.message : JSON.stringify(error ?? {});
+        console.error('❌ DeckGL error:', details, error);
       }}
-      onWebGLInitialized={() => {
-        console.log('🔥 WebGL context initialized');
-      }}
-      onAfterRender={() => {
-        console.log('🎨 DeckGL render complete');
-      }}
-      // Performance optimizations
-      useDevicePixels={false}
-      parameters={{
-        clearColor: [1, 1, 1, 1], // White background
-        blend: true,
-        blendFunc: ['SRC_ALPHA', 'ONE_MINUS_SRC_ALPHA'],
-        depthTest: false,
+      deviceProps={{
+        // Explicitly request a WebGL2 context; luma.gl will gracefully
+        // fall back to WebGL1 if the browser/GPU cannot provide one.
+        type: 'webgl',
+        webgl: {
+          antialias: false,
+          powerPreference: 'high-performance'
+        }
       }}
     />
   );

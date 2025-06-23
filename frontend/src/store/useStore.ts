@@ -2,10 +2,10 @@ import { create } from 'zustand';
 
 interface AppState {
   collection: string | null;
-  setCollection: (name: string) => void;
+  setCollection: (name: string | null) => void;
 }
 
 export const useStore = create<AppState>((set) => ({
-  collection: 'wejele',
-  setCollection: (name: string) => set({ collection: name }),
+  collection: null,
+  setCollection: (name) => set({ collection: name || null }),
 }));

@@ -317,7 +317,7 @@ export function ClusteringControls({ onParametersChange }: ClusteringControlsPro
           </>
         );
       case 'kmeans':
-      case 'hdbscan':
+      case 'hierarchical':
         return (
           <FormControl>
             <FormLabel fontSize="sm">Number of Clusters</FormLabel>
@@ -326,6 +326,25 @@ export function ClusteringControls({ onParametersChange }: ClusteringControlsPro
               min={2}
               max={20}
               onChange={(_, value) => handleParameterChange({ n_clusters: value })}
+              size="sm"
+            >
+              <NumberInputField />
+              <NumberInputStepper>
+                <NumberIncrementStepper />
+                <NumberDecrementStepper />
+              </NumberInputStepper>
+            </NumberInput>
+          </FormControl>
+        );
+      case 'hdbscan':
+        return (
+          <FormControl>
+            <FormLabel fontSize="sm">Min Cluster Size</FormLabel>
+            <NumberInput
+              value={clusteringParams.min_cluster_size || 5}
+              min={2}
+              max={100}
+              onChange={(_, value) => handleParameterChange({ min_cluster_size: value })}
               size="sm"
             >
               <NumberInputField />
@@ -375,6 +394,7 @@ export function ClusteringControls({ onParametersChange }: ClusteringControlsPro
               >
                 <option value="dbscan">DBSCAN</option>
                 <option value="kmeans">K-Means</option>
+                <option value="hierarchical">Hierarchical</option>
                 <option value="hdbscan">HDBSCAN</option>
               </Select>
             </FormControl>

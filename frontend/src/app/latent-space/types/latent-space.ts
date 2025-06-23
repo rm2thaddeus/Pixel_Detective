@@ -30,10 +30,11 @@ export interface UMAPProjectionResponse {
 }
 
 export interface ClusteringRequest {
-  algorithm: 'dbscan' | 'kmeans' | 'hierarchical';
+  algorithm: 'dbscan' | 'kmeans' | 'hierarchical' | 'hdbscan';
   n_clusters?: number;
   eps?: number;
   min_samples?: number;
+  min_cluster_size?: number;
 }
 
 export interface ViewportTransform {

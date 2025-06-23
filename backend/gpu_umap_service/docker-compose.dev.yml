@@ -8,9 +8,12 @@ services:
       dockerfile: Dockerfile
     # Override the default command so uvicorn reloads on any file change
     command: >-
-      uvicorn main:app --host 0.0.0.0 --port 8001 --reload
+      uvicorn main:app --host 0.0.0.0 --port 8003 --reload
+    # Expose the GPU-accelerated UMAP API on port 8003 (same inside & outside
+    # the container) so the front-end can reach it consistently regardless of
+    # whether it's started via Docker Compose or directly with Uvicorn.
     ports:
-      - "8001:8001"
+      - "8003:8003"
     # Mount the project directory so code changes instantly reflect inside the container
     volumes:
       - ./:/app

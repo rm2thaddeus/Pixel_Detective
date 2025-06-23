@@ -229,7 +229,8 @@ export function getEnhancedClusterColor(
   }
 
   const palette = COLOR_PALETTES[paletteName];
-  const baseColor = palette[point.cluster_id % palette.length];
+  // Ensure we work with exactly RGB components; ignore palette's alpha if present
+  const baseColor = palette[point.cluster_id % palette.length].slice(0, 3) as [number, number, number];
   let color: [number, number, number, number] = [...baseColor, 255];
 
   // Selection state - brighter

@@ -94,10 +94,27 @@ async def cluster(req: ClusterRequest):
         elif algo == "kmeans":
             n_clusters = req.n_clusters or 8
             clusterer = cuKMeans(n_clusters=n_clusters)
+        elif algo == "hierarchical":
+            from sklearn.cluster import AgglomerativeClustering
+            n_clusters = req.n_clusters or 8
+            clusterer = AgglomerativeClustering(n_clusters=n_clusters)
         else:
             raise HTTPException(status_code=400, detail="Unsupported algorithm")
 
         labels = clusterer.fit_predict(data)
+
+        # cuML may return cudf.Series or cupy array; convert safely
+        try:
+            if hasattr(labels, 'to_numpy'):
+                labels = labels.to_numpy()
+            elif 'cupy' in str(type(labels)):
+                import cupy as cp
+                labels = cp.asnumpy(labels)
+        except Exception:
+            pass  # Fallback to original labels if conversion fails
+
+        labels = labels.astype(int)
+
         score = None
         unique_labels = set(labels)
         if len(unique_labels) > 1 and not (-1 in unique_labels and len(unique_labels) == 2):
