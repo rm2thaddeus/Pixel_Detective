@@ -1,0 +1,34 @@
+{
+  "name": "@probe.gl/stats",
+  "description": "Stats object for reporting performance statistics",
+  "license": "MIT",
+  "type": "module",
+  "version": "4.1.0",
+  "keywords": [
+    "javascript",
+    "profiling",
+    "instrumentation",
+    "logging",
+    "stats",
+    "benchmarking"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/visgl/probe.gl.git"
+  },
+  "types": "dist/index.d.ts",
+  "main": "dist/index.cjs",
+  "module": "dist/index.js",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "gitHead": "1c1ddadd82d351b3ff6b640a4050aa9079696579"
+}

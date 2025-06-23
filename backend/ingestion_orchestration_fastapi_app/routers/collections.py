@@ -115,6 +115,13 @@ async def select_collection(req: SelectCollectionRequest):
     logger.info(f"Active collection set to {req.collection_name}")
     return {"selected_collection": req.collection_name}
 
+@router.get("/active", response_model=Dict[str, str])
+async def get_active_collection():
+    """Get the currently active collection."""
+    if app_state.active_collection is None:
+        return {"active_collection": None}
+    return {"active_collection": app_state.active_collection}
+
 @router.delete("/{collection_name}", response_model=Dict[str, Any])
 async def delete_collection(collection_name: str, qdrant: QdrantClient = Depends(get_qdrant_client)):
     """Delete a collection and all its data."""

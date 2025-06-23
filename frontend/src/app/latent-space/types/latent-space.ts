@@ -2,8 +2,8 @@ export interface UMAPPoint {
   id: string;
   x: number;
   y: number;
-  cluster_id?: number;
-  is_outlier: boolean;
+  cluster_id?: number | null;
+  is_outlier?: boolean;
   thumbnail_base64?: string;
   filename?: string;
   caption?: string;
@@ -20,7 +20,7 @@ export interface ClusteringInfo {
   n_clusters: number;
   silhouette_score?: number;
   n_outliers?: number;
-  parameters: Record<string, any>;
+  parameters: Record<string, unknown>;
 }
 
 export interface UMAPProjectionResponse {

@@ -6,6 +6,6 @@ interface AppState {
 }
 
 export const useStore = create<AppState>((set) => ({
-  collection: null,
-  setCollection: (name) => set({ collection: name }),
+  collection: 'wejele',
+  setCollection: (name: string) => set({ collection: name }),
 }));

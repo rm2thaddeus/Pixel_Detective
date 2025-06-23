@@ -19,6 +19,7 @@ import { UMAPScatterPlot } from './components/UMAPScatterPlot';
 import { ClusteringControls } from './components/ClusteringControls';
 import { MetricsPanel } from './components/MetricsPanel';
 import { ThumbnailOverlay } from './components/ThumbnailOverlay';
+import { ClusterLabelingPanel } from './components/ClusterLabelingPanel';
 import { useUMAP } from './hooks/useUMAP';
 import { useStore } from '@/store/useStore';
 import { useLatentSpaceStore } from './hooks/useLatentSpaceStore';
@@ -28,10 +29,16 @@ import React, { useEffect } from 'react';
 export default function LatentSpacePage() {
   const { collection } = useStore();
   const { basicProjection, isLoading, error } = useUMAP();
-  const { selectedCluster, setSelectedCluster } = useLatentSpaceStore();
+  const { 
+    selectedCluster, 
+    setSelectedCluster,
+    colorPalette,
+    showOutliers,
+    pointSize
+  } = useLatentSpaceStore();
   const [hoveredPoint, setHoveredPoint] = useState<UMAPPoint | null>(null);
   const [mousePosition, setMousePosition] = useState<{ x: number; y: number } | null>(null);
-  const [debugInfo, setDebugInfo] = useState<any>({});
+  const [debugInfo, setDebugInfo] = useState<Record<string, unknown>>({});
 
   // Debug logging
   useEffect(() => {
@@ -43,12 +50,15 @@ export default function LatentSpacePage() {
       pointsCount: basicProjection.data?.points?.length,
       clusteringInfo: basicProjection.data?.clustering_info,
       selectedCluster,
+      colorPalette,
+      showOutliers,
+      pointSize,
       timestamp: new Date().toISOString(),
     };
     
     console.log('🔍 Latent Space Debug:', info);
     setDebugInfo(info);
-  }, [collection, isLoading, error, basicProjection.data, selectedCluster]);
+  }, [collection, isLoading, error, basicProjection.data, selectedCluster, colorPalette, showOutliers, pointSize]);
 
   // Handle mouse movement for thumbnail overlay
   useEffect(() => {
@@ -202,6 +212,9 @@ export default function LatentSpacePage() {
                       onPointHover={handlePointHover}
                       onPointClick={handlePointClick}
                       selectedClusterId={selectedCluster}
+                      colorPalette={colorPalette}
+                      showOutliers={showOutliers}
+                      pointSize={pointSize}
                     />
                   </Box>
                 </Box>
@@ -226,6 +239,13 @@ export default function LatentSpacePage() {
                 {/* Clustering Controls */}
                 <ClusteringControls />
                 
+                {/* Cluster Labeling Panel */}
+                <ClusterLabelingPanel 
+                  points={points}
+                  selectedClusterId={selectedCluster}
+                  colorPalette={colorPalette}
+                />
+                
                 {/* Metrics Panel */}
                 <MetricsPanel 
                   clusteringInfo={clusteringInfo}
@@ -243,6 +263,9 @@ export default function LatentSpacePage() {
                       clusteringInfo: clusteringInfo,
                       selectedCluster,
                       hoveredPoint: hoveredPoint?.id || null,
+                      colorPalette,
+                      showOutliers,
+                      pointSize,
                     }, null, 2)}
                   </Box>
                 </Box>
