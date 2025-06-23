@@ -5,6 +5,7 @@ import { Box, Spinner, Center, Text, VStack, Alert, AlertIcon, Badge, HStack, Di
 import { UMAPProjectionResponse, UMAPPoint } from '../types/latent-space';
 import { 
   getEnhancedClusterColor, 
+  getClusterColor,
   calculateBounds,
   ColorPaletteName,
   calculateClusterStatistics,
@@ -14,6 +15,8 @@ import {
 import { COORDINATE_SYSTEM, OrthographicView } from '@deck.gl/core';
 import { luma } from '@luma.gl/core';
 import { webgl2Adapter } from '@luma.gl/webgl';
+import { useLatentSpaceStore } from '../hooks/useLatentSpaceStore';
+import { interpolateRgb } from 'd3-interpolate';
 
 // Lazy load DeckGL to avoid SSR issues
 const DeckGL = React.lazy(() => import('@deck.gl/react'));
@@ -280,8 +283,28 @@ function EnhancedDeckGLVisualization({
 }) {
   const [DeckGLComponent, setDeckGLComponent] = React.useState<any>(null);
   const [ScatterplotLayerComponent, setScatterplotLayerComponent] = React.useState<any>(null);
+  const [HeatmapLayerComponent, setHeatmapLayerComponent] = React.useState<any>(null);
+  const [PolygonLayerComponent, setPolygonLayerComponent] = React.useState<any>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [hoveredObject, setHoveredObject] = React.useState<UMAPPoint | null>(null);
+
+  // ===== Read needed store slices individually to avoid returning new objects each render =====
+  const storeShowOutliers = useLatentSpaceStore((s) => s.showOutliers);
+  const storePointSize = useLatentSpaceStore((s) => s.pointSize);
+  const heatmapVisible = useLatentSpaceStore((s) => s.heatmapVisible);
+  const heatmapOpacity = useLatentSpaceStore((s) => s.heatmapOpacity);
+  const overlayMode = useLatentSpaceStore((s) => s.overlayMode);
+  const terrainResolution = useLatentSpaceStore((s) => s.terrainResolution);
+  const terrainBands = useLatentSpaceStore((s) => s.terrainBands);
+  const clusterPolygons = useLatentSpaceStore((s) => s.clusterPolygons);
+  const storeColorPalette = useLatentSpaceStore((s) => s.colorPalette);
+  const showScatter = useLatentSpaceStore((s) => s.showScatter);
+  const showHulls = useLatentSpaceStore((s) => s.showHulls);
+
+  // Resolve effective values: props override store when provided
+  const effectiveShowOutliers = showOutliers !== undefined ? showOutliers : storeShowOutliers;
+  const effectivePointSize = pointSize !== undefined ? pointSize : storePointSize;
+  const effectiveColorPalette = colorPalette ?? storeColorPalette;
 
   useEffect(() => {
     const loadComponents = async () => {
@@ -303,10 +326,13 @@ function EnhancedDeckGLVisualization({
         
         const deckModule = await import('@deck.gl/react');
         const layersModule = await import('@deck.gl/layers');
+        const aggModule = await import('@deck.gl/aggregation-layers');
         
         console.log('✅ DeckGL components loaded');
         setDeckGLComponent(() => deckModule.default);
         setScatterplotLayerComponent(() => layersModule.ScatterplotLayer);
+        setHeatmapLayerComponent(() => aggModule.HeatmapLayer);
+        setPolygonLayerComponent(() => layersModule.PolygonLayer);
       } catch (err) {
         console.error('❌ Failed to load DeckGL:', err);
         setError(err instanceof Error ? err.message : 'Failed to load DeckGL');
@@ -369,9 +395,9 @@ function EnhancedDeckGLVisualization({
 
   // Filter points based on showOutliers setting
   const filteredPoints = useMemo(() => {
-    if (showOutliers) return points;
+    if (effectiveShowOutliers) return points;
     return points.filter(point => !point.is_outlier);
-  }, [points, showOutliers]);
+  }, [points, effectiveShowOutliers]);
 
   // Calculate cluster statistics for better color distribution
   const clusterStats = useMemo(() => {
@@ -381,60 +407,164 @@ function EnhancedDeckGLVisualization({
   const layers = useMemo(() => {
     if (!ScatterplotLayerComponent) return [];
 
-    console.log('🔧 Creating enhanced layer with', filteredPoints.length, 'points');
-    console.log('📊 Cluster stats:', clusterStats);
+    const layerList: any[] = [];
 
-    const totalClusters = clusterStats.totalClusters;
+    // === Heatmap layers (under scatter) ===
+    if (overlayMode==='heatmap' && heatmapVisible && HeatmapLayerComponent) {
+      // Group points by cluster id (exclude outliers/unclustered)
+      const clustersMap: Record<number, UMAPPoint[]> = {};
+      filteredPoints.forEach((p) => {
+        if (p.cluster_id === undefined || p.cluster_id === null || p.cluster_id === -1) return;
+        if (selectedClusterId !== null && selectedClusterId !== undefined && p.cluster_id !== selectedClusterId) return; // Respect selection filtering
+        clustersMap[p.cluster_id] = clustersMap[p.cluster_id] || [];
+        clustersMap[p.cluster_id].push(p);
+      });
 
-    console.log('🔧 Creating ScatterplotLayer with data:', {
-      pointsCount: points.length,
-      firstPoint: points[0],
-      samplePoints: points.slice(0, 3),
-      pointSize,
-      totalClusters
-    });
+      Object.entries(clustersMap).forEach(([cidStr, pts]) => {
+        const cid = Number(cidStr);
+        const baseColor = getClusterColor({ cluster_id: cid, is_outlier: false } as any, clusterStats.totalClusters, effectiveColorPalette).slice(0,3) as [number,number,number];
+        // Generate colorRange gradient from white to baseColor
+        const colorRange = Array.from({ length: 6 }).map((_, idx) => {
+          const t = idx / 5;
+          const rgb = interpolateRgb(`rgb(${baseColor[0]},${baseColor[1]},${baseColor[2]})`, '#ffffff')(1 - t);
+          const [r,g,b] = rgb.match(/\d+/g)!.map(Number);
+          return [r, g, b, 255];
+        });
 
-    // Production ScatterplotLayer using real UMAP data
-    const enhancedScatterplotLayer = new ScatterplotLayerComponent({
-      id: 'umap-points',
-      data: filteredPoints,
-      pickable: true,
-      stroked: true,
-      lineWidthUnits: 'pixels',
-      lineWidthMinPixels: 1,
-      getLineColor: [0, 0, 0, 200],
-      filled: true,
-      radiusUnits: 'pixels',
-      radiusMinPixels: pointSize,
-      getPosition: (d) => [d.x, d.y],
-      getFillColor: (d) =>
-        getEnhancedClusterColor(
-          d,
-          totalClusters,
-          selectedClusterId ?? null,
-          hoveredObject ? hoveredObject.id === d.id : false,
-          colorPalette
-        ),
-      getRadius: pointSize,
-      onHover: ({ object }) => {
-        setHoveredObject(object as UMAPPoint | null);
-        onPointHover?.(object as UMAPPoint | null);
-      },
-      onClick: ({ object }) => {
-        if (object) onPointClick?.(object as UMAPPoint);
-      },
-      coordinateSystem: COORDINATE_SYSTEM.CARTESIAN,
-    });
+        layerList.push(new HeatmapLayerComponent({
+          id: `heatmap-${cid}`,
+          data: pts,
+          getPosition: (d: UMAPPoint) => [d.x, d.y],
+          getWeight: 1,
+          colorRange,
+          radiusPixels: terrainResolution * 1.5,
+          opacity: heatmapOpacity / 100,
+          aggregation: 'MEAN',
+          gpuAggregation: true,
+        }));
+      });
+    }
 
-    return [enhancedScatterplotLayer];
+    // ===== Polygon hull layers (under heatmap, under scatter) =====
+    if (showHulls && PolygonLayerComponent && Object.keys(clusterPolygons).length) {
+      Object.entries(clusterPolygons).forEach(([cidStr, hullCoords]) => {
+        const cid = Number(cidStr);
+        if (selectedClusterId !== null && selectedClusterId !== undefined && cid !== selectedClusterId) return;
+        const baseColor = getClusterColor({ cluster_id: cid, is_outlier: false } as any, clusterStats.totalClusters, effectiveColorPalette);
+        const fillCol = [...baseColor.slice(0,3), 140]; // stronger fill alpha
+
+        layerList.push(new PolygonLayerComponent({
+          id: `hull-${cid}`,
+          data: [{ polygon: hullCoords }],
+          getPolygon: (d:any)=>d.polygon,
+          stroked: true,
+          lineWidthUnits: 'pixels',
+          lineWidthMinPixels: 1,
+          filled: true,
+          getFillColor: fillCol,
+          getLineColor: baseColor,
+          pickable: false,
+          updateTriggers: { getFillColor: [effectiveColorPalette], getLineColor: [effectiveColorPalette] },
+        }));
+      });
+    }
+
+    // === Terrain overlay via blurred HeatmapLayer ===
+    if (overlayMode === 'terrain' && HeatmapLayerComponent) {
+      const clusterGroups: Record<number, UMAPPoint[]> = {};
+      filteredPoints.forEach((p) => {
+        if (p.cluster_id === undefined || p.cluster_id === null || p.cluster_id === -1) return;
+        if (selectedClusterId !== null && selectedClusterId !== undefined && p.cluster_id !== selectedClusterId) return;
+        clusterGroups[p.cluster_id] = clusterGroups[p.cluster_id] || [];
+        clusterGroups[p.cluster_id].push(p);
+      });
+
+      Object.entries(clusterGroups).forEach(([cidStr, pts]) => {
+        const cid = Number(cidStr);
+        const baseColor = getClusterColor({ cluster_id: cid, is_outlier: false } as any, clusterStats.totalClusters, effectiveColorPalette).slice(0, 3);
+        const colorRange = Array.from({ length: 6 }).map((_, idx) => {
+          const t = idx / 5;
+          return [
+            baseColor[0] * (1 - t) + 255 * t,
+            baseColor[1] * (1 - t) + 255 * t,
+            baseColor[2] * (1 - t) + 255 * t,
+            200,
+          ];
+        });
+
+        layerList.push(
+          new HeatmapLayerComponent({
+            id: `terrain-heatmap-${cid}`,
+            data: pts,
+            getPosition: (d: UMAPPoint) => [d.x, d.y],
+            getWeight: 1,
+            colorRange,
+            radiusPixels: terrainResolution * 3,
+            opacity: heatmapOpacity / 100,
+            gpuAggregation: true,
+            aggregation: 'SUM',
+            coordinateSystem: COORDINATE_SYSTEM.CARTESIAN,
+          })
+        );
+      });
+    }
+
+    // Scatter layer
+    if (showScatter) {
+      const enhancedScatterplotLayer = new ScatterplotLayerComponent({
+        id: 'umap-points',
+        data: filteredPoints,
+        pickable: true,
+        stroked: true,
+        lineWidthUnits: 'pixels',
+        lineWidthMinPixels: 1,
+        getLineColor: [0, 0, 0, 200],
+        filled: true,
+        radiusUnits: 'pixels',
+        radiusMinPixels: effectivePointSize,
+        getPosition: (d) => [d.x, d.y],
+        getFillColor: (d) =>
+          getEnhancedClusterColor(
+            d,
+            clusterStats.totalClusters,
+            selectedClusterId ?? null,
+            hoveredObject ? hoveredObject.id === d.id : false,
+            effectiveColorPalette
+          ),
+        getRadius: effectivePointSize,
+        onHover: ({ object }) => {
+          setHoveredObject(object as UMAPPoint | null);
+          onPointHover?.(object as UMAPPoint | null);
+        },
+        onClick: ({ object }) => {
+          if (object) onPointClick?.(object as UMAPPoint);
+        },
+        coordinateSystem: COORDINATE_SYSTEM.CARTESIAN,
+      });
+
+      layerList.push(enhancedScatterplotLayer);
+    }
+
+    return layerList;
   }, [
     ScatterplotLayerComponent, 
-    points, 
+    HeatmapLayerComponent, 
+    filteredPoints, 
     selectedClusterId, 
     hoveredObject, 
-    colorPalette,
-    pointSize,
-    clusterStats.totalClusters
+    effectiveColorPalette,
+    effectivePointSize,
+    clusterStats.totalClusters,
+    clusterStats.maxDim,
+    heatmapVisible,
+    heatmapOpacity,
+    clusterPolygons,
+    PolygonLayerComponent,
+    overlayMode,
+    terrainResolution,
+    terrainBands,
+    showScatter,
+    showHulls,
   ]);
 
   if (error) {

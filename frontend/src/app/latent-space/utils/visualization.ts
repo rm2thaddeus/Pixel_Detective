@@ -361,35 +361,18 @@ export function throttle<T extends (...args: unknown[]) => unknown>(
  * Calculate statistics for clustering analysis
  */
 export function calculateClusterStatistics(points: UMAPPoint[]) {
-  const clusterCounts: Record<number, number> = {};
-  let outlierCount = 0;
-  let assignedCount = 0;
-
-  points.forEach(point => {
-    if (point.is_outlier === true) {
-      outlierCount++;
-    } else if (point.cluster_id !== undefined && point.cluster_id !== null && point.cluster_id !== -1) {
-      clusterCounts[point.cluster_id] = (clusterCounts[point.cluster_id] || 0) + 1;
-      assignedCount++;
+  const clusters = new Map<number, number>();
+  let maxX=-Infinity,minX=Infinity,maxY=-Infinity,minY=Infinity;
+  points.forEach((p) => {
+    if (p.cluster_id !== undefined && p.cluster_id !== null && p.cluster_id !== -1) {
+      clusters.set(p.cluster_id, (clusters.get(p.cluster_id) || 0) + 1);
     }
+    if(p.x>maxX)maxX=p.x; if(p.x<minX)minX=p.x; if(p.y>maxY)maxY=p.y; if(p.y<minY)minY=p.y;
   });
-
-  const clusterIds = Object.keys(clusterCounts).map(Number).sort((a, b) => a - b);
-  const averageClusterSize = clusterIds.length > 0 ? assignedCount / clusterIds.length : 0;
-  const largestCluster = Math.max(...Object.values(clusterCounts), 0);
-  const smallestCluster = Math.min(...Object.values(clusterCounts), 0);
-
   return {
-    totalPoints: points.length,
-    totalClusters: clusterIds.length,
-    assignedPoints: assignedCount,
-    outlierPoints: outlierCount,
-    unassignedPoints: points.length - assignedCount - outlierCount,
-    averageClusterSize: Math.round(averageClusterSize * 100) / 100,
-    largestClusterSize: largestCluster,
-    smallestClusterSize: smallestCluster,
-    clusterCounts,
-    clusterIds,
+    totalClusters: clusters.size,
+    clusterSizes: clusters,
+    maxDim: Math.max(maxX-minX,maxY-minY),
   };
 }
 

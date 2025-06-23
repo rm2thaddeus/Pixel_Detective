@@ -25,6 +25,7 @@ import { useStore } from '@/store/useStore';
 import { useLatentSpaceStore } from './hooks/useLatentSpaceStore';
 import { UMAPPoint } from './types/latent-space';
 import React, { useEffect } from 'react';
+import { ClusterCardsPanel } from './components/ClusterCardsPanel';
 
 export default function LatentSpacePage() {
   const { collection } = useStore();
@@ -39,27 +40,24 @@ export default function LatentSpacePage() {
   } = useLatentSpaceStore();
   const [hoveredPoint, setHoveredPoint] = useState<UMAPPoint | null>(null);
   const [mousePosition, setMousePosition] = useState<{ x: number; y: number } | null>(null);
-  const [debugInfo, setDebugInfo] = useState<Record<string, unknown>>({});
+  const debugInfo = {
+    collection,
+    isLoading,
+    error: error?.message,
+    hasData: !!basicProjection.data,
+    pointsCount: basicProjection.data?.points?.length,
+    clusteringInfo: basicProjection.data?.clustering_info,
+    selectedCluster,
+    colorPalette,
+    showOutliers,
+    pointSize,
+    timestamp: new Date().toISOString(),
+  };
 
-  // Debug logging
+  // Log once per relevant change
   useEffect(() => {
-    const info = {
-      collection,
-      isLoading,
-      error: error?.message,
-      hasData: !!basicProjection.data,
-      pointsCount: basicProjection.data?.points?.length,
-      clusteringInfo: basicProjection.data?.clustering_info,
-      selectedCluster,
-      colorPalette,
-      showOutliers,
-      pointSize,
-      timestamp: new Date().toISOString(),
-    };
-    
-    console.log('🔍 Latent Space Debug:', info);
-    setDebugInfo(info);
-  }, [collection, isLoading, error, basicProjection.data, selectedCluster, colorPalette, showOutliers, pointSize]);
+    console.log('🔍 Latent Space Debug:', debugInfo);
+  }, [debugInfo]);
 
   // Handle mouse movement for thumbnail overlay
   useEffect(() => {
@@ -108,7 +106,7 @@ export default function LatentSpacePage() {
   }, [basicProjection.data, clusteringParams, clusteringMutation]);
 
   // Prefer the projection data that may have been stored after clusteringMutation
-  const { projectionData: storedProjectionData } = useLatentSpaceStore();
+  const storedProjectionData = useLatentSpaceStore((s) => s.projectionData);
 
   const effectiveProjection = storedProjectionData ?? basicProjection.data;
 
@@ -150,9 +148,6 @@ export default function LatentSpacePage() {
               <Text fontSize="sm">
                 {error instanceof Error ? error.message : 'Unknown error occurred'}
               </Text>
-              <Text fontSize="xs" color="gray.500">
-                Debug: {JSON.stringify(debugInfo, null, 2)}
-              </Text>
             </VStack>
           </Alert>
         </Container>
@@ -177,9 +172,6 @@ export default function LatentSpacePage() {
               <Text fontWeight="semibold">No images found</Text>
               <Text fontSize="sm">
                 Add some images to your collection to see them in the latent space visualization.
-              </Text>
-              <Text fontSize="xs" color="gray.500">
-                Debug: {JSON.stringify(debugInfo, null, 2)}
               </Text>
             </VStack>
           </Alert>
@@ -251,6 +243,12 @@ export default function LatentSpacePage() {
                     <Text>• Outliers are highlighted in red</Text>
                   </VStack>
                 </Box>
+
+                {/* Cluster Cards Panel */}
+                <ClusterCardsPanel 
+                  points={effectiveProjection.points}
+                  colorPalette={colorPalette}
+                />
               </VStack>
             </GridItem>
 

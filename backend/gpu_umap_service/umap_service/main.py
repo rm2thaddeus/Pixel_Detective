@@ -115,11 +115,43 @@ async def cluster(req: ClusterRequest):
 
         labels = labels.astype(int)
 
+        # === Compute per-cluster metadata (size, centroid, convex hull) ===
+        from collections import defaultdict
+        cluster_stats = defaultdict(lambda: {
+            "points": [],
+        })
+        for pt, lbl in zip(data.tolist(), labels):
+            cluster_stats[int(lbl)]["points"].append(pt)
+
+        # Build summary structures
+        clusters_summary = {}
+        from shapely.geometry import MultiPoint
+        for cid, info in cluster_stats.items():
+            pts = np.array(info["points"], dtype=np.float32)
+            centroid = pts.mean(axis=0).tolist()
+            hull_coords = None
+            if len(pts) >= 3:
+                try:
+                    hull = MultiPoint(pts).convex_hull
+                    hull_coords = list(map(list, hull.exterior.coords)) if hull and hasattr(hull, "exterior") else None
+                except Exception:
+                    hull_coords = None
+            clusters_summary[cid] = {
+                "size": len(pts),
+                "centroid": centroid,
+                "hull": hull_coords,
+            }
+
         score = None
         unique_labels = set(labels)
         if len(unique_labels) > 1 and not (-1 in unique_labels and len(unique_labels) == 2):
             score = float(silhouette_score(data, labels))
-        return {"labels": labels.tolist(), "silhouette_score": score}
+
+        return {
+            "labels": labels.tolist(),
+            "silhouette_score": score,
+            "clusters": clusters_summary,
+        }
     except HTTPException:
         raise
     except Exception as e:

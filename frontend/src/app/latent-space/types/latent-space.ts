@@ -15,12 +15,19 @@ export interface ClusterInfo {
   point_count: number;
 }
 
+export interface ClusterSummary {
+  size: number;
+  centroid: [number, number];
+  hull: [number, number][] | null; // Convex hull polygon in 2-D, null if not enough points
+}
+
 export interface ClusteringInfo {
   algorithm: string;
   n_clusters: number;
   silhouette_score?: number;
   n_outliers?: number;
-  parameters: Record<string, unknown>;
+  parameters: Record<string, any>;
+  clusters?: Record<number, ClusterSummary>; // NEW – per-cluster metadata from backend
 }
 
 export interface UMAPProjectionResponse {

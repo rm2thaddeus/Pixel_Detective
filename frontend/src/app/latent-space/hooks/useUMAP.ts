@@ -102,14 +102,17 @@ const performClustering = async (
         is_outlier: clusterResponse.data.labels[index] === -1,
       }));
 
+      const clustersMap = clusterResponse.data.clusters || undefined;
+
       const newClusteringInfo: ClusteringInfo = {
         algorithm: clusteringRequest.algorithm,
-        n_clusters: Math.max(...clusterResponse.data.labels) + 1,
+        n_clusters: clustersMap ? Object.keys(clustersMap).length : Math.max(...clusterResponse.data.labels) + 1,
         silhouette_score: clusterResponse.data.silhouette_score,
         n_outliers: clusterResponse.data.labels.filter((l: number) => l === -1).length,
         parameters: {
           ...clusteringRequest,
-        }
+        },
+        clusters: clustersMap,
       };
 
       return {

@@ -25,6 +25,11 @@ import {
   Box,
   Tooltip,
   useColorModeValue,
+  Switch,
+  Slider,
+  SliderTrack,
+  SliderFilledTrack,
+  SliderThumb,
 } from '@chakra-ui/react';
 import { ClusteringRequest } from '../types/latent-space';
 import { useLatentSpaceStore } from '../hooks/useLatentSpaceStore';
@@ -214,7 +219,21 @@ export function ClusteringControls({ onParametersChange }: ClusteringControlsPro
     showOutliers,
     setShowOutliers,
     pointSize,
-    setPointSize
+    setPointSize,
+    heatmapVisible,
+    setHeatmap,
+    heatmapOpacity,
+    setHeatmapOpacity,
+    overlayMode,
+    setOverlayMode,
+    terrainResolution,
+    setTerrainResolution,
+    terrainBands,
+    setTerrainBands,
+    showScatter,
+    setShowScatter,
+    showHulls,
+    setShowHulls
   } = useLatentSpaceStore();
   const { clusteringMutation } = useUMAP();
   const toast = useToast();
@@ -466,6 +485,65 @@ export function ClusteringControls({ onParametersChange }: ClusteringControlsPro
                 </Button>
               </HStack>
             </FormControl>
+
+            {/* Show Points Toggle */}
+            <FormControl>
+              <HStack justify="space-between">
+                <FormLabel fontSize="sm" fontWeight="semibold" mb={0}>Show Points</FormLabel>
+                <Switch isChecked={showScatter} onChange={(e)=>setShowScatter(e.target.checked)} />
+              </HStack>
+            </FormControl>
+
+            {/* Show Hulls Toggle */}
+            <FormControl>
+              <HStack justify="space-between">
+                <FormLabel fontSize="sm" fontWeight="semibold" mb={0}>Show Hulls</FormLabel>
+                <Switch isChecked={showHulls} onChange={(e)=>setShowHulls(e.target.checked)} />
+              </HStack>
+            </FormControl>
+
+            {/* Overlay Mode */}
+            <FormControl>
+              <FormLabel fontSize="sm">Overlay Mode</FormLabel>
+              <Select value={overlayMode} onChange={(e)=>setOverlayMode(e.target.value as any)} size="sm">
+                <option value="none">None</option>
+                <option value="heatmap">Heatmap</option>
+                <option value="terrain">Density Terrain</option>
+              </Select>
+            </FormControl>
+
+            {overlayMode==='heatmap' && (
+              <>
+              <FormControl display="flex" alignItems="center" justifyContent="space-between">
+                <FormLabel mb="0">Show Heatmap</FormLabel>
+                <Switch isChecked={heatmapVisible} onChange={(e) => setHeatmap(e.target.checked)} />
+              </FormControl>
+              {heatmapVisible && (
+                <FormControl>
+                  <FormLabel fontSize="sm">Heatmap Opacity</FormLabel>
+                  <Slider value={heatmapOpacity} min={10} max={100} step={5} onChange={(v)=>setHeatmapOpacity(v)}>
+                    <SliderTrack><SliderFilledTrack bg="purple.400"/></SliderTrack>
+                    <SliderThumb boxSize={4}/>
+                  </Slider>
+                </FormControl>
+              )}
+              </>
+            )}
+
+            {overlayMode==='terrain' && (
+              <>
+                <FormControl>
+                  <FormLabel fontSize="sm">Blur Radius (px)</FormLabel>
+                  <Slider value={terrainResolution} min={10} max={100} step={5} onChange={(v)=>setTerrainResolution(v)}>
+                    <SliderTrack><SliderFilledTrack bg="purple.400"/></SliderTrack>
+                    <SliderThumb boxSize={4}/>
+                  </Slider>
+                  <Text fontSize="xs" color="gray.500">Larger radius = smoother hills</Text>
+                </FormControl>
+              </>
+            )}
+
+            <Divider />
           </VStack>
         </CardBody>
       </Card>
