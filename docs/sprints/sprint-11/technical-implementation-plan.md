@@ -1054,3 +1054,89 @@ This keeps per-year collections intact while creating an optimised global index 
 | 4 | End-to-end load-test with 250 k vectors across 9 yearly albums |
 
 All subsequent work should reference these components.  The backlog items below remain unchanged but are now expected to run against the GPU service rather than local CPU routines.
+
+## Phase 4B — Density-Overlay Visualisation & UI Declutter  
+*(scoped 2 developer-days, fits Sprint 11 final week)*
+
+### 1  Goal
+Deliver an enhanced latent-space explorer that:
+1. Overlays a semi-transparent **density/heat map** per cluster, coloured with the cluster's hue, so users can intuitively grasp spread & density.
+2. Re-organises the UI into a cleaner, two-part layout:
+   • Right sidebar – clustering **controls & quick actions** only.  
+   • Bottom panel – **cluster cards** (selectable), hand-drawn selections, and metrics.
+
+### 2  Frontend Architecture Changes
+| Area | Implementation Notes |
+|------|----------------------|
+| **2-D Density Layer** | Add a Deck.gl `HeatmapLayer` instantiated **per cluster**.<br/>• `data`: points of that cluster.<br/>• `getWeight`: constant `1`.<br/>• `getPosition`: `[d.x, d.y]`.<br/>• `colorRange`: single-hue ramp generated with `d3.interpolateRgb(clusterColor, "#ffffff")`.<br/>• `opacity`: 0.35 (tunable in UI).<br/>Layers are pushed **under** the existing `ScatterplotLayer` so points stay crisp. |
+| **State Store** | Add `heatmapVisible: boolean`, `heatmapOpacity: number`.  Persist in `useLatentSpaceStore`. |
+| **Performance** | Density maps run a GPU kernel; with ≤50 k points/class they remain 60 FPS.<br/>Use `aggregation: 'MEAN'` & `gpuAggregation: true`. |
+| **Accessibility** | Provide a legend swatch beside each cluster card that matches the heatmap colour; ensure sufficient contrast (> 3:1). |
+
+#### Component Tree Snapshot
+```
+LatentSpacePage
+├── Grid (columns: 4fr | 1fr)
+│   ├── Stack
+│   │   ├── UMAPScatterPlot (canvas 70 vh)
+│   │   └── ClusterCardsPanel  ← NEW bottom area
+│   └── ClusteringSidebar      ← simplified right column
+```
+
+### 3  UI Details
+1. **ClusteringSidebar** (existing panel, prune content)
+   • Algorithm dropdown
+   • Param sliders / number inputs
+   • Buttons: *Apply*, *Auto-tune*, *Create collection from selection*
+   • Density toggles: "Show density overlay", Opacity slider
+
+2. **ClusterCardsPanel** (NEW)
+   • `Grid` of `Card` (Chakra UI) per `cluster_id` + one **Selection** card (lasso/box).  
+   • Card shows swatch, cluster #, point count, optional user label.
+   • Click → sets `selectedCluster` in store, highlights points & density layer only for that cluster.
+
+3. **Hand-Drawn Selections**
+   • Use Deck.gl `EditableGeoJsonLayer` in **draw-polygon** mode, activated from a button in the bottom panel.
+   • On commit, points inside polygon populate `selectedIds` & a **Selection** card appears.
+
+### 4  Hook / Store Additions
+```ts
+interface LatentSpaceState {
+  heatmapVisible: boolean;
+  heatmapOpacity: number;   // 0-100 %
+  selectedIds: string[];
+  setHeatmap: (v:boolean)=>void;
+  setHeatmapOpacity: (x:number)=>void;
+  setSelectedIds: (ids:string[])=>void;
+}
+```
+
+### 5  Testing Plan
+| Test | Tool | Pass criteria |
+|------|------|---------------|
+| Heatmap renders | Cypress + Lighthouse | Density visible; toggling checkbox hides layer. |
+| Opacity control | React-Testing-Library | Slider adjusts layer opacity prop. |
+| Cluster selection | Cypress | Clicking a card dims non-selected points; card shows active style. |
+| Create collection | Cypress (stub backend) | POST body contains `point_ids.length === selectedIds.length`. |
+
+### 6  Timeline & Ownership
+| Day | Task | Owner |
+|-----|------|-------|
+| 0.5 | Store & UI toggles | FE dev A |
+| 0.5 | HeatmapLayer integration | FE dev A |
+| 0.5 | Sidebar trim & bottom panel scaffolding | FE dev B |
+| 0.5 | Cluster cards + selection logic | FE dev B |
+| 0.25 | Hand-drawn lasso (optional stretch) | FE dev A |
+| 0.25 | Cypress + RTL tests | FE dev C |
+
+### 7  Risk & Mitigations
+• **WebGL overdraw** with >100 k points → throttle heatmap to sampled subset.  
+• Heatmap colour clashes in dark-mode → run `WCAG_contrast` util in `ColorModeProvider`.
+
+### 8  Success Criteria
+✔ Density overlay toggle does not drop FPS below 50 on 1 k points.  
+✔ Sidebar shows only essential controls.  
+✔ Cluster card click filters view & updates selection store.  
+✔ "Save selection → collection" flow confirmed by backend 201 response.
+
+---
