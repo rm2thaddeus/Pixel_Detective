@@ -423,11 +423,12 @@ function EnhancedDeckGLVisualization({
       Object.entries(clustersMap).forEach(([cidStr, pts]) => {
         const cid = Number(cidStr);
         const baseColor = getClusterColor({ cluster_id: cid, is_outlier: false } as any, clusterStats.totalClusters, effectiveColorPalette).slice(0,3) as [number,number,number];
-        // Generate colorRange gradient from white to baseColor
+        // HeatmapLayer expects colorRange[0] = HIGH intensity, [5] = LOW.
+        // We want cluster centers (high weight) to be vivid, edges to fade to white.
         const colorRange = Array.from({ length: 6 }).map((_, idx) => {
-          const t = idx / 5;
-          const rgb = interpolateRgb(`rgb(${baseColor[0]},${baseColor[1]},${baseColor[2]})`, '#ffffff')(1 - t);
-          const [r,g,b] = rgb.match(/\d+/g)!.map(Number);
+          const t = idx / 5; // 0 → high, 1 → low
+          const rgb = interpolateRgb(`rgb(${baseColor[0]},${baseColor[1]},${baseColor[2]})`, `#ffffff`)(t);
+          const [r, g, b] = rgb.match(/\d+/g)!.map(Number);
           return [r, g, b, 255];
         });
 
@@ -437,7 +438,7 @@ function EnhancedDeckGLVisualization({
           getPosition: (d: UMAPPoint) => [d.x, d.y],
           getWeight: 1,
           colorRange,
-          radiusPixels: terrainResolution * 1.5,
+          radiusPixels: terrainResolution * 6,
           opacity: heatmapOpacity / 100,
           aggregation: 'MEAN',
           gpuAggregation: true,
@@ -509,6 +510,8 @@ function EnhancedDeckGLVisualization({
       });
     }
 
+    const heatmapActive = overlayMode === 'heatmap' && heatmapVisible;
+
     // Scatter layer
     if (showScatter) {
       const enhancedScatterplotLayer = new ScatterplotLayerComponent({
@@ -523,14 +526,20 @@ function EnhancedDeckGLVisualization({
         radiusUnits: 'pixels',
         radiusMinPixels: effectivePointSize,
         getPosition: (d) => [d.x, d.y],
-        getFillColor: (d) =>
-          getEnhancedClusterColor(
+        getFillColor: (d) => {
+          const base = getEnhancedClusterColor(
             d,
             clusterStats.totalClusters,
             selectedClusterId ?? null,
             hoveredObject ? hoveredObject.id === d.id : false,
             effectiveColorPalette
-          ),
+          );
+          // Reduce opacity when heatmap active so density shows through
+          if (heatmapActive) {
+            return [...base.slice(0, 3), 140];
+          }
+          return base;
+        },
         getRadius: effectivePointSize,
         onHover: ({ object }) => {
           setHoveredObject(object as UMAPPoint | null);

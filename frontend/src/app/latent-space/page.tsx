@@ -10,22 +10,22 @@ import {
   AlertIcon, 
   Spinner,
   HStack,
-  Grid,
-  GridItem,
-  Divider
+  Divider,
+  Collapse,
+  Flex
 } from '@chakra-ui/react';
 import { Header } from '@/components/Header';
 import { UMAPScatterPlot } from './components/UMAPScatterPlot';
 import { ClusteringControls } from './components/ClusteringControls';
-import { MetricsPanel } from './components/MetricsPanel';
 import { ThumbnailOverlay } from './components/ThumbnailOverlay';
-import { ClusterLabelingPanel } from './components/ClusterLabelingPanel';
+import { ClusterCardsPanel } from './components/ClusterCardsPanel';
+import { StatsBar } from './components/StatsBar';
 import { useUMAP } from './hooks/useUMAP';
 import { useStore } from '@/store/useStore';
 import { useLatentSpaceStore } from './hooks/useLatentSpaceStore';
 import { UMAPPoint } from './types/latent-space';
 import React, { useEffect } from 'react';
-import { ClusterCardsPanel } from './components/ClusterCardsPanel';
+import { VisualizationBar } from './components/VisualizationBar';
 
 export default function LatentSpacePage() {
   const { collection } = useStore();
@@ -40,6 +40,8 @@ export default function LatentSpacePage() {
   } = useLatentSpaceStore();
   const [hoveredPoint, setHoveredPoint] = useState<UMAPPoint | null>(null);
   const [mousePosition, setMousePosition] = useState<{ x: number; y: number } | null>(null);
+  const [showControls, setShowControls] = useState(false);
+
   const debugInfo = {
     collection,
     isLoading,
@@ -109,6 +111,18 @@ export default function LatentSpacePage() {
   const storedProjectionData = useLatentSpaceStore((s) => s.projectionData);
 
   const effectiveProjection = storedProjectionData ?? basicProjection.data;
+
+  // Hotkey: ⌘/Ctrl + K toggles clustering controls
+  useEffect(() => {
+    const keyHandler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setShowControls((prev) => !prev);
+      }
+    };
+    window.addEventListener('keydown', keyHandler);
+    return () => window.removeEventListener('keydown', keyHandler);
+  }, []);
 
   // Loading state
   if (isLoading) {
@@ -210,90 +224,61 @@ export default function LatentSpacePage() {
 
           <Divider />
 
-          {/* Main Content Grid */}
-          <Grid templateColumns={{ base: "1fr", lg: "1fr 300px" }} gap={6}>
-            
-            {/* Main Visualization */}
-            <GridItem>
-              <VStack spacing={4} align="stretch">
-                <Box>
-                  <Text fontSize="lg" fontWeight="semibold" mb={4}>
-                    Cluster Visualization
-                  </Text>
-                  <Box h="600px" borderRadius="lg" overflow="hidden" boxShadow="md">
-                    <UMAPScatterPlot
-                      data={effectiveProjection}
-                      onPointHover={handlePointHover}
-                      onPointClick={handlePointClick}
-                      selectedClusterId={selectedCluster}
-                      colorPalette={colorPalette}
-                      showOutliers={showOutliers}
-                      pointSize={pointSize}
-                    />
-                  </Box>
-                </Box>
-                
-                {/* Instructions */}
-                <Box bg="blue.50" p={4} borderRadius="md" fontSize="sm">
-                  <Text fontWeight="semibold" mb={2}>💡 Interaction Guide:</Text>
-                  <VStack align="start" spacing={1}>
-                    <Text>• <strong>Hover</strong> over points to see image details</Text>
-                    <Text>• <strong>Click</strong> points to select/deselect clusters</Text>
-                    <Text>• <strong>Drag</strong> to pan and <strong>scroll</strong> to zoom</Text>
-                    <Text>• Outliers are highlighted in red</Text>
-                  </VStack>
-                </Box>
-
-                {/* Cluster Cards Panel */}
-                <ClusterCardsPanel 
-                  points={effectiveProjection.points}
-                  colorPalette={colorPalette}
-                />
-              </VStack>
-            </GridItem>
-
-            {/* Controls and Metrics Sidebar */}
-            <GridItem>
-              <VStack spacing={6} align="stretch">
-                
-                {/* Clustering Controls */}
-                <ClusteringControls />
-                
-                {/* Cluster Labeling Panel */}
-                <ClusterLabelingPanel 
-                  points={effectiveProjection.points}
+          {/* === Compact Vertical Layout === */}
+          <Flex direction="column" gap={4}>
+            <Flex direction={{ base: 'column', lg: 'row' }} gap={4}>
+              {/* UMAP Plot */}
+              <Box
+                position="relative"
+                flex="1 1 auto"
+                h={{ base: '60vh', md: '70vh' }}
+                borderRadius="lg"
+                overflow="hidden"
+                onMouseEnter={() => setShowControls(true)}
+              >
+                <UMAPScatterPlot
+                  data={effectiveProjection}
+                  onPointHover={handlePointHover}
+                  onPointClick={handlePointClick}
                   selectedClusterId={selectedCluster}
                   colorPalette={colorPalette}
+                  showOutliers={showOutliers}
+                  pointSize={pointSize}
                 />
-                
-                {/* Metrics Panel */}
-                <MetricsPanel 
-                  clusteringInfo={effectiveProjection.clustering_info}
-                  totalPoints={effectiveProjection.points.length}
-                  points={effectiveProjection.points}
-                />
-                
-                {/* Debug Panel - Remove in production */}
-                <Box bg="gray.50" p={3} borderRadius="md" fontSize="xs">
-                  <Text fontWeight="bold" mb={2}>Debug Information:</Text>
-                  <Box as="pre" overflow="auto" maxH="200px">
-                    {JSON.stringify({
-                      collection: collection || 'default',
-                      pointsCount: effectiveProjection.points.length,
-                      clusteringInfo: effectiveProjection.clustering_info,
-                      selectedCluster,
-                      hoveredPoint: hoveredPoint?.id || null,
-                      colorPalette,
-                      showOutliers,
-                      pointSize,
-                    }, null, 2)}
-                  </Box>
+
+                {/* Mobile collapsible toolbar */}
+                <Box position="absolute" top={0} left={0} w="full" display={{ base: 'block', lg: 'none' }}>
+                  <Collapse in={showControls} animateOpacity>
+                    <Box bg="whiteAlpha.900" _dark={{ bg: 'gray.800' }} p={2} shadow="md">
+                      <ClusteringControls variant="compact" />
+                    </Box>
+                  </Collapse>
                 </Box>
-                
-              </VStack>
-            </GridItem>
-            
-          </Grid>
+              </Box>
+
+              {/* Persistent controls column (desktop) */}
+              <Box display={{ base: 'none', lg: 'block' }} w="320px" flexShrink={0}>
+                <ClusteringControls variant="compact" />
+              </Box>
+            </Flex>
+
+            {/* Visualization Settings Bar */}
+            <VisualizationBar />
+
+            {/* Stats Bar */}
+            <StatsBar
+              stats={effectiveProjection.clustering_info}
+              totalPoints={effectiveProjection.points.length}
+            />
+
+            {/* Cluster Cards */}
+            <Box maxH="32vh" overflowY="auto">
+              <ClusterCardsPanel
+                points={effectiveProjection.points}
+                colorPalette={colorPalette}
+              />
+            </Box>
+          </Flex>
         </VStack>
       </Container>
 

@@ -1140,3 +1140,78 @@ interface LatentSpaceState {
 ✔ "Save selection → collection" flow confirmed by backend 201 response.
 
 ---
+
+## Phase 4C — Compact Vertical Layout & Side-Panel Removal  
+*(scoped 1–1.5 developer-days – fits within current Sprint 11 week)*
+
+### 1  Design Goal  
+The previous declutter pass (Phase 4B) still relied on a **right-hand sidebar**.  User feedback shows this panel feels cramped and hides critical statistics.  Phase 4C therefore **collapses the entire experience into a single vertical flow** so the scatter-plot remains the hero element and all ancillary data stay directly underneath it.
+
+Layout stack (desktop ≥1024 px):
+```
+LatentSpacePage  (Flex direction="column", minH="100vh")
+├── CanvasRegion (Box):  🔍  UMAPScatterPlot + ⌨ Collapsible Top-Bar Controls
+├── StatsBar     (HStack): 📊 live cluster metrics  + 🎨 colour toggle chips
+├── CardScroller (Grid → auto-rows, overflowY="auto"): 🗂️ cluster cards (existing)
+```
+Mobile / tablet (<1024 px) collapses **StatsBar** into an accordion above **CardScroller**.
+
+### 2  Component-level Changes  
+| Area | Update | Notes |
+|------|--------|-------|
+| **CanvasRegion** | 1. Embed existing `ClusteringControls` inside a **`<Collapsible>` toolbar** that slides down on `hover` or `⌘/Ctrl + K`.  <br/>2. Toolbar height ≤56 px; contains algorithm dropdown & an ••• **advanced** pop-over. | Frees vertical space; keeps controls one click away. |
+| **StatsBar** | Implement as **`HStack` with four compact `Stat` widgets** (Clusters, Outliers, Silhouette, Processing-time) + a **`Wrap` of `Tag` buttons** for colour/overlay toggles (heat-map, hulls, thumbnails). | Always visible ↓ user doesn't have to open a panel. |
+| **CardScroller** | Re-use `ClusterCardsPanel` grid; place inside `Box` with `overflowY="auto"` & `maxH="32vh"`. | Matches existing behaviour; no refactor. |
+| **Store** | Add `showAdvancedControls` boolean for toolbar visibility. | Synced with keyboard shortcut. |
+
+### 3  Chakra UI Implementation Snippet  
+```tsx
+// LatentSpacePage.tsx (simplified)
+<Flex direction="column" minH="100vh" gap={4} p={4}>
+  {/* 1. Scatter canvas */}
+  <Box flex="1 1 60vh" position="relative" bg="gray.900" borderRadius="md">
+    <UMAPScatterPlot ... />
+    <Collapse in={showControls} animateOpacity startingHeight={0}>
+      <ClusteringToolbar />
+    </Collapse>
+  </Box>
+
+  {/* 2. Live stats & toggles */}
+  <StatsBar stats={clusteringInfo} toggles={overlayToggles} />
+
+  {/* 3. Scrollable cluster cards */}
+  <Box flex="0 0 auto" maxH="32vh" overflowY="auto">
+    <ClusterCardsPanel />
+  </Box>
+</Flex>
+```
+
+### 4  API & Backend Synergy  
+* **Real-time stats** already returned by `/projection_with_clustering`; the new `StatsBar` simply consumes `projectionData.clustering_info`.
+* **Colour toggles** write to `useLatentSpaceStore` flags (`showScatter`, `showHeatmap`, `showHulls`).  No backend changes.
+* **Create-collection** button (already implemented in `ClusterCardsPanel`) remains unchanged – it just moves 40 px downwards.
+
+### 5  Testing Matrix  
+| Test | Tool | Success Criteria |
+|------|------|-----------------|
+| Toolbar toggle (mouse + shortcut) | RTL + jest-dom | `Collapse` height animates; controls focusable. |
+| StatsBar accuracy | Cypress | Values update within 300 ms after new clustering run. |
+| Responsive breakpoints | Playwright viewport tests | Mobile accordion renders, no horizontal scroll. |
+
+### 6  Roll-out Plan  
+1. **Day 0** – Implement Flex layout & move existing components (0.5 d).  
+2. **Day 0.5** – Add Collapsible toolbar + keyboard shortcut (0.25 d).  
+3. **Day 0.75** – Build StatsBar & wire live data (0.25 d).  
+4. **Day 1** – QA + Cypress snapshots + accessibility pass (0.25 d).
+
+### 7  Risk & Mitigation  
+* **Toolbar overlap on small screens** → auto-collapse when pointer leaves canvas for >3 s.  
+* **Excessive vertical space on 1440 p monitors** → cap `flex-basis` of canvas at `70vh` and center content.
+
+### 8  Success Criteria  
+✔  No sidebar; >70 % viewport dedicated to data viz.  
+✔  Stats & colour toggles visible without scrolling.  
+✔  Cluster cards remain fully functional & scroll independently.  
+✔  Lighthouse Accessibility score ≥90 %.  
+
+---

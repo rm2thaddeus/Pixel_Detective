@@ -30,6 +30,7 @@ import {
   SliderTrack,
   SliderFilledTrack,
   SliderThumb,
+  Wrap,
 } from '@chakra-ui/react';
 import { ClusteringRequest } from '../types/latent-space';
 import { useLatentSpaceStore } from '../hooks/useLatentSpaceStore';
@@ -44,171 +45,78 @@ import {
 
 interface ClusteringControlsProps {
   onParametersChange?: (params: ClusteringRequest) => void;
+  variant?: 'full' | 'compact'; // compact hides visualization settings & palette
 }
 
 interface ColorPaletteSelectorProps {
   selectedPalette: ColorPaletteName;
   onPaletteChange: (palette: ColorPaletteName) => void;
+  compact?: boolean; // render minimal variant
 }
 
-function ColorPaletteSelector({ selectedPalette, onPaletteChange }: ColorPaletteSelectorProps) {
+export function ColorPaletteSelector({ selectedPalette, onPaletteChange, compact = false }: ColorPaletteSelectorProps) {
   const cardBg = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.200', 'gray.600');
 
-  return (
-    <FormControl>
-      <FormLabel fontSize="sm" fontWeight="semibold" mb={4}>
-        <HStack>
-          <Text>Color Palette</Text>
-          <Badge colorScheme="blue" size="sm" variant="subtle">
-            {(Object.keys(COLOR_PALETTES) as ColorPaletteName[]).length} options
-          </Badge>
-        </HStack>
-      </FormLabel>
-      <VStack spacing={4} align="stretch">
-        <SimpleGrid columns={2} spacing={3}>
+  if (compact) {
+    return (
+      <FormControl>
+        <FormLabel fontSize="sm" fontWeight="semibold" mb={2}>Palette</FormLabel>
+        <Wrap spacing={1}>
           {(Object.keys(COLOR_PALETTES) as ColorPaletteName[]).map((paletteName) => {
             const isSelected = selectedPalette === paletteName;
-            const previewColors = getPalettePreview(paletteName, 6);
-            const enhanced = getEnhancedPaletteDescription(paletteName);
-            
+            const previewColors = getPalettePreview(paletteName, 4);
             return (
-              <Tooltip 
-                key={paletteName} 
-                label={
-                  <VStack align="start" spacing={1} p={2}>
-                    <Text fontWeight="bold">{enhanced.name}</Text>
-                    <Text fontSize="sm">{enhanced.description}</Text>
-                    <HStack>
-                      <Text fontSize="xs" color="gray.300">Best for:</Text>
-                      <Text fontSize="xs">{enhanced.bestFor}</Text>
-                    </HStack>
-                    <HStack>
-                      <Text fontSize="xs" color="gray.300">Accessibility:</Text>
-                      <Badge 
-                        size="xs" 
-                        colorScheme={
-                          enhanced.accessibility === 'excellent' ? 'green' :
-                          enhanced.accessibility === 'good' ? 'blue' : 'yellow'
-                        }
-                      >
-                        {enhanced.accessibility}
-                      </Badge>
-                    </HStack>
-                  </VStack>
-                }
-                placement="top"
-                hasArrow
-                bg="blackAlpha.900"
-                color="white"
-                borderRadius="md"
-                p={0}
-              >
+              <Tooltip key={paletteName} label={paletteName} hasArrow>
                 <Box
                   as="button"
                   onClick={() => onPaletteChange(paletteName)}
-                  p={4}
-                  borderRadius="lg"
-                  border="2px solid"
+                  borderRadius="md"
+                  borderWidth={isSelected ? '2px' : '1px'}
                   borderColor={isSelected ? 'purple.500' : borderColor}
-                  bg={isSelected ? 'purple.50' : cardBg}
-                  _hover={{ 
-                    borderColor: isSelected ? 'purple.600' : 'purple.300',
-                    transform: 'translateY(-2px)',
-                    boxShadow: 'lg',
-                    bg: isSelected ? 'purple.100' : 'gray.50'
-                  }}
-                  _active={{
-                    transform: 'translateY(0px)',
-                    boxShadow: 'md'
-                  }}
-                  transition="all 0.2s cubic-bezier(0.4, 0, 0.2, 1)"
-                  cursor="pointer"
-                  position="relative"
+                  p={1}
                 >
-                  <VStack spacing={3}>
-                    <Text fontSize="xs" fontWeight="semibold" textTransform="capitalize" lineHeight="1.2">
-                      {enhanced.name}
-                    </Text>
-                    <HStack spacing={1} justify="center">
-                      {previewColors.map((color, index) => (
-                        <Box
-                          key={index}
-                          w="14px"
-                          h="14px"
-                          borderRadius="full"
-                          bg={color}
-                          border="1px solid"
-                          borderColor="gray.300"
-                          boxShadow="sm"
-                          transition="transform 0.2s"
-                          _hover={{ transform: 'scale(1.1)' }}
-                        />
-                      ))}
-                    </HStack>
-                    {isSelected && (
-                      <Badge colorScheme="purple" size="sm" variant="solid">
-                        ✓ Active
-                      </Badge>
-                    )}
-                    {/* Accessibility indicator */}
-                    <Box
-                      position="absolute"
-                      top={1}
-                      right={1}
-                      w="8px"
-                      h="8px"
-                      borderRadius="full"
-                      bg={
-                        enhanced.accessibility === 'excellent' ? 'green.400' :
-                        enhanced.accessibility === 'good' ? 'blue.400' : 'yellow.400'
-                      }
-                      title={`Accessibility: ${enhanced.accessibility}`}
-                    />
-                  </VStack>
+                  <HStack spacing={0}>
+                    {previewColors.map((c, i) => (
+                      <Box key={i} w="10px" h="10px" bg={c} />
+                    ))}
+                  </HStack>
                 </Box>
               </Tooltip>
             );
           })}
-        </SimpleGrid>
-        
-        {/* Enhanced description */}
-        <Box 
-          bg={useColorModeValue('blue.50', 'blue.900')} 
-          p={3} 
-          borderRadius="md" 
-          border="1px solid"
-          borderColor={useColorModeValue('blue.200', 'blue.700')}
-        >
-          <VStack align="start" spacing={2}>
-            <HStack>
-              <Text fontSize="sm" fontWeight="semibold" color="blue.700">
-                {getEnhancedPaletteDescription(selectedPalette).name}
-              </Text>
-              <Badge 
-                size="sm" 
-                colorScheme={
-                  getEnhancedPaletteDescription(selectedPalette).accessibility === 'excellent' ? 'green' :
-                  getEnhancedPaletteDescription(selectedPalette).accessibility === 'good' ? 'blue' : 'yellow'
-                }
-              >
-                {getEnhancedPaletteDescription(selectedPalette).accessibility}
-              </Badge>
-            </HStack>
-            <Text fontSize="xs" color="blue.600" lineHeight="1.4">
-              {getEnhancedPaletteDescription(selectedPalette).description}
-            </Text>
-            <Text fontSize="xs" color="blue.500">
-              <strong>Best for:</strong> {getEnhancedPaletteDescription(selectedPalette).bestFor}
-            </Text>
-          </VStack>
-        </Box>
-      </VStack>
+        </Wrap>
+      </FormControl>
+    );
+  }
+
+  return (
+    <FormControl>
+      <FormLabel fontSize="sm" fontWeight="semibold" mb={2}>Color Palette</FormLabel>
+      <SimpleGrid columns={4} spacing={2}>
+        {(Object.keys(COLOR_PALETTES) as ColorPaletteName[]).map((p) => {
+          const isSel = selectedPalette === p;
+          const colors = getPalettePreview(p, 4);
+          return (
+            <Box
+              key={p}
+              as="button"
+              borderWidth={isSel ? '2px' : '1px'}
+              borderColor={isSel ? 'purple.500' : borderColor}
+              p={1}
+              borderRadius="md"
+              onClick={() => onPaletteChange(p)}
+            >
+              <HStack spacing={0}>{colors.map((c,i)=>(<Box key={i} w="10px" h="10px" bg={c}/>))}</HStack>
+            </Box>
+          );
+        })}
+      </SimpleGrid>
     </FormControl>
   );
 }
 
-export function ClusteringControls({ onParametersChange }: ClusteringControlsProps) {
+export function ClusteringControls({ onParametersChange, variant = 'full' }: ClusteringControlsProps) {
   const { 
     clusteringParams, 
     updateClusteringParams, 
@@ -436,117 +344,115 @@ export function ClusteringControls({ onParametersChange }: ClusteringControlsPro
         </CardBody>
       </Card>
 
-      {/* Visualization Settings */}
-      <Card bg={cardBg} borderColor={borderColor} shadow="sm">
-        <CardHeader>
-          <Heading size="md">Visualization Settings</Heading>
-        </CardHeader>
-        <CardBody>
-          <VStack spacing={5} align="stretch">
-            
-            {/* Color Palette Selector */}
-            <ColorPaletteSelector 
-              selectedPalette={colorPalette}
-              onPaletteChange={setColorPalette}
-            />
-
-            <Divider />
-
-            {/* Point Size Control */}
-            <FormControl>
-              <FormLabel fontSize="sm" fontWeight="semibold">Point Size</FormLabel>
-              <NumberInput
-                value={pointSize}
-                onChange={(_, value) => !isNaN(value) && setPointSize(value)}
-                min={2}
-                max={50}
-                step={1}
-                size="sm"
-              >
-                <NumberInputField />
-                <NumberInputStepper>
-                  <NumberIncrementStepper />
-                  <NumberDecrementStepper />
-                </NumberInputStepper>
-              </NumberInput>
-            </FormControl>
-
-            {/* Show Outliers Toggle */}
-            <FormControl>
-              <HStack justify="space-between">
-                <FormLabel fontSize="sm" fontWeight="semibold" mb={0}>Show Outliers</FormLabel>
-                <Button
-                  size="sm"
-                  variant={showOutliers ? "solid" : "outline"}
-                  colorScheme={showOutliers ? "red" : "gray"}
-                  onClick={() => setShowOutliers(!showOutliers)}
-                >
-                  {showOutliers ? "Hide" : "Show"}
-                </Button>
-              </HStack>
-            </FormControl>
-
-            {/* Show Points Toggle */}
-            <FormControl>
-              <HStack justify="space-between">
-                <FormLabel fontSize="sm" fontWeight="semibold" mb={0}>Show Points</FormLabel>
-                <Switch isChecked={showScatter} onChange={(e)=>setShowScatter(e.target.checked)} />
-              </HStack>
-            </FormControl>
-
-            {/* Show Hulls Toggle */}
-            <FormControl>
-              <HStack justify="space-between">
-                <FormLabel fontSize="sm" fontWeight="semibold" mb={0}>Show Hulls</FormLabel>
-                <Switch isChecked={showHulls} onChange={(e)=>setShowHulls(e.target.checked)} />
-              </HStack>
-            </FormControl>
-
-            {/* Overlay Mode */}
-            <FormControl>
-              <FormLabel fontSize="sm">Overlay Mode</FormLabel>
-              <Select value={overlayMode} onChange={(e)=>setOverlayMode(e.target.value as any)} size="sm">
-                <option value="none">None</option>
-                <option value="heatmap">Heatmap</option>
-                <option value="terrain">Density Terrain</option>
-              </Select>
-            </FormControl>
-
-            {overlayMode==='heatmap' && (
-              <>
-              <FormControl display="flex" alignItems="center" justifyContent="space-between">
-                <FormLabel mb="0">Show Heatmap</FormLabel>
-                <Switch isChecked={heatmapVisible} onChange={(e) => setHeatmap(e.target.checked)} />
-              </FormControl>
-              {heatmapVisible && (
+      {variant === 'full' && (
+        <>
+          <Divider />
+          <ColorPaletteSelector selectedPalette={colorPalette} onPaletteChange={setColorPalette} />
+          {/* existing visualization settings code kept */}
+          <Card bg={cardBg} borderColor={borderColor} shadow="sm">
+            <CardHeader>
+              <Heading size="md">Visualization Settings</Heading>
+            </CardHeader>
+            <CardBody>
+              <VStack spacing={5} align="stretch">
+                
+                {/* Point Size Control */}
                 <FormControl>
-                  <FormLabel fontSize="sm">Heatmap Opacity</FormLabel>
-                  <Slider value={heatmapOpacity} min={10} max={100} step={5} onChange={(v)=>setHeatmapOpacity(v)}>
-                    <SliderTrack><SliderFilledTrack bg="purple.400"/></SliderTrack>
-                    <SliderThumb boxSize={4}/>
-                  </Slider>
+                  <FormLabel fontSize="sm" fontWeight="semibold">Point Size</FormLabel>
+                  <NumberInput
+                    value={pointSize}
+                    onChange={(_, value) => !isNaN(value) && setPointSize(value)}
+                    min={2}
+                    max={50}
+                    step={1}
+                    size="sm"
+                  >
+                    <NumberInputField />
+                    <NumberInputStepper>
+                      <NumberIncrementStepper />
+                      <NumberDecrementStepper />
+                    </NumberInputStepper>
+                  </NumberInput>
                 </FormControl>
-              )}
-              </>
-            )}
 
-            {overlayMode==='terrain' && (
-              <>
+                {/* Show Outliers Toggle */}
                 <FormControl>
-                  <FormLabel fontSize="sm">Blur Radius (px)</FormLabel>
-                  <Slider value={terrainResolution} min={10} max={100} step={5} onChange={(v)=>setTerrainResolution(v)}>
-                    <SliderTrack><SliderFilledTrack bg="purple.400"/></SliderTrack>
-                    <SliderThumb boxSize={4}/>
-                  </Slider>
-                  <Text fontSize="xs" color="gray.500">Larger radius = smoother hills</Text>
+                  <HStack justify="space-between">
+                    <FormLabel fontSize="sm" fontWeight="semibold" mb={0}>Show Outliers</FormLabel>
+                    <Button
+                      size="sm"
+                      variant={showOutliers ? "solid" : "outline"}
+                      colorScheme={showOutliers ? "red" : "gray"}
+                      onClick={() => setShowOutliers(!showOutliers)}
+                    >
+                      {showOutliers ? "Hide" : "Show"}
+                    </Button>
+                  </HStack>
                 </FormControl>
-              </>
-            )}
 
-            <Divider />
-          </VStack>
-        </CardBody>
-      </Card>
+                {/* Show Points Toggle */}
+                <FormControl>
+                  <HStack justify="space-between">
+                    <FormLabel fontSize="sm" fontWeight="semibold" mb={0}>Show Points</FormLabel>
+                    <Switch isChecked={showScatter} onChange={(e)=>setShowScatter(e.target.checked)} />
+                  </HStack>
+                </FormControl>
+
+                {/* Show Hulls Toggle */}
+                <FormControl>
+                  <HStack justify="space-between">
+                    <FormLabel fontSize="sm" fontWeight="semibold" mb={0}>Show Hulls</FormLabel>
+                    <Switch isChecked={showHulls} onChange={(e)=>setShowHulls(e.target.checked)} />
+                  </HStack>
+                </FormControl>
+
+                {/* Overlay Mode */}
+                <FormControl>
+                  <FormLabel fontSize="sm">Overlay Mode</FormLabel>
+                  <Select value={overlayMode} onChange={(e)=>setOverlayMode(e.target.value as any)} size="sm">
+                    <option value="none">None</option>
+                    <option value="heatmap">Heatmap</option>
+                    <option value="terrain">Density Terrain</option>
+                  </Select>
+                </FormControl>
+
+                {overlayMode==='heatmap' && (
+                  <>
+                  <FormControl display="flex" alignItems="center" justifyContent="space-between">
+                    <FormLabel mb="0">Show Heatmap</FormLabel>
+                    <Switch isChecked={heatmapVisible} onChange={(e) => setHeatmap(e.target.checked)} />
+                  </FormControl>
+                  {heatmapVisible && (
+                    <FormControl>
+                      <FormLabel fontSize="sm">Heatmap Opacity</FormLabel>
+                      <Slider value={heatmapOpacity} min={10} max={100} step={5} onChange={(v)=>setHeatmapOpacity(v)}>
+                        <SliderTrack><SliderFilledTrack bg="purple.400"/></SliderTrack>
+                        <SliderThumb boxSize={4}/>
+                      </Slider>
+                    </FormControl>
+                  )}
+                  </>
+                )}
+
+                {overlayMode==='terrain' && (
+                  <>
+                    <FormControl>
+                      <FormLabel fontSize="sm">Blur Radius (px)</FormLabel>
+                      <Slider value={terrainResolution} min={10} max={100} step={5} onChange={(v)=>setTerrainResolution(v)}>
+                        <SliderTrack><SliderFilledTrack bg="purple.400"/></SliderTrack>
+                        <SliderThumb boxSize={4}/>
+                      </Slider>
+                      <Text fontSize="xs" color="gray.500">Larger radius = smoother hills</Text>
+                    </FormControl>
+                  </>
+                )}
+
+                <Divider />
+              </VStack>
+            </CardBody>
+          </Card>
+        </>
+      )}
 
       {/* Export & Actions */}
       <Card bg={cardBg} borderColor={borderColor} shadow="sm">
