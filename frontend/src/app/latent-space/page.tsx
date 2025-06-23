@@ -28,13 +28,14 @@ import React, { useEffect } from 'react';
 
 export default function LatentSpacePage() {
   const { collection } = useStore();
-  const { basicProjection, isLoading, error } = useUMAP();
+  const { basicProjection, isLoading, error, clusteringMutation } = useUMAP();
   const { 
     selectedCluster, 
     setSelectedCluster,
     colorPalette,
     showOutliers,
-    pointSize
+    pointSize,
+    clusteringParams
   } = useLatentSpaceStore();
   const [hoveredPoint, setHoveredPoint] = useState<UMAPPoint | null>(null);
   const [mousePosition, setMousePosition] = useState<{ x: number; y: number } | null>(null);
@@ -86,6 +87,31 @@ export default function LatentSpacePage() {
     }
   };
 
+  // Auto-run clustering once we have a fresh projection but no clustering yet
+  useEffect(() => {
+    if (
+      basicProjection.data?.points?.length &&
+      !basicProjection.data?.clustering_info &&
+      !clusteringMutation.isPending &&
+      !clusteringMutation.isSuccess
+    ) {
+      console.info('[LatentSpacePage] Auto-triggering initial clustering run');
+      clusteringMutation.mutate({
+        ...clusteringParams,
+        points: basicProjection.data.points,
+      }, {
+        onSuccess: (data) => {
+          useLatentSpaceStore.getState().setProjectionData(data);
+        },
+      });
+    }
+  }, [basicProjection.data, clusteringParams, clusteringMutation]);
+
+  // Prefer the projection data that may have been stored after clusteringMutation
+  const { projectionData: storedProjectionData } = useLatentSpaceStore();
+
+  const effectiveProjection = storedProjectionData ?? basicProjection.data;
+
   // Loading state
   if (isLoading) {
     return (
@@ -135,11 +161,11 @@ export default function LatentSpacePage() {
   }
 
   // No data state
-  if (!basicProjection.data || !basicProjection.data.points || basicProjection.data.points.length === 0) {
+  if (!effectiveProjection || !effectiveProjection.points || effectiveProjection.points.length === 0) {
     console.warn('⚠️ No data available:', {
-      hasBasicProjection: !!basicProjection.data,
-      hasPoints: !!basicProjection.data?.points,
-      pointsLength: basicProjection.data?.points?.length,
+      hasProjection: !!effectiveProjection,
+      hasPoints: !!effectiveProjection?.points,
+      pointsLength: effectiveProjection?.points?.length,
     });
     return (
       <Box minH="100vh">
@@ -162,10 +188,6 @@ export default function LatentSpacePage() {
     );
   }
 
-  const points = basicProjection.data.points;
-  const clusteringInfo = basicProjection.data.clustering_info;
-  console.log('✅ Rendering latent space with', points.length, 'points');
-
   return (
     <Box minH="100vh">
       <Header />
@@ -179,11 +201,11 @@ export default function LatentSpacePage() {
             </Text>
             <HStack spacing={4} mt={2} fontSize="sm">
               <Text color="blue.500">
-                {points.length} points • {clusteringInfo?.n_clusters || 0} clusters
+                {effectiveProjection.points.length} points • {effectiveProjection.clustering_info?.n_clusters || 0} clusters
               </Text>
-              {clusteringInfo?.algorithm && (
+              {effectiveProjection.clustering_info?.algorithm && (
                 <Text color="green.500">
-                  Algorithm: {clusteringInfo.algorithm}
+                  Algorithm: {effectiveProjection.clustering_info.algorithm}
                 </Text>
               )}
               {selectedCluster !== null && (
@@ -206,9 +228,9 @@ export default function LatentSpacePage() {
                   <Text fontSize="lg" fontWeight="semibold" mb={4}>
                     Cluster Visualization
                   </Text>
-                  <Box borderRadius="lg" overflow="hidden" boxShadow="md">
+                  <Box h="600px" borderRadius="lg" overflow="hidden" boxShadow="md">
                     <UMAPScatterPlot
-                      data={basicProjection.data}
+                      data={effectiveProjection}
                       onPointHover={handlePointHover}
                       onPointClick={handlePointClick}
                       selectedClusterId={selectedCluster}
@@ -241,16 +263,16 @@ export default function LatentSpacePage() {
                 
                 {/* Cluster Labeling Panel */}
                 <ClusterLabelingPanel 
-                  points={points}
+                  points={effectiveProjection.points}
                   selectedClusterId={selectedCluster}
                   colorPalette={colorPalette}
                 />
                 
                 {/* Metrics Panel */}
                 <MetricsPanel 
-                  clusteringInfo={clusteringInfo}
-                  totalPoints={points.length}
-                  points={points}
+                  clusteringInfo={effectiveProjection.clustering_info}
+                  totalPoints={effectiveProjection.points.length}
+                  points={effectiveProjection.points}
                 />
                 
                 {/* Debug Panel - Remove in production */}
@@ -259,8 +281,8 @@ export default function LatentSpacePage() {
                   <Box as="pre" overflow="auto" maxH="200px">
                     {JSON.stringify({
                       collection: collection || 'default',
-                      pointsCount: points.length,
-                      clusteringInfo: clusteringInfo,
+                      pointsCount: effectiveProjection.points.length,
+                      clusteringInfo: effectiveProjection.clustering_info,
                       selectedCluster,
                       hoveredPoint: hoveredPoint?.id || null,
                       colorPalette,

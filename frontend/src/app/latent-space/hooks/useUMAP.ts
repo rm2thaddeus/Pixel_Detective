@@ -28,6 +28,8 @@ async function ensureGpuServiceHealthy(): Promise<boolean> {
     process.env.NEXT_PUBLIC_GPU_API_URL as string | undefined,
     'http://localhost:8003', // Docker-Compose default mapping
     'http://localhost:8001', // Local "uvicorn main:app --port 8001" dev
+    'http://host.docker.internal:8003',
+    'http://host.docker.internal:8001',
   ].filter(Boolean) as string[];
 
   for (const base of candidateBases) {

@@ -501,12 +501,11 @@ function EnhancedDeckGLVisualization({
         console.error('❌ DeckGL error:', details, error);
       }}
       deviceProps={{
-        // Explicitly request a WebGL2 context; luma.gl will gracefully
-        // fall back to WebGL1 if the browser/GPU cannot provide one.
         type: 'webgl',
         webgl: {
           antialias: false,
-          powerPreference: 'high-performance'
+          powerPreference: 'high-performance',
+          preserveDrawingBuffer: false
         }
       }}
     />
