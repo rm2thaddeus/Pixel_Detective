@@ -26,6 +26,15 @@ class CollectionInfo(BaseModel):
     sample_points: List[Dict[str, Any]]
     is_active: bool
 
+# === NEW: Create Collection From Selection ===
+
+class CreateCollectionFromSelectionRequest(BaseModel):
+    """Request body for creating a new collection from a subset (selection) of an existing one."""
+    new_collection_name: str = Field(..., min_length=1, max_length=128,
+                                     description="Name of the collection that will be created and populated with the selected points")
+    source_collection: str = Field(..., min_length=1, description="Name of the collection from which the points are sourced")
+    point_ids: List[str] = Field(..., min_items=1, description="IDs of the points to copy into the new collection")
+
 @router.get("/", response_model=List[str])
 async def list_collections(qdrant: QdrantClient = Depends(get_qdrant_client)):
     """Return a list of all collection names in Qdrant."""
@@ -104,6 +113,74 @@ async def create_collection(req: CreateCollectionRequest, qdrant: QdrantClient =
         vectors_config=VectorParams(size=req.vector_size, distance=dist_enum)
     )
     return {"status": "success", "collection": req.collection_name}
+
+@router.post("/from_selection", response_model=Dict[str, Any], status_code=201)
+async def create_collection_from_selection(
+    req: CreateCollectionFromSelectionRequest,
+    qdrant: QdrantClient = Depends(get_qdrant_client)
+):
+    """Create a new collection and populate it with the given point IDs from *source_collection*.
+
+    This powers the *"Create collection from UMAP selection"* feature in the latent-space tab.
+    """
+
+    # 1) Guard: destination collection must not already exist
+    existing_collections = [c.name for c in qdrant.get_collections().collections]
+    if req.new_collection_name in existing_collections:
+        raise HTTPException(status_code=400, detail=f"Collection '{req.new_collection_name}' already exists")
+
+    if req.source_collection not in existing_collections:
+        raise HTTPException(status_code=404, detail=f"Source collection '{req.source_collection}' not found")
+
+    # 2) Fetch vector configuration from source so the destination is compatible
+    src_info = qdrant.get_collection(req.source_collection)
+    vec_params = src_info.config.params.vectors
+    if vec_params is None:
+        raise HTTPException(status_code=500, detail="Source collection has no vector configuration")
+
+    # 3) Create destination collection with the same vector size / distance
+    qdrant.create_collection(
+        collection_name=req.new_collection_name,
+        vectors_config=VectorParams(size=vec_params.size, distance=vec_params.distance)
+    )
+
+    # 4) Retrieve the selected points (vectors + payload) in batches to avoid URL length limits
+    BATCH = 256
+    remaining_ids = req.point_ids.copy()
+    total_copied = 0
+
+    while remaining_ids:
+        batch_ids, remaining_ids = remaining_ids[:BATCH], remaining_ids[BATCH:]
+        try:
+            points = qdrant.retrieve(
+                collection_name=req.source_collection,
+                ids=batch_ids,
+                with_vectors=True,
+                with_payload=True
+            )
+        except Exception as e:
+            logger.error(f"Failed to retrieve points from {req.source_collection}: {e}")
+            raise HTTPException(status_code=500, detail="Failed to retrieve selected points")
+
+        if not points:
+            logger.warning(f"No points returned for ID batch: {batch_ids[:3]}… (len={len(batch_ids)})")
+            continue
+
+        # Upsert into new collection
+        qdrant.upsert(collection_name=req.new_collection_name, points=points)
+        total_copied += len(points)
+
+    logger.info(
+        "Created collection '%s' with %d points copied from '%s'",
+        req.new_collection_name, total_copied, req.source_collection
+    )
+
+    return {
+        "status": "success",
+        "new_collection": req.new_collection_name,
+        "copied_from": req.source_collection,
+        "points_copied": total_copied,
+    }
 
 class SelectCollectionRequest(BaseModel):
     collection_name: str = Field(..., min_length=1)

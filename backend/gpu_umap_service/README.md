@@ -6,14 +6,14 @@ A FastAPI microservice providing GPU-accelerated UMAP dimensionality reduction u
 
 ```bash
 pip install -r requirements.txt
-uvicorn umap_service.main:app --host 0.0.0.0 --port 8001
+uvicorn umap_service.main:app --host 0.0.0.0 --port 8003
 ```
 
 ## Docker
 
 ```bash
 docker build -t gpu-umap-service .
-docker run --gpus all -p 8001:8001 gpu-umap-service
+docker run --gpus all -p 8003:8003 gpu-umap-service
 ```
 
 ## 🛠️ Live-Reload Development with Docker Compose
@@ -53,11 +53,11 @@ When you are ready for production benchmarking, switch back to the regular `dock
 ## Example
 
 ```bash
-curl -X POST http://localhost:8001/umap/fit_transform \
+curl -X POST http://localhost:8003/umap/fit_transform \
      -H 'Content-Type: application/json' \
      -d '{"data": [[0.1,0.2],[0.2,0.3]]}'
 
-curl -X POST http://localhost:8001/umap/cluster \
+curl -X POST http://localhost:8003/umap/cluster \
      -H 'Content-Type: application/json' \
      -d '{"data": [[0.1,0.2],[0.2,0.3]], "algorithm": "dbscan"}'
 ```
