@@ -1215,3 +1215,48 @@ Mobile / tablet (<1024 px) collapses **StatsBar** into an accordion above **Card
 ✔  Lighthouse Accessibility score ≥90 %.  
 
 ---
+
+## Phase 4D — Lasso Selection ➜ Create Collection  
+*(final polish – 0.5–1 developer-day)*
+
+### 1  Objective  
+Enable power-users to draw an arbitrary polygon (lasso) around any group of points/clusters in the latent-space canvas and instantly spawn a **new persistent Qdrant collection** containing only those selected image IDs.
+
+### 2  Frontend Tasks  
+1. **Add `EditableGeoJsonLayer`** (Deck.gl) to `UMAPScatterPlot` when the user clicks the new *"🖋 Lasso"* chip in `VisualizationBar`.  
+2. Store drawn polygon coordinates in `useLatentSpaceStore.selectedPolygon`.  
+3. Use existing util `filterPointsInViewport()` to derive `selectedIds` intersecting the polygon.  
+4. Show a **"Create Collection"** button (green) in `StatsBar` once `selectedIds.length > 0`. On click, open a modal asking for the new collection name.
+
+### 3  Backend Tasks  
+1. New endpoint `POST /collections/from_selection` (Ingestion API)  
+   ```json
+   {
+     "source_collection": "album_master",
+     "new_collection": "album_cluster_42",
+     "point_ids": ["uuid1","uuid2",...]
+   }
+   ```
+2. Router will upsert the referenced points (incl. vectors & payload) into the new collection and return 201 with summary counts.
+
+### 4  State-Flow Diagram  
+```mermaid
+flowchart LR
+    A[User draws lasso] --> B[store.selectedIds]
+    B --> C["Create Collection" modal]
+    C -->|confirm| D[POST /collections/from_selection]
+    D --> E[Qdrant new collection]
+    E --> F[Frontend toast + redirect]
+```
+
+### 5  Risks & Mitigations  
+* Very large selections ➜ warn when `selectedIds.length > 50k` and batch request.  
+* Duplicate IDs ➜ backend `upsert` already idempotent.  
+* Naming collisions ➜ backend returns 409; modal suggests a new name.
+
+### 6  Success Criteria  
+✔ Lasso tool toggles on/off with "Esc".  
+✔ New collection appears in sidebar within 1 s of 201 response.  
+✔ Selection persists across page reload (store saves IDs until cleared).
+
+---

@@ -32,6 +32,8 @@ export const VisualizationBar: React.FC = () => {
     setShowScatter,
     showHulls,
     setShowHulls,
+    showVoronoi,
+    setShowVoronoi,
     // overlay
     overlayMode,
     setOverlayMode,
@@ -177,6 +179,19 @@ export const VisualizationBar: React.FC = () => {
               }}
             >
               Terrain
+            </Tag>
+          </Tooltip>
+        </WrapItem>
+        <WrapItem>
+          <Tooltip label="Voronoi cluster boundaries" hasArrow>
+            <Tag
+              size="sm"
+              variant={showVoronoi ? 'solid' : 'subtle'}
+              colorScheme="blue"
+              cursor="pointer"
+              onClick={() => setShowVoronoi(!showVoronoi)}
+            >
+              Voronoi
             </Tag>
           </Tooltip>
         </WrapItem>

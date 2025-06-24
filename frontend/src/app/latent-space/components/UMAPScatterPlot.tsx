@@ -17,6 +17,7 @@ import { luma } from '@luma.gl/core';
 import { webgl2Adapter } from '@luma.gl/webgl';
 import { useLatentSpaceStore } from '../hooks/useLatentSpaceStore';
 import { interpolateRgb } from 'd3-interpolate';
+import { Delaunay } from 'd3-delaunay';
 
 // Lazy load DeckGL to avoid SSR issues
 const DeckGL = React.lazy(() => import('@deck.gl/react'));
@@ -285,6 +286,7 @@ function EnhancedDeckGLVisualization({
   const [ScatterplotLayerComponent, setScatterplotLayerComponent] = React.useState<any>(null);
   const [HeatmapLayerComponent, setHeatmapLayerComponent] = React.useState<any>(null);
   const [PolygonLayerComponent, setPolygonLayerComponent] = React.useState<any>(null);
+  const [PathLayerComponent, setPathLayerComponent] = React.useState<any>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [hoveredObject, setHoveredObject] = React.useState<UMAPPoint | null>(null);
 
@@ -300,6 +302,7 @@ function EnhancedDeckGLVisualization({
   const storeColorPalette = useLatentSpaceStore((s) => s.colorPalette);
   const showScatter = useLatentSpaceStore((s) => s.showScatter);
   const showHulls = useLatentSpaceStore((s) => s.showHulls);
+  const showVoronoi = useLatentSpaceStore((s) => s.showVoronoi);
 
   // Resolve effective values: props override store when provided
   const effectiveShowOutliers = showOutliers !== undefined ? showOutliers : storeShowOutliers;
@@ -333,6 +336,7 @@ function EnhancedDeckGLVisualization({
         setScatterplotLayerComponent(() => layersModule.ScatterplotLayer);
         setHeatmapLayerComponent(() => aggModule.HeatmapLayer);
         setPolygonLayerComponent(() => layersModule.PolygonLayer);
+        setPathLayerComponent(() => layersModule.PathLayer);
       } catch (err) {
         console.error('❌ Failed to load DeckGL:', err);
         setError(err instanceof Error ? err.message : 'Failed to load DeckGL');
@@ -510,6 +514,39 @@ function EnhancedDeckGLVisualization({
       });
     }
 
+    // === Voronoi boundaries ===
+    if (showVoronoi && PathLayerComponent) {
+      try {
+        const bounds = calculateBounds(filteredPoints, 0.1);
+        const delaunay = Delaunay.from(filteredPoints, (d)=>d.x, (d)=>d.y);
+        const vor = delaunay.voronoi([bounds.minX, bounds.minY, bounds.maxX, bounds.maxY]);
+        const paths: any[] = [];
+        for (let i = 0; i < filteredPoints.length; i++) {
+          const poly = vor.cellPolygon(i);
+          if (!poly) continue;
+          const pt = filteredPoints[i];
+          const color = getClusterColor(pt, clusterStats.totalClusters, effectiveColorPalette);
+          paths.push({
+            path: poly.map(([x,y])=>[x,y]),
+            cluster_id: pt.cluster_id,
+            color,
+          });
+        }
+
+        layerList.push(new PathLayerComponent({
+          id: 'voronoi-borders',
+          data: paths,
+          getPath: (d:any)=>d.path,
+          getWidth: 1,
+          widthUnits: 'pixels',
+          getColor: (d:any)=>d.color,
+          pickable: false,
+        }));
+      } catch(err){
+        console.warn('Voronoi computation failed', err);
+      }
+    }
+
     const heatmapActive = overlayMode === 'heatmap' && heatmapVisible;
 
     // Scatter layer
@@ -574,6 +611,8 @@ function EnhancedDeckGLVisualization({
     terrainBands,
     showScatter,
     showHulls,
+    showVoronoi,
+    PathLayerComponent,
   ]);
 
   if (error) {

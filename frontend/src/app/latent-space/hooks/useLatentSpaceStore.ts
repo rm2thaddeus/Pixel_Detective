@@ -32,6 +32,7 @@ interface LatentSpaceState {
   // Layer toggles
   showScatter: boolean;
   showHulls: boolean;
+  showVoronoi: boolean;
   
   // Actions
   setProjectionData: (data: UMAPProjectionResponse | null) => void;
@@ -62,6 +63,7 @@ interface LatentSpaceState {
   // Layer toggle actions
   setShowScatter: (v: boolean) => void;
   setShowHulls: (v: boolean) => void;
+  setShowVoronoi: (v: boolean) => void;
 }
 
 const initialState = {
@@ -94,6 +96,7 @@ const initialState = {
   // Layer toggles defaults
   showScatter: true,
   showHulls: true,
+  showVoronoi: false,
 };
 
 export const useLatentSpaceStore = create<LatentSpaceState>((set, get) => ({
@@ -193,6 +196,10 @@ export const useLatentSpaceStore = create<LatentSpaceState>((set, get) => ({
   setShowHulls: (v) => {
     console.log('🔶 Toggle hull layer:', v);
     set({ showHulls: v });
+  },
+  setShowVoronoi: (v) => {
+    console.log('📐 Toggle voronoi layer:', v);
+    set({ showVoronoi: v });
   },
   
   resetState: () => {

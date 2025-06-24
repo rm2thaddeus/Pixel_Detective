@@ -81,10 +81,11 @@ pytest backend/tests/test_umap.py
 - **Performance:** Optimization for larger datasets
 
 ### ⏳ Upcoming Features
-- **Cluster Labeling:** Auto-cataloging interface
-- **Advanced Analytics:** Quality metrics, performance insights
-- **Export Functionality:** Save visualizations and cluster data
-- **Accessibility:** WCAG compliance and keyboard navigation
+1. **Lasso Selection ➜ New Collection**: Draw polygon, create a filtered Qdrant collection instantly.
+2. **Cluster Labeling:** Auto-cataloging interface
+3. **Advanced Analytics:** Quality metrics, performance insights
+4. **Export Functionality:** Save visualizations and cluster data
+5. **Keyboard navigation support**
 
 ## 🔗 Key Integrations
 
