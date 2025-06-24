@@ -64,6 +64,12 @@ interface LatentSpaceState {
   setShowScatter: (v: boolean) => void;
   setShowHulls: (v: boolean) => void;
   setShowVoronoi: (v: boolean) => void;
+  
+  lassoMode: boolean; // true when drawing polygon
+  setLassoMode: (v: boolean) => void;
+  
+  selectedPolygon: [number, number][] | null;
+  setSelectedPolygon: (poly: [number, number][] | null) => void;
 }
 
 const initialState = {
@@ -97,6 +103,9 @@ const initialState = {
   showScatter: true,
   showHulls: true,
   showVoronoi: false,
+  
+  lassoMode: false, // true when drawing polygon
+  selectedPolygon: null,
 };
 
 export const useLatentSpaceStore = create<LatentSpaceState>((set, get) => ({
@@ -205,5 +214,15 @@ export const useLatentSpaceStore = create<LatentSpaceState>((set, get) => ({
   resetState: () => {
     console.log('🔄 Resetting latent space state');
     set(initialState);
+  },
+  
+  setLassoMode: (v) => {
+    console.log('🟢 Toggle lasso mode:', v);
+    set({ lassoMode: v });
+  },
+  
+  setSelectedPolygon: (poly) => {
+    console.log('✏️ Set selected polygon vertices:', poly?.length);
+    set({ selectedPolygon: poly });
   },
 })); 

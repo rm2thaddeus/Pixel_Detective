@@ -1021,7 +1021,7 @@ Since the original plan was drafted we have implemented several key enhancements
 | `backend/gpu_umap_service/Dockerfile` | Builds on `rapidsai/base:24.08-cuda12.2-py3.11` |
 | `backend/gpu_umap_service/docker-compose.dev.yml` | Hot-reload dev setup with volume mount |
 
-The ingestion app can now **off-load heavy UMAP + clustering** to this GPU container by calling `http://localhost:8001`.  This yields 10-300× speed-ups on compatible hardware while automatically falling back to CPU when CUDA is unavailable.
+The ingestion app can now **off-load heavy UMAP + clustering** to this GPU container by calling `http://localhost:8003`.  This yields 10-300× speed-ups on compatible hardware while automatically falling back to CPU when CUDA is unavailable.
 
 ### 2. One-Click Dev Stack (Windows)
 `scripts/start_dev.bat` spins up:

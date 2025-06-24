@@ -250,6 +250,7 @@ LatentSpacePage
 
 ### ✅ Resolved Dependencies
 - **DeckGL Installation** - Installed and working
+- **d3-delaunay Dependency** - Installed package to resolve "Module not found: Can't resolve 'd3-delaunay'" error during UMAPScatterPlot development
 - **Backend Running** - Confirmed on port 8000
 - **Collection Data** - "wejele" collection with 25 embedded images
 

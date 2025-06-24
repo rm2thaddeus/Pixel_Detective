@@ -166,9 +166,19 @@ async def create_collection_from_selection(
             logger.warning(f"No points returned for ID batch: {batch_ids[:3]}… (len={len(batch_ids)})")
             continue
 
+        # Convert Record -> dict["id","vector","payload"] expected by PointStruct
+        formatted_points = [
+            {
+                "id": p.id,
+                "vector": p.vector,
+                "payload": p.payload,
+            }
+            for p in points
+        ]
+
         # Upsert into new collection
-        qdrant.upsert(collection_name=req.new_collection_name, points=points)
-        total_copied += len(points)
+        qdrant.upsert(collection_name=req.new_collection_name, points=formatted_points)
+        total_copied += len(formatted_points)
 
     logger.info(
         "Created collection '%s' with %d points copied from '%s'",

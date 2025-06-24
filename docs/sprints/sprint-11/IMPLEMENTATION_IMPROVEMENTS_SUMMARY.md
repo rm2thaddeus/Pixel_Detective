@@ -384,6 +384,9 @@ cupy-cuda12x>=12.0.0; platform_machine=="x86_64"
 5. **UI Copy Updates**  
    • Slider labels adjusted: "Blur Radius (px)" for terrain, explaining smoothness.  
    • Hull opacity increased for better contrast in dark mode.
+6. **Dependency Fix – d3-delaunay**  
+   • Installed missing `d3-delaunay` NPM package to resolve a module resolution error in `UMAPScatterPlot.tsx`.  
+   • Frontend now compiles successfully, unblocking Voronoi-Voronoi color feature work.
 
 ### Impact
 | Metric | Before | After |

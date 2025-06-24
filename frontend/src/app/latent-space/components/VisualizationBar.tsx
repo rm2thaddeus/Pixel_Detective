@@ -41,6 +41,8 @@ export const VisualizationBar: React.FC = () => {
     setHeatmapOpacity,
     heatmapVisible,
     setHeatmap,
+    lassoMode,
+    setLassoMode,
   } = useLatentSpaceStore();
 
   const borderColor = useColorModeValue('gray.200', 'gray.600');
@@ -140,6 +142,19 @@ export const VisualizationBar: React.FC = () => {
               onClick={() => setShowHulls(!showHulls)}
             >
               Hulls
+            </Tag>
+          </Tooltip>
+        </WrapItem>
+        <WrapItem>
+          <Tooltip label="Lasso selection tool (L)" hasArrow>
+            <Tag
+              size="sm"
+              variant={lassoMode ? 'solid' : 'subtle'}
+              colorScheme="teal"
+              cursor="pointer"
+              onClick={() => setLassoMode(!lassoMode)}
+            >
+              Lasso
             </Tag>
           </Tooltip>
         </WrapItem>
