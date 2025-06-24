@@ -15,6 +15,23 @@ This document outlines the technical implementation plan for Sprint 11 focusing 
 - **Viewport Calculation**: Auto-centering camera on data points
 - **React Suspense**: Proper SSR handling for DeckGL components
 
+## Week 3 Progress – Interactive Clustering LIVE ✅
+
+The second milestone is complete.  Key achievements:
+
+* **Dynamic cluster colouring & outlier tint** implemented — points now convey grouping at a glance.
+* **Hover tool-tips and click selection** added; lasso selection flows through to *Create-collection*.
+* **ClusteringControls** and **MetricsPanel** are fully wired with React-Query mutations.
+* **Automatic collection activation** after creation, keeping sidebar & backend in sync.
+
+## Remaining Week 4 Focus – Polish & Performance
+
+* **ThumbnailOverlay** – bind to `hoveredPoint`, lazy-load image previews.
+* **ClusterCardsPanel** – highlight/ dim logic and "Selection" pseudo-card.
+* **Mobile & A11y audit** – responsive flex redesign and Lighthouse/axe pass.
+* **GPU micro-service import fix** – patch relative import in `gpu_umap_service`, benchmark CPU vs CUDA.
+* **Storybook catalogue** – bootstrap Storybook, add scatter-plot & controls stories for regression.
+
 ### 🎯 NEXT PHASE Priorities (Interactivity & Clustering)
 
 #### 1. Clustering Visualization (Immediate Priority)

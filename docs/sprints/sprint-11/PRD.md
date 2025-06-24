@@ -4,6 +4,7 @@
 **Sprint Lead:** Development Team  
 **Created:** January 11, 2025  
 **Last Updated:** January 11, 2025  
+**Progress Update (June 24 2025):** Week 3 milestone achieved – interactive clustering & lasso-to-collection live; tasks now focus on thumbnails, responsive layout, A11y audit, CUDA benchmark, and Storybook docs.
 
 ## Executive Summary
 

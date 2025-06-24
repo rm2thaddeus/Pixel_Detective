@@ -18,8 +18,9 @@ import { webgl2Adapter } from '@luma.gl/webgl';
 import { useLatentSpaceStore } from '../hooks/useLatentSpaceStore';
 import { interpolateRgb } from 'd3-interpolate';
 import { Delaunay } from 'd3-delaunay';
-import { api } from '@/lib/api';
+import { api, selectCollection as selectCollectionApi } from '@/lib/api';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useStore } from '@/store/useStore';
 // Dynamic drawing layer
 import booleanPointInPolygon from '@turf/boolean-point-in-polygon';
 import { point as turfPoint } from '@turf/helpers';
@@ -137,9 +138,20 @@ export function UMAPScatterPlot({
       const res = await api.post('/api/v1/collections/from_selection', body);
       return res.data;
     },
-    onSuccess: () => {
+    onSuccess: async (data, variables) => {
       setSelectedIds([]);
       queryClient.invalidateQueries({ queryKey: ['collections'] });
+      // Automatically set new collection active both locally and on server
+      const newCol = variables.newName;
+      try {
+        await selectCollectionApi(newCol);
+      } catch (e) {
+        // non-fatal
+        console.warn('Failed to set active collection', e);
+      }
+      // optimistic local update
+      const setCollection = useStore.getState().setCollection;
+      setCollection(newCol);
       setShowModal(false);
     },
   });

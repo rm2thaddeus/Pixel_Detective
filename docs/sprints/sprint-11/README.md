@@ -53,6 +53,19 @@ Sprint 11 focuses on implementing an interactive **Latent Space Visualization Ta
 - [✅] **Control Integration:** Connect clustering parameter controls to live updates
 - [ ] **Thumbnail System:** Image previews on point hover/click
 
+### ✅ Phase 2 Completed – Interactivity & Clustering
+All core interactivity goals for Phase 2 are now live:
+* **Clustering Visualization** – Dynamic HSL palette + outlier red tint.
+* **Interactive Features** – Hover tool-tips, click selection, lasso selection → collection.
+* **Control Integration** – Real-time DBSCAN / K-Means updates + MetricsPanel.
+
+### 🔄 Current Objectives (Week 4 Finish)
+* **Thumbnail System** – Integrate `ThumbnailOverlay` for hover previews.
+* **Cluster Cards & Selection Bar polish** – active/highlight state & Selection pseudo-card.
+* **Responsive & Accessibility audit** – mobile layout + axe/Lighthouse ≥90 %.
+* **Performance Benchmark** – 1 k-point load test (CPU vs CUDA) & documentation.
+* **Storybook catalogue & docs sweep** – component snapshots + updated sprint docs.
+
 ### Success Criteria
 - **Performance:** <3s load time for 1000+ point projections (current: ~2s for 25 points ✅)
 - **Accessibility:** >90% audit score for all new components
@@ -143,6 +156,12 @@ Sprint 11 focuses on implementing an interactive **Latent Space Visualization Ta
 - [ ] **Point Interactions** - Hover effects and click handlers
 - [ ] **Control Integration** - Wire clustering parameters to live updates
 - [ ] **Metrics Display** - Connect quality metrics to UI
+
+### ✅ Week 2: Interactivity & Clustering DONE
+- [x] **Clustering Visualization** – Color-coded points & outlier highlighting
+- [x] **Point Interactions** – Hover tooltips, click/selection, lasso.
+- [x] **Control Integration** – Live parameter wiring (React Query).
+- [x] **Metrics Display** – Silhouette / outlier stats in MetricsPanel.
 
 ### ⏳ Week 3: Advanced Features
 - [ ] **Thumbnail System** - Hover-based image previews
@@ -236,78 +255,14 @@ curl "http://localhost:8000/umap/projection?sample_size=25"
 ```
 
 ### 🔄 Next Development Steps
-1. **Implement clustering colors** - Update `getFillColor` in UMAPScatterPlot
-2. **Add hover interactions** - Implement point hover tooltips
-3. **Connect clustering controls** - Wire UI controls to backend mutations
-4. **Integrate thumbnail system** - Add image preview overlays
+- 1. **Implement clustering colors** - Update `getFillColor` in UMAPScatterPlot
+- 2. **Add hover interactions** - Implement point hover tooltips
+- 3. **Connect clustering controls** - Wire UI controls to backend mutations
+- 4. **Integrate thumbnail system** - Add image preview overlays
 
-## ⚡ NEW: GPU-Accelerated UMAP Micro-Service & Docker Dev Flow (June 2025)
-
-Sprint 11 also birthed a **stand-alone FastAPI micro-service** dedicated to GPU-accelerated UMAP + clustering:
-
-| Path | Purpose |
-|------|---------|
-| `backend/gpu_umap_service/` | FastAPI package exposing `/fit_transform`, `/transform`, `/cluster` |
-| `backend/gpu_umap_service/Dockerfile` | CUDA-enabled image based on `rapidsai/base:24.08-cuda12.2-py3.11` |
-| `backend/gpu_umap_service/docker-compose.dev.yml` | Hot-reload dev stack with volume-mount + `uvicorn --reload` |
-
-### Why a Separate Service?
-1. Keeps the heavy RAPIDS / cuML deps out of the main ingestion image.
-2. Allows us to **scale GPU workloads independently** (K8s node-selector for GPU nodes).
-3. Simplifies local hacking—just start the dev compose and edit Python files; the container auto-reloads.
-
-### Quick Dev Spin-Up
-```bash
-# One-time: ensure the shared network exists
-docker network create vibe_net || true
-
-# From repo root – build & run with hot-reload
-docker compose -f backend/gpu_umap_service/docker-compose.dev.yml up --build
-```
-The service exposes **http://localhost:8001**. Example:
-```bash
-curl -X POST http://localhost:8001/cluster -H "Content-Type: application/json" \
-     -d '{"data": [[0.1,0.2,0.3],[0.4,0.5,0.6]], "algorithm": "kmeans", "n_clusters": 2}'
-```
-
-### Known Gotcha
-The container currently throws `ImportError: attempted relative import with no known parent package`. A PR is in flight to convert the relative import in `backend/gpu_umap_service/main.py` to an absolute one.
-
-## 🖥️  One-Click Dev Environment (NEW)
-
-To spin up **all** backend components & the vector DB in one step on Windows:
-```powershell
-scripts\start_dev.bat
-```
-This creates/uses the shared Docker network `vibe_net`, starts **Qdrant**, builds & runs the **GPU-UMAP** container with hot-reload, then opens two terminals for the CPU FastAPI apps.
-
-| Service | URL | Notes |
-|---------|-----|-------|
-| GPU-UMAP | http://localhost:8001 | cuML 24.08 inside RAPIDS image |
-| Ingestion Orchestration | http://localhost:8002 | CPU – orchestrates bulk ingestion |
-| ML Inference | http://localhost:8003 | CPU – CLIP/BLIP etc. |
-
-### Quick Validation
-```powershell
-# Smoke test UMAP fit_transform (use curl.exe)
-curl.exe -X POST http://localhost:8001/fit_transform `
-         -H "Content-Type: application/json" `
-         -d '{"data": [[0.1,0.2,0.3,0.4],[0.4,0.5,0.6,0.7]]}'
-```
-You should receive a 2-D array of embeddings.  Open `/docs` on each port to explore the full API.
-
----
-
-## 📦  Year-Partitioned Albums & Master Collection
-A new guide – **`QDRANT_COLLECTION_MERGE_GUIDE.md`** – details how to:
-1. Ingest images into annual collections (`album_2017` … `album_2025`).
-2. Periodically build a consolidated **`album_master`** collection via *scroll → upsert*.
-3. Atomically swap the new master into production with `swap_alias`, leaving sources untouched for rollback.
-
-This gives you both granular per-year analysis *and* a single mega-collection for global clustering with the CUDA micro-service.
-
----
-
-**🎉 POC Milestone Achieved:** Basic latent space visualization working with DeckGL and 25 points  
-**🎯 Next Milestone:** Interactive clustering visualization with color-coded points  
-**📞 Contact:** Development Team 
+### 🔄 Next Development Steps (Week 4)
+1. **ThumbnailOverlay & ImageDetails integration** – lazy-load previews on hover.
+2. **ClusterCardsPanel polish** – selection card & active highlight styles.
+3. **Responsive/mobile pass + A11y audit** – ensure ≥90 % Lighthouse/axe.
+4. **GPU vs CPU benchmark** – run `scripts/benchmark_cuda.py`, add results to docs.
+5. **Storybook bootstrap & documentation sweep** – component stories + Chromatic CI.
