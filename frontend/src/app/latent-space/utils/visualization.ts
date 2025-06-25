@@ -673,27 +673,42 @@ const STOPWORDS = new Set([
  * Returns up to `max` keywords that appear most frequently in the given
  * filenames / captions of points.  Very naive TF but good enough for hints.
  */
-export function getTopKeywords(points: { filename?: string; caption?: string }[], max = 5): string[] {
+export function getTopKeywords(
+  points: Array<{ caption?: string; tags?: string[]; subject?: string }>,
+  max = 5
+): string[] {
   const counts: Record<string, number> = {};
 
   const addTokens = (text?: string) => {
     if (!text) return;
-    text.toLowerCase()
+    text
+      .toLowerCase()
       .replace(/[^a-z0-9\s]/g, ' ')
       .split(/\s+/)
       .forEach(tok => {
-        if (tok.length < 3 || STOPWORDS.has(tok)) return;
+        if (
+          tok.length < 3 ||
+          STOPWORDS.has(tok) ||
+          /\d/.test(tok) || // skip tokens containing digits (DSC07354 etc.)
+          /^dsc\d+/i.test(tok) ||
+          /^img\d+/i.test(tok)
+        ) {
+          return;
+        }
         counts[tok] = (counts[tok] || 0) + 1;
       });
   };
 
   points.forEach(p => {
-    addTokens(p.filename?.split('.').slice(0,-1).join(' '));
     addTokens(p.caption);
+    if (Array.isArray((p as any).tags)) {
+      ((p as any).tags as string[]).forEach(addTokens);
+    }
+    addTokens((p as any).subject);
   });
 
   return Object.entries(counts)
-    .sort((a,b)=>b[1]-a[1])
-    .slice(0,max)
-    .map(([word])=>word);
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, max)
+    .map(([word]) => word);
 } 

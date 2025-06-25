@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   VStack,
   HStack,
@@ -46,7 +46,6 @@ export function ClusterLabelingPanel({
   const [editingCluster, setEditingCluster] = useState<number | null>(null);
   const [labelInput, setLabelInput] = useState('');
   const [showAll, setShowAll] = useState(false);
-  const [keywordSuggestions, setKeywordSuggestions] = useState<Record<number,string[]>>({});
   const toast = useToast();
 
   const cardBg = useColorModeValue('white', 'gray.800');
@@ -63,15 +62,25 @@ export function ClusterLabelingPanel({
 
   const clusterColors = generateClusterColors(clusters.length, colorPalette);
 
-  // Compute suggestions once points change
-  useEffect(()=>{
+  const keywordSuggestions = useMemo(()=>{
     const sugg: Record<number,string[]> = {};
     clusters.forEach(cid=>{
       const pts = points.filter(p=>p.cluster_id===cid);
       sugg[cid] = getTopKeywords(pts as any, 4);
     });
-    setKeywordSuggestions(sugg);
-  },[points, clusters]);
+    return sugg;
+  }, [points, clusters]);
+
+  const captionSamples = useMemo(()=>{
+    const map: Record<number,string[]> = {};
+    clusters.forEach(cid=>{
+      const caps = points
+        .filter(p=>p.cluster_id===cid && (p as any).caption)
+        .map(p=>(p as any).caption as string);
+      map[cid] = Array.from(new Set(caps)).slice(0,4); // max 4 captions
+    });
+    return map;
+  }, [points, clusters]);
 
   const handleStartEditing = (clusterId: number) => {
     setEditingCluster(clusterId);
@@ -249,6 +258,14 @@ export function ClusterLabelingPanel({
                                 ))}
                               </HStack>
                             )}
+                            {/* caption samples */}
+                            {captionSamples[clusterId]?.length>0 && (
+                              <VStack align="start" spacing={0} pt={1}>
+                                {captionSamples[clusterId].map((cap,idx)=>(
+                                  <Text key={idx} fontSize="8px" isTruncated>{cap}</Text>
+                                ))}
+                              </VStack>
+                            )}
                             <Text fontSize="xs" color="gray.500">
                               Press Enter to save, Escape to cancel
                             </Text>
@@ -283,21 +300,38 @@ export function ClusterLabelingPanel({
                     onClick={() => {
                       // Auto-label clusters based on their characteristics
                       clusters.forEach((clusterId, index) => {
-                        const summary = getClusterSummary(points, clusterId);
+                        const words = keywordSuggestions[clusterId] || [];
                         let autoLabel = '';
-                        
-                        if (summary.density > 2) {
-                          autoLabel = `Dense Group ${index + 1}`;
-                        } else if (summary.spread > 5) {
-                          autoLabel = `Scattered Group ${index + 1}`;
-                        } else if (summary.size > 50) {
-                          autoLabel = `Large Group ${index + 1}`;
-                        } else if (summary.size < 10) {
-                          autoLabel = `Small Group ${index + 1}`;
+
+                        if (words.length) {
+                          // Use top 2 keywords for a short descriptive label
+                          autoLabel = words.slice(0, 2).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
                         } else {
-                          autoLabel = `Group ${index + 1}`;
+                          // Try to harvest words from captions if available
+                          const captions = captionSamples[clusterId] || [];
+                          if (captions.length) {
+                            const tokens = captions[0]
+                              .toLowerCase()
+                              .replace(/[^a-z0-9\s]/g,' ')
+                              .split(/\s+/)
+                              .filter(t=>t.length>2 && !/\d/.test(t));
+                            autoLabel = tokens.slice(0,2).map(w=>w.charAt(0).toUpperCase()+w.slice(1)).join(' ');
+                          }
+
+                          const summary = getClusterSummary(points, clusterId);
+                          if (summary.density > 2) {
+                            autoLabel = `Dense Group ${index + 1}`;
+                          } else if (summary.spread > 5) {
+                            autoLabel = `Scattered Group ${index + 1}`;
+                          } else if (summary.size > 50) {
+                            autoLabel = `Large Group ${index + 1}`;
+                          } else if (summary.size < 10) {
+                            autoLabel = `Small Group ${index + 1}`;
+                          } else {
+                            autoLabel = `Group ${index + 1}`;
+                          }
                         }
-                        
+
                         setClusterLabel(clusterId, autoLabel);
                       });
                       

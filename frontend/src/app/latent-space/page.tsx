@@ -18,7 +18,6 @@ import { Header } from '@/components/Header';
 import { UMAPScatterPlot } from './components/UMAPScatterPlot';
 import { ClusteringControls } from './components/ClusteringControls';
 import { ThumbnailOverlay } from './components/ThumbnailOverlay';
-import { ClusterCardsPanel } from './components/ClusterCardsPanel';
 import { StatsBar } from './components/StatsBar';
 import { useUMAP } from './hooks/useUMAP';
 import { useStore } from '@/store/useStore';
@@ -26,6 +25,7 @@ import { useLatentSpaceStore } from './hooks/useLatentSpaceStore';
 import { UMAPPoint } from './types/latent-space';
 import React, { useEffect } from 'react';
 import { VisualizationBar } from './components/VisualizationBar';
+import { ClusterLabelingPanel } from './components/ClusterLabelingPanel';
 
 export default function LatentSpacePage() {
   const { collection } = useStore();
@@ -271,13 +271,12 @@ export default function LatentSpacePage() {
               totalPoints={effectiveProjection.points.length}
             />
 
-            {/* Cluster Cards */}
-            <Box maxH="32vh" overflowY="auto">
-              <ClusterCardsPanel
-                points={effectiveProjection.points}
-                colorPalette={colorPalette}
-              />
-            </Box>
+            {/* Cluster Labeling Panel */}
+            <ClusterLabelingPanel
+              points={effectiveProjection.points}
+              selectedClusterId={selectedCluster}
+              colorPalette={colorPalette}
+            />
           </Flex>
         </VStack>
       </Container>
