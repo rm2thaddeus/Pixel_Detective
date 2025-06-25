@@ -33,6 +33,7 @@ interface LatentSpaceState {
   showScatter: boolean;
   showHulls: boolean;
   showVoronoi: boolean;
+  showVoronoiFill: boolean;
   
   // Actions
   setProjectionData: (data: UMAPProjectionResponse | null) => void;
@@ -64,6 +65,7 @@ interface LatentSpaceState {
   setShowScatter: (v: boolean) => void;
   setShowHulls: (v: boolean) => void;
   setShowVoronoi: (v: boolean) => void;
+  setShowVoronoiFill: (v: boolean) => void;
   
   lassoMode: boolean; // true when drawing polygon
   setLassoMode: (v: boolean) => void;
@@ -103,6 +105,7 @@ const initialState = {
   showScatter: true,
   showHulls: true,
   showVoronoi: false,
+  showVoronoiFill: false,
   
   lassoMode: false, // true when drawing polygon
   selectedPolygon: null,
@@ -209,6 +212,10 @@ export const useLatentSpaceStore = create<LatentSpaceState>((set, get) => ({
   setShowVoronoi: (v) => {
     console.log('📐 Toggle voronoi layer:', v);
     set({ showVoronoi: v });
+  },
+  setShowVoronoiFill: (v) => {
+    console.log('🎨 Toggle voronoi fill:', v);
+    set({ showVoronoiFill: v });
   },
   
   resetState: () => {

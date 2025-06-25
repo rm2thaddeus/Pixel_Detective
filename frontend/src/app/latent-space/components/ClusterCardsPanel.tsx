@@ -13,7 +13,7 @@ import {
 } from '@chakra-ui/react';
 import { useLatentSpaceStore } from '../hooks/useLatentSpaceStore';
 import { UMAPPoint } from '../types/latent-space';
-import { getClusterColor } from '../utils/visualization';
+import { getClusterColor, getClusterSummary } from '../utils/visualization';
 
 interface ClusterCardsPanelProps {
   points: UMAPPoint[];
@@ -69,6 +69,9 @@ export function ClusterCardsPanel({ points, colorPalette }: ClusterCardsPanelPro
                   <Box w="16px" h="16px" borderRadius="full" bg={swatch} />
                   <Text fontSize="xs">{clusterLabels[c.id] || `#${c.id}`}</Text>
                   <Badge colorScheme="gray" fontSize="0.6rem">{c.count}</Badge>
+                  {(()=>{const sum=getClusterSummary(points,c.id);return(
+                    <Text fontSize="8px" color="gray.500">D:{sum.density.toFixed(1)} S:{sum.spread.toFixed(1)}</Text>
+                  );})()}
                 </VStack>
               </Box>
             );

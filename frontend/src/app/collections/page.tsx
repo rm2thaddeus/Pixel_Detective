@@ -22,11 +22,14 @@ import {
   useDisclosure,
 } from '@chakra-ui/react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { FiPlus, FiTrash2, FiCheckCircle, FiInfo } from 'react-icons/fi';
+import { FiPlus, FiTrash2, FiCheckCircle, FiInfo, FiLayers } from 'react-icons/fi';
+import { Header } from '@/components/Header';
 import { useState } from 'react';
 import { CollectionModal } from '@/components/CollectionModal';
+import { CollectionDetailsDrawer } from '@/components/CollectionDetailsDrawer';
 import { getCollections, selectCollection, deleteCollection } from '@/lib/api';
 import { useStore } from '@/store/useStore';
+import { MergeCollectionsModal } from '@/components/MergeCollectionsModal';
 
 
 const CollectionCard = ({ name, isActive, onSelect, onDelete, onView }) => {
@@ -62,6 +65,7 @@ const CollectionCard = ({ name, isActive, onSelect, onDelete, onView }) => {
             variant="ghost"
             colorScheme="red"
             onClick={() => onDelete(name)}
+            isDisabled={isActive}
           />
         </HStack>
       </CardBody>
@@ -71,7 +75,11 @@ const CollectionCard = ({ name, isActive, onSelect, onDelete, onView }) => {
 
 
 export default function CollectionsPage() {
-  const { isOpen, onOpen, onClose } = useDisclosure();
+  const {
+    isOpen: isCreateOpen,
+    onOpen: openCreate,
+    onClose: closeCreate,
+  } = useDisclosure();
   const { data: collections, isLoading, error } = useQuery<string[], Error>({
       queryKey: ['collections'],
       queryFn: getCollections
@@ -80,6 +88,17 @@ export default function CollectionsPage() {
   const setActiveCollection = useStore((state) => state.setCollection);
   const queryClient = useQueryClient();
   const toast = useToast();
+  const [detailsCollection, setDetailsCollection] = useState<string | null>(null);
+  const {
+    isOpen: isDrawerOpen,
+    onOpen: openDrawer,
+    onClose: closeDrawer,
+  } = useDisclosure();
+  const {
+    isOpen: isMergeOpen,
+    onOpen: openMerge,
+    onClose: closeMerge,
+  } = useDisclosure();
 
   const selectionMutation = useMutation({
     mutationFn: selectCollection,
@@ -144,57 +163,68 @@ export default function CollectionsPage() {
   };
 
   const handleViewDetails = (collectionName: string) => {
-      toast({
-        title: `View details for ${collectionName}`,
-        status: 'info',
-        duration: 2000,
-    });
+    setDetailsCollection(collectionName);
+    openDrawer();
   };
 
   return (
-    <Box p={8}>
-      <HStack justifyContent="space-between" mb={8}>
-        <Heading as="h1" size="xl">
-          Collection Management
-        </Heading>
-        <Button leftIcon={<FiPlus />} colorScheme="blue" onClick={onOpen}>
-          Create Collection
-        </Button>
-      </HStack>
-      <Text mb={8} fontSize="lg" color="gray.600">
-        Here you can create, view, and manage all your image collections. Select a collection to make it active for searching and ingestion.
-      </Text>
+    <Box minH="100vh">
+      <Header />
+      <Box p={8}>
+        <HStack justifyContent="space-between" mb={8}>
+          <Heading as="h1" size="xl">
+            Collection Management
+          </Heading>
+          <HStack>
+            <Button leftIcon={<FiPlus />} colorScheme="blue" onClick={openCreate}>
+              Create Collection
+            </Button>
+            <Button leftIcon={<FiLayers />} variant="outline" onClick={openMerge}>
+              Merge
+            </Button>
+          </HStack>
+        </HStack>
+        <Text mb={8} fontSize="lg" color="gray.600">
+          Here you can create, view, and manage all your image collections. Select a collection to make it active for searching and ingestion.
+        </Text>
 
-      {isLoading && (
-        <VStack>
-          <Spinner />
-          <Text>Loading collections...</Text>
-        </VStack>
-      )}
+        {isLoading && (
+          <VStack>
+            <Spinner />
+            <Text>Loading collections...</Text>
+          </VStack>
+        )}
 
-      {error && (
-        <Alert status="error">
-          <AlertIcon />
-          {`There was an error loading your collections: ${error.message}`}
-        </Alert>
-      )}
+        {error && (
+          <Alert status="error">
+            <AlertIcon />
+            {`There was an error loading your collections: ${error.message}`}
+          </Alert>
+        )}
 
-      {collections && (
-        <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={6}>
-          {collections.map(name => (
-            <CollectionCard
-              key={name}
-              name={name}
-              isActive={name === activeCollection}
-              onSelect={handleSelect}
-              onDelete={handleDelete}
-              onView={handleViewDetails}
-            />
-          ))}
-        </SimpleGrid>
-      )}
-      
-      <CollectionModal isOpen={isOpen} onClose={onClose} />
+        {collections && (
+          <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={6}>
+            {[...collections].sort((a,b)=> (a===activeCollection?-1:b===activeCollection?1:0)).map(name => (
+              <CollectionCard
+                key={name}
+                name={name}
+                isActive={name === activeCollection}
+                onSelect={handleSelect}
+                onDelete={handleDelete}
+                onView={handleViewDetails}
+              />
+            ))}
+          </SimpleGrid>
+        )}
+        
+        <CollectionModal isOpen={isCreateOpen} onClose={closeCreate} />
+        <CollectionDetailsDrawer
+          isOpen={isDrawerOpen}
+          onClose={closeDrawer}
+          collectionName={detailsCollection}
+        />
+        <MergeCollectionsModal isOpen={isMergeOpen} onClose={closeMerge} />
+      </Box>
     </Box>
   );
 }; 

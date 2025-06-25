@@ -43,15 +43,24 @@ START "Ingestion API" cmd /k "python -m uvicorn backend.ingestion_orchestration_
 
 :: -------- 4️⃣  ML Inference API ------------------------------------------
 ECHO.
-ECHO Launching ML Inference FastAPI (port 8003)...
-START "ML Inference API" cmd /k "python -m uvicorn backend.ml_inference_fastapi_app.main:app --host 0.0.0.0 --port 8003 --reload"
+ECHO Launching ML Inference FastAPI (port 8001)...
+START "ML Inference API" cmd /k "python -m uvicorn backend.ml_inference_fastapi_app.main:app --host 0.0.0.0 --port 8001 --reload"
+
+:: -------- 5️⃣  Frontend --------------------------------------------------
+ECHO.
+ECHO Launching Next.js frontend...
+START "Frontend" cmd /k "cd frontend && npm run dev"
 
 ECHO.
-ECHO All services are starting.   Docs:
-ECHO   • http://localhost:8001/docs   (GPU UMAP)
-ECHO   • http://localhost:8002/docs   (Ingestion)
-ECHO   • http://localhost:8003/docs   (ML Inference)
+ECHO ✅ All services are starting!   API Documentation:
+ECHO   • http://localhost:8003/docs   (GPU UMAP - Docker)
+ECHO   • http://localhost:8002/docs   (Ingestion Orchestration)
+ECHO   • http://localhost:8001/docs   (ML Inference - Host Python)
 ECHO.
+ECHO 🌐 Frontend will auto-open at: http://localhost:3000
+ECHO    Frontend auto-detects GPU UMAP (8003) or ML Inference (8001) services.
+ECHO.
+ECHO Press any key to close this launcher...
 PAUSE
 GOTO :eof
 

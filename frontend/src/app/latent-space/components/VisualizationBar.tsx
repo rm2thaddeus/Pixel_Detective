@@ -34,6 +34,8 @@ export const VisualizationBar: React.FC = () => {
     setShowHulls,
     showVoronoi,
     setShowVoronoi,
+    showVoronoiFill,
+    setShowVoronoiFill,
     // overlay
     overlayMode,
     setOverlayMode,
@@ -207,6 +209,19 @@ export const VisualizationBar: React.FC = () => {
               onClick={() => setShowVoronoi(!showVoronoi)}
             >
               Voronoi
+            </Tag>
+          </Tooltip>
+        </WrapItem>
+        <WrapItem>
+          <Tooltip label="Fill Voronoi tiles" hasArrow>
+            <Tag
+              size="sm"
+              variant={showVoronoiFill ? 'solid' : 'subtle'}
+              colorScheme="pink"
+              cursor="pointer"
+              onClick={() => setShowVoronoiFill(!showVoronoiFill)}
+            >
+              Tiles
             </Tag>
           </Tooltip>
         </WrapItem>

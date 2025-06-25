@@ -10,7 +10,8 @@ import {
   ColorPaletteName,
   calculateClusterStatistics,
   getAnimatedClusterColor,
-  getClusterSummary
+  getClusterSummary,
+  getComplement
 } from '../utils/visualization';
 import { COORDINATE_SYSTEM, OrthographicView } from '@deck.gl/core';
 import { luma } from '@luma.gl/core';
@@ -430,6 +431,7 @@ function EnhancedDeckGLVisualization({
   const showScatter = useLatentSpaceStore((s) => s.showScatter);
   const showHulls = useLatentSpaceStore((s) => s.showHulls);
   const showVoronoi = useLatentSpaceStore((s) => s.showVoronoi);
+  const showVoronoiFill = useLatentSpaceStore((s)=>s.showVoronoiFill);
   const lassoMode = useLatentSpaceStore((s)=>s.lassoMode);
   const setLassoMode = useLatentSpaceStore((s)=>s.setLassoMode);
   const setSelectedPolygonStore = useLatentSpaceStore((s)=>s.setSelectedPolygon);
@@ -655,6 +657,7 @@ function EnhancedDeckGLVisualization({
         const delaunay = Delaunay.from(filteredPoints, (d)=>d.x, (d)=>d.y);
         const vor = delaunay.voronoi([bounds.minX, bounds.minY, bounds.maxX, bounds.maxY]);
         const paths: any[] = [];
+        const cells: any[] = [];
         for (let i = 0; i < filteredPoints.length; i++) {
           const poly = vor.cellPolygon(i);
           if (!poly) continue;
@@ -665,17 +668,39 @@ function EnhancedDeckGLVisualization({
             cluster_id: pt.cluster_id,
             color,
           });
+
+          if (showVoronoiFill) {
+            const fillColor = getComplement(color, 80);
+            cells.push({
+              polygon: poly.map(([x,y])=>[x,y]),
+              cluster_id: pt.cluster_id,
+              fillColor,
+            });
+          }
         }
 
         layerList.push(new PathLayerComponent({
           id: 'voronoi-borders',
           data: paths,
           getPath: (d:any)=>d.path,
-          getWidth: 1,
+          getWidth: 2,
           widthUnits: 'pixels',
           getColor: (d:any)=>d.color,
           pickable: false,
         }));
+
+        if (showVoronoiFill && cells.length && PolygonLayerComponent) {
+          layerList.unshift(new PolygonLayerComponent({
+            id: 'voronoi-tiles',
+            data: cells,
+            getPolygon: (d:any)=>d.polygon,
+            getFillColor: (d:any)=>d.fillColor,
+            getLineColor: [0,0,0,0],
+            pickable: false,
+            parameters: { depthTest: false },
+            updateTriggers: { getFillColor: [effectiveColorPalette] },
+          }));
+        }
       } catch(err){
         console.warn('Voronoi computation failed', err);
       }
@@ -815,6 +840,7 @@ function EnhancedDeckGLVisualization({
     showScatter,
     showHulls,
     showVoronoi,
+    showVoronoiFill,
     PathLayerComponent,
     selectedIds,
     lassoMode,

@@ -7,6 +7,7 @@ import { useEffect, useState } from 'react';
 import { ping } from '@/lib/api';
 import { ColorModeButton } from '@/components/ui/color-mode';
 import { useRouter } from 'next/navigation';
+import { CollectionSelector } from '@/components/CollectionSelector';
 
 export function Header() {
   const { collection } = useStore();
@@ -63,12 +64,7 @@ export function Header() {
             </Badge>
           </Flex>
           
-          {collection && (
-            <Flex align="center" gap={2}>
-              <Text fontSize="sm" color={mutedTextColor}>Collection:</Text>
-              <Badge colorScheme="blue">{collection}</Badge>
-            </Flex>
-          )}
+          <CollectionSelector />
 
           <ColorModeButton />
         </Flex>

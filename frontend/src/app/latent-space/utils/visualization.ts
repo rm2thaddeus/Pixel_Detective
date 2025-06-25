@@ -481,7 +481,14 @@ export function mixColors(
   color2: [number, number, number, number],
   factor: number
 ): [number, number, number, number] {
-  return interpolateColor(color1, color2, factor);
+  const [r1, g1, b1, a1] = color1;
+  const [r2, g2, b2, a2] = color2;
+  return [
+    Math.round(r1 + (r2 - r1) * factor),
+    Math.round(g1 + (g2 - g1) * factor),
+    Math.round(b1 + (b2 - b1) * factor),
+    Math.round(a1 + (a2 - a1) * factor),
+  ];
 }
 
 /**
@@ -638,4 +645,55 @@ export function getEnhancedPaletteDescription(paletteName: ColorPaletteName): {
   };
   
   return descriptions[paletteName];
+}
+
+// ---------------------------------------------------------------------------
+// 🎨 Complement helper – quick visual pop for Voronoi tiles
+// ---------------------------------------------------------------------------
+/**
+ * Returns the simple RGB complement of the given colour while keeping the
+ * original alpha (defaults to 255).  For 8-bit channels the complement is
+ * 255 − value.
+ */
+export function getComplement(
+  [r, g, b]: [number, number, number] | [number, number, number, number],
+  alpha: number = 80  // ~31 % opacity
+): [number, number, number, number] {
+  return [255 - r, 255 - g, 255 - b, alpha];
+}
+
+// ---------------------------------------------------------------------------
+// 🔤 Simple keyword extractor for cluster-label suggestions
+// ---------------------------------------------------------------------------
+const STOPWORDS = new Set([
+  'the','and','for','with','that','this','from','have','has','had','were','was','are','but','you','your','yours','his','her','hers','its','our','ours','their','theirs','a','an','of','in','on','to','at','by','be','is','it','as','or','if','not','no','yes','1','2','3','4','5','6','7','8','9','0'
+]);
+
+/**
+ * Returns up to `max` keywords that appear most frequently in the given
+ * filenames / captions of points.  Very naive TF but good enough for hints.
+ */
+export function getTopKeywords(points: { filename?: string; caption?: string }[], max = 5): string[] {
+  const counts: Record<string, number> = {};
+
+  const addTokens = (text?: string) => {
+    if (!text) return;
+    text.toLowerCase()
+      .replace(/[^a-z0-9\s]/g, ' ')
+      .split(/\s+/)
+      .forEach(tok => {
+        if (tok.length < 3 || STOPWORDS.has(tok)) return;
+        counts[tok] = (counts[tok] || 0) + 1;
+      });
+  };
+
+  points.forEach(p => {
+    addTokens(p.filename?.split('.').slice(0,-1).join(' '));
+    addTokens(p.caption);
+  });
+
+  return Object.entries(counts)
+    .sort((a,b)=>b[1]-a[1])
+    .slice(0,max)
+    .map(([word])=>word);
 } 

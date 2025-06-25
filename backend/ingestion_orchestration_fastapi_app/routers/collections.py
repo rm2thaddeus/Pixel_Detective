@@ -1,7 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from typing import List, Dict, Any
 from pydantic import BaseModel, Field
-from qdrant_client import QdrantClient
+from qdrant_client import QdrantClient, models as qdr
 from qdrant_client.http.models import Distance, VectorParams
 import logging
 
@@ -228,4 +228,90 @@ async def delete_collection(collection_name: str, qdrant: QdrantClient = Depends
         # Qdrant client often raises a generic Exception or ValueError for non-existent collections
         logger.error(f"Error deleting collection '{collection_name}': {e}")
         # A more specific check could be to inspect the error message, but this is a reasonable fallback
-        raise HTTPException(status_code=500, detail=f"An error occurred while trying to delete collection '{collection_name}'. It might not exist or there was a connection issue.") 
+        raise HTTPException(status_code=500, detail=f"An error occurred while trying to delete collection '{collection_name}'. It might not exist or there was a connection issue.")
+
+# --- New: Merge Collections Endpoint ----------------------------------------------------
+# Allows building/refreshing a master collection from N source collections without
+# touching the originals.  Based on docs/sprints/sprint-11/QDRANT_COLLECTION_MERGE_GUIDE.md.
+
+class MergeCollectionsRequest(BaseModel):
+    """Request body for merging many source collections into a destination one.
+
+    dest_collection: Name of the collection that will be (re)created and populated
+    source_collections: List of source collection names to copy points from.
+    """
+    dest_collection: str = Field(..., min_length=1, description="Destination collection name")
+    source_collections: List[str] = Field(..., min_items=1, description="Source collections to merge")
+
+
+@router.post("/merge", status_code=202, response_model=Dict[str, Any])
+async def merge_collections(
+    req: MergeCollectionsRequest,
+    background_tasks: BackgroundTasks,
+    qdrant: QdrantClient = Depends(get_qdrant_client),
+):
+    """Kick off a background task that (re)builds *dest_collection* by copying points
+    from *source_collections* using the Scroll → Upsert pattern.
+    The operation is idempotent: the destination is dropped and recreated each run.
+    """
+
+    # Basic validation – ensure all sources exist
+    existing = {c.name for c in qdrant.get_collections().collections}
+    missing = [s for s in req.source_collections if s not in existing]
+    if missing:
+        raise HTTPException(status_code=404, detail=f"Source collections not found: {missing}")
+
+    # Schedule background task
+    background_tasks.add_task(_merge_collections_task, req.dest_collection, req.source_collections, qdrant)
+    logger.info("Merge task scheduled → %s from %s", req.dest_collection, req.source_collections)
+    return {"status": "scheduled", "dest": req.dest_collection, "sources": req.source_collections}
+
+
+# ----------------------------------------------------------------------------------------
+# Helper function (runs in background)
+
+
+def _merge_collections_task(dest: str, sources: List[str], qdrant_client: QdrantClient):
+    """Synchronous task that recreates *dest* collection and copies all points from *sources*.
+    This runs in a background thread started by FastAPI's BackgroundTasks.
+    """
+    try:
+        BATCH = 1024
+        logger.info("[Merge] Starting merge into '%s' from %d source collections", dest, len(sources))
+
+        # --- (Re)create destination collection ------------------------------------------------
+        existing = {c.name for c in qdrant_client.get_collections().collections}
+        if dest in existing:
+            logger.info("[Merge] Clearing existing destination '%s'", dest)
+            qdrant_client.delete_collection(collection_name=dest, wait=True)
+
+        # Reuse vector config from first source (assumed homogeneous)
+        src_info = qdrant_client.get_collection(sources[0])
+        vec_params = src_info.config.params.vectors
+        qdrant_client.recreate_collection(
+            collection_name=dest,
+            vectors_config=vec_params,
+            optimizers_config=qdr.OptimizersConfigDiff(memmap_threshold=20000),
+        )
+
+        total_copied = 0
+        for src in sources:
+            logger.info("[Merge] Copying from %s …", src)
+            scroll_cursor = None
+            while True:
+                points, scroll_cursor = qdrant_client.scroll(
+                    collection_name=src,
+                    with_vectors=True,
+                    with_payload=True,
+                    limit=BATCH,
+                    offset=scroll_cursor,
+                )
+                if not points:
+                    break
+                qdrant_client.upsert(collection_name=dest, points=points)
+                total_copied += len(points)
+            logger.info("[Merge] Finished %s (copied %d points)", src, total_copied)
+
+        logger.info("[Merge] Merge complete → %s (total %d points)", dest, total_copied)
+    except Exception as e:
+        logger.error("[Merge] Failed to merge collections: %s", e, exc_info=True) 

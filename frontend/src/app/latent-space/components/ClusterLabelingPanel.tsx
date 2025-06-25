@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   VStack,
   HStack,
@@ -26,7 +26,8 @@ import {
   generateClusterColors, 
   getClusterSummary, 
   ColorPaletteName,
-  getEnhancedPaletteDescription 
+  getEnhancedPaletteDescription,
+  getTopKeywords,
 } from '../utils/visualization';
 import { UMAPPoint } from '../types/latent-space';
 
@@ -45,6 +46,7 @@ export function ClusterLabelingPanel({
   const [editingCluster, setEditingCluster] = useState<number | null>(null);
   const [labelInput, setLabelInput] = useState('');
   const [showAll, setShowAll] = useState(false);
+  const [keywordSuggestions, setKeywordSuggestions] = useState<Record<number,string[]>>({});
   const toast = useToast();
 
   const cardBg = useColorModeValue('white', 'gray.800');
@@ -60,6 +62,16 @@ export function ClusterLabelingPanel({
   ).sort((a, b) => a - b);
 
   const clusterColors = generateClusterColors(clusters.length, colorPalette);
+
+  // Compute suggestions once points change
+  useEffect(()=>{
+    const sugg: Record<number,string[]> = {};
+    clusters.forEach(cid=>{
+      const pts = points.filter(p=>p.cluster_id===cid);
+      sugg[cid] = getTopKeywords(pts as any, 4);
+    });
+    setKeywordSuggestions(sugg);
+  },[points, clusters]);
 
   const handleStartEditing = (clusterId: number) => {
     setEditingCluster(clusterId);
@@ -150,13 +162,19 @@ export function ClusterLabelingPanel({
                               borderColor="white"
                               boxShadow="sm"
                             />
-                            <VStack align="start" spacing={0}>
+                            <VStack spacing={0} align="start">
                               <Text fontWeight="semibold" fontSize="sm">
                                 {label}
                               </Text>
                               <Text fontSize="xs" color="gray.500">
                                 ID: {clusterId}
                               </Text>
+                              {/* Stats inline */}
+                              <HStack fontSize="xs" color="gray.500" spacing={2}>
+                                <Text>Pts: {summary.size}</Text>
+                                <Text>Dens: {summary.density.toFixed(1)}</Text>
+                                <Text>Spr: {summary.spread.toFixed(2)}</Text>
+                              </HStack>
                             </VStack>
                           </HStack>
                           <HStack spacing={1}>
@@ -179,28 +197,12 @@ export function ClusterLabelingPanel({
                           </HStack>
                         </HStack>
 
-                        {/* Cluster Stats */}
-                        <SimpleGrid columns={3} spacing={4} fontSize="xs">
-                          <VStack spacing={0}>
-                            <Text fontWeight="semibold">{summary.size}</Text>
-                            <Text color="gray.500">Points</Text>
-                          </VStack>
-                          <VStack spacing={0}>
-                            <Text fontWeight="semibold">{summary.density.toFixed(1)}</Text>
-                            <Text color="gray.500">Density</Text>
-                          </VStack>
-                          <VStack spacing={0}>
-                            <Text fontWeight="semibold">{summary.spread.toFixed(2)}</Text>
-                            <Text color="gray.500">Spread</Text>
-                          </VStack>
-                        </SimpleGrid>
-
                         {/* Edit Input */}
                         {isEditing && (
                           <VStack spacing={2} align="stretch">
                             <Divider />
                             <InputGroup size="sm">
-              <Input
+                              <Input
                                 value={labelInput}
                                 onChange={(e) => setLabelInput(e.target.value)}
                                 placeholder="Enter cluster label..."
@@ -234,6 +236,19 @@ export function ClusterLabelingPanel({
                                 </HStack>
                               </InputRightElement>
                             </InputGroup>
+                            {/* suggestions */}
+                            {keywordSuggestions[clusterId]?.length>0 && (
+                              <HStack spacing={1} flexWrap="wrap">
+                                {keywordSuggestions[clusterId].map(word=>(
+                                  <Badge
+                                    key={word}
+                                    cursor="pointer"
+                                    colorScheme="gray"
+                                    onClick={()=>setLabelInput(word.charAt(0).toUpperCase()+word.slice(1))}
+                                  >{word}</Badge>
+                                ))}
+                              </HStack>
+                            )}
                             <Text fontSize="xs" color="gray.500">
                               Press Enter to save, Escape to cancel
                             </Text>
