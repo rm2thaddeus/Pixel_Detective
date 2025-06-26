@@ -1,0 +1,138 @@
+# Rich Latent Space Visualization & Clustering – Implementation Research Guide
+
+## 1. Purpose of This Document
+
+This guide distills the **state‑of‑the‑art techniques, libraries, and academic literature** relevant to Sprint 11’s goal: *an interactive latent‑space exploration tab* that lets scientists load embeddings, explore and label clusters, tune reduction parameters, and export results.  It complements your existing Quick Reference, PRD, and Technical Implementation Plan by providing deeper background, design rationales, and references you can cite in code reviews or papers.
+
+---
+
+## 2. Conceptual Background
+
+### 2.1 Dimensionality‑Reduction Algorithms
+
+| Algorithm                         | Strengths                                                           | Caveats                                       | Notes                                                   |
+| --------------------------------- | ------------------------------------------------------------------- | --------------------------------------------- | ------------------------------------------------------- |
+| **UMAP**                          | Preserves global & local structure; fast; incremental transform API | Non‑deterministic unless `random_state` fixed | Use `umap.UMAP(transform_seed=42)` for reproducibility. |
+| **Parametric UMAP**               | Learns neural network for fast, reusable transforms                 | Requires GPU; training time                   | Handy for *live* addition of new points.                |
+| **t‑SNE (Barnes‑Hut or FIt‑SNE)** | Excellent local neighbourhood fidelity                              | Slow >50 k points; perplexity tuning          | Reserve for deep dives or small subsamples.             |
+| **PCA / PCA + UMAP hybrid**       | Linear baseline; speeds UMAP                                        | Misses non‑linear manifolds                   | Good first pass for 100 k+ vectors.                     |
+
+### 2.2 Clustering Algorithms for Embeddings
+
+| Algorithm                     | When to Use                                           | Key Hyper‑params                  |
+| ----------------------------- | ----------------------------------------------------- | --------------------------------- |
+| **HDBSCAN**                   | Data with variable density; can return *noise* points | `min_cluster_size`, `min_samples` |
+| **Density‑Aware DBSCAN**      | Datasets with clear distance scale                    | `eps`, `min_samples`              |
+| **K‑Means / MiniBatchKMeans** | You *know* approximate *k*; quick                     | `n_clusters`, `batch_size`        |
+| **Spectral / Leiden**         | Graph‑based community detection                       | Graph `k`, resolution             |
+
+> **Tip — Stability Metrics**: cache and display *Silhouette* and *Davies‑Bouldin* scores for each run so users can spot hyper‑param sweet spots quickly.
+
+### 2.3 Interactive Rendering Patterns
+
+* **WebGL / WebGPU point shaders** (Deck.gl `ScatterplotLayer`, regl, or custom shaders) handle **≥4 M points at 60fps**.
+* **Canvas‑based lod/culling** is simpler but stalls >50 k points.
+* **Datashader + Bokeh/Panel** pipelines rasterise points server‑side, returning lightweight PNG tiles—ideal for *very* large remote collections.
+
+---
+
+## 3. Survey of Existing Tools & What to Borrow
+
+| Tool                                | Notable Features                                                                       | OSS?       | Lessons for Sprint 11                                                           |
+| ----------------------------------- | -------------------------------------------------------------------------------------- | ---------- | ------------------------------------------------------------------------------- |
+| **Embedding Atlas (Apple, 2025)**   | WebGPU scatter, automatic density clustering & auto‑labels, coordinated metadata views | ✔ Apache‑2 | Copy their *order‑independent transparency* trick and map‑like label placement. |
+| **TensorBoard Embedding Projector** | 3‑D UMAP/t‑SNE, selection‑based labelling, neighbourhood search                        | ✔          | Good UI for *label editing*; weaker on big data (>100 k).                       |
+| **Nomic Atlas / WizMap**            | Million‑point WebGL rendering, serverless JSON export, text & vec search               | Partial    | Shows that `HNSW` + client‑side WebWorker search keeps hover tool‑tips instant. |
+| **Latent Scope**                    | Auto‑embedding & local clustering pipeline, notebook + web UI                          | ✔          | Example Python wrapper you could re‑use for *offline* batch exports.            |
+| **PixPlot**                         | Image tiles on demand, thumbnail hover, deep‑zoom                                      | ✔          | Great inspiration for your *ThumbnailOverlay*.                                  |
+
+---
+
+## 4. Proposed End‑to‑End Architecture
+
+```mermaid
+graph TD
+    subgraph Browser
+        A[WebGL Scatter<br/>+ Deck.gl/@luma.gl]-->B[Cluster Layer]
+        A-->C[Thumbnail Overlay]
+        B-->D[Label Editor]
+    end
+    A<-- WebSocket stream -->E((FastAPI UMAP Service))
+    E-->F[(Cache <br/> /redis)]
+    E-->G>Qdrant]
+    style G fill:#ecc,stroke:#333
+```
+
+**Key points**
+
+1. **Streaming JSONL** keeps initial load <2 MB by down‑sampling to viewport.
+2. **WebSocket** broadcasts cluster updates (silhouette, new labels) so *MetricsPanel* stays live.
+3. Persist label edits back into a `cluster_labels` collection in Qdrant so downstream searches can filter by your taxonomy.
+
+---
+
+## 5. Detailed Implementation Recommendations
+
+### 5.1 Backend Enhancements
+
+1. **Caching**: memoise UMAP embeddings keyed by `(collection_id, umap_params_hash)`.
+2. **Incremental `transform` Endpoint**: POST new 512‑d vectors → return 2‑D coords using saved `umap_.transform`.
+3. **Async Cluster Job**: heavy HDBSCAN runs in background & streams partial results.
+
+### 5.2 Frontend Enhancements (Beyond Current Tech Plan)
+
+| Component                                         | Enhancement                                                                                                                                   |
+| ------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `UMAPScatterPlot`                                 | Switch to **Deck.gl ScatterplotLayer** when `points.length>50 k`; keep D3 SVG for <10 k.                                                      |
+| Add **LOD point size attenuation** for depth cue. |                                                                                                                                               |
+| `ClusteringControls`                              | Provide **preset buttons** (e.g., "Coarse", "Fine", "Density"), each mapping to a param bundle.                                               |
+| `MetricsPanel`                                    | Add mini‑sparkline showing *cluster count vs eps* sweep for DBSCAN.                                                                           |
+| `ThumbnailOverlay`                                | Async‑load thumbnails via [`IntersectionObserver`](https://developer.mozilla.org/en-US/docs/Web/API/Intersection_Observer_API) to avoid jank. |
+
+### 5.3 Accessibility & UX
+
+* Provide **high‑contrast palette** fallback; remember colour‑blind safe schemes.
+* Keyboard shortcuts: `F` *focus search*, `L` *toggle labels*, `E` *export selection*.
+* Tooltip delay ≥150 ms to prevent flicker when panning.
+
+### 5.4 Export & Integration
+
+* **CSV / Parquet** exports include: `id, x, y, cluster_id, label, is_outlier, umap_params, timestamp`.
+* Expose **`/umap/export/{collection}?format=parquet`** for programmatic retrieval.
+
+---
+
+## 6. Common Pitfalls & How to Avoid Them
+
+| Pitfall                                        | Mitigation                                                                       |
+| ---------------------------------------------- | -------------------------------------------------------------------------------- |
+| **Overplotting hides dense regions**           | Use WebGL additive blending + dynamic point‑size or Datashader density layers.   |
+| **UMAP non‑determinism breaks debugging**      | Always store `random_state` & `metric` in metadata; seed once per collection.    |
+| **Cluster churn with param tweaks**            | Cache param ↔ cluster assignment; display diff overlay so users keep mental map. |
+| **Memory spikes when loading >1 M thumbnails** | Generate 128 px thumbnails & lazy‑load only visible ones.                        |
+
+---
+
+## 7. Annotated Paper & Resource List (selected)
+
+1. **Ren et al., 2025 – *Embedding Atlas***. WebGPU‑based scalable visualiser with auto‑cluster labels. [https://arxiv.org/abs/2505.06386](https://arxiv.org/abs/2505.06386)
+2. **Metta et al., 2025 – *Interactive Visual Exploration of Latent Spaces for XAI***. β‑VAE + interface for concept definitions. [https://ceur-ws.org/Vol-3957/AXAI-paper10.pdf](https://ceur-ws.org/Vol-3957/AXAI-paper10.pdf)
+3. **Apple Embedding Atlas GitHub Demo**: live demo & code. [https://apple.github.io/embedding-atlas](https://apple.github.io/embedding-atlas)
+4. **UMAP Interactive Visualizations Doc**: gallery of embedding explorers. [https://umap-learn.readthedocs.io/en/latest/interactive\_viz.html](https://umap-learn.readthedocs.io/en/latest/interactive_viz.html)
+5. **Datashader Intro**: scalable server‑side rasterisation pipeline. [https://datashader.org/getting\_started/Introduction.html](https://datashader.org/getting_started/Introduction.html)
+6. **HoloViz Plotting Pitfalls**: practical advice when visualising huge scatter plots. [https://datashader.org/user\_guide/Plotting\_Pitfalls.html](https://datashader.org/user_guide/Plotting_Pitfalls.html)
+7. **Embedding Projector (Smilkov et al., 2016)**: classic interactive visualiser; design patterns still relevant. [https://arxiv.org/abs/1611.05469](https://arxiv.org/abs/1611.05469)
+8. **Latent Scope**: OSS toolkit for local latent‑space exploration with auto‑labeling. [https://github.com/enjalot/latent-scope](https://github.com/enjalot/latent-scope)
+9. **Latentverse Benchmark Toolkit (2025)**: metrics & stress‑tests for embedding visualisers. [https://www.biorxiv.org/content/10.1101/2025.04.25.650676v1](https://www.biorxiv.org/content/10.1101/2025.04.25.650676v1)
+10. **Arora, 2025 – *Multi‑Dimensional Data Visualization Techniques* (Substack)**: overview of UMAP use cases & interactive tooling.
+
+---
+
+## 8. Sprint‑Level Next Actions
+
+1. **Week 1**: integrate Deck.gl scatter; store `random_state`; add `/umap/transform`.
+2. **Week 2**: add HDBSCAN async job + MetricsPanel sparkline.
+3. **Week 3**: implement label editor & persistence.
+4. **Week 4**: performance pass with WebGL instancing + thumbnail lazy‑load.
+
+*Prepared 18 June 2025 – Pixie 🧚*

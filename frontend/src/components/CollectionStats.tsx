@@ -45,7 +45,12 @@ export function CollectionStats() {
         setLoading(true);
         setError(null);
         const info = await getCollectionInfo(collection);
-        setCollectionInfo(info);
+        if (info === null) {
+          setCollectionInfo(null);
+          setError('Collection not found');
+        } else {
+          setCollectionInfo(info);
+        }
       } catch (err) {
         console.error('Failed to load collection info:', err);
         setError('Failed to load collection information');

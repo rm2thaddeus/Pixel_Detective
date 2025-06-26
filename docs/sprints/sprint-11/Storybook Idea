@@ -1,0 +1,95 @@
+# Storybook Feature – Product Requirements Document (PRD)
+
+## 1. Objective
+
+Provide an **interactive, visually‑rich playground** for both developers *and* end‑users to explore Pixel Detective’s UI components and media‑search capabilities in isolation. The Storybook will serve as:
+
+1. A **component catalogue** with live controls, accessibility checks, and visual‑regression hooks for the engineering team.
+2. A **guided product tour** ("User Storybook") that stitches together real API calls, sample collections, and step‑by‑step narratives, showcasing core workflows such as ingestion, semantic search, and UMAP exploration.
+
+## 2. Hypotheses
+
+* **H1** – Integrating Storybook into the CI pipeline will cut frontend regression debugging time by **≥ 40 %**.
+* **H2** – A guided Storybook tour will improve first‑time user task completion (ingest → search) from **60 % → 85 %**.
+
+## 3. Success Criteria
+
+| KPI                                       | Target                   |
+| ----------------------------------------- | ------------------------ |
+| Component stories with a11y pass          | **100 %**                |
+| Chromatic baseline coverage               | **≥ 90 %** of components |
+| Demo tour completion rate (internal test) | **≥ 85 %**               |
+| Lighthouse a11y score on Storybook build  | **≥ 95**                 |
+
+## 4. Functional Requirements
+
+1. **Component Stories**
+
+   * Stories for every component in `frontend/src/components` & pages in `app/`.
+   * **Controls** for props, **dark‑mode toggle**, viewport presets.
+   * **ChakraProvider decorator** to inherit design‑system tokens.
+   * Hooks mocking (React Query) via **MSW** so stories run offline.
+2. **Visual Regression**
+
+   * CI job uploads snapshots to **Chromatic**; fails on diff > 0.1 %.
+3. **Accessibility & QA**
+
+   * Integrate `@storybook/addon-a11y` & `storybook-playwright` for axe audits + interaction tests.
+4. **Guided Tour (“User Storybook”)**
+
+   * MDX‑based narrative chapters: *Welcome*, *Ingest*, *Search*, *Explore*, *Duplicate Detection*.
+   * Live data via `NEXT_PUBLIC_API_URL` (sample collection shipped with repo).
+   * Animated callouts (Framer Motion) and next/prev progress bar.
+
+## 5. Non‑Functional Requirements
+
+* **Build Time**: Storybook static build ≤ 120 s (CI on 4‑core runner).
+* **Bundle Size**: ≤ 5 MB gzip (tree‑shaken, lazy‑loaded stories).
+* **Security**: Expose only READ‑ONLY API calls; redact file‑system paths.
+
+## 6. Technical Approach & Architecture
+
+```mermaid
+flowchart TD
+    src_components["UI Components"] -->|stories| story_files["*.stories.tsx / *.mdx"]
+    story_files --> SBCore["@storybook/react v8"]
+    SBCore -->|Decorator| ChakraProvider
+    SBCore -->|Addon| ReactQueryMSW
+    SBCore -->|Addon| A11yAddon
+    SBCore -->|Addon| Chromatic
+    SBCore -->|Static Build| storybook-static
+    Guided["MDX Guided Tour"] --> SBCore
+```
+
+**Key packages**:
+
+* `@storybook/react@8`, `@storybook/addon-essentials`, `@storybook/addon-a11y`, `@chakra-ui/storybook-addon`, `msw-storybook-addon`, `chromatic`, `storybook-addon-designs`.
+* CI: GitHub Actions → Install → Build → Chromatic publish → Playwright test.
+
+## 7. Sprint Plan (2 Weeks)
+
+| Day | Task                                                               | Owner     |
+| --- | ------------------------------------------------------------------ | --------- |
+| 1   | Bootstrap Storybook config (`npx sb@next init` + Chakra decorator) | FE Lead   |
+| 2–3 | Write stories for atomic UI (buttons, cards, modals)               | FE Team   |
+| 3   | Set up MSW mocks & dark‑mode global toolbar                        | FE Team   |
+| 4   | Integrate a11y & Chromatic CI; baseline snapshot                   | DevOps    |
+| 5–6 | Stories for pages (`/search`, `/collections`)                      | FE Team   |
+| 7   | Draft MDX chapters for guided tour                                 | UX Writer |
+| 8   | API stubs + live‑data switcher (env flag)                          | FE Lead   |
+| 9   | Framer Motion callouts & progress bar                              | FE Team   |
+| 10  | Playwright interaction tests; polish                               | QA        |
+
+## 8. Risks & Mitigations
+
+| Risk                                 | Likelihood | Impact | Mitigation                                              |
+| ------------------------------------ | ---------- | ------ | ------------------------------------------------------- |
+| Snapshot flakiness (dynamic data)    | Medium     | Medium | Freeze dates, seed random, mock network                 |
+| Build time creep                     | Low        | Low    | Lazy‑load heavy page stories                            |
+| Security: exposing local media paths | Low        | High   | Use fixture collection shipped inside `public/fixtures` |
+
+## 9. Open Questions
+
+1. Should we publish the guided tour publicly (GitHub Pages / Vercel Preview) or keep it internal?
+2. Do we need i18n support in Storybook now or defer?
+3. What sample dataset size best balances performance vs realism?

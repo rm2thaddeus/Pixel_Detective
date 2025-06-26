@@ -61,7 +61,7 @@ export function CollectionModal({ isOpen, onClose }: CollectionModalProps) {
         isClosable: true,
       });
       if (collection === deletedName) {
-        setCollection('');
+        setCollection(null);
       }
       // Refresh list
       loadCollections();

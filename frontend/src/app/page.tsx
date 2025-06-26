@@ -125,6 +125,15 @@ function HomeContent() {
       featured: true
     },
     {
+      title: 'Latent Space',
+      description: 'Visualize and explore your collection in 2D embedding space',
+      icon: FiZap,
+      color: 'purple',
+      action: () => router.push('/latent-space'),
+      disabled: setupStep < 3,
+      featured: true
+    },
+    {
       title: 'Add Images',
       description: 'Upload and process new images for your collection',
       icon: FiUpload,

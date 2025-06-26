@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 // import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import { ColorModeScript } from "@chakra-ui/react";
 import { Inter } from "next/font/google";
 import { Provider } from "@/components/ui/provider";
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { ClientProviders } from './client-providers';
 
 // const geistSans = Geist({
 //   variable: "--font-geist-sans",
@@ -24,16 +25,17 @@ export const metadata: Metadata = {
 
 export default function RootLayout({
   children,
-}: Readonly<{
+}: {
   children: React.ReactNode;
-}>) {
+}) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <head>
-        <ColorModeScript initialColorMode="light" />
-      </head>
-      <body className={inter.className}>
-        <Provider>{children}</Provider>
+      <body className={inter.className} suppressHydrationWarning>
+        <ClientProviders>
+          <Provider>
+            {children}
+          </Provider>
+        </ClientProviders>
       </body>
     </html>
   );

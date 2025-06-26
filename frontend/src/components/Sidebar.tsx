@@ -23,10 +23,10 @@ import {
   Flex,
   Spinner,
 } from '@chakra-ui/react';
-import { FiPlus, FiTrash2, FiRefreshCw, FiGrid, FiHome } from 'react-icons/fi';
+import { FiPlus, FiTrash2, FiRefreshCw, FiGrid, FiHome, FiScatter } from 'react-icons/fi';
 import { useStore } from '@/store/useStore';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { api, deleteCollection as deleteCollectionApi } from '@/lib/api';
+import { api, deleteCollection as deleteCollectionApi, selectCollection as selectCollectionApi } from '@/lib/api';
 import React, { useState } from 'react';
 import NextLink from 'next/link';
 
@@ -75,6 +75,19 @@ export function Sidebar({ onOpenCollectionModal }: SidebarProps) {
         description: error.message,
         status: 'error',
         duration: 5000,
+        isClosable: true,
+      });
+    },
+  });
+
+  const selectMutation = useMutation({
+    mutationFn: (name: string) => selectCollectionApi(name),
+    onError: (err: any) => {
+      toast({
+        title: 'Failed to select collection',
+        description: err?.response?.data?.detail || err.message,
+        status: 'error',
+        duration: 4000,
         isClosable: true,
       });
     },
@@ -131,8 +144,11 @@ export function Sidebar({ onOpenCollectionModal }: SidebarProps) {
         <Button as={NextLink} href="/" variant="ghost" leftIcon={<FiHome />} justifyContent="start" mb={2}>
             Home
         </Button>
-        <Button as={NextLink} href="/collections" variant="ghost" leftIcon={<FiGrid />} justifyContent="start" mb={4}>
+        <Button as={NextLink} href="/collections" variant="ghost" leftIcon={<FiGrid />} justifyContent="start" mb={2}>
             Collections
+        </Button>
+        <Button as={NextLink} href="/latent-space" variant="ghost" leftIcon={<FiScatter />} justifyContent="start" mb={4}>
+            Latent Space
         </Button>
 
         <HStack px={4} mb={2} justifyContent="space-between">
@@ -154,7 +170,10 @@ export function Sidebar({ onOpenCollectionModal }: SidebarProps) {
               bg={activeCollection === name ? 'blue.500' : 'transparent'}
               color={activeCollection === name ? 'white' : 'inherit'}
               cursor="pointer"
-              onClick={() => setActiveCollection(name)}
+              onClick={() => {
+                setActiveCollection(name);
+                selectMutation.mutate(name);
+              }}
               justifyContent="space-between"
               _hover={{ bg: activeCollection !== name ? useColorModeValue('gray.100', 'gray.700') : 'blue.600' }}
             >

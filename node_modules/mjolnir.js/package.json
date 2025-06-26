@@ -1,0 +1,58 @@
+{
+  "name": "mjolnir.js",
+  "description": "An Event Manager",
+  "version": "3.0.0",
+  "type": "module",
+  "keywords": [
+    "hammerjs",
+    "touch",
+    "gesture",
+    "mouse",
+    "keyboard",
+    "event manager"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/visgl/mjolnir.js"
+  },
+  "license": "MIT",
+  "types": "dist/index.d.ts",
+  "main": "dist/index.cjs",
+  "module": "dist/index.js",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "src",
+    "dist",
+    "dist.min.js"
+  ],
+  "scripts": {
+    "bootstrap": "yarn && ocular-bootstrap",
+    "build": "ocular-clean && ocular-build && npm run build-bundle",
+    "build-bundle": "ocular-bundle ./src/index.ts",
+    "lint": "ocular-lint",
+    "cover": "ocular-test cover",
+    "publish-prod": "ocular-publish version-only-prod",
+    "publish-beta": "ocular-publish version-only-beta",
+    "test": "ocular-test"
+  },
+  "pre-commit": [
+    "test"
+  ],
+  "devDependencies": {
+    "@vis.gl/dev-tools": "1.0.0-alpha.18",
+    "@vis.gl/ts-plugins": "1.0.0-alpha.18",
+    "jsdom": "^16.0.0",
+    "pre-commit": "^1.2.2",
+    "puppeteer": "^22.0.0"
+  },
+  "volta": {
+    "node": "20.15.1",
+    "yarn": "4.3.1"
+  }
+}

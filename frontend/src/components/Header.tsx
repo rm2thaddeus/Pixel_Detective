@@ -1,15 +1,18 @@
 'use client';
 
-import { Box, Flex, Text, Badge, useColorModeValue, HStack, Icon } from '@chakra-ui/react';
-import { FiZap } from 'react-icons/fi';
+import { Box, Flex, Text, Badge, useColorModeValue, HStack, Icon, Button } from '@chakra-ui/react';
+import { FiZap, FiHome, FiSearch, FiFolder } from 'react-icons/fi';
 import { useStore } from '@/store/useStore';
 import { useEffect, useState } from 'react';
 import { ping } from '@/lib/api';
 import { ColorModeButton } from '@/components/ui/color-mode';
+import { useRouter } from 'next/navigation';
+import { CollectionSelector } from '@/components/CollectionSelector';
 
 export function Header() {
   const { collection } = useStore();
   const [healthStatus, setHealthStatus] = useState<'loading' | 'ok' | 'error'>('loading');
+  const router = useRouter();
 
   // Dark mode aware colors
   const bgColor = useColorModeValue('white', 'gray.800');
@@ -61,15 +64,41 @@ export function Header() {
             </Badge>
           </Flex>
           
-          {collection && (
-            <Flex align="center" gap={2}>
-              <Text fontSize="sm" color={mutedTextColor}>Collection:</Text>
-              <Badge colorScheme="blue">{collection}</Badge>
-            </Flex>
-          )}
+          <CollectionSelector />
 
           <ColorModeButton />
         </Flex>
+
+        <HStack spacing={6}>
+          <Button
+            variant="ghost"
+            leftIcon={<Icon as={FiHome} />}
+            onClick={() => router.push('/')}
+          >
+            Home
+          </Button>
+          <Button
+            variant="ghost"
+            leftIcon={<Icon as={FiSearch} />}
+            onClick={() => router.push('/search')}
+          >
+            Search
+          </Button>
+          <Button
+            variant="ghost"
+            leftIcon={<Icon as={FiZap} />}
+            onClick={() => router.push('/latent-space')}
+          >
+            Latent Space
+          </Button>
+          <Button
+            variant="ghost"
+            leftIcon={<Icon as={FiFolder} />}
+            onClick={() => router.push('/collections')}
+          >
+            Collections
+          </Button>
+        </HStack>
       </Flex>
     </Box>
   );
