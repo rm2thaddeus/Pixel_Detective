@@ -19,6 +19,7 @@ Sprint 11 has successfully delivered a **production-ready interactive latent spa
 - ✅ **Multi-layer Visualization:** Scatter points, convex hulls, density overlays, and terrain modes
 - ✅ **Real-time Controls:** Live clustering updates with debounced parameter changes
 - ✅ **Collection Integration:** Create new collections directly from selected points
+- ✅ **Collections Merge:** Merge multiple collections via POST `/api/v1/collections/merge` with background processing
 - ✅ **CUDA Acceleration:** GPU-accelerated processing with automatic CPU fallback
 
 ### 🏗️ Technical Implementation Status
@@ -27,6 +28,7 @@ Sprint 11 has successfully delivered a **production-ready interactive latent spa
 - Enhanced UMAP router with clustering algorithms
 - CUDA acceleration via cuML with automatic fallback
 - Collection creation from visual selections
+- Merge endpoint `POST /api/v1/collections/merge` with `MergeCollectionsRequest` and background task `_merge_collections_task`
 - Performance monitoring and metrics logging
 - Persistent cluster labeling system
 
@@ -73,6 +75,7 @@ Sprint 11 has successfully delivered a **production-ready interactive latent spa
 | **Performance Optimization** | ✅ Complete | CUDA acceleration, viewport culling, optimized rendering |
 | **Responsive Design** | ✅ Complete | Mobile-friendly layout with collapsible controls |
 | **Collection Integration** | ✅ Complete | Create collections from visual selections with automatic activation |
+| **Collections Merge**      | ✅ Complete | Merge multiple Qdrant collections with idempotent background task |
 
 ### 🔄 Next Phase Opportunities
 | Feature | Priority | Description |

@@ -91,6 +91,7 @@ pytest backend/tests/test_umap.py
 - **Lasso Selection Tool:** Draw custom polygons, create collections from visual picks
 - **Multi-layer Visualization:** Scatter points, convex hulls, density overlays, terrain modes
 - **Collection Integration:** Visual selection to persistent collection workflow
+- **Collections Merge:** Merge multiple collections via POST `/api/v1/collections/merge` with background task
 - **CUDA Acceleration:** 10-300x speedup with automatic CPU fallback
 
 ### 🚀 Ready for Next Phase

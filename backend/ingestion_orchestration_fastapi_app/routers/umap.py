@@ -94,7 +94,8 @@ async def umap_projection(
                 "x": float(embedding_2d[idx, 0]),
                 "y": float(embedding_2d[idx, 1]),
                 "thumbnail_base64": payload.get("thumbnail_base64"),
-                "filename": payload.get("filename")
+                "filename": payload.get("filename"),
+                "caption": payload.get("caption")
             })
 
         return UMAPProjectionResponse(

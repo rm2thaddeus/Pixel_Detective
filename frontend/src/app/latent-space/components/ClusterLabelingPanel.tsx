@@ -20,6 +20,8 @@ import {
   Divider,
   InputGroup,
   InputRightElement,
+  FormControl,
+  FormLabel,
 } from '@chakra-ui/react';
 import { useLatentSpaceStore } from '../hooks/useLatentSpaceStore';
 import { 
@@ -71,13 +73,47 @@ export function ClusterLabelingPanel({
     return sugg;
   }, [points, clusters]);
 
+  // Helper to pull caption-like text from a point payload
+  const extractCaption = (pt: any): string | null => {
+    if (pt.caption && typeof pt.caption === 'string') {
+      return pt.caption;
+    }
+    if (pt.payload) {
+      const p = pt.payload as Record<string, any>;
+      if (typeof p.caption === 'string') return p.caption;
+      if (typeof p.alt === 'string') return p.alt;
+      if (Array.isArray(p.tags) && p.tags.length) return p.tags.join(' ');
+      if (typeof p.subject === 'string') return p.subject;
+      // Fallback: any first string field longer than 6 characters
+      for (const key in p) {
+        if (typeof p[key] === 'string' && p[key].length > 6) return p[key];
+      }
+    }
+    return null;
+  };
+
   const captionSamples = useMemo(()=>{
     const map: Record<number,string[]> = {};
     clusters.forEach(cid=>{
       const caps = points
-        .filter(p=>p.cluster_id===cid && (p as any).caption)
-        .map(p=>(p as any).caption as string);
-      map[cid] = Array.from(new Set(caps)).slice(0,4); // max 4 captions
+        .filter(p=>p.cluster_id===cid)
+        .map(pt=>extractCaption(pt))
+        .filter(Boolean) as string[];
+      map[cid] = Array.from(new Set(caps)).slice(0,4);
+    });
+    return map;
+  }, [points, clusters]);
+
+  // Inspect payload keys for debugging when no captions are found
+  const payloadKeys = useMemo(()=>{
+    const map: Record<number,string[]> = {};
+    clusters.forEach(cid=>{
+      const pt = points.find(p=>p.cluster_id===cid);
+      if (pt && typeof (pt as any).payload === 'object') {
+        map[cid] = Object.keys((pt as any).payload as Record<string, any>);
+      } else {
+        map[cid] = [];
+      }
     });
     return map;
   }, [points, clusters]);
@@ -184,6 +220,17 @@ export function ClusterLabelingPanel({
                                 <Text>Dens: {summary.density.toFixed(1)}</Text>
                                 <Text>Spr: {summary.spread.toFixed(2)}</Text>
                               </HStack>
+                              {captionSamples[clusterId]?.length>0 ? (
+                                <Text fontSize="xs" color="gray.400" isTruncated maxW="200px" noOfLines={1}>
+                                  "{captionSamples[clusterId][0]}"
+                                </Text>
+                              ) : (
+                                payloadKeys[clusterId]?.length > 0 && (
+                                  <Text fontSize="8px" color="red.400" isTruncated maxW="200px">
+                                    payload keys: {payloadKeys[clusterId].join(', ')}
+                                  </Text>
+                                )
+                              )}
                             </VStack>
                           </HStack>
                           <HStack spacing={1}>
@@ -210,41 +257,47 @@ export function ClusterLabelingPanel({
                         {isEditing && (
                           <VStack spacing={2} align="stretch">
                             <Divider />
-                            <InputGroup size="sm">
-                              <Input
-                                value={labelInput}
-                                onChange={(e) => setLabelInput(e.target.value)}
-                                placeholder="Enter cluster label..."
-                                onKeyPress={(e) => {
-                                  if (e.key === 'Enter') {
-                                    handleSaveLabel(clusterId);
-                                  } else if (e.key === 'Escape') {
-                                    handleCancelEditing();
-                                  }
-                                }}
-                                autoFocus
-                              />
-                              <InputRightElement>
-                                <HStack spacing={1}>
-                                  <IconButton
-                                    size="xs"
-                                    icon={<Text fontSize="xs">✓</Text>}
-                                    colorScheme="green"
-                                    variant="ghost"
-                                    onClick={() => handleSaveLabel(clusterId)}
-                                    aria-label="Save label"
-                                  />
-                                  <IconButton
-                                    size="xs"
-                                    icon={<Text fontSize="xs">✕</Text>}
-                                    colorScheme="red"
-                                    variant="ghost"
-                                    onClick={handleCancelEditing}
-                                    aria-label="Cancel editing"
-                                  />
-                                </HStack>
-                              </InputRightElement>
-                            </InputGroup>
+                            <FormControl id={`cluster-label-${clusterId}`}>
+                              <FormLabel srOnly htmlFor={`cluster-label-${clusterId}`}>Cluster Label</FormLabel>
+                              <InputGroup size="sm">
+                                <Input
+                                  id={`cluster-label-${clusterId}`}
+                                  name="clusterLabel"
+                                  value={labelInput}
+                                  onChange={(e) => setLabelInput(e.target.value)}
+                                  placeholder="Enter cluster label..."
+                                  onKeyPress={(e) => {
+                                    if (e.key === 'Enter') {
+                                      handleSaveLabel(clusterId);
+                                    } else if (e.key === 'Escape') {
+                                      handleCancelEditing();
+                                    }
+                                  }}
+                                  autoFocus
+                                  aria-label="Cluster label"
+                                />
+                                <InputRightElement>
+                                  <HStack spacing={1}>
+                                    <IconButton
+                                      size="xs"
+                                      icon={<Text fontSize="xs">✓</Text>}
+                                      colorScheme="green"
+                                      variant="ghost"
+                                      onClick={() => handleSaveLabel(clusterId)}
+                                      aria-label="Save label"
+                                    />
+                                    <IconButton
+                                      size="xs"
+                                      icon={<Text fontSize="xs">✕</Text>}
+                                      colorScheme="red"
+                                      variant="ghost"
+                                      onClick={handleCancelEditing}
+                                      aria-label="Cancel editing"
+                                    />
+                                  </HStack>
+                                </InputRightElement>
+                              </InputGroup>
+                            </FormControl>
                             {/* suggestions */}
                             {keywordSuggestions[clusterId]?.length>0 && (
                               <HStack spacing={1} flexWrap="wrap">

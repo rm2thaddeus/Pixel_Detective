@@ -59,6 +59,7 @@
 | FR-04 | Cluster Quality Metrics | Medium | Display silhouette score, outlier count | ✅ COMPLETE | Live metrics panel |
 | FR-05 | Parameter Tuning Interface | Medium | Real-time controls for eps, min_samples, k | ✅ COMPLETE | Debounced live updates |
 | FR-06 | Collection Integration | High | Seamless integration with existing collection system | ✅ COMPLETE | Lasso selection + creation |
+| FR-07 | Collection Merge | High | Merge multiple Qdrant collections into a new master collection with idempotent background task | ✅ COMPLETE | POST `/api/v1/collections/merge`, `_merge_collections_task` |
 
 ### Non-Functional Requirements ✅ ALL EXCEEDED
 | ID | Requirement | Priority | Acceptance Criteria | Status | Achievement |
@@ -88,7 +89,8 @@ Frontend Next.js App ✅
     ├── /umap/projection (enhanced) ✅
     ├── /umap/projection_with_clustering ✅
     ├── /umap/cluster_analysis/{id} ✅
-    └── /collections/from_selection ✅
+    ├── /collections/from_selection ✅
+    └── /api/v1/collections/merge ✅
 ```
 
 ### Component Breakdown ✅ ALL DELIVERED
