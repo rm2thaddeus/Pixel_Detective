@@ -19,27 +19,52 @@ import {
   IconButton,
   Flex,
   Spacer,
+  Menu,
+  MenuButton,
+  MenuList,
+  MenuItem,
   useDisclosure,
 } from '@chakra-ui/react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { FiPlus, FiTrash2, FiCheckCircle, FiInfo, FiLayers } from 'react-icons/fi';
+import { FiPlus, FiTrash2, FiCheckCircle, FiInfo, FiLayers, FiMoreVertical } from 'react-icons/fi';
+import NextLink from 'next/link';
 import { Header } from '@/components/Header';
 import { useState } from 'react';
 import { CollectionModal } from '@/components/CollectionModal';
 import { CollectionDetailsDrawer } from '@/components/CollectionDetailsDrawer';
-import { getCollections, selectCollection, deleteCollection } from '@/lib/api';
+import {
+  getCollections,
+  selectCollection,
+  deleteCollection,
+  startFindSimilar,
+  getCurationStatuses,
+  getRecentJobs,
+} from '@/lib/api';
 import { useStore } from '@/store/useStore';
 import { MergeCollectionsModal } from '@/components/MergeCollectionsModal';
 
 
-const CollectionCard = ({ name, isActive, onSelect, onDelete, onView }) => {
+const CollectionCard = ({ name, isActive, status, onSelect, onDelete, onView, onFindSimilar, jobId }) => {
   return (
     <Card>
       <CardHeader>
         <Flex>
           <Heading size='md'>{name}</Heading>
           <Spacer />
-          {isActive && <Tag colorScheme="green">Active</Tag>}
+          <HStack>
+            {isActive && <Tag colorScheme="green">Active</Tag>}
+            <Tag>{status}</Tag>
+            <Menu>
+              <MenuButton as={IconButton} size="sm" icon={<FiMoreVertical />} variant="ghost" />
+              <MenuList>
+                <MenuItem onClick={() => onFindSimilar(name)}>Find Near-Duplicates</MenuItem>
+                <MenuItem as={NextLink} href={`/duplicates?collection=${name}`}>View Duplicate Report</MenuItem>
+                {jobId && (
+                  <MenuItem as={NextLink} href={`/logs/${jobId}`}>View Ingestion Report</MenuItem>
+                )}
+              </MenuList>
+            </Menu>
+          </HStack>
         </Flex>
       </CardHeader>
       <CardBody>
@@ -83,6 +108,14 @@ export default function CollectionsPage() {
   const { data: collections, isLoading, error } = useQuery<string[], Error>({
       queryKey: ['collections'],
       queryFn: getCollections
+  });
+  const { data: curationStatuses } = useQuery({
+      queryKey: ['curationStatus'],
+      queryFn: getCurationStatuses
+  });
+  const { data: recentJobs } = useQuery({
+      queryKey: ['recentJobs'],
+      queryFn: getRecentJobs
   });
   const activeCollection = useStore((state) => state.collection);
   const setActiveCollection = useStore((state) => state.setCollection);
@@ -152,6 +185,16 @@ export default function CollectionsPage() {
     },
   });
 
+  const findSimilarMutation = useMutation({
+    mutationFn: startFindSimilar,
+    onSuccess: () => {
+      toast({ title: 'Duplicate analysis started', status: 'info' });
+    },
+    onError: (err: Error) => {
+      toast({ title: 'Failed to start analysis', description: err.message, status: 'error' });
+    }
+  });
+
   const handleSelect = (collectionName: string) => {
     selectionMutation.mutate(collectionName);
   };
@@ -160,6 +203,10 @@ export default function CollectionsPage() {
     if (window.confirm(`Are you sure you want to delete collection '${collectionName}'? This action cannot be undone.`)) {
       deleteMutation.mutate(collectionName);
     }
+  };
+
+  const handleFindSimilar = (collectionName: string) => {
+    findSimilarMutation.mutate(collectionName);
   };
 
   const handleViewDetails = (collectionName: string) => {
@@ -209,9 +256,12 @@ export default function CollectionsPage() {
                 key={name}
                 name={name}
                 isActive={name === activeCollection}
+                status={curationStatuses?.[name] || 'Not Analyzed'}
+                jobId={recentJobs?.[name]}
                 onSelect={handleSelect}
                 onDelete={handleDelete}
                 onView={handleViewDetails}
+                onFindSimilar={handleFindSimilar}
               />
             ))}
           </SimpleGrid>
@@ -227,4 +277,4 @@ export default function CollectionsPage() {
       </Box>
     </Box>
   );
-}; 
+};

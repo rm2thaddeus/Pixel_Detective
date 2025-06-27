@@ -239,9 +239,10 @@ Based on user feedback and workflow analysis, the next phase will focus on:
 
 ✅ **Delivered production-ready interactive latent space visualization**  
 ✅ **Exceeded performance targets** (2s vs 3s target load time)  
-✅ **Complete feature set** with advanced clustering and selection  
-✅ **CUDA acceleration** with automatic fallback system  
-✅ **Mobile-responsive design** with accessibility compliance  
-✅ **Comprehensive state management** with optimized performance  
+✅ **Complete feature set** with advanced clustering and selection
+✅ **CUDA acceleration** with automatic fallback system
+✅ **Mobile-responsive design** with accessibility compliance
+✅ **Comprehensive state management** with optimized performance
+- 🆕 **Curation actions menu** on the Collections page with status badges and direct links to duplicate and ingestion reports
 
 **Ready for next phase enhancements focused on UX refinement and AI-powered features.**

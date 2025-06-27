@@ -27,6 +27,9 @@ router = APIRouter(prefix="/api/v1/ingest", tags=["ingestion"])
 
 # In-memory job tracking (in production, use Redis or database)
 job_status = {}
+# Track the most recent ingestion job per collection so the UI can link
+# directly to the latest logs without polling all jobs.
+recent_jobs: Dict[str, str] = {}
 
 # Configuration
 ML_SERVICE_URL = os.getenv("ML_INFERENCE_SERVICE_URL", "http://localhost:8001")
@@ -79,7 +82,7 @@ async def start_ingestion(
     
     # Generate job ID
     job_id = str(uuid.uuid4())
-    
+
     # Initialize job status
     job_status[job_id] = {
         "status": "started",
@@ -93,6 +96,9 @@ async def start_ingestion(
         "progress": 0.0,
         "logs": []  # Add logs array for frontend
     }
+
+    # Remember latest job for this collection
+    recent_jobs[collection_name] = job_id
     
     # Start background processing
     background_tasks.add_task(process_directory, job_id, request.directory_path, collection_name)
@@ -147,6 +153,8 @@ async def start_ingestion_from_path(
         "progress": 0.0,
         "logs": []
     }
+
+    recent_jobs[collection_name] = job_id
     
     # Start background processing
     background_tasks.add_task(process_directory, job_id, request.directory_path, collection_name)
@@ -208,6 +216,8 @@ async def upload_and_ingest_files(
         "progress": 0.0,
         "logs": ["Starting ingestion from uploaded files..."]
     }
+
+    recent_jobs[collection_name] = job_id
     
     # Start background processing on the temporary directory
     # We add another task to clean up the directory after processing
@@ -226,8 +236,14 @@ async def get_job_status(job_id: str):
     """Get the status of an ingestion job."""
     if job_id not in job_status:
         raise HTTPException(status_code=404, detail="Job not found")
-    
+
     return job_status[job_id]
+
+
+@router.get("/recent_jobs")
+async def get_recent_jobs():
+    """Return the most recent job ID for each collection."""
+    return recent_jobs
 
 def compute_sha256(file_path: str) -> str:
     """Compute SHA256 hash of a file."""

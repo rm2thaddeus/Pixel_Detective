@@ -19,6 +19,8 @@ router = APIRouter(prefix="/api/v1/duplicates", tags=["duplicates"])
 
 # In-memory storage for task status. In production, use Redis or a DB.
 tasks = {}
+# Track curation status per collection so the frontend can display progress
+collection_curation_status: Dict[str, str] = {}
 
 class FindSimilarTask(BaseModel):
     task_id: str
@@ -40,6 +42,7 @@ def find_similar_images_task(
     Iterates through all points and finds those with a cosine similarity above the threshold.
     """
     tasks[task_id].status = "running"
+    collection_curation_status[collection_name] = "running"
     logger.info(f"Task {task_id}: Starting near-duplicate analysis for collection '{collection_name}'.")
 
     try:
@@ -111,11 +114,13 @@ def find_similar_images_task(
 
         tasks[task_id].results = duplicate_groups
         tasks[task_id].status = "completed"
+        collection_curation_status[collection_name] = "completed"
         logger.info(f"Task {task_id}: Analysis complete. Found {len(duplicate_groups)} duplicate groups.")
 
     except Exception as e:
         logger.error(f"Task {task_id}: Failed with error: {e}", exc_info=True)
         tasks[task_id].status = "failed"
+        collection_curation_status[collection_name] = "failed"
 
 
 @router.post("/find-similar", status_code=202, response_model=FindSimilarTask)
@@ -132,6 +137,7 @@ async def find_similar(
     task_id = str(uuid.uuid4())
     task = FindSimilarTask(task_id=task_id)
     tasks[task_id] = task
+    collection_curation_status[collection_name] = "running"
     
     background_tasks.add_task(
         find_similar_images_task,
@@ -153,3 +159,9 @@ async def get_similar_report(task_id: str):
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
     return task
+
+
+@router.get("/curation-status")
+async def get_curation_statuses():
+    """Return the current curation status for all collections."""
+    return collection_curation_status

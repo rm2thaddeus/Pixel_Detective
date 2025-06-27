@@ -85,6 +85,7 @@ Pixel Detective is a vibe coding manifesto: every aspect of this project was cre
 - **Responsive Design** - Mobile-first, accessible UI
 - **Real-time Updates** - Live progress tracking and notifications
 - **Collection Management** - Organize and manage image collections
+- **Curation Actions Menu** - Launch near-duplicate scans and view ingestion logs
 - **Advanced Filtering** - Metadata-based search refinement
 
 ## 🛠️ Technology Stack
