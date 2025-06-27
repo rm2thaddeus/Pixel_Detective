@@ -28,7 +28,7 @@ import {
   Heading,
   Container
 } from '@chakra-ui/react';
-import { FiSearch, FiUpload, FiFolder, FiEye, FiZap, FiShield, FiDatabase } from 'react-icons/fi';
+import { FiSearch, FiUpload, FiFolder, FiEye, FiZap, FiShield, FiDatabase, FiLayers } from 'react-icons/fi';
 import { Header } from '@/components/Header';
 import { CollectionModal } from '@/components/CollectionModal';
 import { AddImagesModal } from '@/components/AddImagesModal';
@@ -149,6 +149,15 @@ function HomeContent() {
       color: 'orange',
       action: () => router.push('/logs'),
       disabled: false,
+      featured: false
+    },
+    {
+      title: 'Duplicate Management',
+      description: 'Find and archive duplicate images',
+      icon: FiLayers,
+      color: 'red',
+      action: () => router.push('/duplicates'),
+      disabled: setupStep < 3,
       featured: false
     },
     {
