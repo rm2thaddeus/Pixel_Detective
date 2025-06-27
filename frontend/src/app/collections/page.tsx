@@ -43,6 +43,19 @@ import {
 import { useStore } from '@/store/useStore';
 import { MergeCollectionsModal } from '@/components/MergeCollectionsModal';
 
+function statusColor(status: string) {
+  switch (status) {
+    case 'running':
+      return 'blue';
+    case 'completed':
+      return 'green';
+    case 'failed':
+      return 'red';
+    default:
+      return 'gray';
+  }
+}
+
 
 const CollectionCard = ({ name, isActive, status, onSelect, onDelete, onView, onFindSimilar, jobId }) => {
   return (
@@ -53,7 +66,7 @@ const CollectionCard = ({ name, isActive, status, onSelect, onDelete, onView, on
           <Spacer />
           <HStack>
             {isActive && <Tag colorScheme="green">Active</Tag>}
-            <Tag>{status}</Tag>
+            <Tag colorScheme={statusColor(status)}>{status}</Tag>
             <Menu>
               <MenuButton as={IconButton} size="sm" icon={<FiMoreVertical />} variant="ghost" />
               <MenuList>
