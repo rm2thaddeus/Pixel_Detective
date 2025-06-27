@@ -91,7 +91,8 @@ async def start_ingestion(
         "errors": [],
         "cached_files": 0,
         "progress": 0.0,
-        "logs": []  # Add logs array for frontend
+        "logs": [],  # Add logs array for frontend
+        "exact_duplicates": []
     }
     
     # Start background processing
@@ -145,7 +146,8 @@ async def start_ingestion_from_path(
         "errors": [],
         "cached_files": 0,
         "progress": 0.0,
-        "logs": []
+        "logs": [],
+        "exact_duplicates": []
     }
     
     # Start background processing
@@ -199,14 +201,15 @@ async def upload_and_ingest_files(
     job_status[job_id] = {
         "status": "started",
         "message": "Ingestion job started from uploaded files.",
-        "directory_path": temp_dir, # The temp dir is the source
+        "directory_path": temp_dir,  # The temp dir is the source
         "collection_name": collection_name,
         "processed_files": 0,
         "total_files": len(files),
         "errors": [],
         "cached_files": 0,
         "progress": 0.0,
-        "logs": ["Starting ingestion from uploaded files..."]
+        "logs": ["Starting ingestion from uploaded files..."],
+        "exact_duplicates": []
     }
     
     # Start background processing on the temporary directory
@@ -470,7 +473,22 @@ async def process_directory(job_id: str, directory_path: str, collection_name: s
                 # Compute file hash for deduplication
                 file_hash = await asyncio.to_thread(compute_sha256, image_path)
                 cache_key = f"sha256:{file_hash}"
-                
+
+                # Check if file already exists in the collection
+                duplicate_check = qdrant_client.scroll(
+                    collection_name=collection_name,
+                    scroll_filter=Filter(must=[FieldCondition(key="file_hash", match={"value": file_hash})]),
+                    limit=1,
+                    with_payload=True,
+                    with_vectors=False,
+                )
+                if duplicate_check[0]:
+                    job_status[job_id]["exact_duplicates"].append({
+                        "file_path": image_path,
+                        "existing_id": duplicate_check[0][0].id,
+                    })
+                    continue
+
                 # Check if we've already processed this image
                 cached_result = cache.get(cache_key)
                 if cached_result:
@@ -611,6 +629,8 @@ async def process_directory(job_id: str, directory_path: str, collection_name: s
             success_msg += f" ({cached_files} from cache)"
         if job_status[job_id]["errors"]:
             success_msg += f" with {len(job_status[job_id]['errors'])} errors"
+        if job_status[job_id]["exact_duplicates"]:
+            success_msg += f" - {len(job_status[job_id]['exact_duplicates'])} duplicates skipped"
         
         job_status[job_id]["message"] = success_msg
         job_status[job_id]["logs"].append(f"✅ {success_msg}")

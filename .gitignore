@@ -11,6 +11,7 @@ downloads/
 eggs/
 .eggs/
 lib/
+!frontend/src/lib/
 lib64/
 parts/
 sdist/
@@ -69,6 +70,7 @@ downloads/
 eggs/
 .eggs/
 lib/
+!frontend/src/lib/
 lib64/
 parts/
 sdist/
@@ -138,6 +140,7 @@ docs/_build/
 
 # Custom
 /logs/
+!frontend/src/app/logs/
 /cache/
 /.diskcache/
 /screenshots/

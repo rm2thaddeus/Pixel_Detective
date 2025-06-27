@@ -200,6 +200,13 @@ Result: {'total_processed': 25, 'total_failed': 0}
 
 GPU-side logs show that each 8-image batch took ~11 s; batching is now the main optimisation target.
 
+## Duplicate & Curation Endpoints
+
+- `POST /api/v1/duplicates/find-similar` – run near-duplicate analysis in the background
+- `GET /api/v1/duplicates/report/{task_id}` – retrieve progress and results
+- `POST /api/v1/duplicates/archive-exact` – move exact duplicates to `_VibeDuplicates`
+- `POST /api/v1/curation/archive-selection` – archive selected images with a collection snapshot
+
 ## Potential Next Steps (Roadmap as of 2025-06-12)
 
 1.  **Increase ML batch size** – raise `ML_INFERENCE_BATCH_SIZE` default to `128` and/or fetch the safe value probed by the ML service at runtime.  This will cut GPU cycles by ~3× for small-to-medium ingest runs.
