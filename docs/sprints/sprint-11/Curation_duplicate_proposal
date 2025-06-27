@@ -116,6 +116,27 @@ This feature requires the following new components:
 
 ---
 
+### UI/UX Integration Strategy: A Collection-Centric Approach
+
+To ensure a seamless user experience, the Curation Suite will be integrated directly into the existing collection management interface. This makes curation a core, contextual part of managing a collection, rather than a separate, disconnected tool.
+
+1.  **The Collections Page as a Curation Hub:**
+    *   The main `/collections` view will be enhanced to serve as the central hub for all curation activities.
+    *   Next to each collection's name and stats, a "Curation Status" will be displayed (e.g., "Not Analyzed", "Analysis in Progress", "Report Ready").
+    *   An actions menu (`...`) for each collection will provide direct access to curation tools.
+
+2.  **Targeted, On-Demand Analysis:**
+    *   The actions menu for a collection will contain a "**Find Near-Duplicates**" button.
+    *   Clicking this triggers the analysis specifically for that collection, providing a clear and intentional workflow.
+
+3.  **Unified Reporting:**
+    *   Once an analysis is complete, a "**View Duplicate Report**" link will appear in the collection's action menu, taking the user to the review interface.
+    *   The ingestion report, showing *exact* duplicates found, will also be accessible from this same menu, creating a single point of entry for all of a collection's curation-related reports.
+
+This collection-centric model makes the entire process more intuitive, discoverable, and aligned with the user's mental model of managing their image sets.
+
+---
+
 ## 6. Conclusion
 
 The proposed Curation & Duplicate Management Suite is a critical feature that transforms the project from a simple ingestion pipeline into a professional-grade archival and exploration tool. It directly addresses the core user needs for a clean, curated, and reliable database by tackling exact duplicates, near-duplicates, and general artistic selection. By prioritizing safety through human supervision and non-destructive operations, we can confidently proceed with ingesting the full collection, knowing that the integrity of both the source material and the resulting database is guaranteed.
