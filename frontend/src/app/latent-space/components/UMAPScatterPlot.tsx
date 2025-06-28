@@ -88,7 +88,8 @@ export function UMAPScatterPlot({
   const setLassoMode = useLatentSpaceStore((s) => s.setLassoMode);
   const setSelectedIds = useLatentSpaceStore((s) => s.setSelectedIds);
   const setSelectedPolygon = useLatentSpaceStore((s) => s.setSelectedPolygon);
-  const selectedIds = useLatentSpaceStore((s) => s.selectedIds);
+  const selectedIdsSet = useLatentSpaceStore((s) => s.selectedIds);
+  const selectedIds = useMemo(() => Array.from(selectedIdsSet), [selectedIdsSet]);
   const projectionData = useLatentSpaceStore((s) => s.projectionData);
   const [screenPoly, setScreenPoly] = useState<[number, number][]>([]);
   const screenPolyRef = React.useRef<[number, number][]>([]);
@@ -165,7 +166,7 @@ export function UMAPScatterPlot({
       return res.data;
     },
     onSuccess: async (data, variables) => {
-      setSelectedIds([]);
+      setSelectedIds(new Set());
       queryClient.invalidateQueries({ queryKey: ["collections"] });
       // Automatically set new collection active both locally and on server
       const newCol = variables.newName;
@@ -184,7 +185,7 @@ export function UMAPScatterPlot({
 
   const archiveMutation = useMutation({
     mutationFn: () => archiveSelection(selectedIds),
-    onSuccess: () => setSelectedIds([]),
+    onSuccess: () => setSelectedIds(new Set()),
   });
 
   const [newName, setNewName] = useState("");
@@ -314,6 +315,7 @@ export function UMAPScatterPlot({
           colorPalette={colorPalette}
           showOutliers={showOutliers}
           pointSize={pointSize}
+          selectedIds={selectedIds}
         />
       </React.Suspense>
 
@@ -524,7 +526,7 @@ export function UMAPScatterPlot({
             <Button
               size="sm"
               variant="ghost"
-              onClick={() => setSelectedIds([])}
+              onClick={() => setSelectedIds(new Set())}
             >
               Clear
             </Button>
@@ -622,6 +624,7 @@ function EnhancedDeckGLVisualization({
   pointSize = 10,
   lassoGeoJson,
   setLassoGeoJson,
+  selectedIds,
 }: {
   deckRef: React.RefObject<any>;
   points: UMAPPoint[];
@@ -633,6 +636,7 @@ function EnhancedDeckGLVisualization({
   pointSize?: number;
   lassoGeoJson: any;
   setLassoGeoJson: React.Dispatch<React.SetStateAction<any>>;
+  selectedIds: string[];
 }) {
   const [DeckGLComponent, setDeckGLComponent] = React.useState<any>(null);
   const [ScatterplotLayerComponent, setScatterplotLayerComponent] =
@@ -653,7 +657,6 @@ function EnhancedDeckGLVisualization({
   const [hoveredObject, setHoveredObject] = React.useState<UMAPPoint | null>(
     null,
   );
-  const selectedIds = useLatentSpaceStore((s) => s.selectedIds);
   const setSelectedIdsStore = useLatentSpaceStore((s) => s.setSelectedIds);
 
   // ===== Read needed store slices individually to avoid returning new objects each render =====

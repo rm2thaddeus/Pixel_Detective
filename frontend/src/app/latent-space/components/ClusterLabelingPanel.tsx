@@ -221,7 +221,7 @@ export function ClusterLabelingPanel({
                                 <Text>Spr: {summary.spread.toFixed(2)}</Text>
                               </HStack>
                               {captionSamples[clusterId]?.length>0 ? (
-                                <Text fontSize="xs" color="gray.400" isTruncated maxW="200px" noOfLines={1}>
+                                <Text fontSize="sm" color="gray.500" isTruncated maxW="250px" noOfLines={1}>
                                   "{captionSamples[clusterId][0]}"
                                 </Text>
                               ) : (
@@ -313,9 +313,24 @@ export function ClusterLabelingPanel({
                             )}
                             {/* caption samples */}
                             {captionSamples[clusterId]?.length>0 && (
-                              <VStack align="start" spacing={0} pt={1}>
+                              <VStack align="start" spacing={1} pt={2}>
+                                <Text fontSize="xs" fontWeight="semibold" color="gray.600">
+                                  Sample descriptions:
+                                </Text>
                                 {captionSamples[clusterId].map((cap,idx)=>(
-                                  <Text key={idx} fontSize="8px" isTruncated>{cap}</Text>
+                                  <Text 
+                                    key={idx} 
+                                    fontSize="sm" 
+                                    color="gray.600"
+                                    cursor="pointer"
+                                    _hover={{ color: "purple.600", bg: "purple.50" }}
+                                    p={1}
+                                    borderRadius="md"
+                                    onClick={() => setLabelInput(cap)}
+                                    title="Click to use as label"
+                                  >
+                                    "{cap}"
+                                  </Text>
                                 ))}
                               </VStack>
                             )}

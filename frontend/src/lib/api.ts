@@ -1,4 +1,3 @@
-
 import axios from 'axios';
 
 export const api = axios.create({
@@ -7,33 +6,9 @@ export const api = axios.create({
 });
 
 export const gpuApi = axios.create();
-export const mlApi = axios.create();
-
-export async function ping() {
-  return api.get('/health');
-}
-
-export async function getCollections(): Promise<string[]> {
-  const { data } = await api.get('/api/v1/collections');
-  return data;
-}
-
-export async function selectCollection(name: string) {
-  await api.post('/api/v1/collections/select', { collection_name: name });
-}
-
-export async function deleteCollection(name: string) {
-  await api.delete(`/api/v1/collections/${name}`);
-=======
-import axios from "axios";
-
-export const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL || "http://localhost:8002",
-  timeout: 10000,
-});
 
 export const mlApi = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_ML_API_URL || "http://localhost:8001",
+  baseURL: process.env.NEXT_PUBLIC_ML_API_URL || 'http://localhost:8001',
   timeout: 10000,
 });
 
@@ -41,27 +16,27 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 404) {
-      throw new Error("Resource not found");
+      throw new Error('Resource not found');
     }
     if (error.response?.status >= 500) {
-      throw new Error("Server error - please try again later");
+      throw new Error('Server error - please try again later');
     }
     throw error;
   },
 );
 
 export async function ping() {
-  const { data } = await api.get("/health");
+  const { data } = await api.get('/health');
   return data;
 }
 
-export async function getCollections() {
-  const { data } = await api.get("/api/v1/collections");
-  return data as string[];
+export async function getCollections(): Promise<string[]> {
+  const { data } = await api.get('/api/v1/collections');
+  return data;
 }
 
 export async function selectCollection(collectionName: string) {
-  const { data } = await api.post("/api/v1/collections/select", {
+  const { data } = await api.post('/api/v1/collections/select', {
     collection_name: collectionName,
   });
   return data;
@@ -70,7 +45,6 @@ export async function selectCollection(collectionName: string) {
 export async function deleteCollection(collectionName: string) {
   const { data } = await api.delete(`/api/v1/collections/${collectionName}`);
   return data;
-
 }
 
 export interface CollectionInfo {
@@ -79,7 +53,6 @@ export interface CollectionInfo {
   points_count: number;
   vectors_count: number;
   indexed_vectors_count: number;
-
   config: {
     vector_size?: number;
     distance?: string;
@@ -100,15 +73,10 @@ export async function getCollectionInfo(name: string): Promise<CollectionInfo> {
 }
 
 export async function mergeCollections(dest: string, sources: string[]) {
-  await api.post('/api/v1/collections/merge', {
+  const { data } = await api.post('/api/v1/collections/merge', {
     dest_collection: dest,
     source_collections: sources,
   });
-}
-
-export async function startFindSimilar(collection: string) {
-  await selectCollection(collection);
-  const { data } = await api.post('/api/v1/duplicates/find-similar');
   return data;
 }
 
@@ -121,28 +89,9 @@ export async function getRecentJobs(): Promise<Record<string, string>> {
   const { data } = await api.get('/api/v1/ingest/recent_jobs');
   return data;
 }
-  config: { vector_size?: number; distance?: string };
-  sample_points: any[];
-  is_active: boolean;
-}
-
-export async function getCollectionInfo(
-  collectionName: string,
-): Promise<CollectionInfo> {
-  const { data } = await api.get(`/api/v1/collections/${collectionName}/info`);
-  return data as CollectionInfo;
-}
-
-export async function mergeCollections(dest: string, sources: string[]) {
-  const { data } = await api.post("/api/v1/collections/merge", {
-    dest_collection: dest,
-    source_collections: sources,
-  });
-  return data;
-}
 
 export async function archiveExact(filePaths: string[]) {
-  const { data } = await api.post("/api/v1/duplicates/archive-exact", {
+  const { data } = await api.post('/api/v1/duplicates/archive-exact', {
     file_paths: filePaths,
   });
   return data;
@@ -161,7 +110,7 @@ export async function startFindSimilar(
   threshold: number,
   limitPerImage: number,
 ) {
-  const { data } = await api.post("/api/v1/duplicates/find-similar", {
+  const { data } = await api.post('/api/v1/duplicates/find-similar', {
     threshold,
     limit_per_image: limitPerImage,
   });
@@ -174,7 +123,7 @@ export async function getFindSimilarReport(taskId: string) {
 }
 
 export async function archiveSelection(pointIds: string[]) {
-  const { data } = await api.post("/api/v1/curation/archive-selection", {
+  const { data } = await api.post('/api/v1/curation/archive-selection', {
     point_ids: pointIds,
   });
   return data;
