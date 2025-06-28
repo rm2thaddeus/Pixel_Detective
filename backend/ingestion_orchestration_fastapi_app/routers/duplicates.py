@@ -47,14 +47,8 @@ def find_similar_images_task(
     Iterates through all points and finds those with a cosine similarity above the threshold.
     """
     tasks[task_id].status = "running"
-
     collection_curation_status[collection_name] = "running"
     logger.info(f"Task {task_id}: Starting near-duplicate analysis for collection '{collection_name}'.")
-
-    logger.info(
-        f"Task {task_id}: Starting near-duplicate analysis for collection '{collection_name}'."
-    )
-
 
     try:
         # Get total number of points for progress calculation
@@ -137,11 +131,6 @@ def find_similar_images_task(
         collection_curation_status[collection_name] = "completed"
         logger.info(f"Task {task_id}: Analysis complete. Found {len(duplicate_groups)} duplicate groups.")
 
-        logger.info(
-            f"Task {task_id}: Analysis complete. Found {len(duplicate_groups)} duplicate groups."
-        )
-
-
     except Exception as e:
         logger.error(f"Task {task_id}: Failed with error: {e}", exc_info=True)
         tasks[task_id].status = "failed"
@@ -168,9 +157,6 @@ async def find_similar(
     tasks[task_id] = task
 
     collection_curation_status[collection_name] = "running"
-    
-=======
-
 
     background_tasks.add_task(
         find_similar_images_task,
@@ -199,7 +185,8 @@ async def get_similar_report(task_id: str):
 async def get_curation_statuses():
     """Return the current curation status for all collections."""
     return collection_curation_status
-=======
+
+
 @router.post("/archive-exact")
 async def archive_exact_duplicates(
     req: ArchiveExactRequest,

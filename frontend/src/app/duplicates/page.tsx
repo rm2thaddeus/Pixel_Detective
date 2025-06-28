@@ -20,6 +20,12 @@ import {
   AlertDialogContent,
   AlertDialogOverlay,
   useDisclosure,
+  Image,
+  Card,
+  CardBody,
+  Flex,
+  Wrap,
+  WrapItem,
 } from "@chakra-ui/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Header } from "@/components/Header";
@@ -99,31 +105,46 @@ export default function DuplicatesPage() {
               <Text mb={4}>Progress: {report.progress.toFixed(2)}%</Text>
               {report.status === "completed" && (
                 <VStack align="start" spacing={4}>
-                  <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
-                    {report.results.map((group) => (
-                      <Box
-                        key={group.group_id}
-                        borderWidth="1px"
-                        p={3}
-                        borderRadius="md"
-                      >
-                        <Text fontWeight="bold" mb={2}>
-                          Group {group.group_id}
-                        </Text>
-                        {group.points.map((p: any) => (
-                          <HStack key={p.id} justify="space-between">
-                            <Checkbox
-                              isChecked={selected.has(p.id)}
-                              onChange={() => toggleSelect(p.id)}
-                            />
-                            <Text fontSize="sm" noOfLines={1}>
-                              {p.payload?.filename || p.id}
-                            </Text>
-                          </HStack>
-                        ))}
-                      </Box>
-                    ))}
-                  </SimpleGrid>
+                  <Text fontWeight="bold">{report.results.length} near-duplicate groups found.</Text>
+                  {report.results.map((group) => (
+                    <Card key={group.group_id} w="full" variant="outline">
+                      <CardBody>
+                        <Wrap spacing={4}>
+                          {group.points.map((p: any) => (
+                            <WrapItem key={p.id}>
+                              <VStack>
+                                <Box position="relative">
+                                  <Image
+                                    src={`data:image/jpeg;base64,${p.payload.thumbnail_base64}`}
+                                    alt={p.payload.filename}
+                                    boxSize="150px"
+                                    objectFit="cover"
+                                    borderRadius="md"
+                                  />
+                                  <Checkbox
+                                    position="absolute"
+                                    top={2}
+                                    right={2}
+                                    size="lg"
+                                    colorScheme="red"
+                                    isChecked={selected.has(p.id)}
+                                    onChange={() => toggleSelect(p.id)}
+                                    aria-label={`Select ${p.payload.filename}`}
+                                  />
+                                </Box>
+                                <Text fontSize="xs" noOfLines={1} title={p.payload.filename}>
+                                  {p.payload.filename}
+                                </Text>
+                                <Text fontSize="xs" color="gray.500">
+                                  Score: {p.score.toFixed(3)}
+                                </Text>
+                              </VStack>
+                            </WrapItem>
+                          ))}
+                        </Wrap>
+                      </CardBody>
+                    </Card>
+                  ))}
                   <Button
                     colorScheme="red"
                     onClick={onOpen}

@@ -18,6 +18,11 @@ import {
   AlertDialogHeader,
   AlertDialogContent,
   AlertDialogOverlay,
+  Image,
+  SimpleGrid,
+  Card,
+  CardBody,
+  Flex,
 } from '@chakra-ui/react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { getIngestStatus, archiveExact } from '@/lib/api';
@@ -78,26 +83,52 @@ export default function JobLogsPage({ params }: { params: { jobId: string } }) {
               {data.exact_duplicates.length === 0 ? (
                 <Text>No duplicates detected.</Text>
               ) : (
-                <VStack align="start" spacing={2} w="full">
-                  {data.exact_duplicates.map((dup) => (
-                    <HStack key={dup.file_path} justify="space-between" w="full">
-                      <Checkbox
-                        isChecked={selected.has(dup.file_path)}
-                        onChange={() => toggleSelect(dup.file_path)}
-                      >
-                        <Text fontSize="sm" noOfLines={1}>
-                          {dup.file_path}
-                        </Text>
-                      </Checkbox>
-                    </HStack>
-                  ))}
+                <VStack align="start" spacing={4} w="full">
+                  <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4} w="full">
+                    {data.exact_duplicates.map((dup) => (
+                      <Card key={dup.file_path} variant="outline">
+                        <CardBody>
+                          <HStack justify="space-between">
+                            <VStack align="start">
+                              <Text fontWeight="bold">New (Skipped)</Text>
+                              <Text fontSize="sm" noOfLines={2} title={dup.file_path}>
+                                {dup.file_path}
+                              </Text>
+                            </VStack>
+                            <VStack align="start">
+                              <Text fontWeight="bold">Original</Text>
+                              {dup.existing_payload?.thumbnail_base64 ? (
+                                <Image
+                                  src={`data:image/jpeg;base64,${dup.existing_payload.thumbnail_base64}`}
+                                  alt="Original image thumbnail"
+                                  boxSize="100px"
+                                  objectFit="cover"
+                                  borderRadius="md"
+                                />
+                              ) : (
+                                <Text fontSize="sm">No thumbnail</Text>
+                              )}
+                            </VStack>
+                          </HStack>
+                          <Flex mt={4}>
+                            <Checkbox
+                              isChecked={selected.has(dup.file_path)}
+                              onChange={() => toggleSelect(dup.file_path)}
+                            >
+                              Archive New File
+                            </Checkbox>
+                          </Flex>
+                        </CardBody>
+                      </Card>
+                    ))}
+                  </SimpleGrid>
                   <Button
                     colorScheme="red"
                     onClick={onOpen}
                     isDisabled={selected.size === 0}
                     isLoading={archiveMutation.isLoading}
                   >
-                    Archive Selected
+                    Archive Selected Files
                   </Button>
                 </VStack>
               )}

@@ -1,4 +1,4 @@
-# Vibe Coding – Frontend Architecture Specification (June 2025)
+#Pixel Detective – Frontend Architecture Specification (June 2025)
 
 > **Scope** This document gives a concise yet technically detailed overview of the React / Next.js code located in `/frontend`.  It is intended for new frontend contributors who need to understand how the application is structured and how it interacts with the backend services.
 

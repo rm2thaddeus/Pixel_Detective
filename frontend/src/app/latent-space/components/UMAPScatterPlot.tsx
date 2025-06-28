@@ -47,7 +47,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useStore } from "@/store/useStore";
 // Dynamic drawing layer
 import booleanPointInPolygon from "@turf/boolean-point-in-polygon";
-import { point as turfPoint } from "@turf/helpers";
+import { point as turfPoint, polygon as turfPolygon } from "@turf/helpers";
 
 // Lazy load DeckGL to avoid SSR issues
 const DeckGL = React.lazy(() => import("@deck.gl/react"));
@@ -90,21 +90,19 @@ export function UMAPScatterPlot({
   const setSelectedPolygon = useLatentSpaceStore((s) => s.setSelectedPolygon);
   const selectedIds = useLatentSpaceStore((s) => s.selectedIds);
   const projectionData = useLatentSpaceStore((s) => s.projectionData);
-  const [screenPoly, _setScreenPoly] = useState<[number, number][]>([]);
+  const [screenPoly, setScreenPoly] = useState<[number, number][]>([]);
   const screenPolyRef = React.useRef<[number, number][]>([]);
-  const setScreenPoly = (
+  const setScreenPolyRef = (
     value:
       | [number, number][]
       | ((prev: [number, number][]) => [number, number][]),
   ) => {
-    _setScreenPoly((prev) => {
-      const newVal = typeof value === "function" ? (value as any)(prev) : value;
-      screenPolyRef.current = newVal;
-      return newVal;
-    });
+    screenPolyRef.current = typeof value === "function" ? (value as any)(screenPolyRef.current) : value;
   };
   const deckRef = React.useRef<any>(null);
   const overlayRef = React.useRef<HTMLDivElement>(null);
+  const [isDrawing, setIsDrawing] = useState(false);
+  const [lassoPath, setLassoPath] = useState('');
 
   // Animation loop for smooth transitions
   useEffect(() => {
@@ -204,6 +202,51 @@ export function UMAPScatterPlot({
     features: [],
   });
 
+  const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!lassoMode) return;
+    setIsDrawing(true);
+    const { offsetX, offsetY } = e.nativeEvent;
+    setScreenPoly([[offsetX, offsetY]]);
+    setLassoPath(`M${offsetX},${offsetY}`);
+  };
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!isDrawing || !lassoMode) return;
+    const { offsetX, offsetY } = e.nativeEvent;
+    setScreenPoly(prev => [...prev, [offsetX, offsetY]]);
+    setLassoPath(prev => `${prev} L${offsetX},${offsetY}`);
+  };
+
+  const handleMouseUp = () => {
+    if (!lassoMode || !isDrawing) return;
+    setIsDrawing(false);
+    setLassoMode(false);
+
+    if (screenPoly.length < 3) {
+      setScreenPoly([]);
+      setLassoPath('');
+      return;
+    }
+
+    const deck = deckRef.current?.deck;
+    if (!deck || !data?.points) return;
+
+    const selectedPointIds = new Set<string>();
+    const turfPoly = turfPolygon([[...screenPoly, screenPoly[0]]]);
+
+    data.points.forEach(p => {
+      const screenCoords = deck.project(p.position);
+      const pt = turfPoint([screenCoords[0], screenCoords[1]]);
+      if (booleanPointInPolygon(pt, turfPoly)) {
+        selectedPointIds.add(p.id);
+      }
+    });
+
+    setSelectedIds(selectedPointIds);
+    setScreenPoly([]);
+    setLassoPath('');
+  };
+
   if (!data) {
     return (
       <Center h={600} bg="gray.50" borderRadius="md">
@@ -242,6 +285,10 @@ export function UMAPScatterPlot({
       border="1px solid"
       borderColor="gray.200"
       overflow="hidden"
+      onMouseDown={handleMouseDown}
+      onMouseMove={handleMouseMove}
+      onMouseUp={handleMouseUp}
+      cursor={lassoMode ? 'crosshair' : 'default'}
     >
       <React.Suspense
         fallback={
@@ -552,6 +599,14 @@ export function UMAPScatterPlot({
           </svg>
         )}
       </Box>
+
+      <svg
+        height="100%"
+        width="100%"
+        style={{ position: 'absolute', top: 0, left: 0, zIndex: 1, pointerEvents: 'none' }}
+      >
+        <path d={lassoPath} stroke="rgba(255, 0, 0, 0.8)" strokeWidth="2" fill="rgba(255, 0, 0, 0.2)" />
+      </svg>
     </Box>
   );
 }

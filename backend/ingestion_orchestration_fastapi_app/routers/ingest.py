@@ -499,9 +499,11 @@ async def process_directory(job_id: str, directory_path: str, collection_name: s
                     with_vectors=False,
                 )
                 if duplicate_check[0]:
+                    existing_point = duplicate_check[0][0]
                     job_status[job_id]["exact_duplicates"].append({
                         "file_path": image_path,
-                        "existing_id": duplicate_check[0][0].id,
+                        "existing_id": existing_point.id,
+                        "existing_payload": existing_point.payload
                     })
                     continue
 

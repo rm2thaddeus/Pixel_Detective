@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { UMAPProjectionResponse, ClusteringRequest, ViewportTransform } from '../types/latent-space';
 import { ColorPaletteName } from '../utils/visualization';
+import { UMAPPoint, UMAPProjection } from '../types/latent-space';
 
 interface LatentSpaceState {
   // Data state
@@ -19,7 +20,7 @@ interface LatentSpaceState {
   // === Density overlay & selection ===
   heatmapVisible: boolean; // Toggle for 2-D density overlay
   heatmapOpacity: number;  // 0-100 percentage for overlay opacity
-  selectedIds: string[];   // Hand-drawn polygon selection
+  selectedIds: Set<string>;   // Hand-drawn polygon selection
   
   // Cluster polygons (convex hulls)
   clusterPolygons: Record<number, [number, number][]>; // cluster_id → hull coords
@@ -51,7 +52,7 @@ interface LatentSpaceState {
   // Density overlay & selection actions
   setHeatmap: (v: boolean) => void;
   setHeatmapOpacity: (x: number) => void;
-  setSelectedIds: (ids: string[]) => void;
+  setSelectedIds: (ids: Set<string>) => void;
   
   // Reset function
   resetState: () => void;
@@ -92,7 +93,7 @@ const initialState = {
   // Density overlay defaults
   heatmapVisible: true,
   heatmapOpacity: 35,
-  selectedIds: [],
+  selectedIds: new Set<string>(),
   
   clusterPolygons: {},
   
@@ -191,7 +192,7 @@ export const useLatentSpaceStore = create<LatentSpaceState>((set, get) => ({
     set({ heatmapOpacity: x });
   },
   setSelectedIds: (ids) => {
-    console.log('✂️ Set selected IDs:', ids.length);
+    console.log('✂️ Set selected IDs:', ids.size);
     set({ selectedIds: ids });
   },
   
@@ -225,7 +226,7 @@ export const useLatentSpaceStore = create<LatentSpaceState>((set, get) => ({
   
   setLassoMode: (v) => {
     console.log('🟢 Toggle lasso mode:', v);
-    set({ lassoMode: v });
+    set({ lassoMode: v, selectedPolygon: null, selectedIds: new Set() });
   },
   
   setSelectedPolygon: (poly) => {

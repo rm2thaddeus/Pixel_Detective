@@ -12,7 +12,16 @@ import {
   HStack,
   Divider,
   Collapse,
-  Flex
+  Flex,
+  Button,
+  useDisclosure,
+  AlertDialog,
+  AlertDialogBody,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogContent,
+  AlertDialogOverlay,
+  useToast
 } from '@chakra-ui/react';
 import { Header } from '@/components/Header';
 import { UMAPScatterPlot } from './components/UMAPScatterPlot';
@@ -26,6 +35,8 @@ import { UMAPPoint } from './types/latent-space';
 import React, { useEffect } from 'react';
 import { VisualizationBar } from './components/VisualizationBar';
 import { ClusterLabelingPanel } from './components/ClusterLabelingPanel';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { archiveSelection } from '@/lib/api';
 
 export default function LatentSpacePage() {
   const { collection } = useStore();
@@ -36,11 +47,45 @@ export default function LatentSpacePage() {
     colorPalette,
     showOutliers,
     pointSize,
-    clusteringParams
+    clusteringParams,
+    selectedIds,
+    setSelectedIds,
   } = useLatentSpaceStore();
   const [hoveredPoint, setHoveredPoint] = useState<UMAPPoint | null>(null);
   const [mousePosition, setMousePosition] = useState<{ x: number; y: number } | null>(null);
   const [showControls, setShowControls] = useState(false);
+  const { isOpen, onOpen, onClose } = useDisclosure();
+  const cancelRef = React.useRef<HTMLButtonElement | null>(null);
+  const toast = useToast();
+  const queryClient = useQueryClient();
+
+  const archiveMutation = useMutation({
+    mutationFn: (pointIds: string[]) => archiveSelection(pointIds),
+    onSuccess: () => {
+      toast({
+        title: 'Selection archived.',
+        status: 'success',
+        duration: 3000,
+        isClosable: true,
+      });
+      setSelectedIds(new Set());
+      queryClient.invalidateQueries({ queryKey: ['umap', collection] }); // Refetch UMAP data
+    },
+    onError: (err: Error) => {
+      toast({
+        title: 'Archiving failed.',
+        description: err.message,
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+      });
+    },
+    onSettled: onClose,
+  });
+
+  const handleArchive = () => {
+    archiveMutation.mutate(Array.from(selectedIds));
+  };
 
   const debugInfo = {
     collection,
@@ -197,6 +242,23 @@ export default function LatentSpacePage() {
   return (
     <Box minH="100vh">
       <Header />
+      <AlertDialog isOpen={isOpen} leastDestructiveRef={cancelRef} onClose={onClose}>
+        <AlertDialogOverlay>
+          <AlertDialogContent>
+            <AlertDialogHeader>Archive Selection</AlertDialogHeader>
+            <AlertDialogBody>
+              Are you sure you want to archive {selectedIds.size} selected images?
+              This action is reversible from the filesystem, but will remove the items from the database.
+            </AlertDialogBody>
+            <AlertDialogFooter>
+              <Button ref={cancelRef} onClick={onClose}>Cancel</Button>
+              <Button colorScheme="red" onClick={handleArchive} ml={3} isLoading={archiveMutation.isPending}>
+                Archive
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialogOverlay>
+      </AlertDialog>
       <Container maxW="full" p={6}>
         <VStack spacing={6} align="stretch">
           {/* Header Section */}
@@ -220,6 +282,19 @@ export default function LatentSpacePage() {
                 </Text>
               )}
             </HStack>
+            {selectedIds.size > 0 && (
+              <HStack>
+                <Text color="red.500" fontWeight="bold">
+                  {selectedIds.size} points selected
+                </Text>
+                <Button size="sm" colorScheme="red" onClick={onOpen}>
+                  Archive Selection
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => setSelectedIds(new Set())}>
+                  Clear Selection
+                </Button>
+              </HStack>
+            )}
           </Box>
 
           <Divider />
