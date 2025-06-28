@@ -35,17 +35,24 @@ import {
 import { ClusteringRequest } from '../types/latent-space';
 import { useLatentSpaceStore } from '../hooks/useLatentSpaceStore';
 import { useUMAP } from '../hooks/useUMAP';
-import { debounce } from '../utils/visualization';
+import { 
+  debounce, 
+  exportToPNG, 
+  exportToSVG, 
+  exportToJSON, 
+  ExportSettings 
+} from '../utils/visualization';
 import { 
   COLOR_PALETTES, 
   ColorPaletteName, 
-  getPalettePreview, 
-  getEnhancedPaletteDescription
+  getPalettePreview
 } from '../utils/visualization';
 
 interface ClusteringControlsProps {
   onParametersChange?: (params: ClusteringRequest) => void;
   variant?: 'full' | 'compact'; // compact hides visualization settings & palette
+  deckRef?: React.RefObject<HTMLElement>; // for PNG export
+  selectedClusterId?: number | null; // for export settings
 }
 
 interface ColorPaletteSelectorProps {
@@ -55,7 +62,6 @@ interface ColorPaletteSelectorProps {
 }
 
 export function ColorPaletteSelector({ selectedPalette, onPaletteChange, compact = false }: ColorPaletteSelectorProps) {
-  const cardBg = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.200', 'gray.600');
 
   if (compact) {
@@ -116,7 +122,12 @@ export function ColorPaletteSelector({ selectedPalette, onPaletteChange, compact
   );
 }
 
-export function ClusteringControls({ onParametersChange, variant = 'full' }: ClusteringControlsProps) {
+export function ClusteringControls({ 
+  onParametersChange, 
+  variant = 'full',
+  deckRef,
+  selectedClusterId
+}: ClusteringControlsProps) {
   const { 
     clusteringParams, 
     updateClusteringParams, 
@@ -136,8 +147,6 @@ export function ClusteringControls({ onParametersChange, variant = 'full' }: Clu
     setOverlayMode,
     terrainResolution,
     setTerrainResolution,
-    terrainBands,
-    setTerrainBands,
     showScatter,
     setShowScatter,
     showHulls,
@@ -287,14 +296,67 @@ export function ClusteringControls({ onParametersChange, variant = 'full' }: Clu
     }
   };
 
-  const handleExportVisualization = (format: 'png' | 'svg' | 'json') => {
-    // This would typically trigger the parent component to handle the export
-    toast({
-      title: `Exporting as ${format.toUpperCase()}`,
-      description: 'This feature will be implemented to export the current visualization.',
-      status: 'info',
-      duration: 3000,
-    });
+  const handleExportVisualization = async (format: 'png' | 'svg' | 'json') => {
+    try {
+      if (!projectionData) {
+        toast({
+          title: 'Export failed',
+          description: 'No visualization data available to export.',
+          status: 'error',
+          duration: 3000,
+        });
+        return;
+      }
+
+      const exportSettings: ExportSettings = {
+        colorPalette,
+        pointSize,
+        showOutliers,
+        selectedClusterId,
+      };
+
+      let success = false;
+
+      switch (format) {
+        case 'png':
+          if (!deckRef?.current) {
+            toast({
+              title: 'Export failed',
+              description: 'Visualization not ready for PNG export.',
+              status: 'error',
+              duration: 3000,
+            });
+            return;
+          }
+          success = exportToPNG(deckRef);
+          break;
+        
+        case 'svg':
+          success = exportToSVG(projectionData, exportSettings);
+          break;
+        
+        case 'json':
+          success = exportToJSON(projectionData, exportSettings);
+          break;
+      }
+
+      if (success) {
+        toast({
+          title: `${format.toUpperCase()} Export Complete`,
+          description: `Visualization exported successfully as ${format.toUpperCase()}.`,
+          status: 'success',
+          duration: 3000,
+        });
+      }
+    } catch (error) {
+      console.error(`Export failed:`, error);
+      toast({
+        title: 'Export failed',
+        description: error instanceof Error ? error.message : 'An unexpected error occurred.',
+        status: 'error',
+        duration: 5000,
+      });
+    }
   };
 
   return (

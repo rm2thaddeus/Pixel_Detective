@@ -1,4 +1,5 @@
 import { UMAPPoint } from '../types/latent-space';
+import { ColorPaletteName } from '../hooks/useLatentSpaceStore';
 
 /**
  * Beautiful Color Palettes for Clustering Visualization
@@ -711,4 +712,273 @@ export function getTopKeywords(
     .sort((a, b) => b[1] - a[1])
     .slice(0, max)
     .map(([word]) => word);
-} 
+}
+
+export interface ExportSettings {
+  colorPalette: ColorPaletteName;
+  pointSize: number;
+  showOutliers: boolean;
+  selectedClusterId?: number | null;
+}
+
+/**
+ * Export the DeckGL canvas as PNG
+ */
+export const exportToPNG = (deckRef: React.RefObject<HTMLElement>, filename?: string) => {
+  try {
+    const deck = deckRef.current?.deck;
+    if (!deck) {
+      throw new Error('Visualization not available');
+    }
+
+    // Make sure the most recent frame is rendered before we capture the canvas.
+    // On some browsers the buffer may be cleared when `preserveDrawingBuffer` is
+    // false or if the GPU command queue hasn't finished. For safety we issue an
+    // explicit redraw and then wait for the next animation frame before
+    // exporting the image.
+    if (typeof deck.redraw === 'function') {
+      deck.redraw(true);
+    }
+
+    const canvas = deck.canvas;
+    if (!canvas) {
+      throw new Error('Canvas not found');
+    }
+
+    // Force any pending GL commands to complete.
+    const gl = deck.device?.gl || canvas.getContext('webgl2') || canvas.getContext('webgl');
+    gl?.flush();
+
+    // Defer the capture by one frame to ensure the drawing buffer contains the
+    // freshly rendered pixels.
+    requestAnimationFrame(() => {
+      canvas.toBlob((blob: Blob | null) => {
+        if (!blob) {
+          throw new Error('Failed to generate image');
+        }
+
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename || `latent-space-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.png`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      }, 'image/png');
+    });
+
+    return true;
+  } catch (error) {
+    console.error('PNG export failed:', error);
+    throw error;
+  }
+};
+
+/**
+ * Export visualization as SVG
+ */
+export const exportToSVG = (
+  data: UMAPProjectionResponse,
+  settings: ExportSettings,
+  filename?: string
+) => {
+  try {
+    if (!data?.points || data.points.length === 0) {
+      throw new Error('No data to export');
+    }
+
+    // Calculate bounds
+    const points = data.points;
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    
+    points.forEach(point => {
+      if (point.position && point.position.length >= 2) {
+        const [x, y] = point.position;
+        minX = Math.min(minX, x);
+        maxX = Math.max(maxX, x);
+        minY = Math.min(minY, y);
+        maxY = Math.max(maxY, y);
+      }
+    });
+
+    // Fallback if no valid positions found
+    if (minX === Infinity) {
+      minX = maxX = minY = maxY = 0;
+    }
+
+    const padding = Math.max((maxX - minX), (maxY - minY)) * 0.1;
+    const viewBoxWidth = maxX - minX + 2 * padding;
+    const viewBoxHeight = maxY - minY + 2 * padding;
+    const svgWidth = 800;
+    const svgHeight = 600;
+
+    // Color mapping function based on cluster
+    const getPointColor = (point: UMAPPoint): string => {
+      // Handle undefined, null, or outlier points
+      if (point.cluster_id === undefined || point.cluster_id === null || point.cluster_id === -1) {
+        return '#cccccc'; // Gray for outliers or unassigned points
+      }
+      
+      // Use a simple color scheme for SVG export
+      const colors = [
+        '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd',
+        '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf'
+      ];
+      
+      return colors[point.cluster_id % colors.length];
+    };
+
+    // Get unique cluster IDs, filtering out undefined/null values
+    const uniqueClusterIds = Array.from(new Set(
+      points
+        .map(p => p.cluster_id)
+        .filter(id => id !== undefined && id !== null && id !== -1)
+    ));
+
+    // Generate SVG content
+    const svgContent = `<?xml version="1.0" encoding="UTF-8"?>
+<svg width="${svgWidth}" height="${svgHeight}" viewBox="${minX - padding} ${minY - padding} ${viewBoxWidth} ${viewBoxHeight}" xmlns="http://www.w3.org/2000/svg">
+  <title>Latent Space Visualization - ${data.collection || 'Unknown Collection'}</title>
+  <defs>
+    <style>
+      .point { opacity: 0.7; }
+      .point:hover { opacity: 1.0; stroke: #000; stroke-width: 1; }
+      .outlier { opacity: 0.3; }
+      .selected-cluster { stroke: #000; stroke-width: 2; }
+    </style>
+  </defs>
+  
+  <!-- Background -->
+  <rect x="${minX - padding}" y="${minY - padding}" width="${viewBoxWidth}" height="${viewBoxHeight}" fill="white"/>
+  
+  <!-- Data points -->
+  <g transform="scale(1, -1) translate(0, ${-(maxY + minY)})">
+    ${points
+      .filter(point => {
+        // Show outliers if setting is enabled, or show non-outlier points
+        if (point.cluster_id === -1) {
+          return settings.showOutliers;
+        }
+        return true;
+      })
+      .map(point => {
+        const [x, y] = point.position || [0, 0]; // Fallback if position is undefined
+        const color = getPointColor(point);
+        const isSelected = settings.selectedClusterId === point.cluster_id;
+        const classes = [
+          'point',
+          point.cluster_id === -1 ? 'outlier' : '',
+          isSelected ? 'selected-cluster' : ''
+        ].filter(Boolean).join(' ');
+        
+        const clusterInfo = point.cluster_id !== -1 && point.cluster_id !== undefined && point.cluster_id !== null 
+          ? `, Cluster: ${point.cluster_id}` 
+          : ', Outlier';
+        
+        return `<circle cx="${x}" cy="${y}" r="${settings.pointSize / 2}" fill="${color}" class="${classes}">
+          <title>ID: ${point.id}${clusterInfo}</title>
+        </circle>`;
+      })
+      .join('\n    ')}
+  </g>
+  
+  <!-- Legend -->
+  <g transform="translate(20, 20)">
+    <rect x="0" y="0" width="180" height="${Math.min(uniqueClusterIds.length, 10) * 25 + 40}" fill="white" stroke="#ccc" stroke-width="1" opacity="0.9"/>
+    <text x="10" y="20" font-family="Arial, sans-serif" font-size="14" font-weight="bold">Clusters</text>
+    ${uniqueClusterIds
+      .slice(0, 10)
+      .map((clusterId, idx) => {
+        const color = getPointColor({ cluster_id: clusterId } as UMAPPoint);
+        const count = points.filter(p => p.cluster_id === clusterId).length;
+        return `<g transform="translate(10, ${35 + idx * 25})">
+          <circle cx="8" cy="8" r="6" fill="${color}"/>
+          <text x="20" y="12" font-family="Arial, sans-serif" font-size="12">Cluster ${clusterId} (${count} points)</text>
+        </g>`;
+      })
+      .join('\n    ')}
+  </g>
+</svg>`;
+
+    // Create and download the file
+    const blob = new Blob([svgContent], { type: 'image/svg+xml' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename || `latent-space-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.svg`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    return true;
+  } catch (error) {
+    console.error('SVG export failed:', error);
+    throw error;
+  }
+};
+
+/**
+ * Export data as JSON
+ */
+export const exportToJSON = (
+  data: UMAPProjectionResponse,
+  settings: ExportSettings,
+  filename?: string
+) => {
+  try {
+    if (!data) {
+      throw new Error('No data to export');
+    }
+
+    const exportData = {
+      metadata: {
+        collection: data.collection,
+        exportedAt: new Date().toISOString(),
+        totalPoints: data.points?.length || 0,
+        clusterCount: data.clustering_info?.cluster_count || 0,
+        algorithm: data.clustering_info?.algorithm || 'unknown',
+        exportSettings: settings
+      },
+      clustering_info: data.clustering_info,
+      points: data.points?.map(point => ({
+        id: point.id || 'unknown',
+        position: point.position || [0, 0],
+        cluster_id: point.cluster_id ?? -1,
+        filename: point.filename || 'unknown',
+        // Include any additional metadata
+        ...(point.metadata && { metadata: point.metadata })
+      })) || [],
+      statistics: {
+        clusterDistribution: data.points?.reduce((acc, point) => {
+          const clusterId = point.cluster_id ?? -1; // Use -1 for undefined/null cluster_id
+          acc[clusterId] = (acc[clusterId] || 0) + 1;
+          return acc;
+        }, {} as Record<number, number>) || {},
+        bounds: data.points?.length ? {
+          minX: Math.min(...data.points.filter(p => p.position).map(p => p.position[0])),
+          maxX: Math.max(...data.points.filter(p => p.position).map(p => p.position[0])),
+          minY: Math.min(...data.points.filter(p => p.position).map(p => p.position[1])),
+          maxY: Math.max(...data.points.filter(p => p.position).map(p => p.position[1]))
+        } : null
+      }
+    };
+
+    const jsonString = JSON.stringify(exportData, null, 2);
+    const blob = new Blob([jsonString], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename || `latent-space-data-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    return true;
+  } catch (error) {
+    console.error('JSON export failed:', error);
+    throw error;
+  }
+}; 

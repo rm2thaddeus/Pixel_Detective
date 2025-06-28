@@ -60,6 +60,7 @@ interface UMAPScatterPlotProps {
   colorPalette?: ColorPaletteName;
   showOutliers?: boolean;
   pointSize?: number;
+  deckRef?: React.RefObject<HTMLElement>;
 }
 
 // Note: Utility functions moved to utils/visualization.ts
@@ -81,6 +82,7 @@ export function UMAPScatterPlot({
   colorPalette = "observable",
   showOutliers = true,
   pointSize = 10,
+  deckRef: externalDeckRef,
 }: UMAPScatterPlotProps) {
   const [hoveredPoint, setHoveredPoint] = useState<UMAPPoint | null>(null);
   const [animationProgress, setAnimationProgress] = useState(0);
@@ -100,7 +102,8 @@ export function UMAPScatterPlot({
   ) => {
     screenPolyRef.current = typeof value === "function" ? (value as any)(screenPolyRef.current) : value;
   };
-  const deckRef = React.useRef<any>(null);
+  const internalDeckRef = React.useRef<HTMLElement>(null);
+  const deckRef = externalDeckRef || internalDeckRef;
   const overlayRef = React.useRef<HTMLDivElement>(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [lassoPath, setLassoPath] = useState('');
@@ -1269,7 +1272,7 @@ function EnhancedDeckGLVisualization({
         webgl: {
           antialias: false,
           powerPreference: "high-performance",
-          preserveDrawingBuffer: false,
+          preserveDrawingBuffer: true,
         },
       }}
     />

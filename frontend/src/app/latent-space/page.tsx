@@ -56,6 +56,7 @@ export default function LatentSpacePage() {
   const [showControls, setShowControls] = useState(false);
   const { isOpen, onOpen, onClose } = useDisclosure();
   const cancelRef = React.useRef<HTMLButtonElement | null>(null);
+  const deckRef = React.useRef<HTMLElement>(null); // For export functionality
   const toast = useToast();
   const queryClient = useQueryClient();
 
@@ -319,13 +320,18 @@ export default function LatentSpacePage() {
                   colorPalette={colorPalette}
                   showOutliers={showOutliers}
                   pointSize={pointSize}
+                  deckRef={deckRef}
                 />
 
                 {/* Mobile collapsible toolbar */}
                 <Box position="absolute" top={0} left={0} w="full" display={{ base: 'block', lg: 'none' }}>
                   <Collapse in={showControls} animateOpacity>
                     <Box bg="whiteAlpha.900" _dark={{ bg: 'gray.800' }} p={2} shadow="md">
-                      <ClusteringControls variant="compact" />
+                      <ClusteringControls 
+                        variant="compact" 
+                        deckRef={deckRef}
+                        selectedClusterId={selectedCluster}
+                      />
                     </Box>
                   </Collapse>
                 </Box>
@@ -333,7 +339,11 @@ export default function LatentSpacePage() {
 
               {/* Persistent controls column (desktop) */}
               <Box display={{ base: 'none', lg: 'block' }} w="320px" flexShrink={0}>
-                <ClusteringControls variant="compact" />
+                <ClusteringControls 
+                  variant="compact" 
+                  deckRef={deckRef}
+                  selectedClusterId={selectedCluster}
+                />
               </Box>
             </Flex>
 
