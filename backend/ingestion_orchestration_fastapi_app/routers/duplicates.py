@@ -21,6 +21,9 @@ tasks = {}
 # Track curation status per collection so the frontend can display progress
 collection_curation_status: Dict[str, str] = {}
 
+# Default scroll batch when scanning the collection for duplicates.
+SCROLL_LIMIT = int(os.getenv("SCROLL_LIMIT", "1000"))  # Override at runtime via env var
+
 
 class FindSimilarTask(BaseModel):
     task_id: str
@@ -59,11 +62,7 @@ def find_similar_images_task(
         processed_ids = set()
         duplicate_groups = []
 
-        # Use scroll to iterate over all points in the collection. Batch size can
-        # be tuned via the SCROLL_LIMIT env var (default 1000) to reduce the
-        # number of Qdrant API calls on large datasets.
-        SCROLL_LIMIT = int(os.getenv("SCROLL_LIMIT", "1000"))
-
+        # Use scroll to iterate over all points in the collection.
         scroll_response = qdrant_client.scroll(
             collection_name=collection_name,
             with_vectors=True,

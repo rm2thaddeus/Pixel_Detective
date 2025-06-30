@@ -41,15 +41,28 @@ ML_SERVICE_URL = (
 ML_BATCH_SIZE = int(os.getenv("ML_INFERENCE_BATCH_SIZE", "25"))
 QDRANT_BATCH_SIZE = int(os.getenv("QDRANT_UPSERT_BATCH_SIZE", "32"))
 
+# NEW ➡️  Feature flag to enable multipart uploads (pre-decoded PNG streaming)
+USE_MULTIPART_UPLOAD = os.getenv("USE_MULTIPART_UPLOAD", "0") not in {"0", "false", "False"}
+
 # Initialize disk cache for deduplication
 cache = diskcache.Cache('.diskcache')
 
-# Attempt optional import for XMP reading
+# ---------------------------------------------------------------------------
+# Optional XMP support
+# ---------------------------------------------------------------------------
+# libxmp requires the native «Exempi» library which is often missing on
+# Windows systems.  When that happens libxmp raises *ExempiLoadError*, not
+# ImportError, so we must guard against any Exception during the import.
+# If it fails we silently disable XMP keyword extraction – the rest of the
+# ingestion pipeline continues to work.
+# ---------------------------------------------------------------------------
+
 try:
-    from libxmp import XMPFiles, consts as xmp_consts
-except ImportError:  # pragma: no cover
+    from libxmp import XMPFiles, consts as xmp_consts  # type: ignore
+except Exception:  # pragma: no cover – includes ExempiLoadError
     XMPFiles = None  # type: ignore
     xmp_consts = None  # type: ignore
+    logger.info("libxmp unavailable – XMP keyword extraction disabled (Exempi missing?)")
 
 class IngestRequest(BaseModel):
     directory_path: str = Field(..., description="Absolute path to the directory containing images")
@@ -436,7 +449,54 @@ def create_thumbnail_base64(image_path: str, size: tuple = (200, 200)) -> str:
         return ""
 
 async def send_batch_to_ml_service(batch_images: List[Dict]) -> List[Dict]:
-    """Send a batch of images to the ML service for processing."""
+    """Send a batch of images to the ML service for processing.
+
+    This helper automatically chooses the optimal transport:
+    • JSON + Base64 (legacy)
+    • multipart/form-data with loss-less PNG buffers (when USE_MULTIPART_UPLOAD=1)
+    """
+    if USE_MULTIPART_UPLOAD:
+        # --- Multipart implementation -------------------------------------
+        files_payload = []
+        for item in batch_images:
+            try:
+                img_path = item["file_path"] if "file_path" in item else item["full_path"]
+                unique_id = item["unique_id"]
+                filename_original = item.get("filename") or os.path.basename(img_path)
+
+                # Decode → RGB and re-encode as PNG (loss-less, reasonably small)
+                if filename_original.lower().endswith(".dng"):
+                    try:
+                        with rawpy.imread(img_path) as raw:
+                            rgb = raw.postprocess(use_camera_wb=True)
+                        pil_img = Image.fromarray(rgb).convert("RGB")
+                    except Exception as e:
+                        logger.error(f"rawpy failed for {img_path}: {e}")
+                        raise
+                else:
+                    pil_img = Image.open(img_path).convert("RGB")
+
+                buf = io.BytesIO()
+                pil_img.save(buf, format="PNG")
+                buf.seek(0)
+                combined_name = f"{unique_id}__{filename_original}.png"
+                files_payload.append(("files", (combined_name, buf.read(), "image/png")))
+            except Exception as e:
+                logger.error(f"Failed to prepare image {img_path} for multipart upload: {e}")
+
+        async with httpx.AsyncClient(timeout=300.0) as client:  # 5-minute timeout
+            try:
+                response = await client.post(
+                    f"{ML_SERVICE_URL}/api/v1/batch_embed_and_caption_multipart",
+                    files=files_payload,
+                )
+                response.raise_for_status()
+                return response.json().get("results", [])
+            except Exception as e:
+                logger.error(f"Error calling ML service (multipart): {e}")
+                raise
+
+    # --- Legacy JSON path --------------------------------------------------
     async with httpx.AsyncClient(timeout=300.0) as client:  # 5 minute timeout
         try:
             response = await client.post(
@@ -543,15 +603,22 @@ async def process_directory(job_id: str, directory_path: str, collection_name: s
                     
                 else:
                     # Add to ML processing batch
-                    with open(image_path, 'rb') as f:
-                        image_data = f.read()
-                    
-                    batch_for_ml.append({
-                        "unique_id": file_hash,
-                        "image_base64": base64.b64encode(image_data).decode('utf-8'),
-                        "filename": os.path.basename(image_path),
-                        "full_path": image_path
-                    })
+                    if USE_MULTIPART_UPLOAD:
+                        batch_for_ml.append({
+                            "unique_id": file_hash,
+                            "file_path": image_path,
+                            "filename": os.path.basename(image_path),
+                            "full_path": image_path
+                        })
+                    else:
+                        with open(image_path, 'rb') as f:
+                            image_data = f.read()
+                        batch_for_ml.append({
+                            "unique_id": file_hash,
+                            "image_base64": base64.b64encode(image_data).decode('utf-8'),
+                            "filename": os.path.basename(image_path),
+                            "full_path": image_path
+                        })
                 
                 # Process ML batch when it's full or we're at the end
                 if len(batch_for_ml) >= ML_BATCH_SIZE or i == len(image_files) - 1:

@@ -7,4 +7,5 @@ openai-clip
 transformers
 Pillow
 rawpy
-numpy 
+numpy
+python-multipart 

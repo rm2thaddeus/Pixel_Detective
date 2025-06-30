@@ -39,6 +39,18 @@ async def lifespan(app: FastAPI):
     # ------------------------------------------------------------------
     autosize_batches(os.getenv("ML_INFERENCE_SERVICE_URL", "http://localhost:8001"))
 
+    # ------------------------------------------------------------------
+    # Env-var aliasing – ensure both ML_SERVICE_URL and ML_INFERENCE_SERVICE_URL
+    # are populated to avoid mismatches across routers/modules.
+    # ------------------------------------------------------------------
+    if "ML_SERVICE_URL" not in os.environ and "ML_INFERENCE_SERVICE_URL" in os.environ:
+        os.environ["ML_SERVICE_URL"] = os.environ["ML_INFERENCE_SERVICE_URL"]
+        logger.info("Aliased ML_SERVICE_URL → %s", os.environ["ML_SERVICE_URL"])
+
+    if "ML_INFERENCE_SERVICE_URL" not in os.environ and "ML_SERVICE_URL" in os.environ:
+        os.environ["ML_INFERENCE_SERVICE_URL"] = os.environ["ML_SERVICE_URL"]
+        logger.info("Aliased ML_INFERENCE_SERVICE_URL → %s", os.environ["ML_INFERENCE_SERVICE_URL"])
+
     # Ensure routers that cached the old env vars pick up the new values
     try:
         from .routers import ingest as ingest_router  # local import to avoid cycles
@@ -85,11 +97,47 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# Add CORS middleware
+# ---------------------------------------------------------------------------
+# CORS configuration
+# ---------------------------------------------------------------------------
+# Allow configurable front-end origins via env var. Multiple origins can be
+# supplied comma-separated, e.g.:
+#   FRONTEND_ORIGINS="http://localhost:3000, http://10.5.0.2:3000"
+# Defaults cover common local development hosts.
+# ---------------------------------------------------------------------------
+
+_default_frontend_origins = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+]
+
+# Read env var (if provided) and merge with defaults – de-duplicate while
+# preserving order.
+frontend_origins_env = os.getenv("FRONTEND_ORIGINS", "")
+_extra_origins = [o.strip() for o in frontend_origins_env.split(",") if o.strip()]
+allowed_origins = []
+for origin in _default_frontend_origins + _extra_origins:
+    if origin not in allowed_origins:
+        allowed_origins.append(origin)
+
+# NOTE: allow_credentials=True means we cannot use the wildcard "*".
+#       If the user truly wants open CORS they can set FRONTEND_ORIGINS="*"
+#       _and_ we will disable credentials automatically.
+
+allow_credentials_flag = True
+allow_origin_regex = None
+
+if len(allowed_origins) == 1 and allowed_origins[0] == "*":
+    # Wildcard origin requested – switch to regex to satisfy FastAPI constraints
+    allowed_origins = []  # Empty list when using regex
+    allow_origin_regex = ".*"
+    allow_credentials_flag = False  # Credentials cannot be used with wildcard
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
-    allow_credentials=True,
+    allow_origins=allowed_origins,
+    allow_origin_regex=allow_origin_regex,
+    allow_credentials=allow_credentials_flag,
     allow_methods=["*"],
     allow_headers=["*"],
 )

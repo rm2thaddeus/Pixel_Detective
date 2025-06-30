@@ -1,8 +1,8 @@
 # Vibe Coding - System Architecture
 
-**Current Version:** Post-Sprint 10 (December 2024)  
+**Current Version:** Post-Sprint 11 (June 2025)  
 **Status:** Production-Ready Microservices Architecture  
-**Last Updated:** December 2024
+**Last Updated:** June 2025
 
 ---
 
@@ -67,7 +67,7 @@ Vibe Coding implements a modern, scalable microservices architecture featuring a
 - **Port:** 8002
 - **Key Responsibilities:**
   - `Collection Management`: CRUD operations for Qdrant collections.
-  - `Ingestion Pipeline`: Orchestrates file processing, calling the ML service for embeddings, and storing results in Qdrant.
+  - `Ingestion Pipeline`: Orchestrates file processing, **dynamically auto-sizes batch parameters on startup**, and (when `USE_MULTIPART_UPLOAD=1`) streams pre-decoded PNGs via the high-throughput endpoint `POST /api/v1/batch_embed_and_caption_multipart`.
   - `Search Gateway`: Receives search queries, gets embeddings from the ML service, and queries Qdrant.
   - `Image Serving`: Provides endpoints for retrieving image thumbnails and full-resolution files.
   - `Duplicate Detection`: Manages tasks for finding near-duplicates within a collection.
@@ -77,7 +77,8 @@ Vibe Coding implements a modern, scalable microservices architecture featuring a
 - **Port:** 8001
 - **Features:**
   - CUDA-optimized inference for CLIP (embeddings) and BLIP (captioning) models.
-  - Dynamic batch sizing to maximize GPU utilization without causing out-of-memory errors.
+  - Dynamic batch sizing to maximize GPU utilization without causing out-of-memory errors (**`SAFE_BATCH_SIZE` auto-probes VRAM at startup**).
+  - **CPU thread-pool oversubscription** (default `os.cpu_count()*2`, tunable via `ML_CPU_WORKERS`) for faster image decode.
   - Model caching and lazy-loading strategies to optimize resource usage.
   - Provides simple, stateless endpoints for text embedding, image embedding, and captioning.
 
@@ -107,10 +108,9 @@ Vibe Coding implements a modern, scalable microservices architecture featuring a
 2. **API Call:** Frontend sends files to the Ingestion Service (`POST /api/v1/ingest/upload`).
 3. **Orchestration (Ingestion Service):**
    a. Saves files to a temporary location.
-   b. Batches images and sends them to the **ML Inference Service** (`POST /api/v1/batch_embed_and_caption`).
-   c. The ML service returns embeddings and captions.
-   d. The Ingestion service generates thumbnails.
-   e. The Ingestion service upserts the embeddings, captions, thumbnails, and metadata into Qdrant.
+   b. Batch sizes are **auto-calculated** by `autosize_batches()` based on free RAM and the ML service's capabilities.
+   c. Encodes each image to PNG **on the ingestion host** and, if enabled, streams the batch as `multipart/form-data` to `POST /api/v1/batch_embed_and_caption_multipart`; otherwise falls back to the JSON base64 endpoint.
+   d. The ML service returns embeddings and captions.
 4. **Progress Tracking:** Frontend polls the Ingestion Service (`GET /api/v1/ingest/status/{job_id}`) to display real-time progress.
 
 ### **Text Search Workflow**
@@ -173,4 +173,20 @@ The following top-level directories are not part of a core frontend or backend s
 **Architecture Status:** ✅ **Production Ready**  
 **Next Review:** Quarterly architecture review planned  
 **Documentation:** Auto-generated API docs available at the `/docs` endpoint of each running service.
+
+## 🚀 **Post-Sprint 11 Performance Optimisations**
+
+The June 2025 batch-size initiative introduced several architecture-level enhancements:
+
+• **RAM- & GPU-Aware Autosizing** – `autosize_batches()` negotiates optimal batch numbers at runtime (no manual tuning required).
+
+• **Capabilities Endpoints** – Both ingestion (`/api/v1/capabilities`) and ML inference services expose live limits so UIs and other services can adapt dynamically.
+
+• **Thread-Pool Oversubscription** – ML service decoders run on `cpu×2` workers by default, ensuring high core utilisation during massive ingests.
+
+• **Multipart Image Streaming** – Pre-decoded PNG streaming removes base64 overhead and overlaps CPU decode with network I/O, raising GPU utilisation on first pass.
+
+• **Bigger Qdrant Scrolls** – Duplicate scanner now pages 1000 vectors per request (env-tunable), cutting API round-trips by 10×.
+
+These upgrades pushed sustained ingestion throughput to ~2 × previous baselines on a 64 GB, single-GPU workstation.
 

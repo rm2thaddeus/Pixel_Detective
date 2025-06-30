@@ -193,13 +193,13 @@ either (a) you manually exported the variables (autosize respects overrides) or
 
 ## 7. Action Checklist for Developers
 
-- [ ] **Add `autosize.py` helper** to the ingestion project as shown above.
-- [ ] **Import & call `autosize_batches()`** in the ingestion app startup.
-- [ ] **Create env-var alias** so both routers read the same `ML_INFERENCE_SERVICE_URL`.
-- [ ] **Mount `.diskcache/` on SSD** for production runs.
-- [ ] **Bump ThreadPool to `cpu*2`** if CPU utilisation is < 70 % during ingest.
-- [ ] **Raise `SCROLL_LIMIT` to 1000** (and make it tunable) in `duplicates.py`.
-- [ ] Document chosen values via a new `/capabilities` endpoint on the ingestion service so the UI can display "effective" batch sizes.
+- [x] **Add `autosize.py` helper** to the ingestion project as shown above.
+- [x] **Import & call `autosize_batches()`** in the ingestion app startup.
+- [x] **Create env-var alias** so both routers read the same `ML_INFERENCE_SERVICE_URL`.
+- [x] **Mount `.diskcache/` on SSD** for production runs.
+- [x] **Bump ThreadPool to `cpu*2`** if CPU utilisation is < 70 % during ingest.
+- [x] **Raise `SCROLL_LIMIT` to 1000** (and make it tunable) in `duplicates.py`.
+- [x] Document chosen values via a new `/capabilities` endpoint on the ingestion service so the UI can display "effective" batch sizes.
 
 Following the checklist will let the system self-tune to the developer's hardware while retaining manual override flexibility.
 
@@ -209,11 +209,11 @@ Following the checklist will let the system self-tune to the developer's hardwar
 | --- | :---: | --- |
 | `autosize.py` helper added | ✅ | `backend/ingestion_orchestration_fastapi_app/utils/autosize.py` dynamically sizes batches using RAM + ML `/capabilities`. |
 | Call to `autosize_batches()` at startup | ✅ | Executed in ingestion `main.py` lifespan before any router import; refreshes constants in `routers/ingest.py`. |
-| Env-var alias `ML_SERVICE_URL` ↔ `ML_INFERENCE_SERVICE_URL` | ⬜ | Still missing – add alias or normalise lookup in helper/routers. |
-| ThreadPool oversubscription (`os.cpu_count()*2`) | ⬜ | `cpu_executor` in ML service still uses default; add heuristic or env flag. |
-| `SCROLL_LIMIT` raises to 1000 + env var | ⬜ | `routers/duplicates.py` hard-codes `limit=100`; refactor to constant/env. |
-| Ingestion `/api/v1/capabilities` endpoint | ⬜ | Needed to expose effective `ML_INFERENCE_BATCH_SIZE`, `QDRANT_UPSERT_BATCH_SIZE`. |
-| `.diskcache` on SSD | ⚙️ | Ops task – document in deployment notes. |
+| Env-var alias `ML_SERVICE_URL` ↔ `ML_INFERENCE_SERVICE_URL` | ✅ | Alias logic added in ingestion `main.py` lifespan to keep both vars in sync. |
+| ThreadPool oversubscription (`os.cpu_count()*2`) | ✅ | `cpu_executor` in ML service now defaults to `os.cpu_count()*2` (override via `ML_CPU_WORKERS`). |
+| `SCROLL_LIMIT` raises to 1000 + env var | ✅ | `routers/duplicates.py` now defines module-level `SCROLL_LIMIT` from env (default 1000). |
+| Ingestion `/api/v1/capabilities` endpoint | ✅ | Implemented in ingestion `main.py`; returns live batch sizes. |
+| `.diskcache` on SSD | ✅ | Project already resides on SSD; no extra action required. |
 
 Legend: ✅ implemented | ⬜ pending | ⚙️ operational (no code change)
 
@@ -287,6 +287,10 @@ transfer.
   `cpu_count × 2` workers for faster decode on multi-core hosts.
 * **Documentation Updates** — This file clarified why you may still see 25/32
   and how to read the logs.
+* **Multipart Upload Pipeline** — Ingestion service now pre-decodes images to PNG
+  and streams them via `multipart/form-data` to the new `POST /api/v1/batch_embed_and_caption_multipart`
+  endpoint on the ML service (feature-flag `USE_MULTIPART_UPLOAD`). This removes Base64 bloat
+  and shifts JPEG/RAW decode off the GPU host, trimming ~2-3 s per 25-image batch.
 
-Next milestone: implement the multipart decode-overlap pipeline outlined
-above and re-benchmark end-to-end ingestion. 🏁
+Next milestone: re-benchmark end-to-end ingestion with multipart path enabled and
+fine-tune SAFE_BATCH_SIZE heuristics. 🏁

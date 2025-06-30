@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Body, APIRouter
+from fastapi import FastAPI, HTTPException, Body, APIRouter, UploadFile, File
 from pydantic import BaseModel
 import torch
 import clip # openai-clip
@@ -597,6 +597,121 @@ class CapabilitiesResponse(BaseModel):
 async def get_capabilities_v1():
     """Return runtime capability information so clients can adapt dynamically."""
     return CapabilitiesResponse(safe_clip_batch=SAFE_BATCH_SIZE)
+
+# === NEW MULTIPART BATCH ENDPOINT ===
+# This endpoint accepts `multipart/form-data` uploads where each part is an image file.
+# The filename MUST be encoded as "<unique_id>__<original_filename>.png" so we can
+# retrieve the caller-supplied identifier.  The business logic is identical to the
+# JSON variant, but skips the expensive base64 decode and can overlap CPU decode
+# on the ingestion host.
+
+
+@v1_router.post("/batch_embed_and_caption_multipart", response_model=BatchEmbedAndCaptionResponse)
+async def batch_embed_and_caption_multipart_endpoint_v1(
+    files: List[UploadFile] = File(..., description="Upload list of PNG-encoded RGB images")
+):
+    """High-throughput batch embedding & captioning via multipart upload.
+
+    Ingestion service pre-decodes original images → PNG and streams binary data.
+    This saves ~33 % payload bloat from base64 and shifts CPU decode cost off the
+    GPU host.
+    """
+
+    start_time = time.time()
+
+    if not clip_model_instance:
+        raise HTTPException(status_code=503, detail="CLIP model is not available.")
+
+    # Lazy load BLIP (caption) model if required
+    try:
+        blip_model, blip_processor = await get_blip_model()
+    except HTTPException as e:
+        raise e
+
+    # --- 1. Decode uploaded PNG buffers on a CPU thread pool --------------
+    prepped_images: Dict[str, Image.Image] = {}
+    processing_results: Dict[str, Dict] = {}
+
+    def _decode_single_upload(upload: UploadFile):
+        """Helper to decode one UploadFile → (unique_id, PIL.Image) or raise."""
+        file_bytes = upload.file.read()  # synchronous read inside thread
+        fname = upload.filename or "unknown.png"
+        if "__" in fname:
+            unique_id, original_name = fname.split("__", 1)
+        else:
+            unique_id, original_name = os.path.splitext(fname)[0], fname
+
+        try:
+            pil_img = Image.open(io.BytesIO(file_bytes)).convert("RGB")
+            return unique_id, original_name, pil_img, None
+        except Exception as exc:
+            return unique_id, original_name, None, f"Failed to decode PNG: {exc}"
+
+    decode_futures = [cpu_executor.submit(_decode_single_upload, uf) for uf in files]
+
+    for fut in as_completed(decode_futures):
+        uid, orig_name, pil_img, err = fut.result()
+        processing_results[uid] = {
+            "unique_id": uid,
+            "filename": orig_name,
+            "error": err,
+        }
+        if err is None and pil_img is not None:
+            prepped_images[uid] = pil_img
+
+    valid_ids = list(prepped_images.keys())
+    if not valid_ids:
+        return BatchEmbedAndCaptionResponse(results=[BatchResultItem(**res) for res in processing_results.values()])
+
+    log_cuda_memory("After PNG Decode (multipart)")
+
+    # --- 2. GPU inference in SAFE_BATCH_SIZE chunks -----------------------
+    async with gpu_lock:
+        inference_start = time.time()
+        for i in range(0, len(valid_ids), SAFE_BATCH_SIZE):
+            chunk_ids = valid_ids[i:i + SAFE_BATCH_SIZE]
+            try:
+                # CLIP
+                pil_imgs_clip = [prepped_images[uid] for uid in chunk_ids]
+                clip_inputs = torch.stack([clip_preprocess_instance(img) for img in pil_imgs_clip]).to(device)
+                if device.type == "cuda":
+                    clip_inputs = clip_inputs.half()
+                clip_features = await asyncio.to_thread(_encode_clip, clip_inputs)
+                clip_np = clip_features.cpu().numpy()
+                for j, uid in enumerate(chunk_ids):
+                    processing_results[uid]["embedding"] = clip_np[j].tolist()
+                    processing_results[uid]["embedding_shape"] = list(clip_np[j].shape)
+            except Exception as e:
+                logger.error(f"CLIP inference failed on multipart chunk: {e}", exc_info=True)
+                for uid in chunk_ids:
+                    if not processing_results[uid]["error"]:
+                        processing_results[uid]["error"] = f"CLIP error: {e}"
+
+            # BLIP captions
+            try:
+                pil_imgs_blip = [prepped_images[uid] for uid in chunk_ids]
+                blip_inputs = blip_processor(images=pil_imgs_blip, return_tensors="pt").to(device)
+                if device.type == "cuda":
+                    blip_inputs = {k: v.to(device).half() for k, v in blip_inputs.items()}
+                else:
+                    blip_inputs = {k: v.to(device) for k, v in blip_inputs.items()}
+
+                blip_ids = await asyncio.to_thread(_generate_blip, blip_inputs)
+                captions = blip_processor.batch_decode(blip_ids, skip_special_tokens=True)
+                for j, uid in enumerate(chunk_ids):
+                    processing_results[uid]["caption"] = captions[j].strip()
+            except Exception as e:
+                logger.error(f"BLIP inference failed on multipart chunk: {e}", exc_info=True)
+                for uid in chunk_ids:
+                    if not processing_results[uid]["error"]:
+                        processing_results[uid]["error"] = f"BLIP error: {e}"
+
+        logger.info(f"Multipart GPU inference completed in {time.time() - inference_start:.2f}s")
+
+    if device.type == "cuda":
+        torch.cuda.empty_cache()
+
+    return BatchEmbedAndCaptionResponse(results=[BatchResultItem(**res) for res in processing_results.values()])
 
 app.include_router(v1_router)
 
