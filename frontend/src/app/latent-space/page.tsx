@@ -40,6 +40,30 @@ import { archiveSelection } from '@/lib/api';
 
 export default function LatentSpacePage() {
   const { collection } = useStore();
+
+  // ------------------------------------------------------------------
+  // 1️⃣  Reset local latent-space visualisation state when the user switches
+  //     active collection.  Without this the previously stored projection
+  //     persists in Zustand and overrides freshly-fetched data, so the
+  //     scatter plot never updates.  We keep a ref of the last collection
+  //     to detect changes and avoid resetting on initial mount.
+  // ------------------------------------------------------------------
+
+  const lastCollectionRef = React.useRef<string | null>(null);
+  React.useEffect(() => {
+    if (lastCollectionRef.current === null) {
+      // First render – just record the initial collection.
+      lastCollectionRef.current = collection;
+      return;
+    }
+
+    if (collection !== lastCollectionRef.current) {
+      console.info('[LatentSpacePage] Active collection changed → resetting state');
+      useLatentSpaceStore.getState().resetState();
+      lastCollectionRef.current = collection;
+    }
+  }, [collection]);
+
   const { basicProjection, isLoading, error, clusteringMutation } = useUMAP();
   const { 
     selectedCluster, 
