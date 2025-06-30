@@ -46,7 +46,14 @@ def autosize_batches(ml_url: str, reserve_ram_gb: int = 8) -> None:
     ram_batch_images = int((free_ram * 0.60) / (2 * 1024 * 1024))  # 60 % of RAM budget
     ram_batch_qdrant = int((free_ram * 0.10) / (6 * 1024))        # 10 % of RAM budget
 
-    ml_batch = max(1, min(safe_clip, ram_batch_images, 2048))      # hard-cap to 2048
+    # Use operator‐provided env value if present but guard against runaway sizes
+    ml_env_requested = int(os.getenv("ML_INFERENCE_BATCH_SIZE", "2048"))
+
+    # Defensive clamp so a bad capability response can never propagate
+    ml_batch = max(
+        1,
+        min(safe_clip, ram_batch_images, ml_env_requested, 512)  # absolute ceiling 512
+    )
     qdrant_batch = max(32, min(ram_batch_qdrant, 2048))
 
     # ---------------------------------------------------------------------

@@ -10,7 +10,7 @@ import base64
 import hashlib
 import httpx
 from qdrant_client import QdrantClient
-from qdrant_client.http.models import PointStruct
+from qdrant_client.http.models import PointStruct, Filter, FieldCondition
 import diskcache
 from PIL import Image, ExifTags
 import io
@@ -544,6 +544,26 @@ async def process_directory(job_id: str, directory_path: str, collection_name: s
         if not qdrant_client:
             raise RuntimeError("Qdrant client not initialized")
         
+        # ------------------------------------------------------------------
+        # Dynamic ML batch sizing – re-query ML service capabilities to guard
+        # against mis-reported values and operator mis-configuration.
+        # We clamp to a hard maximum of 512 so a single bad response cannot
+        # overwhelm GPU memory.
+        # ------------------------------------------------------------------
+        effective_ml_batch = ML_BATCH_SIZE  # fallback
+        try:
+            async with httpx.AsyncClient(timeout=5.0) as _client:
+                _resp = await _client.get(f"{ML_SERVICE_URL}/api/v1/capabilities")
+                _resp.raise_for_status()
+                service_safe_batch = int(_resp.json().get("safe_clip_batch", 1))
+                effective_ml_batch = max(1, min(service_safe_batch, ML_BATCH_SIZE, 512))
+                logger.info(
+                    "[ingest] Using effective ML batch size %s (service_safe=%s, env=%s)",
+                    effective_ml_batch, service_safe_batch, ML_BATCH_SIZE,
+                )
+        except Exception as exc:
+            logger.warning("[ingest] Could not fetch ML capabilities – defaulting to env batch size (%s): %s", ML_BATCH_SIZE, exc)
+
         processed = 0
         cached_files = 0
         batch_for_ml = []
@@ -621,41 +641,66 @@ async def process_directory(job_id: str, directory_path: str, collection_name: s
                         })
                 
                 # Process ML batch when it's full or we're at the end
-                if len(batch_for_ml) >= ML_BATCH_SIZE or i == len(image_files) - 1:
+                if len(batch_for_ml) >= effective_ml_batch or i == len(image_files) - 1:
                     if batch_for_ml:
                         job_status[job_id]["message"] = f"Processing ML batch of {len(batch_for_ml)} images"
                         job_status[job_id]["logs"].append(f"Processing ML batch of {len(batch_for_ml)} images")
                         
-                        # Send batch to ML service
-                        ml_results = await send_batch_to_ml_service(batch_for_ml)
-                        
-                        # Process ML results
+                        # Send batch to ML service – robust against failures so
+                        # we never leave *batch_for_ml* uncleared which would
+                        # otherwise grow (471 ➜ 472 ➜ …) and eventually exhaust
+                        # memory.
+                        try:
+                            ml_results = await send_batch_to_ml_service(batch_for_ml)
+                        except Exception as exc:
+                            error_msg = (
+                                f"ML batch failed – size={len(batch_for_ml)} images – {exc}"
+                            )
+                            job_status[job_id]["errors"].append(error_msg)
+                            job_status[job_id]["logs"].append(f"ERROR: {error_msg}")
+                            logger.error(error_msg, exc_info=True)
+                            # Clear batch to prevent runaway accumulation and
+                            # continue with the next image.
+                            batch_for_ml = []
+                            continue  # move on with processing loop
+
+                        # -----------------------------
+                        # Process successful ML results
+                        # -----------------------------
                         for ml_result, batch_item in zip(ml_results, batch_for_ml):
                             if ml_result.get("error"):
-                                error_msg = f"ML processing error for {batch_item['filename']}: {ml_result['error']}"
+                                error_msg = (
+                                    f"ML processing error for {batch_item['filename']}: "
+                                    f"{ml_result['error']}"
+                                )
                                 job_status[job_id]["errors"].append(error_msg)
                                 job_status[job_id]["logs"].append(f"ERROR: {error_msg}")
                                 logger.error(error_msg)
                                 continue
-                            
+
                             # Cache the ML result
                             cache_data = {
                                 "embedding": ml_result["embedding"],
                                 "caption": ml_result.get("caption", "")
                             }
                             cache.set(f"sha256:{ml_result['unique_id']}", cache_data)
-                            
+
                             # Extract metadata and create Qdrant point
-                            metadata = await asyncio.to_thread(extract_image_metadata, batch_item["full_path"])
-                            
+                            metadata = await asyncio.to_thread(
+                                extract_image_metadata, batch_item["full_path"]
+                            )
+
                             # Create thumbnail for fast display
-                            thumbnail_base64 = await asyncio.to_thread(create_thumbnail_base64, batch_item["full_path"])
-                            
-                            # FIX: Generate UUID for point ID instead of using SHA256 hash
+                            thumbnail_base64 = await asyncio.to_thread(
+                                create_thumbnail_base64, batch_item["full_path"]
+                            )
+
+                            # Generate UUID for point ID (stable-size int is
+                            # not required – Qdrant accepts strings)
                             point_id = str(uuid.uuid4())
-                            
+
                             point = PointStruct(
-                                id=point_id,  # Use UUID instead of file_hash
+                                id=point_id,
                                 vector=ml_result["embedding"],
                                 payload={
                                     "filename": batch_item["filename"],
@@ -663,11 +708,13 @@ async def process_directory(job_id: str, directory_path: str, collection_name: s
                                     "file_hash": ml_result["unique_id"],
                                     "caption": ml_result.get("caption", ""),
                                     "thumbnail_base64": thumbnail_base64,
-                                    **metadata
-                                }
+                                    **metadata,
+                                },
                             )
                             points_for_qdrant.append(point)
                         
+                        # Finished handling this batch – reset list for next
+                        # accumulation cycle.
                         batch_for_ml = []
                 
                 # Upsert to Qdrant when batch is full

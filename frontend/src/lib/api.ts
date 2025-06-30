@@ -137,6 +137,12 @@ export interface IngestStatus {
   cached_files: number;
   total_files: number;
   logs: string[];
+  /**
+   * Error strings collected during ingestion.  Present when individual
+   * files failed or the job aborted early.  Exposed so the Logs page can
+   * surface them to the user.
+   */
+  errors?: string[];
   exact_duplicates: { file_path: string; existing_id: string }[];
 }
 

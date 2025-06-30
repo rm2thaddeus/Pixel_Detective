@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
+import { useParams } from 'next/navigation';
 import {
   Box,
   Heading,
@@ -23,16 +24,20 @@ import {
   Card,
   CardBody,
   Flex,
+  Code,
 } from '@chakra-ui/react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { getIngestStatus, archiveExact } from '@/lib/api';
 import { Header } from '@/components/Header';
 
-export default function JobLogsPage({ params }: { params: { jobId: string } }) {
-  const { jobId } = params;
+export default function JobLogsPage() {
+  const { jobId } = useParams<{ jobId: string }>();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const cancelRef = useRef<HTMLButtonElement | null>(null);
   const { isOpen, onOpen, onClose } = useDisclosure();
+  // Refs for auto-scroll behaviour
+  const logsContainerRef = useRef<HTMLDivElement | null>(null);
+  const errorsContainerRef = useRef<HTMLDivElement | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ['job-status', jobId],
@@ -59,6 +64,24 @@ export default function JobLogsPage({ params }: { params: { jobId: string } }) {
     archiveMutation.mutate();
   };
 
+  // ------------------------------------------------------------------
+  // Auto-scroll to bottom when logs or errors grow
+  // ------------------------------------------------------------------
+  useEffect(() => {
+    if (logsContainerRef.current) {
+      logsContainerRef.current.scrollTo({
+        top: logsContainerRef.current.scrollHeight,
+        behavior: 'smooth',
+      });
+    }
+    if (errorsContainerRef.current) {
+      errorsContainerRef.current.scrollTo({
+        top: errorsContainerRef.current.scrollHeight,
+        behavior: 'smooth',
+      });
+    }
+  }, [data?.logs?.length, data?.errors?.length]);
+
   return (
     <Box minH="100vh">
       <Header />
@@ -76,6 +99,65 @@ export default function JobLogsPage({ params }: { params: { jobId: string } }) {
             <Text>Status: {data.status}</Text>
             <Text>{data.message}</Text>
             <Progress value={data.progress} w="full" />
+
+            {/* ------------------------------------------------------------------ */}
+            {/* Streaming logs */}
+            {/* ------------------------------------------------------------------ */}
+            <Box w="full">
+              <Heading size="md" mt={6} mb={2}>
+                Job Logs
+              </Heading>
+              {data.logs.length === 0 ? (
+                <Text>No runtime logs yet.</Text>
+              ) : (
+                <Box
+                  ref={logsContainerRef}
+                  maxH="400px"
+                  overflowY="auto"
+                  w="full"
+                  p={2}
+                  bg="gray.900"
+                  borderRadius="md"
+                >
+                  <VStack align="start" spacing={1} fontSize="sm" color="gray.100">
+                    {data.logs.map((line, idx) => (
+                      <Code key={idx} w="full" whiteSpace="pre-wrap" bg="transparent" px={0}>
+                        {line}
+                      </Code>
+                    ))}
+                  </VStack>
+                </Box>
+              )}
+            </Box>
+
+            {/* ------------------------------------------------------------------ */}
+            {/* Error list (if any) */}
+            {/* ------------------------------------------------------------------ */}
+            {data.errors && data.errors.length > 0 && (
+              <Box w="full">
+                <Heading size="md" mt={6} mb={2} color="red.300">
+                  Errors ({data.errors.length})
+                </Heading>
+                <Box
+                  ref={errorsContainerRef}
+                  maxH="300px"
+                  overflowY="auto"
+                  w="full"
+                  p={2}
+                  bg="red.900"
+                  borderRadius="md"
+                >
+                  <VStack align="start" spacing={1} fontSize="sm" color="red.100">
+                    {data.errors.map((line: string, idx: number) => (
+                      <Code key={idx} w="full" whiteSpace="pre-wrap" bg="transparent" px={0}>
+                        {line}
+                      </Code>
+                    ))}
+                  </VStack>
+                </Box>
+              </Box>
+            )}
+
             <Box w="full">
               <Heading size="md" mt={6} mb={2}>
                 Exact Duplicates Found

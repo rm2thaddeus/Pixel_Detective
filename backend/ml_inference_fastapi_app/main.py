@@ -15,6 +15,7 @@ import tempfile  # Added for DNG temp file handling
 from typing import Dict, Any, Tuple, List, Optional
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import asyncio
+import gc
 
 # Configure basic logging
 logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO").upper())
@@ -51,6 +52,64 @@ clip_preprocess_instance: Any = None
 blip_model_instance: Any = None
 blip_processor_instance: Any = None
 SAFE_BATCH_SIZE: int = 1 # Default, will be probed on startup if using CUDA
+
+# ---------------------------------------------------------------------------
+# Dual-model memory probing variables (CLIP + BLIP)
+# ---------------------------------------------------------------------------
+# We measure memory cost per image for both models and derive the safe batch
+# size as the amount of free VRAM divided by the WORST-CASE cost.
+# ---------------------------------------------------------------------------
+
+clip_mem_per_img: int = 0  # bytes
+blip_mem_per_img: int = 0  # bytes
+
+# ---------------------------------------------------------------------------
+# Memory-probe helpers (generic, CLIP, BLIP) and batch-size recalculator
+# ---------------------------------------------------------------------------
+
+def _probe_model_memory(run_one_image_fn) -> int:
+    """Return VRAM used (bytes) for *one* image through the given callable."""
+    try:
+        if device.type != "cuda":
+            # On CPU we cannot measure per-image VRAM, return 0 (ignored by caller)
+            run_one_image_fn()
+            return 0
+
+        torch.cuda.empty_cache()
+        torch.cuda.reset_peak_memory_stats(device)
+        mem_before = torch.cuda.memory_allocated(device)
+        run_one_image_fn()
+        torch.cuda.synchronize()
+        peak_alloc = torch.cuda.max_memory_allocated(device)
+        delta = peak_alloc - mem_before
+        torch.cuda.empty_cache()
+        return max(delta, 1)
+    except Exception as exc:
+        logger.error(f"Memory probe failed: {exc}")
+        return 1
+
+
+def _recalculate_safe_batch() -> None:
+    """Re-compute SAFE_BATCH_SIZE using both CLIP & BLIP per-image costs."""
+    global SAFE_BATCH_SIZE
+    if device.type != "cuda":
+        SAFE_BATCH_SIZE = 1
+        return
+
+    worst_case = max(clip_mem_per_img or 1, blip_mem_per_img or 1)
+    free_mem, _ = torch.cuda.mem_get_info()
+    safe_free = free_mem * 0.8  # 20 % head-room
+    calc_size = max(1, int(safe_free // worst_case))
+    # Clamp to avoid pathological values on probe failures
+    SAFE_BATCH_SIZE = min(
+        calc_size,
+        int(os.getenv("SAFE_BATCH_SIZE_MAX", "512"))
+    )
+    logger.info(
+        f"[Batch-Probe] clip={clip_mem_per_img/1e6:.1f} MB  "
+        f"blip={blip_mem_per_img/1e6:.1f} MB  free={free_mem/1e6:.1f} MB  "
+        f"→ SAFE_BATCH_SIZE={SAFE_BATCH_SIZE}"
+    )
 
 # --- Helper Functions from clip_model.py and blip_model.py (adapted) ---
 
@@ -100,60 +159,6 @@ async def _load_blip_model_internal(model_name: str, target_device: torch.device
         logger.error(f"Error loading BLIP model ({model_name}): {e}", exc_info=True)
         raise # Re-raise to be caught by startup event
 
-# --- New Function for GPU Probing ---
-def _probe_safe_batch_size():
-    """
-    Probes the GPU to determine a safe batch size for CLIP inference.
-    This helps prevent out-of-memory errors.
-    """
-    global SAFE_BATCH_SIZE
-    if device.type != "cuda" or not clip_model_instance:
-        logger.info("Skipping batch size probing (not using CUDA or CLIP model not loaded). Defaulting to 1.")
-        SAFE_BATCH_SIZE = 1
-        return
-
-    logger.info("Probing for safe GPU batch size...")
-    try:
-        # 1. Create a dummy input tensor
-        # Use the preprocessor to get the correct dimensions
-        dummy_pil = Image.new('RGB', (224, 224))
-        dummy_input = clip_preprocess_instance(dummy_pil).unsqueeze(0).to(device)
-        
-        # 2. Measure memory usage for a single item
-        torch.cuda.empty_cache()
-        mem_before = torch.cuda.memory_allocated()
-        
-        # Run inference on the single item
-        with torch.inference_mode():
-            with torch.amp.autocast("cuda"):
-                clip_model_instance.encode_image(dummy_input)
-
-        mem_after = torch.cuda.memory_allocated()
-        torch.cuda.empty_cache()
-
-        per_input_mem = mem_after - mem_before
-        if per_input_mem <= 0:
-            # This can happen if the model is very small or memory allocation is unusual
-            logger.warning("Could not determine memory per input (per_input_mem <= 0). Defaulting batch size to 1.")
-            SAFE_BATCH_SIZE = 1
-            return
-            
-        # 3. Get free memory and calculate a safe batch size
-        free_mem, _ = torch.cuda.mem_get_info()
-        # Use 80% of free memory as a safety margin
-        safe_free_mem = free_mem * 0.8
-        
-        calculated_size = int(safe_free_mem // per_input_mem)
-        
-        # Ensure batch size is at least 1
-        SAFE_BATCH_SIZE = max(1, calculated_size)
-        logger.info(f"Memory per input: {per_input_mem / 1024**2:.2f} MB. Free memory: {free_mem / 1024**2:.2f} MB.")
-        logger.info(f"Determined safe batch size: {SAFE_BATCH_SIZE}")
-
-    except Exception as e:
-        logger.error(f"Failed to probe for safe batch size: {e}. Defaulting to 1.", exc_info=True)
-        SAFE_BATCH_SIZE = 1
-
 # --- Dependency for Lazy-Loading BLIP Model ---
 async def get_blip_model():
     """
@@ -168,7 +173,37 @@ async def get_blip_model():
             if blip_model_instance is None:
                 logger.info("BLIP model not loaded. Loading now...")
                 try:
-                    blip_model_instance, blip_processor_instance = await _load_blip_model_internal(BLIP_MODEL_NAME_CONFIG, device)
+                    # Load BLIP model & processor
+                    blip_model_instance, blip_processor_instance = await _load_blip_model_internal(
+                        BLIP_MODEL_NAME_CONFIG, device
+                    )
+
+                    # ------------------  Probe BLIP memory cost ------------------
+                    if device.type == "cuda":
+                        def _one_blip():
+                            # Use batch of 2 to capture kv-cache scaling more reliably
+                            pil_batch = [Image.new("RGB", (224, 224)) for _ in range(2)]
+                            inputs = blip_processor_instance(images=pil_batch, return_tensors="pt")
+                            if device.type == "cuda":
+                                inputs = {k: v.to(device).half() for k, v in inputs.items()}
+                            else:
+                                inputs = {k: v.to(device) for k, v in inputs.items()}
+                            with torch.inference_mode(), torch.amp.autocast(
+                                "cuda", enabled=(device.type == "cuda")
+                            ):
+                                blip_model_instance.generate(**inputs, max_length=75)
+
+                        global blip_mem_per_img
+                        delta_total = _probe_model_memory(_one_blip)
+                        blip_mem_per_img = delta_total // 2 if delta_total > 0 else 0
+                        if blip_mem_per_img < 10 * 1024:
+                            logger.warning(
+                                "[Batch-Probe] BLIP memory delta %.0f bytes is implausibly low – using conservative 20 MB fallback",
+                                blip_mem_per_img,
+                            )
+                            blip_mem_per_img = 20_000_000
+
+                        _recalculate_safe_batch()
                 except Exception as e:
                     logger.error(f"CRITICAL: Failed to lazy-load BLIP model: {e}")
                     # Set to dummy values to prevent repeated load attempts
@@ -208,11 +243,34 @@ async def startup_event():
         logger.error(f"CRITICAL: Failed to load CLIP model during startup: {e}")
         # Service will start degraded, endpoint checks will fail.
 
+    # ------------------  Probe CLIP memory cost  ------------------
+    if device.type == "cuda":
+        def _one_clip():
+            # Create dummy tensor matching model precision to avoid dtype mismatch
+            dummy = clip_preprocess_instance(Image.new("RGB", (224, 224))).unsqueeze(0).to(device)
+            if next(clip_model_instance.parameters()).dtype == torch.float16:
+                dummy = dummy.half()
+            else:
+                dummy = dummy.float()
+            # Inference under autocast to mimic real forward pass
+            with torch.inference_mode(), torch.amp.autocast("cuda", enabled=(device.type == "cuda")):
+                clip_model_instance.encode_image(dummy)
+
+        global clip_mem_per_img
+        clip_mem_per_img = _probe_model_memory(_one_clip)
+        # Fallback guard – if probe returns implausibly low value (<10 kB) assume 20 MB
+        if clip_mem_per_img < 10 * 1024:
+            logger.warning(
+                "[Batch-Probe] CLIP memory delta %.0f bytes is implausibly low – using conservative 20 MB fallback",
+                clip_mem_per_img,
+            )
+            clip_mem_per_img = 20_000_000  # 20 MB safety floor
+
+    # After loading CLIP probe initial safe batch size (BLIP may adjust later)
+    _recalculate_safe_batch()
+
     # BLIP model is now lazy-loaded and will not be loaded here.
     logger.info("BLIP model will be lazy-loaded on first use.")
-
-    # After loading models, probe for a safe batch size
-    _probe_safe_batch_size()
 
     logger.info("ML Inference Service startup complete.")
     if clip_model_instance:
@@ -486,6 +544,7 @@ async def batch_embed_and_caption_endpoint_v1(request: BatchEmbedAndCaptionReque
         raise e # Propagate the 503 error if model loading fails
 
     # --- 1. Parallel Image Preprocessing on CPU threads ---
+    global real_probe_done, clip_mem_per_img, blip_mem_per_img
     prepped_images: Dict[str, Image.Image] = {}
     future_to_id = {cpu_executor.submit(_decode_and_prep_image, item): item.unique_id for item in request.images}
     
@@ -516,6 +575,41 @@ async def batch_embed_and_caption_endpoint_v1(request: BatchEmbedAndCaptionReque
 
     logger.info(f"Decoded {len(valid_ids)} images in {time.time() - start_time:.2f}s")
     log_cuda_memory("After Image Decoding")
+
+    # ------------------------------------------------------------------
+    # One-time real-image GPU memory probe (better than 224×224 dummy)
+    # ------------------------------------------------------------------
+    if device.type == "cuda" and not real_probe_done and valid_ids:
+        sample_uid = valid_ids[0]
+        try:
+            # ---- CLIP real probe ----
+            tensor_clip = clip_preprocess_instance(prepped_images[sample_uid]).unsqueeze(0).to(device)
+            tensor_clip = tensor_clip.half() if device.type == "cuda" else tensor_clip
+            def _one_clip_real():
+                with torch.inference_mode(), torch.amp.autocast("cuda", enabled=(device.type == "cuda")):
+                    clip_model_instance.encode_image(tensor_clip)
+
+            delta_clip = _probe_model_memory(_one_clip_real)
+            if delta_clip > 0:
+                clip_mem_per_img = max(clip_mem_per_img, delta_clip)
+
+            # ---- BLIP real probe (only if blip already loaded) ----
+            if blip_model_instance not in (None, "failed"):
+                inputs_blip = blip_processor_instance(images=[prepped_images[sample_uid]], return_tensors="pt")
+                inputs_blip = {k: v.to(device).half() for k, v in inputs_blip.items()} if device.type == "cuda" else inputs_blip
+                def _one_blip_real():
+                    with torch.inference_mode(), torch.amp.autocast("cuda", enabled=(device.type == "cuda")):
+                        blip_model_instance.generate(**inputs_blip, max_length=75)
+
+                delta_blip = _probe_model_memory(_one_blip_real)
+                if delta_blip > 0:
+                    blip_mem_per_img = max(blip_mem_per_img, delta_blip)
+
+            _recalculate_safe_batch()
+            real_probe_done = True
+            logger.info("[Batch-Probe] Real-image calibration complete. New SAFE_BATCH_SIZE=%s", SAFE_BATCH_SIZE)
+        except Exception as p_exc:
+            logger.warning("Real-image probe failed: %s", p_exc)
 
     # --- 2. Locked, Sequential GPU Inference in Chunks ---
     async with gpu_lock:
@@ -576,6 +670,17 @@ async def batch_embed_and_caption_endpoint_v1(request: BatchEmbedAndCaptionReque
                     if not processing_results[uid]["error"]: # Avoid overwriting previous errors
                         processing_results[uid]["error"] = f"BLIP inference failed: {e}"
         
+            # ------------------  Clean up CPU & GPU memory for next chunk  ----------
+            # Drop PIL images & tensors belonging to the processed chunk so the
+            # host RAM stays constant across thousands-image jobs.
+            for _uid in chunk_ids:
+                prepped_images.pop(_uid, None)
+
+            if device.type == "cuda":
+                del clip_input_tensors, blip_inputs, clip_features, blip_output_ids  # type: ignore
+                torch.cuda.empty_cache()
+            gc.collect()
+
         log_cuda_memory("After all inference chunks")
         logger.info(f"GPU inference finished in {time.time() - inference_start_time:.2f}s. Releasing lock.")
 
@@ -705,6 +810,17 @@ async def batch_embed_and_caption_multipart_endpoint_v1(
                 for uid in chunk_ids:
                     if not processing_results[uid]["error"]:
                         processing_results[uid]["error"] = f"BLIP error: {e}"
+
+            # ------------------  Clean up CPU & GPU memory for next chunk  ----------
+            # Drop PIL images & tensors belonging to the processed chunk so the
+            # host RAM stays constant across thousands-image jobs.
+            for _uid in chunk_ids:
+                prepped_images.pop(_uid, None)
+
+            if device.type == "cuda":
+                del clip_inputs, blip_inputs, clip_features, blip_ids  # type: ignore
+                torch.cuda.empty_cache()
+            gc.collect()
 
         logger.info(f"Multipart GPU inference completed in {time.time() - inference_start:.2f}s")
 
