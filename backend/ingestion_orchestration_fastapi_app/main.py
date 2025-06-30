@@ -10,9 +10,15 @@ import diskcache
 from PIL import Image
 import asyncio
 
-# Import the global state manager and the routers
+# Local utilities & deps
 from .dependencies import app_state, get_qdrant_client
-from .routers import search, images, duplicates, random, collections, umap, curation # and any others
+
+# Dynamic batch-size helper (runs in lifespan → sets env vars before heavy work)
+from .utils.autosize import autosize_batches
+
+# Routers – imported *after* helper to ensure any module-level constants read the
+# finalised environment variables.
+from .routers import search, images, duplicates, random, collections, umap, curation  # and any others
 
 # Configure logging
 logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO").upper())
@@ -28,7 +34,28 @@ async def lifespan(app: FastAPI):
     # --- Startup ---
     logger.info("Starting up services...")
     
-    # Initialize Qdrant Client
+    # ------------------------------------------------------------------
+    # 0️⃣  Dynamically size batch parameters (RAM-aware)
+    # ------------------------------------------------------------------
+    autosize_batches(os.getenv("ML_INFERENCE_SERVICE_URL", "http://localhost:8001"))
+
+    # Ensure routers that cached the old env vars pick up the new values
+    try:
+        from .routers import ingest as ingest_router  # local import to avoid cycles
+
+        ingest_router.ML_BATCH_SIZE = int(os.getenv("ML_INFERENCE_BATCH_SIZE", ingest_router.ML_BATCH_SIZE))
+        ingest_router.QDRANT_BATCH_SIZE = int(os.getenv("QDRANT_UPSERT_BATCH_SIZE", ingest_router.QDRANT_BATCH_SIZE))
+        logger.info(
+            "[lifespan] Ingest router batching updated – ML:%s  Qdrant:%s",
+            ingest_router.ML_BATCH_SIZE,
+            ingest_router.QDRANT_BATCH_SIZE,
+        )
+    except Exception as e:
+        logger.warning("[lifespan] Could not refresh ingest router batch constants: %s", e)
+
+    # ------------------------------------------------------------------
+    # 1️⃣  Initialize Qdrant Client
+    # ------------------------------------------------------------------
     qdrant_host = os.getenv("QDRANT_HOST", "localhost")
     qdrant_port = int(os.getenv("QDRANT_PORT", 6333))
     app_state.qdrant_client = QdrantClient(host=qdrant_host, port=qdrant_port)
