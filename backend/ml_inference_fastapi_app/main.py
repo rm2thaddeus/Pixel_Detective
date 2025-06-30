@@ -30,7 +30,12 @@ DEVICE_PREFERENCE = os.environ.get("DEVICE_PREFERENCE", "cuda")
 
 # --- Global Thread Pool Executor ---
 # Use a thread pool for CPU-bound tasks like image decoding to avoid blocking the asyncio event loop
-cpu_executor = ThreadPoolExecutor(max_workers=os.cpu_count())
+# Oversubscribe the thread-pool for CPU-bound image decoding.
+# Default: 2× logical cores (can be overridden via ML_CPU_WORKERS).
+_cpu_workers_default = os.cpu_count() * 2 if os.cpu_count() else 4
+cpu_executor = ThreadPoolExecutor(
+    max_workers=int(os.getenv("ML_CPU_WORKERS", str(_cpu_workers_default)))
+)
 
 # --- Concurrency Control ---
 # Global lock to ensure only one batch is processed on the GPU at a time

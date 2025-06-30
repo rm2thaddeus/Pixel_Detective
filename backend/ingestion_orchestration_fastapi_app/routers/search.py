@@ -18,7 +18,12 @@ router = APIRouter(
 )
 
 # Configuration
-ML_SERVICE_URL = os.getenv("ML_SERVICE_URL", "http://localhost:8001")
+# Prefer the explicit ML_SERVICE_URL env var, but fall back to the older
+# ML_INFERENCE_SERVICE_URL alias so operators only need to set **one**.
+ML_SERVICE_URL = (
+    os.getenv("ML_SERVICE_URL")
+    or os.getenv("ML_INFERENCE_SERVICE_URL", "http://localhost:8001")
+)
 
 # --- Pydantic Models for API validation and documentation ---
 

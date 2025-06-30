@@ -146,6 +146,27 @@ async def health():
         raise HTTPException(status_code=503, detail={"status": "error", "services": {"qdrant": qdrant_status, "ml_service": "external"}})
 
 
+# ---------------------------------------------------------------------------
+# Service capabilities – exposes effective batch sizes for UI and other
+# services so they can adapt dynamically without reading env vars directly.
+# ---------------------------------------------------------------------------
+
+
+class CapabilitiesResponse(BaseModel):
+    ml_inference_batch_size: int
+    qdrant_upsert_batch_size: int
+
+
+@app.get("/api/v1/capabilities", response_model=CapabilitiesResponse)
+async def get_capabilities():
+    """Return the effective ingestion service batch sizes so clients can
+    display accurate configuration info or auto-tune their behaviour."""
+    return CapabilitiesResponse(
+        ml_inference_batch_size=int(os.getenv("ML_INFERENCE_BATCH_SIZE", "25")),
+        qdrant_upsert_batch_size=int(os.getenv("QDRANT_UPSERT_BATCH_SIZE", "32")),
+    )
+
+
 # Example endpoint to change the active collection
 # @app.post("/api/v1/collections/select", tags=["collections"])
 # def select_collection(collection_name: str):

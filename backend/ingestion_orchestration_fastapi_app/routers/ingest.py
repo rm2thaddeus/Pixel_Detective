@@ -32,7 +32,12 @@ job_status = {}
 recent_jobs: Dict[str, str] = {}
 
 # Configuration
-ML_SERVICE_URL = os.getenv("ML_INFERENCE_SERVICE_URL", "http://localhost:8001")
+# Prefer ML_INFERENCE_SERVICE_URL but fall back to ML_SERVICE_URL for
+# legacy compatibility, so operators can define either one.
+ML_SERVICE_URL = (
+    os.getenv("ML_INFERENCE_SERVICE_URL")
+    or os.getenv("ML_SERVICE_URL", "http://localhost:8001")
+)
 ML_BATCH_SIZE = int(os.getenv("ML_INFERENCE_BATCH_SIZE", "25"))
 QDRANT_BATCH_SIZE = int(os.getenv("QDRANT_UPSERT_BATCH_SIZE", "32"))
 

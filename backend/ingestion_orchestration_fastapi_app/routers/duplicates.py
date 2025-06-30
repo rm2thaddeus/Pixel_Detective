@@ -59,11 +59,15 @@ def find_similar_images_task(
         processed_ids = set()
         duplicate_groups = []
 
-        # Use scroll to iterate over all points in the collection
+        # Use scroll to iterate over all points in the collection. Batch size can
+        # be tuned via the SCROLL_LIMIT env var (default 1000) to reduce the
+        # number of Qdrant API calls on large datasets.
+        SCROLL_LIMIT = int(os.getenv("SCROLL_LIMIT", "1000"))
+
         scroll_response = qdrant_client.scroll(
             collection_name=collection_name,
             with_vectors=True,
-            limit=100,  # Adjust batch size as needed
+            limit=SCROLL_LIMIT,
         )
 
         points_batch = scroll_response[0]
@@ -119,7 +123,7 @@ def find_similar_images_task(
             scroll_response = qdrant_client.scroll(
                 collection_name=collection_name,
                 with_vectors=True,
-                limit=100,
+                limit=SCROLL_LIMIT,
                 offset=next_page_offset,
             )
             points_batch = scroll_response[0]

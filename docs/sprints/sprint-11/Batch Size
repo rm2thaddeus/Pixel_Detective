@@ -135,6 +135,38 @@ async def startup_event():
 
 *Why this works*: the helper respects any values the operator already exported, so devs can still force specific numbers for benchmarking.
 
+### 🔍 Why the Capabilities Endpoint Might Still Show 25 / 32
+
+The new `/api/v1/capabilities` route on the **ingestion service** simply echoes the
+_current_ environment variables `ML_INFERENCE_BATCH_SIZE` and
+`QDRANT_UPSERT_BATCH_SIZE` so that UIs (or other services) can discover the
+effective tuning at runtime.  If you hit the endpoint immediately after the
+process starts you may still see the **fallback defaults** `25` and `32`:
+
+```
++{
+  "ml_inference_batch_size": 25,
+  "qdrant_upsert_batch_size": 32
++}
+```
+
+That is **expected** until the `autosize_batches()` helper has executed during
+application startup.  The sequence is:
+
+1. Environment variables load (defaults 25 / 32 if user did not export their
+   own values).
+2. `autosize_batches()` runs early in the startup event and *overwrites* the
+   vars **iff** the operator hasn't set them manually.
+3. The capabilities endpoint now reflects the dynamically calculated numbers
+   (e.g. `256` and `512` on a 64 GB host).
+
+If you still see 25 / 32 **after** startup completes, check the logs – it means
+either (a) you manually exported the variables (autosize respects overrides) or
+(b) the helper failed to fetch RAM/GPU info and fell back to safe defaults.
+
+> **Tip**: Set the log level to `INFO` and look for the `[autosize]` prefix to
+> confirm what values were chosen and why.
+
 ---
 
 ## 6. Extra Quick Wins (Not Yet Documented Above)
@@ -170,3 +202,91 @@ async def startup_event():
 - [ ] Document chosen values via a new `/capabilities` endpoint on the ingestion service so the UI can display "effective" batch sizes.
 
 Following the checklist will let the system self-tune to the developer's hardware while retaining manual override flexibility.
+
+## 8. Detailed Implementation Status (2025-06-30)
+
+| Item | Status | Notes |
+| --- | :---: | --- |
+| `autosize.py` helper added | ✅ | `backend/ingestion_orchestration_fastapi_app/utils/autosize.py` dynamically sizes batches using RAM + ML `/capabilities`. |
+| Call to `autosize_batches()` at startup | ✅ | Executed in ingestion `main.py` lifespan before any router import; refreshes constants in `routers/ingest.py`. |
+| Env-var alias `ML_SERVICE_URL` ↔ `ML_INFERENCE_SERVICE_URL` | ⬜ | Still missing – add alias or normalise lookup in helper/routers. |
+| ThreadPool oversubscription (`os.cpu_count()*2`) | ⬜ | `cpu_executor` in ML service still uses default; add heuristic or env flag. |
+| `SCROLL_LIMIT` raises to 1000 + env var | ⬜ | `routers/duplicates.py` hard-codes `limit=100`; refactor to constant/env. |
+| Ingestion `/api/v1/capabilities` endpoint | ⬜ | Needed to expose effective `ML_INFERENCE_BATCH_SIZE`, `QDRANT_UPSERT_BATCH_SIZE`. |
+| `.diskcache` on SSD | ⚙️ | Ops task – document in deployment notes. |
+
+Legend: ✅ implemented | ⬜ pending | ⚙️ operational (no code change)
+
+> Next chat: decide which pending ⬜ items to implement first and open tasks accordingly.
+
+## 9. NEW ✨ Front-Loaded Image Decoding to Overlap I/O
+
+### Rationale
+
+At the moment each ingestion batch is transferred as **base64-encoded raw bytes**; all
+JPEG/RAW decoding happens on the **ML service** inside the `_decode_and_prep_image`
+thread-pool.  When the batch size grows (e.g. ≥ 256) that CPU work can delay the
+first GPU forward pass long enough that the GPU sits idle.  Moving (or at least
+*overlapping*) the decoding step to the ingestion host leverages the extra CPU
+capacity there and completely hides the decode latency behind the network
+transfer.
+
+### Proposed Architecture
+
+1. **Ingestion Service**
+   1. Directory walk already done on a background thread.
+   2. For every file, *decode* to RGB (`Pillow` for JPEG/PNG, `rawpy` for RAW)
+      using the existing `extract_image_metadata()` helpers.
+   3. Immediately write the RGB buffer to a `BytesIO()` as **PNG** (loss-less,
+      smaller than raw RGB, no quality loss) and stream it as a multipart
+      `files[]` payload.
+   4. Continue decoding the next image while the current one is in-flight — the
+      CPU and network are now overlapped.
+
+2. **ML Inference Service**
+   1. Add a new endpoint `POST /api/v1/batch_embed_and_caption_multipart` that
+      accepts `multipart/form-data` with repeated `files` parts (plus an
+      optional JSON part carrying `unique_id`).
+   2. Replace the current base64 decode with a lightweight PNG load:
+      `Image.open(io.BytesIO(file_bytes)).convert('RGB')` — still I/O bound but
+      ~3× faster than JPEG/RAW decoding and already overlapped.
+   3. Re-use the existing batching / GPU code unchanged.
+
+### Trade-offs
+
+| Aspect | Impact |
+|--------|--------|
+| **Network Bandwidth** | ~2–3 × increase (PNG bigger than JPEG) – acceptable on local 1 Gbps LAN (>100 MB/s). |
+| **CPU Load** | Moves decode CPU usage from GPU host to ingestion host (good if GPU box is decode-bound). |
+| **Implementation Effort** | ≈ **1 day** (new endpoint + helper + feature flag). |
+| **Quality** | Loss-less PNG; no change in embedding results. |
+
+### Roll-out Plan
+
+1. **Feature flag** `USE_MULTIPART_UPLOAD=1` — keeps the old JSON path as a
+   fallback.
+2. Implement helper `send_batch_multipart()` in `routers/ingest.py` that uses
+   `httpx.AsyncClient().post(..., files=files)`.
+3. Mirror logic in ML service: iterate over `request.files`, build PIL list,
+   then run the existing embedding/caption code.
+4. Benchmark 25-image and 256-image batches; expect ≥ 25 % GPU utilisation gain
+   on the first forward-pass and ~2–3 s total speed-up per 256 images.
+
+---
+
+## 10. Achievements to Date (since 2025-06-30)
+
+* **Dynamic Autosizing** — `autosize_batches()` now scales to 64 GB RAM and
+  GPU-safe limits, producing batch sizes like *471 / 2048* automatically.
+* **Capabilities Endpoint** — `/api/v1/capabilities` on both services exposes
+  the effective limits for UIs.
+* **Env-Var Aliasing** — Either `ML_SERVICE_URL` **or** `ML_INFERENCE_SERVICE_URL`
+  is accepted; fewer config mistakes.
+* **Bigger Qdrant Scrolls** — `SCROLL_LIMIT` default raised from 100 → 1000.
+* **CPU Thread-Pool Oversubscription** — ML service now defaults to
+  `cpu_count × 2` workers for faster decode on multi-core hosts.
+* **Documentation Updates** — This file clarified why you may still see 25/32
+  and how to read the logs.
+
+Next milestone: implement the multipart decode-overlap pipeline outlined
+above and re-benchmark end-to-end ingestion. 🏁
