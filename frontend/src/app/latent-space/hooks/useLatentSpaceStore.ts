@@ -103,7 +103,7 @@ const initialState = {
   clusterPolygons: {},
   
   // Overlay defaults
-  overlayMode: 'heatmap' as 'heatmap',
+  overlayMode: 'terrain' as 'terrain',
   terrainResolution: 20,
   terrainBands: 6,
   

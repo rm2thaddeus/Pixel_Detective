@@ -299,11 +299,41 @@ async def startup_event():
             )
             clip_mem_per_img = 20_000_000  # 20 MB safety floor
 
-    # After loading CLIP probe initial safe batch size (BLIP may adjust later)
+    # ------------------------------------------------------------------
+    # Eagerly load BLIP so the very first /capabilities response already
+    # reflects the *real* safe batch size (CLIP *plus* BLIP in memory).
+    # ------------------------------------------------------------------
+    try:
+        blip_model_instance, blip_processor_instance = await _load_blip_model_internal(
+            BLIP_MODEL_NAME_CONFIG, device
+        )
+
+        # --------------------  Probe BLIP memory cost -------------------
+        if device.type == "cuda":
+            def _one_blip():
+                pil_batch = [Image.new("RGB", (224, 224)) for _ in range(2)]
+                inputs = blip_processor_instance(images=pil_batch, return_tensors="pt")
+                inputs = {k: v.to(device).half() if device.type == "cuda" else v.to(device) for k, v in inputs.items()}
+                with torch.inference_mode(), torch.amp.autocast("cuda", enabled=True):
+                    blip_model_instance.generate(**inputs, max_length=75)
+
+            global blip_mem_per_img
+            blip_mem_per_img = _probe_model_memory(_one_blip)
+            if blip_mem_per_img < 10 * 1024:  # plausibility guard
+                logger.warning(
+                    "[Batch-Probe] BLIP memory delta %.0f bytes is implausibly low – using conservative 20 MB fallback",
+                    blip_mem_per_img,
+                )
+                blip_mem_per_img = 20_000_000
+    except Exception as e:
+        logger.error(f"CRITICAL: Failed to load BLIP model during startup: {e}")
+        blip_model_instance, blip_processor_instance = "failed", "failed"
+
+    # Re-calculate safe batch size now that BLIP memory consumption is known
     _recalculate_safe_batch()
 
-    # BLIP model is now lazy-loaded and will not be loaded here.
-    logger.info("BLIP model will be lazy-loaded on first use.")
+    # BLIP model is lazy-loaded and will be warmed up when ingestion starts
+    logger.info("BLIP model will be lazy-loaded on first use or warm-up call.")
 
     logger.info("ML Inference Service startup complete.")
     if clip_model_instance:
@@ -483,6 +513,8 @@ async def caption_image_endpoint_v1(request: CaptionRequest = Body(...)):
         inputs = blip_processor.to(device)
 
         async with gpu_lock:
+            inference_start_time = time.time()
+            # No chunking needed for single-image captioning
             output_ids = await asyncio.to_thread(_generate_blip, inputs)
         
         caption = blip_processor.decode(output_ids[0], skip_special_tokens=True)
@@ -651,12 +683,15 @@ async def batch_embed_and_caption_endpoint_v1(request: BatchEmbedAndCaptionReque
     # --- 2. Locked, Sequential GPU Inference in Chunks ---
     async with gpu_lock:
         inference_start_time = time.time()
-        logger.info(f"Acquired GPU lock. Starting inference for {len(valid_ids)} images in chunks of {SAFE_BATCH_SIZE}.")
-
         # --- Decide per-iteration chunk size (same logic as JSON endpoint) ---
         chunk_lim = SAFE_BATCH_SIZE
-        if BLIP_BATCH_OPT and BLIP_BATCH_OPT > SAFE_BATCH_SIZE:
-            chunk_lim = BLIP_BATCH_OPT
+        if BLIP_BATCH_OPT:
+            chunk_lim = min(chunk_lim, BLIP_BATCH_OPT)
+
+        logger.info(
+            f"Acquired GPU lock. Starting inference for {len(valid_ids)} images "
+            f"in chunks of {chunk_lim}."
+        )
 
         num_chunks_total = math.ceil(len(valid_ids) / chunk_lim)
 
@@ -743,11 +778,124 @@ async def batch_embed_and_caption_endpoint_v1(request: BatchEmbedAndCaptionReque
 class CapabilitiesResponse(BaseModel):
     """Response model for service capability information."""
     safe_clip_batch: int
+    safe_blip_batch: int
+    clip_model_loaded: bool
+    blip_model_loaded: bool
+    device_type: str
+    cuda_available: bool
 
 @v1_router.get("/capabilities", response_model=CapabilitiesResponse)
 async def get_capabilities_v1():
-    """Return runtime capability information so clients can adapt dynamically."""
-    return CapabilitiesResponse(safe_clip_batch=SAFE_BATCH_SIZE)
+    """Get current service capabilities including safe batch sizes."""
+    return CapabilitiesResponse(
+        safe_clip_batch=SAFE_BATCH_SIZE,
+        safe_blip_batch=SAFE_BATCH_SIZE,
+        clip_model_loaded=clip_model_instance is not None,
+        blip_model_loaded=blip_model_instance is not None and blip_model_instance != "failed",
+        device_type=device.type,
+        cuda_available=torch.cuda.is_available()
+    )
+
+@v1_router.post("/warmup")
+async def warmup_models():
+    """
+    Warm up BLIP model for ingestion. Called when user starts adding images.
+    This loads BLIP and recalculates capabilities with both models in memory.
+    """
+    global blip_model_instance, blip_processor_instance, blip_mem_per_img
+    
+    if blip_model_instance is not None and blip_model_instance != "failed":
+        return {"status": "already_loaded", "message": "BLIP model already loaded"}
+    
+    try:
+        logger.info("🔥 Warming up BLIP model for ingestion...")
+        start_time = time.time()
+        
+        # Load BLIP model
+        blip_model_instance, blip_processor_instance = await _load_blip_model_internal(
+            BLIP_MODEL_NAME_CONFIG, device
+        )
+        
+        # Probe BLIP memory usage if on CUDA
+        if device.type == "cuda":
+            def _one_blip():
+                pil_batch = [Image.new("RGB", (224, 224)) for _ in range(2)]
+                inputs = blip_processor_instance(images=pil_batch, return_tensors="pt")
+                inputs = {k: v.to(device).half() if device.type == "cuda" else v.to(device) for k, v in inputs.items()}
+                with torch.inference_mode(), torch.amp.autocast("cuda", enabled=True):
+                    blip_model_instance.generate(**inputs, max_length=75)
+
+            blip_mem_per_img = _probe_model_memory(_one_blip)
+            if blip_mem_per_img < 10 * 1024:  # plausibility guard
+                logger.warning(
+                    "[Batch-Probe] BLIP memory delta %.0f bytes is implausibly low – using conservative 20 MB fallback",
+                    blip_mem_per_img,
+                )
+                blip_mem_per_img = 20_000_000
+        
+        # Recalculate safe batch size with both models loaded
+        _recalculate_safe_batch()
+        
+        load_time = time.time() - start_time
+        logger.info(f"🔥 BLIP model warmed up in {load_time:.2f}s. New safe batch size: {SAFE_BATCH_SIZE}")
+        
+        return {
+            "status": "loaded", 
+            "message": f"BLIP model loaded in {load_time:.2f}s",
+            "new_safe_batch_size": SAFE_BATCH_SIZE
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to warm up BLIP model: {e}", exc_info=True)
+        blip_model_instance, blip_processor_instance = "failed", "failed"
+        return {"status": "failed", "message": f"Failed to load BLIP model: {str(e)}"}
+
+@v1_router.post("/cooldown")
+async def cooldown_models():
+    """
+    Cool down BLIP model after ingestion completes. 
+    This unloads BLIP to free GPU memory and recalculates capabilities.
+    """
+    global blip_model_instance, blip_processor_instance, blip_mem_per_img
+    
+    if blip_model_instance is None or blip_model_instance == "failed":
+        return {"status": "not_loaded", "message": "BLIP model not loaded"}
+    
+    try:
+        logger.info("❄️ Cooling down BLIP model after ingestion...")
+        
+        # Record GPU memory before unloading
+        gpu_mem_before = 0
+        if device.type == "cuda":
+            gpu_mem_before = torch.cuda.memory_allocated() / (1024 * 1024)  # MB
+        
+        # Unload BLIP model
+        blip_model_instance = None
+        blip_processor_instance = None
+        blip_mem_per_img = 0
+        
+        # Clear GPU cache
+        if device.type == "cuda":
+            torch.cuda.empty_cache()
+            gpu_mem_after = torch.cuda.memory_allocated() / (1024 * 1024)  # MB
+            freed_memory = gpu_mem_before - gpu_mem_after
+        else:
+            freed_memory = 0
+        
+        # Recalculate safe batch size with only CLIP loaded
+        _recalculate_safe_batch()
+        
+        logger.info(f"❄️ BLIP model unloaded. Freed {freed_memory:.1f} MB GPU memory. New safe batch size: {SAFE_BATCH_SIZE}")
+        
+        return {
+            "status": "unloaded",
+            "message": f"BLIP model unloaded, freed {freed_memory:.1f} MB",
+            "new_safe_batch_size": SAFE_BATCH_SIZE
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to cool down BLIP model: {e}", exc_info=True)
+        return {"status": "failed", "message": f"Failed to unload BLIP model: {str(e)}"}
 
 # === NEW MULTIPART BATCH ENDPOINT ===
 # This endpoint accepts `multipart/form-data` uploads where each part is an image file.
@@ -819,10 +967,17 @@ async def batch_embed_and_caption_multipart_endpoint_v1(
 
     # --- 2. GPU inference in SAFE_BATCH_SIZE chunks -----------------------
     async with gpu_lock:
-        inference_start = time.time()
+        inference_start_time = time.time()
+
+        # Decide per-iteration chunk size (same logic as JSON endpoint)
         chunk_lim = SAFE_BATCH_SIZE
-        if BLIP_BATCH_OPT and BLIP_BATCH_OPT > SAFE_BATCH_SIZE:
-            chunk_lim = BLIP_BATCH_OPT
+        if BLIP_BATCH_OPT:
+            chunk_lim = min(chunk_lim, BLIP_BATCH_OPT)
+
+        logger.info(
+            f"Acquired GPU lock. Starting inference for {len(valid_ids)} images "
+            f"in chunks of {chunk_lim}."
+        )
 
         num_chunks_total = math.ceil(len(valid_ids) / chunk_lim)
 
@@ -835,14 +990,15 @@ async def batch_embed_and_caption_multipart_endpoint_v1(
                 len(chunk_ids),
             )
 
-            # CLIP
+            # --- CLIP Embeddings ---
             try:
                 pil_imgs_clip = [prepped_images[uid] for uid in chunk_ids]
                 clip_inputs = torch.stack([clip_preprocess_instance(img) for img in pil_imgs_clip]).to(device)
                 if device.type == "cuda":
                     clip_inputs = clip_inputs.half()
-                clip_features = await asyncio.to_thread(_encode_clip, clip_inputs)
-                clip_np = clip_features.cpu().numpy()
+
+                clip_feats = await asyncio.to_thread(_encode_clip, clip_inputs)
+                clip_np = clip_feats.cpu().numpy()
                 for j, uid in enumerate(chunk_ids):
                     processing_results[uid]["embedding"] = clip_np[j].tolist()
                     processing_results[uid]["embedding_shape"] = list(clip_np[j].shape)
@@ -851,8 +1007,8 @@ async def batch_embed_and_caption_multipart_endpoint_v1(
                 for uid in chunk_ids:
                     if not processing_results[uid]["error"]:
                         processing_results[uid]["error"] = f"CLIP error: {e}"
-            
-            # BLIP captions (optional)
+
+            # --- BLIP Captions (optional) ---
             if not DISABLE_CAPTIONS:
                 try:
                     pil_imgs_blip = [prepped_images[uid] for uid in chunk_ids]
@@ -874,24 +1030,28 @@ async def batch_embed_and_caption_multipart_endpoint_v1(
             else:
                 for uid in chunk_ids:
                     processing_results[uid]["caption"] = ""
-            
-            # ------------------  Clean up CPU & GPU memory for next chunk  ----------
-            # Drop PIL images & tensors belonging to the processed chunk so the
-            # host RAM stays constant across thousands-image jobs.
+
+            # --- Cleanup for next chunk ---
             for _uid in chunk_ids:
                 prepped_images.pop(_uid, None)
 
             if device.type == "cuda":
-                del clip_inputs, blip_inputs, clip_features, blip_ids  # type: ignore
+                del clip_inputs, clip_feats, blip_inputs, blip_ids  # type: ignore
                 torch.cuda.empty_cache()
             gc.collect()
 
-        logger.info(f"Multipart GPU inference completed in {time.time() - inference_start:.2f}s")
+        logger.info(f"Multipart GPU inference completed in {time.time() - inference_start_time:.2f}s")
 
+    # --- 3. Consolidate and Respond ---
+    final_results = [BatchResultItem(**res) for res in processing_results.values()]
+
+    logger.info(
+        f"Multipart batch processing complete for {len(valid_ids)} items in {time.time() - start_time:.2f}s"
+    )
     if device.type == "cuda":
         torch.cuda.empty_cache()
 
-    return BatchEmbedAndCaptionResponse(results=[BatchResultItem(**res) for res in processing_results.values()])
+    return BatchEmbedAndCaptionResponse(results=final_results)
 
 app.include_router(v1_router)
 

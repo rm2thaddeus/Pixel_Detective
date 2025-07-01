@@ -28,7 +28,7 @@ import {
   useToast,
 } from '@chakra-ui/react';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { getIngestStatus, archiveExact } from '@/lib/api';
+import { getIngestStatus, archiveExact, archiveAllDuplicates } from '@/lib/api';
 import { Header } from '@/components/Header';
 
 export default function JobLogsPage() {
@@ -52,6 +52,18 @@ export default function JobLogsPage() {
     mutationFn: () => archiveExact(Array.from(selected)),
     onSuccess: () => setSelected(new Set()),
     onSettled: onClose,
+  });
+
+  // One-click archival of the *entire* duplicates list via new backend endpoint
+  const archiveAllMutation = useMutation({
+    mutationFn: () => archiveAllDuplicates(jobId),
+    onSuccess: () => {
+      // Duplicate list will shrink server-side → refetch status query
+      setSelected(new Set());
+      // react-query will auto-refetch because we call invalidateQueries below
+      // but since we are inside the same component we can just rely on
+      // automatic polling interval.
+    },
   });
 
   const toggleSelect = (path: string) => {
@@ -179,10 +191,11 @@ export default function JobLogsPage() {
               <Heading size="md" mt={6} mb={2}>
                 Exact Duplicates Found
               </Heading>
-              {data.exact_duplicates.length === 0 ? (
-                <Text>No duplicates detected.</Text>
-              ) : (
-                <VStack align="start" spacing={4} w="full">
+              {/* Always show control buttons; disable if no duplicates yet */}
+              <VStack align="start" spacing={4} w="full">
+                {data.exact_duplicates.length === 0 ? (
+                  <Text>No duplicates detected yet – they will appear here as the ingest progresses.</Text>
+                ) : (
                   <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4} w="full">
                     {data.exact_duplicates.map((dup) => (
                       <Card key={dup.file_path} variant="outline">
@@ -221,16 +234,28 @@ export default function JobLogsPage() {
                       </Card>
                     ))}
                   </SimpleGrid>
+                )}
+                {/* Action buttons (always rendered) */}
+                <HStack spacing={4}>
                   <Button
                     colorScheme="red"
                     onClick={onOpen}
-                    isDisabled={selected.size === 0}
+                    isDisabled={selected.size === 0 || data.exact_duplicates.length === 0}
                     isLoading={archiveMutation.isLoading}
                   >
                     Archive Selected Files
                   </Button>
-                </VStack>
-              )}
+                  <Button
+                    variant="outline"
+                    colorScheme="red"
+                    onClick={() => archiveAllMutation.mutate()}
+                    isDisabled={data.exact_duplicates.length === 0}
+                    isLoading={archiveAllMutation.isLoading}
+                  >
+                    Archive ALL Duplicates
+                  </Button>
+                </HStack>
+              </VStack>
             </Box>
           </VStack>
         )}

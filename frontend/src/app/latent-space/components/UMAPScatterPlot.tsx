@@ -839,13 +839,15 @@ function EnhancedDeckGLVisualization({
         // HeatmapLayer expects colorRange[0] = HIGH intensity, [5] = LOW.
         // We want cluster centers (high weight) to be vivid, edges to fade to white.
         const colorRange = Array.from({ length: 6 }).map((_, idx) => {
-          const t = idx / 5; // 0 → high, 1 → low
-          const rgb = interpolateRgb(
-            `rgb(${baseColor[0]},${baseColor[1]},${baseColor[2]})`,
-            `#ffffff`,
-          )(t);
-          const [r, g, b] = rgb.match(/\d+/g)!.map(Number);
-          return [r, g, b, 255];
+          // Invert gradient so outer low-density rings are white and high-density
+          // core keeps the cluster colour.
+          const t = idx / 5; // 0 → white, 1 → baseColor
+          return [
+            255 * (1 - t) + baseColor[0] * t,
+            255 * (1 - t) + baseColor[1] * t,
+            255 * (1 - t) + baseColor[2] * t,
+            200,
+          ];
         });
 
         layerList.push(
@@ -936,9 +938,9 @@ function EnhancedDeckGLVisualization({
         const colorRange = Array.from({ length: 6 }).map((_, idx) => {
           const t = idx / 5;
           return [
-            baseColor[0] * (1 - t) + 255 * t,
-            baseColor[1] * (1 - t) + 255 * t,
-            baseColor[2] * (1 - t) + 255 * t,
+            255 * (1 - t) + baseColor[0] * t,
+            255 * (1 - t) + baseColor[1] * t,
+            255 * (1 - t) + baseColor[2] * t,
             200,
           ];
         });

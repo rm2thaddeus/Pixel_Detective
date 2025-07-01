@@ -65,7 +65,7 @@ const fetchUMAPProjection = async (
   
   console.log(`🌐 Requesting UMAP projection from main backend, sample_size: ${sampleSize}`);
   const params = { sample_size: sampleSize };
-  const response = await api.get(`/umap/projection`, { params });
+  const response = await api.get(`/umap/projection`, { params, timeout: 30000 });
   console.log(`✅ UMAP projection response received:`, {
     status: response.status,
     pointsCount: response.data?.points?.length,

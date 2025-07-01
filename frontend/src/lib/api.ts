@@ -151,3 +151,14 @@ export async function getIngestStatus(jobId: string): Promise<IngestStatus> {
   return data as IngestStatus;
 }
 
+// ---------------------------------------------------------------------------
+// Ingestion – archive *all* exact-duplicate files for a running/completed job
+// ---------------------------------------------------------------------------
+// This hits the new backend endpoint that moves every file listed in
+// `job_status[job_id]['exact_duplicates']` to a `duplicates_archive` folder,
+// pruning the list as it succeeds so the call can be repeated safely.
+export async function archiveAllDuplicates(jobId: string) {
+  const res = await api.post(`/api/v1/ingest/archive_duplicates/${jobId}`);
+  return res.data; // Returns updated JobResponse – the UI will refetch status
+}
+

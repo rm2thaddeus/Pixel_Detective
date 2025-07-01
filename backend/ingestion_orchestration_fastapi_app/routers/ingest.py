@@ -266,6 +266,62 @@ async def get_recent_jobs():
     """Return the most recent job ID for each collection."""
     return recent_jobs
 
+@router.post("/archive_duplicates/{job_id}", response_model=JobResponse)
+async def archive_duplicates(job_id: str):
+    """Move every file listed in ``exact_duplicates`` into a
+    ``duplicates_archive`` folder *while* ingestion is still running.
+
+    The endpoint is idempotent – files already moved or missing are skipped.
+    Successfully archived entries are removed from ``exact_duplicates`` so
+    subsequent calls only act on the remaining ones.
+    """
+
+    if job_id not in job_status:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    js = job_status[job_id]
+    dup_list = js.get("exact_duplicates", [])
+    if not dup_list:
+        raise HTTPException(status_code=400, detail="No duplicates recorded for this job")
+
+    # Determine archive destination (sibling folder of the source dir)
+    src_dir = js.get("directory_path") or os.path.dirname(dup_list[0]["file_path"])
+    archive_dir = os.path.join(src_dir, "duplicates_archive")
+    os.makedirs(archive_dir, exist_ok=True)
+
+    moved = 0
+    remaining: list[dict] = []
+
+    for entry in dup_list:
+        src_path = entry.get("file_path")
+        if not src_path or not os.path.exists(src_path):
+            # Already moved / missing – skip
+            continue
+
+        try:
+            dest_path = os.path.join(archive_dir, os.path.basename(src_path))
+            # Resolve collision by adding short suffix
+            if os.path.exists(dest_path):
+                base, ext = os.path.splitext(dest_path)
+                dest_path = f"{base}_{uuid.uuid4().hex[:6]}{ext}"
+
+            # Off-load the blocking I/O to a thread so we don't freeze the API
+            await asyncio.to_thread(shutil.move, src_path, dest_path)
+            moved += 1
+        except Exception as exc:
+            err = f"Archive failed for {src_path}: {exc}"
+            js.setdefault("errors", []).append(err)
+            remaining.append(entry)  # Keep for another try
+
+    # Keep only the duplicates that we did *not* manage to move
+    js["exact_duplicates"] = remaining
+
+    msg = f"Archived {moved}/{len(dup_list)} duplicate files to {archive_dir}"
+    js.setdefault("logs", []).append(msg)
+    js["message"] = msg
+
+    return JobResponse(job_id=job_id, status=js.get("status", "processing"), message=msg)
+
 def compute_sha256(file_path: str) -> str:
     """Compute SHA256 hash of a file."""
     sha256_hash = hashlib.sha256()
@@ -448,71 +504,43 @@ def create_thumbnail_base64(image_path: str, size: tuple = (200, 200)) -> str:
         logger.warning(f"Could not create thumbnail for {image_path}: {e}")
         return ""
 
-async def send_batch_to_ml_service(batch_images: List[Dict]) -> List[Dict]:
-    """Send a batch of images to the ML service for processing.
-
-    This helper automatically chooses the optimal transport:
-    • JSON + Base64 (legacy)
-    • multipart/form-data with loss-less PNG buffers (when USE_MULTIPART_UPLOAD=1)
-    """
-    if USE_MULTIPART_UPLOAD:
-        # --- Multipart implementation -------------------------------------
-        files_payload = []
-        for item in batch_images:
-            try:
-                img_path = item["file_path"] if "file_path" in item else item["full_path"]
-                unique_id = item["unique_id"]
-                filename_original = item.get("filename") or os.path.basename(img_path)
-
-                # Decode → RGB and re-encode as PNG (loss-less, reasonably small)
-                if filename_original.lower().endswith(".dng"):
-                    try:
-                        with rawpy.imread(img_path) as raw:
-                            rgb = raw.postprocess(use_camera_wb=True)
-                        pil_img = Image.fromarray(rgb).convert("RGB")
-                    except Exception as e:
-                        logger.error(f"rawpy failed for {img_path}: {e}")
-                        raise
-                else:
-                    pil_img = Image.open(img_path).convert("RGB")
-
-                buf = io.BytesIO()
-                pil_img.save(buf, format="PNG")
-                buf.seek(0)
-                combined_name = f"{unique_id}__{filename_original}.png"
-                files_payload.append(("files", (combined_name, buf.read(), "image/png")))
-            except Exception as e:
-                logger.error(f"Failed to prepare image {img_path} for multipart upload: {e}")
-
-        async with httpx.AsyncClient(timeout=300.0) as client:  # 5-minute timeout
-            try:
-                response = await client.post(
-                    f"{ML_SERVICE_URL}/api/v1/batch_embed_and_caption_multipart",
-                    files=files_payload,
-                )
-                response.raise_for_status()
-                return response.json().get("results", [])
-            except Exception as e:
-                logger.error(f"Error calling ML service (multipart): {e}")
-                raise
-
-    # --- Legacy JSON path --------------------------------------------------
-    async with httpx.AsyncClient(timeout=300.0) as client:  # 5 minute timeout
-        try:
-            response = await client.post(
-                f"{ML_SERVICE_URL}/api/v1/batch_embed_and_caption",
-                json={"images": batch_images}
-            )
-            response.raise_for_status()
-            result = response.json()
-            return result.get("results", [])
-        except Exception as e:
-            logger.error(f"Error calling ML service: {e}")
-            raise
+async def send_batch_to_ml_service(batch_items: list[dict]) -> list[dict]:
+    """Send batch to ML service for embedding and captioning."""
+    batch_data = {
+        "images": [
+            {
+                "unique_id": item["file_path"],
+                "image_base64": item["image_base64"],
+                "filename": item["filename"]
+            }
+            for item in batch_items
+        ]
+    }
+    # Dynamic timeout based on batch size: 30s base + 2s per image
+    timeout_seconds = max(30.0, 30.0 + (len(batch_items) * 2.0))
+    
+    async with httpx.AsyncClient(timeout=timeout_seconds) as client:
+        response = await client.post(
+            f"{ML_SERVICE_URL}/api/v1/batch_embed_and_caption",
+            json=batch_data
+        )
+        response.raise_for_status()
+        return response.json()["results"]
 
 async def process_directory(job_id: str, directory_path: str, collection_name: str):
     """Background task to process all images in a directory."""
     try:
+        # ---------- BLIP Model Warmup ----------
+        logger.info(f"Job {job_id}: Warming up ML service for ingestion...")
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as warmup_client:
+                warmup_response = await warmup_client.post(f"{ML_SERVICE_URL}/api/v1/warmup")
+                warmup_response.raise_for_status()
+                warmup_result = warmup_response.json()
+                logger.info(f"Job {job_id}: ML warmup result: {warmup_result}")
+        except Exception as warmup_error:
+            logger.warning(f"Job {job_id}: ML warmup failed (continuing anyway): {warmup_error}")
+        
         # Update job status
         job_status[job_id]["status"] = "processing"
         job_status[job_id]["message"] = "Scanning directory for images"
@@ -586,11 +614,121 @@ async def process_directory(job_id: str, directory_path: str, collection_name: s
 
         logger.info("[ingest] Final ML batch size per request: %s (cap=%s)", effective_ml_opt, INGEST_BLIP_CAP or "none")
 
-        processed = 0
+        processed = 0  # Embeddings actually stored
+        scanned = 0    # Files that have been discovered & analysed (hash, cache, etc.)
         cached_files = 0
-        batch_for_ml = []
-        points_for_qdrant = []
-        
+        batch_for_ml: list[dict] = []
+        points_for_qdrant = []  # Cached-image points (producer handles) 
+
+        tasks: list[asyncio.Task] = []  # ML worker tasks
+
+        # ---------------------------------------------------------------------------
+        # Concurrency controls -------------------------------------------------------
+        # ---------------------------------------------------------------------------
+        # Ingestion can overlap disk IO (producer) with GPU inference (consumer)
+        # by firing several ML requests in parallel.  We expose a simple knob so
+        # operators can tune the number of in-flight requests without changing code.
+        #
+        #   INGEST_ML_MAX_INFLIGHT   – Maximum parallel batches hitting the ML
+        #                               inference service.  Defaults to 2 which
+        #                               gives good utilisation on a single-GPU host
+        #                               without overwhelming VRAM.
+        # ---------------------------------------------------------------------------
+
+        MAX_INFLIGHT_ML_REQUESTS: int = int(os.getenv("INGEST_ML_MAX_INFLIGHT", "2"))
+
+        # Global semaphore limiting concurrent ML batch workers.
+        ml_semaphore: asyncio.Semaphore = asyncio.Semaphore(MAX_INFLIGHT_ML_REQUESTS)
+
+        # Async lock used by background workers to serialise updates to the shared
+        # ``job_status`` structure so progress counters and logs do not clobber each
+        # other.
+        status_lock: asyncio.Lock = asyncio.Lock()
+
+        # -------------------------------------------------------------
+        # Internal async worker – posts one batch to the ML service and
+        # upserts the resulting points.  Runs under a semaphore so only
+        # MAX_INFLIGHT_ML_REQUESTS batches hit the GPU host at once.
+        # -------------------------------------------------------------
+        async def ml_batch_worker(batch_items: list[dict]):
+            """Worker that sends one image batch to the ML service and then stores
+            the resulting vectors in Qdrant.
+
+            The semaphore only wraps the **GPU/HTTP** phase so that PNG upload
+            and inference are limited to *MAX_INFLIGHT_ML_REQUESTS* concurrent
+            batches, while the (much slower) Qdrant upsert runs outside the
+            semaphore – allowing the next batch to start uploading as soon as
+            the previous one leaves the GPU.
+            """
+
+            nonlocal processed, cached_files, scanned
+
+            # ---------------- GPU / HTTP phase ----------------
+            try:
+                async with ml_semaphore:
+                    ml_results = await send_batch_to_ml_service(batch_items)
+            except Exception as exc:
+                error_msg = f"ML batch failed – size={len(batch_items)} images – {exc}"
+                async with status_lock:
+                    job_status[job_id]["errors"].append(error_msg)
+                    job_status[job_id]["logs"].append(f"ERROR: {error_msg}")
+                logger.error(error_msg, exc_info=True)
+                return
+
+            # ---------------- Build Qdrant points --------------
+            points: list[PointStruct] = []
+            for ml_result, src in zip(ml_results, batch_items):
+                if ml_result.get("error"):
+                    err = f"ML error for {src['filename']}: {ml_result['error']}"
+                    async with status_lock:
+                        job_status[job_id]["errors"].append(err)
+                        job_status[job_id]["logs"].append(f"ERROR: {err}")
+                    continue
+
+                # Cache embedding to skip future GPU work on identical file
+                cache.set(
+                    f"sha256:{ml_result['unique_id']}",
+                    {"embedding": ml_result["embedding"], "caption": ml_result.get("caption", "")},
+                )
+
+                metadata = await asyncio.to_thread(extract_image_metadata, src["full_path"])
+                thumb_b64 = await asyncio.to_thread(create_thumbnail_base64, src["full_path"])
+
+                point_id = str(uuid.uuid4())
+                points.append(
+                    PointStruct(
+                        id=point_id,
+                        vector=ml_result["embedding"],
+                        payload={
+                            "filename": src["filename"],
+                            "full_path": src["full_path"],
+                            "file_hash": ml_result["unique_id"],
+                            "caption": ml_result.get("caption", ""),
+                            "thumbnail_base64": thumb_b64,
+                            **metadata,
+                        },
+                    )
+                )
+
+            if not points:
+                return
+
+            # ---------------- Qdrant upsert (CPU / network) ----
+            await asyncio.to_thread(
+                qdrant_client.upsert,
+                collection_name=collection_name,
+                points=points,
+            )
+
+            # Update global counters / logs
+            async with status_lock:
+                nonlocal processed
+                processed += len(points)
+                job_status[job_id]["processed_files"] = processed
+                job_status[job_id]["logs"].append(
+                    f"Upserted {len(points)} embeddings (total {processed})"
+                )
+
         for i, image_path in enumerate(image_files):
             try:
                 # Compute file hash for deduplication
@@ -598,7 +736,8 @@ async def process_directory(job_id: str, directory_path: str, collection_name: s
                 cache_key = f"sha256:{file_hash}"
 
                 # Check if file already exists in the collection
-                duplicate_check = qdrant_client.scroll(
+                duplicate_check = await asyncio.to_thread(
+                    qdrant_client.scroll,
                     collection_name=collection_name,
                     scroll_filter=Filter(must=[FieldCondition(key="file_hash", match={"value": file_hash})]),
                     limit=1,
@@ -662,104 +801,33 @@ async def process_directory(job_id: str, directory_path: str, collection_name: s
                             "full_path": image_path
                         })
                 
+                # Increment scanned counter and expose via status
+                scanned += 1
+
                 # Process ML batch when it's full or we're at the end
                 if len(batch_for_ml) >= effective_ml_opt or i == len(image_files) - 1:
                     if batch_for_ml:
-                        job_status[job_id]["message"] = f"Processing ML batch of {len(batch_for_ml)} images"
-                        job_status[job_id]["logs"].append(f"Processing ML batch of {len(batch_for_ml)} images")
-                        
-                        # Send batch to ML service – robust against failures so
-                        # we never leave *batch_for_ml* uncleared which would
-                        # otherwise grow (471 ➜ 472 ➜ …) and eventually exhaust
-                        # memory.
-                        try:
-                            ml_results = await send_batch_to_ml_service(batch_for_ml)
-                        except Exception as exc:
-                            error_msg = (
-                                f"ML batch failed – size={len(batch_for_ml)} images – {exc}"
-                            )
-                            job_status[job_id]["errors"].append(error_msg)
-                            job_status[job_id]["logs"].append(f"ERROR: {error_msg}")
-                            logger.error(error_msg, exc_info=True)
-                            # Clear batch to prevent runaway accumulation and
-                            # continue with the next image.
-                            batch_for_ml = []
-                            continue  # move on with processing loop
-
-                        # -----------------------------
-                        # Process successful ML results
-                        # -----------------------------
-                        for ml_result, batch_item in zip(ml_results, batch_for_ml):
-                            if ml_result.get("error"):
-                                error_msg = (
-                                    f"ML processing error for {batch_item['filename']}: "
-                                    f"{ml_result['error']}"
-                                )
-                                job_status[job_id]["errors"].append(error_msg)
-                                job_status[job_id]["logs"].append(f"ERROR: {error_msg}")
-                                logger.error(error_msg)
-                                continue
-
-                            # Cache the ML result
-                            cache_data = {
-                                "embedding": ml_result["embedding"],
-                                "caption": ml_result.get("caption", "")
-                            }
-                            cache.set(f"sha256:{ml_result['unique_id']}", cache_data)
-
-                            # Extract metadata and create Qdrant point
-                            metadata = await asyncio.to_thread(
-                                extract_image_metadata, batch_item["full_path"]
-                            )
-
-                            # Create thumbnail for fast display
-                            thumbnail_base64 = await asyncio.to_thread(
-                                create_thumbnail_base64, batch_item["full_path"]
-                            )
-
-                            # Generate UUID for point ID (stable-size int is
-                            # not required – Qdrant accepts strings)
-                            point_id = str(uuid.uuid4())
-
-                            point = PointStruct(
-                                id=point_id,
-                                vector=ml_result["embedding"],
-                                payload={
-                                    "filename": batch_item["filename"],
-                                    "full_path": batch_item["full_path"],
-                                    "file_hash": ml_result["unique_id"],
-                                    "caption": ml_result.get("caption", ""),
-                                    "thumbnail_base64": thumbnail_base64,
-                                    **metadata,
-                                },
-                            )
-                            points_for_qdrant.append(point)
-                        
-                        # Finished handling this batch – reset list for next
-                        # accumulation cycle.
+                        # Schedule worker and go on scanning immediately
+                        tasks.append(asyncio.create_task(ml_batch_worker(batch_for_ml.copy())))
                         batch_for_ml = []
                 
-                # Upsert to Qdrant when batch is full
-                if len(points_for_qdrant) >= QDRANT_BATCH_SIZE:
-                    job_status[job_id]["message"] = f"Storing {len(points_for_qdrant)} points to Qdrant"
-                    job_status[job_id]["logs"].append(f"Storing {len(points_for_qdrant)} points to database")
-                    qdrant_client.upsert(
-                        collection_name=collection_name,
-                        points=points_for_qdrant
-                    )
-                    processed += len(points_for_qdrant)
-                    points_for_qdrant = []
-                
-                # Update progress
-                progress = ((i + 1) / total_files) * 100
+                # Update progress (based on *scanned* files so UI moves steadily)
+                done = processed + cached_files
+                progress = (done / total_files) * 100
                 job_status[job_id]["progress"] = progress
+                job_status[job_id]["scanned_files"] = scanned
                 job_status[job_id]["processed_files"] = processed
                 job_status[job_id]["cached_files"] = cached_files
-                job_status[job_id]["message"] = f"Progress: {progress:.1f}% ({processed + cached_files}/{total_files} files)"
+                job_status[job_id]["message"] = (
+                    f"Progress: {progress:.1f}% (scanned {scanned}/{total_files}, "
+                    f"stored {processed + cached_files})"
+                )
                 
                 # Add periodic log updates
                 if (i + 1) % 10 == 0 or i == len(image_files) - 1:
-                    job_status[job_id]["logs"].append(f"Processed {i + 1}/{total_files} files ({progress:.1f}%)")
+                    job_status[job_id]["logs"].append(
+                        f"Scanned {scanned}/{total_files} files ({progress:.1f}%)"
+                    )
                 
             except Exception as e:
                 error_msg = f"Error processing {image_path}: {str(e)}"
@@ -767,19 +835,25 @@ async def process_directory(job_id: str, directory_path: str, collection_name: s
                 job_status[job_id]["logs"].append(f"ERROR: {error_msg}")
                 logger.error(f"Job {job_id}: {error_msg}")
         
-        # Upsert any remaining points
+        # Await outstanding ML workers
+        if tasks:
+            await asyncio.gather(*tasks)
+
+        # Upsert any remaining points from cached-image path
         if points_for_qdrant:
             job_status[job_id]["message"] = f"Storing final {len(points_for_qdrant)} points to Qdrant"
             job_status[job_id]["logs"].append(f"Storing final {len(points_for_qdrant)} points to database")
-            qdrant_client.upsert(
+            await asyncio.to_thread(
+                qdrant_client.upsert,
                 collection_name=collection_name,
-                points=points_for_qdrant
+                points=points_for_qdrant,
             )
             processed += len(points_for_qdrant)
         
         # Complete the job
         job_status[job_id]["status"] = "completed"
         job_status[job_id]["processed_files"] = processed
+        job_status[job_id]["scanned_files"] = scanned
         job_status[job_id]["cached_files"] = cached_files
         job_status[job_id]["progress"] = 100.0
         
@@ -793,12 +867,32 @@ async def process_directory(job_id: str, directory_path: str, collection_name: s
         
         job_status[job_id]["message"] = success_msg
         job_status[job_id]["logs"].append(f"✅ {success_msg}")
+        
+        # ---------- BLIP Model Cooldown ----------
+        logger.info(f"Job {job_id}: Cooling down ML service after ingestion...")
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as cooldown_client:
+                cooldown_response = await cooldown_client.post(f"{ML_SERVICE_URL}/api/v1/cooldown")
+                cooldown_response.raise_for_status()
+                cooldown_result = cooldown_response.json()
+                logger.info(f"Job {job_id}: ML cooldown result: {cooldown_result}")
+        except Exception as cooldown_error:
+            logger.warning(f"Job {job_id}: ML cooldown failed: {cooldown_error}")
+        
         logger.info(f"Job {job_id} completed successfully: {success_msg}")
         
     except Exception as e:
         job_status[job_id]["status"] = "failed"
         job_status[job_id]["message"] = f"Job failed: {str(e)}"
         job_status[job_id]["logs"].append(f"❌ Job failed: {str(e)}")
+        
+        # Cool down even on failure to free GPU memory
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as cooldown_client:
+                await cooldown_client.post(f"{ML_SERVICE_URL}/api/v1/cooldown")
+        except Exception:
+            pass  # Ignore cooldown errors during failure cleanup
+        
         logger.error(f"Job {job_id} failed: {e}", exc_info=True)
 
 async def process_and_cleanup_directory(job_id: str, directory_path: str, collection_name: str):
