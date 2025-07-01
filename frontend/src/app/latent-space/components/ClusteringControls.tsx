@@ -200,14 +200,13 @@ export function ClusteringControls({
     updateClusteringParams(newParams);
     onParametersChange?.(updatedParams);
     
-    // Only auto-update if we have significant parameter changes
-    const shouldAutoUpdate = 
-      newParams.algorithm ||
-      (newParams.n_clusters && Math.abs((newParams.n_clusters || 0) - (clusteringParams.n_clusters || 0)) > 0) ||
-      (newParams.eps && Math.abs(newParams.eps - clusteringParams.eps) > 0.05) ||
-      (newParams.min_samples && newParams.min_samples !== clusteringParams.min_samples);
-    
-    if (shouldAutoUpdate) {
+    // To avoid sluggish UX we only auto-run clustering when the algorithm
+    // itself changes.  Numeric tweaks are applied via the "Apply" button.
+    const algoChanged =
+      newParams.algorithm !== undefined &&
+      newParams.algorithm !== clusteringParams.algorithm;
+
+    if (algoChanged) {
       debouncedParameterUpdate(updatedParams);
     }
   };
@@ -378,13 +377,13 @@ export function ClusteringControls({
               <FormLabel fontSize="sm" fontWeight="semibold">Algorithm</FormLabel>
               <Select
                 value={clusteringParams.algorithm}
-                                  onChange={(e) => handleParameterChange({ algorithm: e.target.value as ClusteringRequest['algorithm'] })}
+                onChange={(e) => handleParameterChange({ algorithm: e.target.value as ClusteringRequest['algorithm'] })}
                 size="sm"
               >
+                <option value="hdbscan">HDBSCAN</option>
+                <option value="hierarchical">Hierarchical</option>
                 <option value="dbscan">DBSCAN</option>
                 <option value="kmeans">K-Means</option>
-                <option value="hierarchical">Hierarchical</option>
-                <option value="hdbscan">HDBSCAN</option>
               </Select>
             </FormControl>
 

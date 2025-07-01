@@ -80,13 +80,18 @@ const initialState = {
   selectedCluster: null,
   clusterLabels: {},
   clusteringParams: {
-    algorithm: 'dbscan' as const,
-    eps: 0.5,
-    min_samples: 5,
+    // Use the GPU-optimised HDBSCAN algorithm by default for superior
+    // cluster quality on image embeddings.  Operators can still switch in the
+    // UI.
+    algorithm: 'hdbscan' as const,
+    // Reasonable default that works well for most photo libraries; users can
+    // fine-tune via the numeric input.
+    min_cluster_size: 5,
   },
   isLoading: false,
   viewportTransform: { x: 0, y: 0, scale: 1 },
-  colorPalette: 'observable' as ColorPaletteName,
+  // Start with the requested "river" palette (alias of River Nights).
+  colorPalette: 'river' as ColorPaletteName,
   showOutliers: true,
   pointSize: 10,
   
@@ -102,11 +107,12 @@ const initialState = {
   terrainResolution: 20,
   terrainBands: 6,
   
-  // Layer toggles defaults
+  // Layer toggles defaults – enable Voronoi tiles & cluster hulls so users
+  // immediately see the tessellation structure requested.
   showScatter: true,
   showHulls: true,
-  showVoronoi: false,
-  showVoronoiFill: false,
+  showVoronoi: true,
+  showVoronoiFill: true,
   
   lassoMode: false, // true when drawing polygon
   selectedPolygon: null,

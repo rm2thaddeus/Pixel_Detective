@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import {
   Box,
   Heading,
@@ -25,6 +25,7 @@ import {
   CardBody,
   Flex,
   Code,
+  useToast,
 } from '@chakra-ui/react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { getIngestStatus, archiveExact } from '@/lib/api';
@@ -38,6 +39,8 @@ export default function JobLogsPage() {
   // Refs for auto-scroll behaviour
   const logsContainerRef = useRef<HTMLDivElement | null>(null);
   const errorsContainerRef = useRef<HTMLDivElement | null>(null);
+  const router = useRouter();
+  const toast = useToast();
 
   const { data, isLoading } = useQuery({
     queryKey: ['job-status', jobId],
@@ -81,6 +84,20 @@ export default function JobLogsPage() {
       });
     }
   }, [data?.logs?.length, data?.errors?.length]);
+
+  // 🔔 Redirect to home with toast once the job completes
+  useEffect(() => {
+    if (!isLoading && data?.status === 'completed') {
+      toast({
+        title: 'Ingestion Completed',
+        description: `Job ${jobId} finished successfully.`,
+        status: 'success',
+        duration: 6000,
+        isClosable: true,
+      });
+      router.push('/');
+    }
+  }, [data?.status, isLoading, jobId, router, toast]);
 
   return (
     <Box minH="100vh">

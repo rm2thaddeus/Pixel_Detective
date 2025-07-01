@@ -564,6 +564,28 @@ async def process_directory(job_id: str, directory_path: str, collection_name: s
         except Exception as exc:
             logger.warning("[ingest] Could not fetch ML capabilities – defaulting to env batch size (%s): %s", ML_BATCH_SIZE, exc)
 
+        # If operators want to limit the ingestion batch for any reason (e.g. to
+        # avoid saturating the ML service while benchmarking), they can set
+        # INGEST_BLIP_CAP.  When the variable is *not* set we will honour the
+        # full safe batch size reported by the ML service instead of falling
+        # back to an arbitrary default of 32.
+
+        _ingest_blip_cap_env = os.getenv("INGEST_BLIP_CAP")
+        if _ingest_blip_cap_env is not None and _ingest_blip_cap_env.strip():
+            try:
+                INGEST_BLIP_CAP = int(_ingest_blip_cap_env)
+                effective_ml_opt = max(1, min(effective_ml_batch, INGEST_BLIP_CAP))
+            except ValueError:
+                logger.warning("Invalid INGEST_BLIP_CAP value '%s' – ignoring", _ingest_blip_cap_env)
+                INGEST_BLIP_CAP = None
+                effective_ml_opt = effective_ml_batch
+        else:
+            # No cap requested – use the effective batch reported by the ML service
+            INGEST_BLIP_CAP = None
+            effective_ml_opt = effective_ml_batch
+
+        logger.info("[ingest] Final ML batch size per request: %s (cap=%s)", effective_ml_opt, INGEST_BLIP_CAP or "none")
+
         processed = 0
         cached_files = 0
         batch_for_ml = []
@@ -641,7 +663,7 @@ async def process_directory(job_id: str, directory_path: str, collection_name: s
                         })
                 
                 # Process ML batch when it's full or we're at the end
-                if len(batch_for_ml) >= effective_ml_batch or i == len(image_files) - 1:
+                if len(batch_for_ml) >= effective_ml_opt or i == len(image_files) - 1:
                     if batch_for_ml:
                         job_status[job_id]["message"] = f"Processing ML batch of {len(batch_for_ml)} images"
                         job_status[job_id]["logs"].append(f"Processing ML batch of {len(batch_for_ml)} images")

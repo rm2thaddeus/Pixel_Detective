@@ -78,6 +78,20 @@ export const COLOR_PALETTES = {
     [255, 180, 100, 220],  // Orange
   ],
 
+  // River – alias for River Nights (short label requested by users)
+  river: [
+    [179, 0, 0, 220],
+    [124, 17, 88, 220],
+    [68, 33, 175, 220],
+    [26, 83, 255, 220],
+    [13, 136, 230, 220],
+    [0, 183, 199, 220],
+    [90, 212, 90, 220],
+    [139, 224, 78, 220],
+    [235, 220, 120, 220],
+    [255, 180, 100, 220],
+  ],
+
   // Spring Pastels - Gentle and approachable
   springPastels: [
     [253, 127, 111, 220],  // Soft coral
@@ -430,6 +444,7 @@ export function getPaletteDescription(paletteName: ColorPaletteName): string {
     retroMetro: "Vibrant and energetic palette, great for presentations and demos",
     dutchField: "Bold and contemporary colors with high contrast",
     riverNights: "Sophisticated deep hues for elegant, professional visualizations",
+    river: "Sophisticated deep hues for elegant, professional visualizations",
     springPastels: "Gentle and approachable colors, perfect for soft, friendly interfaces",
     nature: "Scientific journal inspired palette with natural, trustworthy colors",
     trend2025: "Contemporary 2025 trend colors, fresh and modern aesthetic"
@@ -621,6 +636,12 @@ export function getEnhancedPaletteDescription(paletteName: ColorPaletteName): {
     },
     riverNights: {
       name: 'River Nights',
+      description: 'Sophisticated deep tones with elegant gradients',
+      bestFor: 'Professional reports, dark themes',
+      accessibility: 'good' as const,
+    },
+    river: {
+      name: 'River',
       description: 'Sophisticated deep tones with elegant gradients',
       bestFor: 'Professional reports, dark themes',
       accessibility: 'good' as const,

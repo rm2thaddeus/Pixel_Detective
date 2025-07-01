@@ -16,6 +16,7 @@ from typing import Dict, Any, Tuple, List, Optional
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import asyncio
 import gc
+import math
 
 # Configure basic logging
 logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO").upper())
@@ -28,6 +29,30 @@ v1_router = APIRouter(prefix="/api/v1") # Define v1 router
 CLIP_MODEL_NAME_CONFIG = os.environ.get("CLIP_MODEL_NAME", "ViT-B/32")
 BLIP_MODEL_NAME_CONFIG = os.environ.get("BLIP_MODEL_NAME", "Salesforce/blip-image-captioning-large")
 DEVICE_PREFERENCE = os.environ.get("DEVICE_PREFERENCE", "cuda")
+# Optional runtime flag – when set to 1/true the service will embed images but
+# **skip all BLIP caption generation**.  This is useful during large ingest
+# runs where captions are not immediately required and we want to halve GPU
+# utilisation.
+DISABLE_CAPTIONS = os.getenv("DISABLE_CAPTIONS", "0").lower() in {"1", "true", "yes"}
+
+if DISABLE_CAPTIONS:
+    logging.getLogger(__name__).info("[config] Captions DISABLED via env flag – BLIP model will not be loaded")
+
+# --------------------------------------
+# Performance-tuning knobs (env-override)
+# --------------------------------------
+# • BLIP_BATCH_OPT – cap runtime batch so autoregressive generation stays fast.
+#   Default 32 (good for 6–8 GB GPUs).
+# • CAPTION_MAX_LEN – maximum tokens to generate (default 40).
+# • CAPTION_NUM_BEAMS – beam width (1 ⇒ greedy, fastest).
+#   All values are overridable via environment variables for quick benchmarking.
+
+# Operators can override the caption batch size with BLIP_BATCH_OPT.  In the
+# absence of an override we default to a high ceiling (512) so that the
+# SAFE_BATCH_SIZE computed at runtime is the primary limiting factor.
+BLIP_BATCH_OPT = int(os.getenv("BLIP_BATCH_OPT", "512"))
+CAPTION_MAX_LEN = int(os.getenv("CAPTION_MAX_LEN", "40"))
+CAPTION_NUM_BEAMS = int(os.getenv("CAPTION_NUM_BEAMS", "1"))
 
 # --- Global Thread Pool Executor ---
 # Use a thread pool for CPU-bound tasks like image decoding to avoid blocking the asyncio event loop
@@ -52,6 +77,9 @@ clip_preprocess_instance: Any = None
 blip_model_instance: Any = None
 blip_processor_instance: Any = None
 SAFE_BATCH_SIZE: int = 1 # Default, will be probed on startup if using CUDA
+
+# One-time flag to run a real-image memory calibration only once
+real_probe_done: bool = False
 
 # ---------------------------------------------------------------------------
 # Dual-model memory probing variables (CLIP + BLIP)
@@ -223,9 +251,14 @@ def _encode_clip(tensor: torch.Tensor) -> torch.Tensor:
     return feats
 
 def _generate_blip(inputs: Dict[str, torch.Tensor]) -> torch.Tensor:
+    """Generate captions with globally tuned parameters (AMP + greedy/beam search)."""
     with torch.inference_mode():
         with torch.amp.autocast("cuda", enabled=(device.type == "cuda")):
-            return blip_model_instance.generate(**inputs, max_length=75)
+            return blip_model_instance.generate(
+                **inputs,
+                max_length=CAPTION_MAX_LEN,
+                num_beams=CAPTION_NUM_BEAMS,
+            )
 
 # --- FastAPI Lifecycle Events ---
 @app.on_event("startup")
@@ -418,6 +451,9 @@ async def embed_text_endpoint_v1(request: TextEmbedRequest = Body(...)):
 
 @v1_router.post("/caption", response_model=Dict[str, Any])
 async def caption_image_endpoint_v1(request: CaptionRequest = Body(...)):
+    if DISABLE_CAPTIONS:
+        raise HTTPException(status_code=503, detail="Captioning disabled by configuration")
+
     try:
         # Lazy load the BLIP model using the dependency
         blip_model, blip_processor = await get_blip_model()
@@ -537,11 +573,12 @@ async def batch_embed_and_caption_endpoint_v1(request: BatchEmbedAndCaptionReque
     if not clip_model_instance:
         raise HTTPException(status_code=503, detail="CLIP model is not available.")
     
-    # Lazy load the BLIP model if needed for this request
-    try:
-        blip_model, blip_processor = await get_blip_model()
-    except HTTPException as e:
-        raise e # Propagate the 503 error if model loading fails
+    # Lazy load the BLIP model if needed for this request and captions enabled
+    if not DISABLE_CAPTIONS:
+        try:
+            blip_model, blip_processor = await get_blip_model()
+        except HTTPException as e:
+            raise e  # Propagate the 503 error if model loading fails
 
     # --- 1. Parallel Image Preprocessing on CPU threads ---
     global real_probe_done, clip_mem_per_img, blip_mem_per_img
@@ -616,13 +653,21 @@ async def batch_embed_and_caption_endpoint_v1(request: BatchEmbedAndCaptionReque
         inference_start_time = time.time()
         logger.info(f"Acquired GPU lock. Starting inference for {len(valid_ids)} images in chunks of {SAFE_BATCH_SIZE}.")
 
-        # Process valid_ids in chunks of SAFE_BATCH_SIZE
-        for i in range(0, len(valid_ids), SAFE_BATCH_SIZE):
-            chunk_ids = valid_ids[i:i + SAFE_BATCH_SIZE]
-            if not chunk_ids:
-                continue
-            
-            logger.info(f"Processing chunk {i//SAFE_BATCH_SIZE + 1}/{(len(valid_ids) + SAFE_BATCH_SIZE - 1)//SAFE_BATCH_SIZE} with {len(chunk_ids)} images.")
+        # --- Decide per-iteration chunk size (same logic as JSON endpoint) ---
+        chunk_lim = SAFE_BATCH_SIZE
+        if BLIP_BATCH_OPT and BLIP_BATCH_OPT > SAFE_BATCH_SIZE:
+            chunk_lim = BLIP_BATCH_OPT
+
+        num_chunks_total = math.ceil(len(valid_ids) / chunk_lim)
+
+        for chunk_idx, i in enumerate(range(0, len(valid_ids), chunk_lim), start=1):
+            chunk_ids = valid_ids[i:i + chunk_lim]
+            logger.info(
+                "[multipart] Processing chunk %s/%s with %s images.",
+                chunk_idx,
+                num_chunks_total,
+                len(chunk_ids),
+            )
 
             # --- CLIP Embeddings for the chunk ---
             try:
@@ -645,31 +690,32 @@ async def batch_embed_and_caption_endpoint_v1(request: BatchEmbedAndCaptionReque
                     if not processing_results[uid]["error"]: # Avoid overwriting decode error
                         processing_results[uid]["error"] = f"CLIP inference failed: {e}"
             
-            # --- BLIP Captions for the chunk ---
-            try:
-                pil_images_blip = [prepped_images[uid] for uid in chunk_ids]
-                # Use the lazy-loaded processor
-                blip_inputs = blip_processor(images=pil_images_blip, return_tensors="pt").to(device)
+            # --- BLIP Captions for the chunk (optional) ---
+            if not DISABLE_CAPTIONS:
+                try:
+                    pil_images_blip = [prepped_images[uid] for uid in chunk_ids]
+                    blip_inputs = blip_processor(images=pil_images_blip, return_tensors="pt").to(device)
 
-                # For half-precision, ensure input tensor is also .half()
-                if device.type == "cuda":
-                    blip_inputs = {k: v.to(device).half() for k, v in blip_inputs.items()}
-                else:
-                    blip_inputs = {k: v.to(device) for k, v in blip_inputs.items()}
+                    if device.type == "cuda":
+                        blip_inputs = {k: v.to(device).half() for k, v in blip_inputs.items()}
+                    else:
+                        blip_inputs = {k: v.to(device) for k, v in blip_inputs.items()}
 
-                
-                logger.info(f"Running BLIP inference for batch of size {len(pil_images_blip)}...")
-                blip_output_ids = await asyncio.to_thread(_generate_blip, blip_inputs)
-                captions = blip_processor.batch_decode(blip_output_ids, skip_special_tokens=True)
+                    logger.info(f"Running BLIP inference for batch of size {len(pil_images_blip)}...")
+                    blip_output_ids = await asyncio.to_thread(_generate_blip, blip_inputs)
+                    captions = blip_processor.batch_decode(blip_output_ids, skip_special_tokens=True)
 
-                for j, unique_id in enumerate(chunk_ids):
-                    processing_results[unique_id]["caption"] = captions[j].strip()
-            except Exception as e:
-                logger.error(f"Error during BLIP batch inference on chunk: {e}", exc_info=True)
+                    for j, unique_id in enumerate(chunk_ids):
+                        processing_results[unique_id]["caption"] = captions[j].strip()
+                except Exception as e:
+                    logger.error(f"Error during BLIP batch inference on chunk: {e}", exc_info=True)
+                    for uid in chunk_ids:
+                        if not processing_results[uid]["error"]:
+                            processing_results[uid]["error"] = f"BLIP inference failed: {e}"
+            else:
                 for uid in chunk_ids:
-                    if not processing_results[uid]["error"]: # Avoid overwriting previous errors
-                        processing_results[uid]["error"] = f"BLIP inference failed: {e}"
-        
+                    processing_results[uid]["caption"] = ""
+            
             # ------------------  Clean up CPU & GPU memory for next chunk  ----------
             # Drop PIL images & tensors belonging to the processed chunk so the
             # host RAM stays constant across thousands-image jobs.
@@ -728,10 +774,11 @@ async def batch_embed_and_caption_multipart_endpoint_v1(
         raise HTTPException(status_code=503, detail="CLIP model is not available.")
 
     # Lazy load BLIP (caption) model if required
-    try:
-        blip_model, blip_processor = await get_blip_model()
-    except HTTPException as e:
-        raise e
+    if not DISABLE_CAPTIONS:
+        try:
+            blip_model, blip_processor = await get_blip_model()
+        except HTTPException as e:
+            raise e
 
     # --- 1. Decode uploaded PNG buffers on a CPU thread pool --------------
     prepped_images: Dict[str, Image.Image] = {}
@@ -773,10 +820,23 @@ async def batch_embed_and_caption_multipart_endpoint_v1(
     # --- 2. GPU inference in SAFE_BATCH_SIZE chunks -----------------------
     async with gpu_lock:
         inference_start = time.time()
-        for i in range(0, len(valid_ids), SAFE_BATCH_SIZE):
-            chunk_ids = valid_ids[i:i + SAFE_BATCH_SIZE]
+        chunk_lim = SAFE_BATCH_SIZE
+        if BLIP_BATCH_OPT and BLIP_BATCH_OPT > SAFE_BATCH_SIZE:
+            chunk_lim = BLIP_BATCH_OPT
+
+        num_chunks_total = math.ceil(len(valid_ids) / chunk_lim)
+
+        for chunk_idx, i in enumerate(range(0, len(valid_ids), chunk_lim), start=1):
+            chunk_ids = valid_ids[i:i + chunk_lim]
+            logger.info(
+                "[multipart] Processing chunk %s/%s with %s images.",
+                chunk_idx,
+                num_chunks_total,
+                len(chunk_ids),
+            )
+
+            # CLIP
             try:
-                # CLIP
                 pil_imgs_clip = [prepped_images[uid] for uid in chunk_ids]
                 clip_inputs = torch.stack([clip_preprocess_instance(img) for img in pil_imgs_clip]).to(device)
                 if device.type == "cuda":
@@ -791,26 +851,30 @@ async def batch_embed_and_caption_multipart_endpoint_v1(
                 for uid in chunk_ids:
                     if not processing_results[uid]["error"]:
                         processing_results[uid]["error"] = f"CLIP error: {e}"
+            
+            # BLIP captions (optional)
+            if not DISABLE_CAPTIONS:
+                try:
+                    pil_imgs_blip = [prepped_images[uid] for uid in chunk_ids]
+                    blip_inputs = blip_processor(images=pil_imgs_blip, return_tensors="pt").to(device)
+                    if device.type == "cuda":
+                        blip_inputs = {k: v.to(device).half() for k, v in blip_inputs.items()}
+                    else:
+                        blip_inputs = {k: v.to(device) for k, v in blip_inputs.items()}
 
-            # BLIP captions
-            try:
-                pil_imgs_blip = [prepped_images[uid] for uid in chunk_ids]
-                blip_inputs = blip_processor(images=pil_imgs_blip, return_tensors="pt").to(device)
-                if device.type == "cuda":
-                    blip_inputs = {k: v.to(device).half() for k, v in blip_inputs.items()}
-                else:
-                    blip_inputs = {k: v.to(device) for k, v in blip_inputs.items()}
-
-                blip_ids = await asyncio.to_thread(_generate_blip, blip_inputs)
-                captions = blip_processor.batch_decode(blip_ids, skip_special_tokens=True)
-                for j, uid in enumerate(chunk_ids):
-                    processing_results[uid]["caption"] = captions[j].strip()
-            except Exception as e:
-                logger.error(f"BLIP inference failed on multipart chunk: {e}", exc_info=True)
+                    blip_ids = await asyncio.to_thread(_generate_blip, blip_inputs)
+                    captions = blip_processor.batch_decode(blip_ids, skip_special_tokens=True)
+                    for j, uid in enumerate(chunk_ids):
+                        processing_results[uid]["caption"] = captions[j].strip()
+                except Exception as e:
+                    logger.error(f"BLIP inference failed on multipart chunk: {e}", exc_info=True)
+                    for uid in chunk_ids:
+                        if not processing_results[uid]["error"]:
+                            processing_results[uid]["error"] = f"BLIP error: {e}"
+            else:
                 for uid in chunk_ids:
-                    if not processing_results[uid]["error"]:
-                        processing_results[uid]["error"] = f"BLIP error: {e}"
-
+                    processing_results[uid]["caption"] = ""
+            
             # ------------------  Clean up CPU & GPU memory for next chunk  ----------
             # Drop PIL images & tensors belonging to the processed chunk so the
             # host RAM stays constant across thousands-image jobs.

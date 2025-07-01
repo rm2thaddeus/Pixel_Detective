@@ -64,7 +64,9 @@ export default function LatentSpacePage() {
     }
   }, [collection]);
 
-  const { basicProjection, isLoading, error, clusteringMutation } = useUMAP();
+  // Request a larger projection sample (2 000 points) for collections with
+  // thousands of images so the scatter plot better reflects library density.
+  const { basicProjection, isLoading, error, clusteringMutation } = useUMAP(2000);
   const { 
     selectedCluster, 
     setSelectedCluster,
