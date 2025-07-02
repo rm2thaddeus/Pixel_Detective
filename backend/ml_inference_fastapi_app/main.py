@@ -118,25 +118,36 @@ def _probe_model_memory(run_one_image_fn) -> int:
 
 
 def _recalculate_safe_batch() -> None:
-    """Re-compute SAFE_BATCH_SIZE using both CLIP & BLIP per-image costs."""
+    """Re-compute SAFE_BATCH_SIZE using both CLIP & BLIP per-image costs.
+    
+    Since CLIP and BLIP run sequentially (not simultaneously), we calculate
+    the limiting factor between them, not their sum.
+    """
     global SAFE_BATCH_SIZE
     if device.type != "cuda":
         SAFE_BATCH_SIZE = 1
         return
 
-    worst_case = max(clip_mem_per_img or 1, blip_mem_per_img or 1)
     free_mem, _ = torch.cuda.mem_get_info()
-    safe_free = free_mem * 0.8  # 20 % head-room
-    calc_size = max(1, int(safe_free // worst_case))
+    safe_free = free_mem * 0.85  # 15% head-room (less conservative)
+    
+    # Calculate max batch size for each model independently
+    clip_max_batch = int(safe_free // (clip_mem_per_img or 1)) if clip_mem_per_img else 999
+    blip_max_batch = int(safe_free // (blip_mem_per_img or 1)) if blip_mem_per_img else 999
+    
+    # Take the limiting factor (since they run sequentially, not simultaneously)
+    calc_size = max(1, min(clip_max_batch, blip_max_batch))
+    
     # Clamp to avoid pathological values on probe failures
     SAFE_BATCH_SIZE = min(
         calc_size,
         int(os.getenv("SAFE_BATCH_SIZE_MAX", "512"))
     )
+    
     logger.info(
-        f"[Batch-Probe] clip={clip_mem_per_img/1e6:.1f} MB  "
-        f"blip={blip_mem_per_img/1e6:.1f} MB  free={free_mem/1e6:.1f} MB  "
-        f"→ SAFE_BATCH_SIZE={SAFE_BATCH_SIZE}"
+        f"[Batch-Probe] clip={clip_mem_per_img/1e6:.1f} MB (max_batch={clip_max_batch})  "
+        f"blip={blip_mem_per_img/1e6:.1f} MB (max_batch={blip_max_batch})  "
+        f"free={free_mem/1e6:.1f} MB  → SAFE_BATCH_SIZE={SAFE_BATCH_SIZE}"
     )
 
 # --- Helper Functions from clip_model.py and blip_model.py (adapted) ---
@@ -209,9 +220,9 @@ async def get_blip_model():
                     # ------------------  Probe BLIP memory cost ------------------
                     if device.type == "cuda":
                         def _one_blip():
-                            # Use batch of 2 to capture kv-cache scaling more reliably
-                            pil_batch = [Image.new("RGB", (224, 224)) for _ in range(2)]
-                            inputs = blip_processor_instance(images=pil_batch, return_tensors="pt")
+                            # Use single image to get more accurate per-image measurement
+                            pil_img = Image.new("RGB", (224, 224))
+                            inputs = blip_processor_instance(images=[pil_img], return_tensors="pt")
                             if device.type == "cuda":
                                 inputs = {k: v.to(device).half() for k, v in inputs.items()}
                             else:
@@ -222,8 +233,7 @@ async def get_blip_model():
                                 blip_model_instance.generate(**inputs, max_length=75)
 
                         global blip_mem_per_img
-                        delta_total = _probe_model_memory(_one_blip)
-                        blip_mem_per_img = delta_total // 2 if delta_total > 0 else 0
+                        blip_mem_per_img = _probe_model_memory(_one_blip)
                         if blip_mem_per_img < 10 * 1024:
                             logger.warning(
                                 "[Batch-Probe] BLIP memory delta %.0f bytes is implausibly low – using conservative 20 MB fallback",
@@ -311,8 +321,8 @@ async def startup_event():
         # --------------------  Probe BLIP memory cost -------------------
         if device.type == "cuda":
             def _one_blip():
-                pil_batch = [Image.new("RGB", (224, 224)) for _ in range(2)]
-                inputs = blip_processor_instance(images=pil_batch, return_tensors="pt")
+                pil_img = Image.new("RGB", (224, 224))
+                inputs = blip_processor_instance(images=[pil_img], return_tensors="pt")
                 inputs = {k: v.to(device).half() if device.type == "cuda" else v.to(device) for k, v in inputs.items()}
                 with torch.inference_mode(), torch.amp.autocast("cuda", enabled=True):
                     blip_model_instance.generate(**inputs, max_length=75)
@@ -819,8 +829,8 @@ async def warmup_models():
         # Probe BLIP memory usage if on CUDA
         if device.type == "cuda":
             def _one_blip():
-                pil_batch = [Image.new("RGB", (224, 224)) for _ in range(2)]
-                inputs = blip_processor_instance(images=pil_batch, return_tensors="pt")
+                pil_img = Image.new("RGB", (224, 224))
+                inputs = blip_processor_instance(images=[pil_img], return_tensors="pt")
                 inputs = {k: v.to(device).half() if device.type == "cuda" else v.to(device) for k, v in inputs.items()}
                 with torch.inference_mode(), torch.amp.autocast("cuda", enabled=True):
                     blip_model_instance.generate(**inputs, max_length=75)
