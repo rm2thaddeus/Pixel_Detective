@@ -6,6 +6,5 @@ torch
 openai-clip
 transformers
 Pillow
-rawpy
 numpy
 python-multipart 

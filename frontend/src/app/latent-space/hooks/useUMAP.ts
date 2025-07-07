@@ -122,12 +122,12 @@ const performClustering = async (
       };
     } catch (err: any) {
       if (err?.response) {
-        console.error('❌ GPU clustering failed:', {
+        console.warn('❌ GPU clustering failed:', {
           status: err.response.status,
           data: err.response.data,
         });
       } else {
-        console.error('❌ GPU clustering failed (no response object):', err);
+        console.warn('❌ GPU clustering failed (no response object):', err);
       }
       console.info('🔁 Falling back to main backend clustering endpoint...');
       // Fall back to main backend clustering endpoint
@@ -137,11 +137,18 @@ const performClustering = async (
   // ---------- Fallback to main backend --------------
   const { points, ...clusteringRequest } = variables;
   console.log(`🌐 Requesting clustering from main backend with algorithm: ${clusteringRequest.algorithm}`);
-  const response = await api.post('/umap/projection_with_clustering', clusteringRequest, {
-    params: { sample_size: points.length }
-  });
-  console.log(`✅ Clustering response received from fallback:`, response.data);
-  return response.data;
+  try {
+    const response = await api.post('/umap/projection_with_clustering', clusteringRequest, {
+      params: { sample_size: points.length },
+      timeout: 30000
+    });
+    console.log(`✅ Clustering response received from fallback:`, response.data);
+    return response.data;
+  } catch (err: any) {
+    console.warn('[useUMAP] Clustering fallback failed:', err);
+    // Fallback to projection-only data so the UI can render without clustering
+    return { points: variables.points, collection: collection || 'unknown', clustering_info: undefined };
+  }
 };
 
 const postClusterLabel = async (
@@ -189,6 +196,6 @@ export function useUMAP(sampleSize: number = 500) {
     clusteringMutation,
     labelMutation,
     isLoading: basicProjection.isLoading && basicProjection.isFetching,
-    error: basicProjection.error || clusteringMutation.error,
+    error: basicProjection.error,
   };
 } 

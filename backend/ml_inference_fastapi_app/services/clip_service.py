@@ -71,19 +71,24 @@ def _probe_model_memory(run_one_image_fn) -> int:
     """Helper to probe GPU memory for a single inference call."""
     if DEVICE.type != "cuda":
         return 1
-    
+
+    # Clear cache and reset peak memory statistics
     torch.cuda.empty_cache()
     torch.cuda.reset_peak_memory_stats(DEVICE)
-    
+    # Record baseline memory usage
+    baseline = torch.cuda.memory_allocated(DEVICE)
     try:
         run_one_image_fn()
     except Exception as e:
         logger.error(f"Probing function failed: {e}", exc_info=True)
+        torch.cuda.empty_cache()
         return 1
-        
-    peak_mem = torch.cuda.max_memory_allocated(DEVICE)
+    # Get peak memory usage during inference
+    peak = torch.cuda.max_memory_allocated(DEVICE)
     torch.cuda.empty_cache()
-    return peak_mem if peak_mem > 0 else 1
+    # Calculate memory used by one inference
+    mem_used = peak - baseline
+    return mem_used if mem_used > 0 else 1
 
 
 def recalculate_safe_batch_size():

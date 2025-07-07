@@ -90,13 +90,21 @@ def extract_image_metadata(file_path: str) -> Dict[str, Any]:
 
     try:
         if file_extension in raw_exts:
-            # Use rawpy for RAW files
+            # Use rawpy for RAW files: postprocess to determine dimensions
             with rawpy.imread(file_path) as raw:
+                try:
+                    arr = raw.postprocess(use_camera_wb=True)
+                    height, width = arr.shape[:2]
+                    mode = "RGB"
+                except Exception as e:
+                    logger.warning(f"Could not postprocess RAW for dimensions for {file_path}: {e}")
+                    width, height = -1, -1
+                    mode = "unknown"
                 metadata.update({
-                    "width": raw.width,
-                    "height": raw.height,
+                    "width": width,
+                    "height": height,
                     "format": "RAW",
-                    "mode": f"{raw.num_colors}x{raw.color_desc.decode('utf-8')}"
+                    "mode": mode
                 })
         else:
             # Use Pillow for standard image formats

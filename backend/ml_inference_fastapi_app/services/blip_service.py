@@ -43,12 +43,12 @@ def get_blip_model_status() -> bool:
     """Returns True if the BLIP model is loaded, False otherwise."""
     return BLIP_MODEL is not None and BLIP_MODEL != "failed"
 
-def generate_captions(images: list[Any], text: str = None) -> list[str]:
+def generate_captions(images: list[Any], text: str = None, do_rescale: bool = True) -> list[str]:
     """Generates captions for a batch of pre-processed images."""
     if not get_blip_model_status():
         raise RuntimeError("BLIP model is not available.")
 
-    inputs = BLIP_PROCESSOR(images=images, text=text, return_tensors="pt").to(DEVICE)
+    inputs = BLIP_PROCESSOR(images=images, text=text, return_tensors="pt", do_rescale=do_rescale).to(DEVICE)
     with torch.no_grad():
         outputs = BLIP_MODEL.generate(**inputs)
     
@@ -61,17 +61,24 @@ def _probe_model_memory(run_one_image_fn) -> int:
     """Helper to probe GPU memory for a single inference call."""
     if DEVICE.type != "cuda":
         return 1
-    
+
+    # Clear cache and reset peak memory statistics
     torch.cuda.empty_cache()
     torch.cuda.reset_peak_memory_stats(DEVICE)
+    # Record baseline memory usage
+    baseline = torch.cuda.memory_allocated(DEVICE)
     try:
         run_one_image_fn()
     except Exception as e:
         logger.error(f"Probing function failed: {e}", exc_info=True)
+        torch.cuda.empty_cache()
         return 1
-    peak_mem = torch.cuda.max_memory_allocated(DEVICE)
+    # Get peak memory usage during inference
+    peak = torch.cuda.max_memory_allocated(DEVICE)
     torch.cuda.empty_cache()
-    return peak_mem if peak_mem > 0 else 1
+    # Calculate memory used by one inference
+    mem_used = peak - baseline
+    return mem_used if mem_used > 0 else 1
 
 def recalculate_safe_batch_size():
     """Calculates and sets the safe batch size for the BLIP model."""
@@ -82,7 +89,7 @@ def recalculate_safe_batch_size():
 
     def _one_blip_real():
         dummy_image = torch.zeros((3, 224, 224))
-        generate_captions([dummy_image])
+        generate_captions([dummy_image], do_rescale=False)
 
     free_mem, _ = torch.cuda.mem_get_info(DEVICE)
     mem_per_item = _probe_model_memory(_one_blip_real)

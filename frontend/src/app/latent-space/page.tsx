@@ -13,6 +13,7 @@ import {
   Divider,
   Collapse,
   Flex,
+  AspectRatio,
   Button,
   useDisclosure,
   AlertDialog,
@@ -329,41 +330,28 @@ export default function LatentSpacePage() {
           <Flex direction="column" gap={4}>
             <Flex direction={{ base: 'column', lg: 'row' }} gap={4}>
               {/* UMAP Plot */}
-              <Box
-                position="relative"
-                flex="1 1 auto"
-                h={{ base: '60vh', md: '70vh' }}
-                borderRadius="lg"
-                overflow="hidden"
-                onMouseEnter={() => setShowControls(true)}
-              >
-                <UMAPScatterPlot
-                  data={effectiveProjection}
-                  onPointHover={handlePointHover}
-                  onPointClick={handlePointClick}
-                  selectedClusterId={selectedCluster}
-                  colorPalette={colorPalette}
-                  showOutliers={showOutliers}
-                  pointSize={pointSize}
-                  deckRef={deckRef}
-                />
-
-                {/* Mobile collapsible toolbar */}
-                <Box position="absolute" top={0} left={0} w="full" display={{ base: 'block', lg: 'none' }}>
-                  <Collapse in={showControls} animateOpacity>
-                    <Box bg="whiteAlpha.900" _dark={{ bg: 'gray.800' }} p={2} shadow="md">
-                      <ClusteringControls 
-                        variant="compact" 
-                        deckRef={deckRef}
-                        selectedClusterId={selectedCluster}
-                      />
-                    </Box>
-                  </Collapse>
+              <AspectRatio ratio={1} flex="1" w="100%" onMouseEnter={() => setShowControls(true)}>
+                <Box
+                  position="relative"
+                  borderRadius="lg"
+                  overflow="hidden"
+                >
+                  <UMAPScatterPlot
+                    data={effectiveProjection}
+                    onPointHover={handlePointHover}
+                    onPointClick={handlePointClick}
+                    selectedClusterId={selectedCluster}
+                    colorPalette={colorPalette}
+                    showOutliers={showOutliers}
+                    pointSize={pointSize}
+                    deckRef={deckRef}
+                  />
+                  {/* Mobile collapsible toolbar */}
                 </Box>
-              </Box>
+              </AspectRatio>
 
               {/* Persistent controls column (desktop) */}
-              <Box display={{ base: 'none', lg: 'block' }} w="320px" flexShrink={0}>
+              <Box display={{ base: 'none', lg: 'block' }} w="240px" flexShrink={0}>
                 <ClusteringControls 
                   variant="compact" 
                   deckRef={deckRef}

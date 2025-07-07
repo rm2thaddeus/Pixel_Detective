@@ -151,7 +151,9 @@ export default function JobLogsPage() {
                   <VStack align="start" spacing={1} fontSize="sm" color="gray.100">
                     {data.logs.map((line, idx) => (
                       <Code key={idx} w="full" whiteSpace="pre-wrap" bg="transparent" px={0}>
-                        {line}
+                        {typeof line === 'string'
+                          ? line
+                          : `${line.timestamp} [${line.level.toUpperCase()}] ${line.message}`}
                       </Code>
                     ))}
                   </VStack>

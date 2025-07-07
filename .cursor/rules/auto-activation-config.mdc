@@ -1,6 +1,5 @@
 ---
-description: 
-globs: 
+description: Rules selection patterns for development
 alwaysApply: false
 ---
 # Auto-Activation Configuration - Universal Rule Application

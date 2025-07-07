@@ -3,18 +3,17 @@ import uuid
 import time
 from datetime import datetime
 from enum import Enum
-from typing import Dict, List, Any, Coroutine
+from typing import Dict, List, Any, Coroutine, Optional
 from dataclasses import dataclass, field
 import logging
 
 from fastapi import BackgroundTasks
 from qdrant_client import QdrantClient
 
-# Local pipeline stages
-from . import io_scanner, cpu_processor, gpu_worker, db_upserter
-
+# Logger setup
 logger = logging.getLogger(__name__)
 
+# Job status enumeration
 class JobStatus(str, Enum):
     PENDING = "pending"
     RUNNING = "running"
@@ -27,7 +26,7 @@ class JobContext:
     job_id: str
     status: JobStatus = JobStatus.PENDING
     start_time: float = field(default_factory=time.time)
-    end_time: float | None = None
+    end_time: Optional[float] = None
     
     # --- Queues for pipeline stages ---
     raw_queue: asyncio.Queue = field(default_factory=lambda: asyncio.Queue(maxsize=2000))
@@ -56,6 +55,9 @@ class JobContext:
 
 # In-memory store for active jobs.
 active_jobs: Dict[str, JobContext] = {}
+
+# Local pipeline stages
+from . import io_scanner, cpu_processor, gpu_worker, db_upserter
 
 async def _run_pipeline(
     job_id: str,
@@ -150,7 +152,7 @@ async def start_pipeline(
     logger.info(f"Scheduled pipeline job {job_id} for collection '{collection_name}'")
     return job_id
 
-def get_job_status(job_id: str) -> JobContext | None:
+def get_job_status(job_id: str) -> Optional[JobContext]:
     return active_jobs.get(job_id)
 
 def get_recent_jobs() -> List[Dict[str, Any]]:

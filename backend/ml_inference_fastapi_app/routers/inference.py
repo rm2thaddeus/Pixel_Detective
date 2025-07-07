@@ -4,7 +4,7 @@ import base64
 import io
 from typing import List, Dict, Any, Optional, Tuple
 
-from fastapi import APIRouter, Depends, HTTPException, Body, File, UploadFile
+from fastapi import APIRouter, Depends, HTTPException, Body
 from pydantic import BaseModel
 from PIL import Image
 import torch
@@ -46,17 +46,6 @@ class CapabilitiesResponse(BaseModel):
     device_type: str
     cuda_available: bool
 
-# --- Helper Functions ---
-
-def _decode_and_prep_image(item_id: str, image_data: bytes) -> Tuple[str, Optional[Image.Image], Optional[str]]:
-    """Decodes image bytes and returns a PIL image."""
-    try:
-        image = Image.open(io.BytesIO(image_data)).convert("RGB")
-        return item_id, image, None
-    except Exception as e:
-        logger.error(f"Failed to decode image {item_id}: {e}", exc_info=True)
-        return item_id, None, f"Failed to decode image: {e}"
-
 # --- Endpoints ---
 
 @router.post("/batch_embed_and_caption", response_model=BatchEmbedAndCaptionResponse)
@@ -64,17 +53,17 @@ async def batch_embed_and_caption_endpoint(request: BatchEmbedAndCaptionRequest 
     if not clip_service.get_clip_model_status() or not blip_service.get_blip_model_status():
         raise HTTPException(status_code=503, detail="Models are not ready. Please use /warmup first.")
 
-    loop = asyncio.get_running_loop()
+    valid_images: Dict[str, Image.Image] = {}
+    failed_decodes: Dict[str, str] = {}
     
-    # Decode images in parallel
-    decode_tasks = [
-        loop.run_in_executor(None, _decode_and_prep_image, item.unique_id, base64.b64decode(item.image_base64))
-        for item in request.images
-    ]
-    decoded_results = await asyncio.gather(*decode_tasks)
-    
-    valid_images = {uid: img for uid, img, err in decoded_results if err is None}
-    failed_decodes = {uid: err for uid, img, err in decoded_results if err is not None}
+    for item in request.images:
+        try:
+            image_data = base64.b64decode(item.image_base64)
+            image = Image.open(io.BytesIO(image_data)).convert("RGB")
+            valid_images[item.unique_id] = image
+        except Exception as e:
+            logger.error(f"Failed to decode base64 for {item.unique_id} ({item.filename}): {e}", exc_info=True)
+            failed_decodes[item.unique_id] = f"Failed to decode image: {e}"
 
     results: Dict[str, BatchResultItem] = {
         uid: BatchResultItem(unique_id=uid, filename="", error=err)
@@ -82,6 +71,10 @@ async def batch_embed_and_caption_endpoint(request: BatchEmbedAndCaptionRequest 
     }
     
     if not valid_images:
+        # Add original filenames to the error response for better context
+        for item in request.images:
+            if item.unique_id in results:
+                results[item.unique_id].filename = item.filename
         return BatchEmbedAndCaptionResponse(results=list(results.values()))
 
     # Batch process embeddings and captions under a single GPU lock
@@ -93,11 +86,12 @@ async def batch_embed_and_caption_endpoint(request: BatchEmbedAndCaptionRequest 
         # Captions
         captions = blip_service.generate_captions(image_list)
 
-    # Process results
+    # Process results for valid images
     for i, (uid, image) in enumerate(valid_images.items()):
+        original_item = next((item for item in request.images if item.unique_id == uid), None)
         results[uid] = BatchResultItem(
             unique_id=uid,
-            filename="", # Filename could be mapped back if needed
+            filename=original_item.filename if original_item else "",
             embedding=embeddings[i].tolist(),
             embedding_shape=list(embeddings[i].shape),
             caption=captions[i]

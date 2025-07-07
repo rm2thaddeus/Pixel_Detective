@@ -65,6 +65,19 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning("[lifespan] Could not refresh ingest router batch constants: %s", e)
 
+    # Refresh pipeline stage batch constants so GPU and DB workers use updated sizes
+    try:
+        from .pipeline import gpu_worker, db_upserter
+        gpu_worker.ML_BATCH_SIZE = int(os.getenv("ML_INFERENCE_BATCH_SIZE", gpu_worker.ML_BATCH_SIZE))
+        db_upserter.QDRANT_BATCH_SIZE = int(os.getenv("QDRANT_UPSERT_BATCH_SIZE", db_upserter.QDRANT_BATCH_SIZE))
+        logger.info(
+            "[lifespan] Pipeline batch constants updated – GPU:%s  DB:%s",
+            gpu_worker.ML_BATCH_SIZE,
+            db_upserter.QDRANT_BATCH_SIZE,
+        )
+    except Exception as e:
+        logger.warning("[lifespan] Could not refresh pipeline batch constants: %s", e)
+
     # ------------------------------------------------------------------
     # 1️⃣  Initialize Qdrant Client
     # ------------------------------------------------------------------

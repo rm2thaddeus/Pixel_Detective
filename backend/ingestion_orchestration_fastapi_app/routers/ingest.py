@@ -198,6 +198,9 @@ async def get_job_status(job_id: str):
         "start_time": datetime.fromtimestamp(job_ctx.start_time).isoformat() if job_ctx.start_time else None,
         "end_time": datetime.fromtimestamp(job_ctx.end_time).isoformat() if job_ctx.end_time else None,
         "logs": job_ctx.logs[-100:],  # Return last 100 log entries
+        "message": job_ctx.logs[-1]["message"] if job_ctx.logs else "",
+        "errors": [],
+        "exact_duplicates": [],
     }
 
 @router.get("/recent_jobs")

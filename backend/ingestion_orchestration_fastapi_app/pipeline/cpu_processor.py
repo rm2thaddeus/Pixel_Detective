@@ -3,11 +3,14 @@ import logging
 import diskcache
 from typing import Any
 import os
+import base64
+import io
 
 from qdrant_client.http.models import PointStruct
 
 from .manager import JobContext
 from . import utils
+from . import image_processing
 
 logger = logging.getLogger(__name__)
 
@@ -48,18 +51,42 @@ async def process_files(ctx: JobContext, collection_name: str):
                     ctx.cached_files += 1
                     ctx.add_log(f"Cache hit for {os.path.basename(file_path)}")
                 else:
-                    # Cache Miss: Send to ML queue for processing
-                    metadata = await loop.run_in_executor(None, utils.extract_image_metadata, file_path)
-                    thumbnail = await loop.run_in_executor(None, utils.create_thumbnail_base64, file_path)
+                    # Cache Miss: Decode image, then send to ML queue for processing
+                    loop = asyncio.get_running_loop()
                     
-                    if not thumbnail:
-                         ctx.add_log(f"Could not generate thumbnail for {file_path}", level="warning")
+                    # 1. Decode the image using our new processing utility
+                    image_pil, error = await loop.run_in_executor(
+                        None, image_processing.decode_and_prep_image, file_path
+                    )
+
+                    if error or image_pil is None:
+                        ctx.add_log(f"Failed to decode {os.path.basename(file_path)}: {error}", level="error")
+                        ctx.failed_files += 1
+                        ctx.raw_queue.task_done()
+                        continue
+
+                    # 2. Serialize PIL image to base64 PNG for the ML service
+                    img_byte_arr = io.BytesIO()
+                    image_pil.save(img_byte_arr, format='PNG')
+                    image_base64 = base64.b64encode(img_byte_arr.getvalue()).decode('utf-8')
+
+                    # 3. Create a smaller thumbnail from the PIL image for the frontend
+                    thumbnail_pil = image_pil.copy()
+                    thumbnail_pil.thumbnail((200, 200))
+                    thumb_byte_arr = io.BytesIO()
+                    thumbnail_pil.save(thumb_byte_arr, format='JPEG', quality=85)
+                    thumbnail_base64 = base64.b64encode(thumb_byte_arr.getvalue()).decode('utf-8')
+                    
+                    # 4. Extract metadata
+                    metadata = await loop.run_in_executor(None, utils.extract_image_metadata, file_path)
 
                     await ctx.ml_queue.put({
-                        "file_path": file_path,
+                        "unique_id": file_hash,
                         "file_hash": file_hash,
+                        "image_base64": image_base64,
+                        "thumbnail_base64": thumbnail_base64,
+                        "filename": os.path.basename(file_path),
                         "metadata": metadata,
-                        "thumbnail_base64": thumbnail,
                         "collection_name": collection_name,
                     })
                     ctx.processed_files += 1

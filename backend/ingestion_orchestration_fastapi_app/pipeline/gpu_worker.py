@@ -25,17 +25,12 @@ async def send_batch_to_ml_service(batch_items: list[dict]) -> list[dict]:
     # Prepare request data
     images_payload = []
     for item in batch_items:
-        try:
-            with open(item["file_path"], "rb") as f:
-                image_bytes = f.read()
-            images_payload.append({
-                "unique_id": item["file_hash"],
-                "image_base64": base64.b64encode(image_bytes).decode("utf-8"),
-                "filename": os.path.basename(item["file_path"]),
-            })
-        except Exception as e:
-            logger.error(f"Failed to read and encode file {item['file_path']}: {e}")
-    
+        images_payload.append({
+            "unique_id": item["file_hash"],
+            "image_base64": item["image_base64"],
+            "filename": item["filename"],
+        })
+
     if not images_payload:
         return []
 
