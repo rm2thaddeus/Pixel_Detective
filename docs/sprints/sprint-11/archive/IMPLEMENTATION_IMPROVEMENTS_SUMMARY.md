@@ -94,6 +94,13 @@ if (shouldAutoUpdate) {
 - **Memoized calculations** for colors and view states
 - **Efficient re-rendering** with proper update triggers
 
+### ✅ 6. Backend ML Model Optimization
+**Problem Solved:** GPU memory limitations were capping the inference batch size, creating a throughput bottleneck for ingestion.
+**Implementation:**
+- **Half-Precision (FP16) Loading:** The CLIP and BLIP models in the ML Inference service are now loaded in `torch.float16` on CUDA devices. This simple change reduces the VRAM required for model weights by nearly 50%.
+- **Just-in-Time Compilation:** Both models are wrapped with `torch.compile(mode="reduce-overhead")`, a PyTorch 2.0+ feature that fuses operations into highly efficient GPU kernels for faster inference and better memory management.
+- **Synergy with Auto-Tuning:** These optimizations drastically reduce the memory-per-image, allowing the service's built-in GPU memory probe to **automatically and safely double the effective batch size**, leading to a direct improvement in ingestion throughput.
+
 ## 🛠️ Technical Enhancements
 
 ### Code Organization
@@ -255,7 +262,10 @@ Our current backend implementation uses standard CPU-based libraries:
 - Standard NumPy operations
 
 ### CUDA Acceleration Potential
-Based on research into NVIDIA's RAPIDS cuML ecosystem, significant performance improvements are available:
+Based on research into NVIDIA's RAPIDS cuML ecosystem, significant performance improvements are available. It is important to note that **two layers of acceleration** are now in place:
+
+1.  **PyTorch-Native Acceleration (✅ Implemented):** The `torch.compile` and FP16 optimizations described above are already active. They provide a significant performance boost and memory savings using only standard PyTorch libraries.
+2.  **RAPIDS cuML Acceleration (Future Work):** The opportunities below represent an *additional* layer of optimization, replacing `scikit-learn` and `umap-learn` with their RAPIDS equivalents for another potential 10-100x speedup on specific algorithms.
 
 #### 1. UMAP Acceleration with cuML
 - **Performance Gains**: Up to 312x speedup for large datasets

@@ -21,6 +21,7 @@ router = APIRouter(prefix="/api/v1/images", tags=["images"])
 
 # TODO: Define Pydantic models for response
 
+@router.get("", summary="List images with pagination, filtering, and sorting")
 @router.get("/", summary="List images with pagination, filtering, and sorting")
 async def list_images(
     page: int = Query(1, ge=1, description="Page number for pagination."),

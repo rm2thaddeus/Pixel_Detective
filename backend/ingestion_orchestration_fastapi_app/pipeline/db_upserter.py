@@ -20,33 +20,43 @@ async def upsert_to_db(
 ):
     """
     Consumes points from db_queue, batches them, and upserts them to Qdrant.
-    Runs indefinitely until cancelled.
+    Runs until sentinel is received.
     """
+    batch_points = []
     while True:
         try:
-            batch_points: List[PointStruct] = await utils.gather_batch(
-                ctx.db_queue,
-                max_size=QDRANT_BATCH_SIZE,
-                timeout=1.0
-            )
-
-            if not batch_points:
-                continue
-
-            try:
-                qdrant_client.upsert(
-                    collection_name=collection_name,
-                    points=batch_points,
-                    wait=False # Set to False for async-like behavior
-                )
-                ctx.add_log(f"Upserted {len(batch_points)} points to Qdrant.")
-            except Exception as e:
-                logger.error(f"[{ctx.job_id}] Failed to upsert batch to Qdrant: {e}", exc_info=True)
-                # Increment failed count for each item in the failed batch
-                ctx.failed_files += len(batch_points)
-                ctx.add_log(f"Failed to upsert {len(batch_points)} points: {e}", level="error")
-            # No need to call task_done here as gather_batch does it
-        
+            point = await ctx.db_queue.get()
+            if point is None:
+                # Upsert any remaining points in the batch
+                if batch_points:
+                    try:
+                        qdrant_client.upsert(
+                            collection_name=collection_name,
+                            points=batch_points,
+                            wait=False
+                        )
+                        ctx.add_log(f"Upserted {len(batch_points)} points to Qdrant.")
+                    except Exception as e:
+                        logger.error(f"[{ctx.job_id}] Failed to upsert batch to Qdrant: {e}", exc_info=True)
+                        ctx.failed_files += len(batch_points)
+                        ctx.add_log(f"Failed to upsert {len(batch_points)} points: {e}", level="error")
+                ctx.db_queue.task_done()
+                break
+            batch_points.append(point)
+            if len(batch_points) >= ctx.qdrant_batch_size:
+                try:
+                    qdrant_client.upsert(
+                        collection_name=collection_name,
+                        points=batch_points,
+                        wait=False
+                    )
+                    ctx.add_log(f"Upserted {len(batch_points)} points to Qdrant.")
+                except Exception as e:
+                    logger.error(f"[{ctx.job_id}] Failed to upsert batch to Qdrant: {e}", exc_info=True)
+                    ctx.failed_files += len(batch_points)
+                    ctx.add_log(f"Failed to upsert {len(batch_points)} points: {e}", level="error")
+                batch_points = []
+            ctx.db_queue.task_done()
         except asyncio.CancelledError:
             logger.info(f"[{ctx.job_id}] DB Upserter worker cancelled.")
             break

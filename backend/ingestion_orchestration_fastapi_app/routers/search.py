@@ -46,7 +46,8 @@ class SearchResponse(BaseModel):
 
 # --- API Endpoints ---
 
-@router.post("/text", response_model=SearchResponse, summary="Search images by text query")
+@router.post("", response_model=SearchResponse, summary="Search images by text query")
+@router.post("/", response_model=SearchResponse, summary="Search images by text query")
 async def search_images_by_text(
     search_request: SearchRequest,
     qdrant_client: QdrantClient = Depends(get_qdrant_client),

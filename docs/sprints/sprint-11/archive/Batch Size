@@ -64,6 +64,24 @@ Your 64GB of RAM provides a significant budget for holding more data in-flight, 
 
     - The use of `_probe_safe_batch_size` is a fantastic feature. It means the system will automatically use as much VRAM as it safely can for inference. There are no changes to make here; the system will self-optimize for your GPU.
 
+## 3.5 New in Sprint 11: PyTorch-Native Model Optimizations
+
+While the ingestion service's batch sizes (`ML_INFERENCE_BATCH_SIZE`, `QDRANT_UPSERT_BATCH_SIZE`) are critical, a recent major optimization was applied directly within the **ML Inference Service** to fundamentally increase its processing capacity. This is the direct cause of the observed doubling of the effective batch size.
+
+The CLIP and BLIP models have been optimized using two powerful, modern PyTorch features:
+
+1.  **Half-Precision (FP16) Loading**: By default, models load their weights using 32-bit floating-point numbers. We now load both CLIP and BLIP in 16-bit half-precision (`torch.float16`) when a CUDA device is present. This change alone **cuts the GPU VRAM footprint of each model by nearly 50%**, freeing up a significant amount of memory.
+
+2.  **JIT Compilation (`torch.compile`)**: We now apply `torch.compile(model, mode="reduce-overhead")` to both models on startup. This function analyzes the model's architecture and the underlying GPU hardware, then fuses operations into a more efficient, Just-In-Time compiled kernel. This primarily speeds up inference but also contributes to more efficient memory use.
+
+### The Synergy with Auto-Probing
+
+These optimizations work in perfect concert with the ML service's existing `_probe_safe_batch_size` function.
+- **Before**: The probe would calculate a safe batch size based on the memory consumed by the full-precision (FP32) models.
+- **After**: The probe now runs against the optimized FP16, compiled models. Since each model instance consumes drastically less VRAM, the probe correctly determines that a **much larger number of images can be processed in a single batch** without risk of an Out-of-Memory (OOM) error.
+
+This is why you observed the batch size doubling: we didn't just change a number, we fundamentally increased the memory efficiency of the entire ML pipeline, and the system's auto-tuning capabilities adapted accordingly.
+
 ## 4. Potential Risks of Increasing Values
 
 Increasing these parameters should yield significant performance gains, but it's important to be aware of the potential trade-offs.
@@ -278,6 +296,7 @@ transfer.
 
 * **Dynamic Autosizing** — `autosize_batches()` now scales to 64 GB RAM and
   GPU-safe limits, producing batch sizes like *471 / 2048* automatically.
+* **PyTorch-Native Model Optimization** — Both CLIP and BLIP models in the ML Inference Service are now loaded in **half-precision (FP16)** and optimized with **`torch.compile()`**. This drastically reduces their VRAM footprint, allowing the service's auto-probing to safely **double the effective GPU batch size**, significantly increasing throughput.
 * **Capabilities Endpoint** — `/api/v1/capabilities` on both services exposes
   the effective limits for UIs.
 * **Env-Var Aliasing** — Either `ML_SERVICE_URL` **or** `ML_INFERENCE_SERVICE_URL`

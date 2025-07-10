@@ -35,6 +35,7 @@ class CreateCollectionFromSelectionRequest(BaseModel):
     source_collection: str = Field(..., min_length=1, description="Name of the collection from which the points are sourced")
     point_ids: List[str] = Field(..., min_items=1, description="IDs of the points to copy into the new collection")
 
+@router.get("", response_model=List[str])
 @router.get("/", response_model=List[str])
 async def list_collections(qdrant: QdrantClient = Depends(get_qdrant_client)):
     """Return a list of all collection names in Qdrant."""
@@ -100,6 +101,7 @@ async def get_collection_info(collection_name: str, qdrant: QdrantClient = Depen
         logger.error(f"Failed to get collection info for {collection_name}: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to get collection info: {str(e)}")
 
+@router.post("", response_model=Dict[str, Any])
 @router.post("/", response_model=Dict[str, Any])
 async def create_collection(req: CreateCollectionRequest, qdrant: QdrantClient = Depends(get_qdrant_client)):
     """Create a new collection with given vector_size and distance metric."""
@@ -195,6 +197,7 @@ async def create_collection_from_selection(
 class SelectCollectionRequest(BaseModel):
     collection_name: str = Field(..., min_length=1)
 
+@router.post("", response_model=Dict[str, str])
 @router.post("/select", response_model=Dict[str, str])
 async def select_collection(req: SelectCollectionRequest):
     """Set the active collection in global state."""
@@ -202,6 +205,7 @@ async def select_collection(req: SelectCollectionRequest):
     logger.info(f"Active collection set to {req.collection_name}")
     return {"selected_collection": req.collection_name}
 
+@router.get("", response_model=Dict[str, str])
 @router.get("/active", response_model=Dict[str, str])
 async def get_active_collection():
     """Get the currently active collection."""
@@ -244,6 +248,7 @@ class MergeCollectionsRequest(BaseModel):
     source_collections: List[str] = Field(..., min_items=1, description="Source collections to merge")
 
 
+@router.post("", status_code=202, response_model=Dict[str, Any])
 @router.post("/merge", status_code=202, response_model=Dict[str, Any])
 async def merge_collections(
     req: MergeCollectionsRequest,

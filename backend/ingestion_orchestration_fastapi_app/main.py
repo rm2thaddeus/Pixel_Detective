@@ -51,14 +51,15 @@ async def lifespan(app: FastAPI):
     Application lifespan manager. This is the recommended way to manage
     startup and shutdown events in modern FastAPI.
     """
-    # --- Startup ---
     logger.info("Starting up services...")
-    
-    # ------------------------------------------------------------------
-    # 0️⃣  Dynamically size batch parameters (RAM-aware)
-    # ------------------------------------------------------------------
-    # await autosize.autosize_batches(os.getenv("ML_INFERENCE_SERVICE_URL", "http://localhost:8001"))
-    # app_state.is_ready_for_ingestion = autosize.CAPABILITIES_FETCHED
+    # --- Dynamic batch size negotiation ---
+    # TODO: Fetch ML service capabilities and update batch sizes here
+    # Example (pseudo):
+    # async with httpx.AsyncClient() as client:
+    #     resp = await client.get(f"{app_state.ml_service_url}/api/v1/capabilities")
+    #     caps = resp.json()
+    #     ingest.update_batch_sizes(ml_batch_size=caps.get("safe_clip_batch"))
+    ingest.update_batch_sizes()  # Ensure env and globals are synced
     
     # ------------------------------------------------------------------
     # Env-var aliasing – ensure both ML_SERVICE_URL and ML_INFERENCE_SERVICE_URL
@@ -259,6 +260,12 @@ async def get_capabilities():
         active_collection=app_state.active_collection,
         ml_service_url=app_state.ml_service_url,
     )
+
+
+@app.get("/capabilities", response_model=CapabilitiesResponse)
+async def get_capabilities_alias():
+    """Alias for backward compatibility. Returns the same as /api/v1/capabilities."""
+    return await get_capabilities()
 
 
 @app.post("/api/v1/ingest", response_model=IngestResponse, status_code=202)

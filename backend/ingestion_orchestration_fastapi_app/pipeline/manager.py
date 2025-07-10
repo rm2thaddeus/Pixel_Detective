@@ -6,6 +6,8 @@ from enum import Enum
 from typing import Dict, List, Any, Coroutine, Optional
 from dataclasses import dataclass, field
 import logging
+import os
+import httpx
 
 from fastapi import BackgroundTasks
 from qdrant_client import QdrantClient
@@ -28,10 +30,17 @@ class JobContext:
     start_time: float = field(default_factory=time.time)
     end_time: Optional[float] = None
     
+    # --- Configurable pipeline parameters ---
+    ml_batch_size: int = 32
+    qdrant_batch_size: int = 64
+    cpu_worker_count: int = 2
+    ml_worker_count: int = 1
+    db_worker_count: int = 1
+
     # --- Queues for pipeline stages ---
-    raw_queue: asyncio.Queue = field(default_factory=lambda: asyncio.Queue(maxsize=2000))
-    ml_queue: asyncio.Queue = field(default_factory=lambda: asyncio.Queue(maxsize=1000))
-    db_queue: asyncio.Queue = field(default_factory=lambda: asyncio.Queue(maxsize=1000))
+    raw_queue: asyncio.Queue = field(init=False)
+    ml_queue: asyncio.Queue = field(init=False)
+    db_queue: asyncio.Queue = field(init=False)
     
     # --- Progress tracking ---
     total_files: int = 0
@@ -41,6 +50,11 @@ class JobContext:
     
     logs: List[Dict[str, Any]] = field(default_factory=list)
     tasks: List[asyncio.Task] = field(default_factory=list)
+    
+    def __post_init__(self):
+        self.raw_queue = asyncio.Queue(maxsize=self.ml_batch_size * 2)
+        self.ml_queue = asyncio.Queue(maxsize=self.ml_batch_size * 2)
+        self.db_queue = asyncio.Queue(maxsize=self.qdrant_batch_size * 2)
     
     @property
     def progress(self) -> float:
@@ -73,26 +87,29 @@ async def _run_pipeline(
 
     ctx.status = JobStatus.RUNNING
     ctx.add_log(f"Starting pipeline for directory: {directory_path}")
-    
-    # The "poison pill" is no longer needed with the join/cancel pattern
-    
+
+    # Log queue and worker configuration
+    logger.info(f"[Pipeline Config] ml_batch_size={ctx.ml_batch_size}, qdrant_batch_size={ctx.qdrant_batch_size}, "
+                f"raw_queue.maxsize={ctx.raw_queue.maxsize}, ml_queue.maxsize={ctx.ml_queue.maxsize}, db_queue.maxsize={ctx.db_queue.maxsize}, "
+                f"cpu_worker_count={ctx.cpu_worker_count}, ml_worker_count={ctx.ml_worker_count}, db_worker_count={ctx.db_worker_count}")
+
     try:
         # --- Define and start all workers ---
         scanner_task = asyncio.create_task(io_scanner.scan_directory(ctx, directory_path))
         
         cpu_workers = [
             cpu_processor.process_files(ctx, collection_name)
-            for _ in range(2)
+            for _ in range(ctx.cpu_worker_count)
         ]
         
         gpu_workers = [
             gpu_worker.process_ml_batches(ctx)
-            for _ in range(4)
+            for _ in range(ctx.ml_worker_count)
         ]
         
         db_upserters = [
             db_upserter.upsert_to_db(ctx, collection_name, qdrant_client)
-            for _ in range(2)
+            for _ in range(ctx.db_worker_count)
         ]
         
         all_workers = cpu_workers + gpu_workers + db_upserters
@@ -131,26 +148,77 @@ async def _run_pipeline(
         logger.info(f"[{ctx.job_id}] Pipeline finished with status: {ctx.status.value}")
 
 
+# Add a function to get ML service capabilities
+def get_ml_service_capabilities(ml_service_url: str) -> dict:
+    try:
+        resp = httpx.get(f"{ml_service_url}/api/v1/capabilities", timeout=10)
+        resp.raise_for_status()
+        return resp.json()
+    except Exception as e:
+        logger.warning(f"Could not fetch ML service capabilities: {e}")
+        return {}
+
+def get_ingestion_service_capabilities(ingestion_service_url: str) -> dict:
+    try:
+        resp = httpx.get(f"{ingestion_service_url}/api/v1/capabilities", timeout=10)
+        resp.raise_for_status()
+        return resp.json()
+    except Exception as e:
+        logger.warning(f"Could not fetch ingestion service capabilities: {e}")
+        return {}
+
 async def start_pipeline(
     directory_path: str,
     collection_name: str,
     background_tasks: BackgroundTasks,
-    qdrant_client: QdrantClient
+    qdrant_client: QdrantClient,
+    ml_batch_size: int = 32,
+    qdrant_batch_size: int = 64,
+    cpu_worker_count: int = 2,
+    ml_worker_count: int = 1,
+    db_worker_count: int = 1,
 ) -> str:
-    job_id = str(uuid.uuid4())
-    ctx = JobContext(job_id=job_id)
-    active_jobs[job_id] = ctx
-    
+    # Dynamically determine ML batch size and queue size from ML service capabilities
+    ML_SERVICE_URL = os.environ.get("ML_INFERENCE_SERVICE_URL", "http://localhost:8001")
+    ml_caps = get_ml_service_capabilities(ML_SERVICE_URL)
+    safe_ml_batch_size = ml_caps.get("safe_batch_size") or ml_caps.get("SAFE_BLIP_BATCH_SIZE")
+    if safe_ml_batch_size:
+        ml_batch_size = int(safe_ml_batch_size)
+    ml_queue_maxsize = ml_batch_size * 2
+
+    # Dynamically determine Qdrant batch size and queue size from ingestion service capabilities
+    INGESTION_SERVICE_URL = os.environ.get("INGESTION_SERVICE_URL", "http://localhost:8002")
+    ingest_caps = get_ingestion_service_capabilities(INGESTION_SERVICE_URL)
+    safe_qdrant_batch_size = ingest_caps.get("qdrant_batch_size")
+    if safe_qdrant_batch_size:
+        qdrant_batch_size = int(safe_qdrant_batch_size)
+    db_queue_maxsize = qdrant_batch_size * 2
+
+    ctx = JobContext(
+        job_id=str(uuid.uuid4()),
+        ml_batch_size=ml_batch_size,
+        qdrant_batch_size=qdrant_batch_size,
+        cpu_worker_count=cpu_worker_count,
+        ml_worker_count=ml_worker_count,
+        db_worker_count=db_worker_count,
+    )
+    # Override queue maxsize for ML and DB queues
+    ctx.raw_queue = asyncio.Queue(maxsize=ml_queue_maxsize)
+    ctx.ml_queue = asyncio.Queue(maxsize=ml_queue_maxsize)
+    ctx.db_queue = asyncio.Queue(maxsize=db_queue_maxsize)
+
+    active_jobs[ctx.job_id] = ctx
+
     background_tasks.add_task(
         _run_pipeline,
-        job_id,
+        ctx.job_id,
         directory_path,
         collection_name,
         qdrant_client
     )
-    
-    logger.info(f"Scheduled pipeline job {job_id} for collection '{collection_name}'")
-    return job_id
+
+    logger.info(f"Scheduled pipeline job {ctx.job_id} for collection '{collection_name}' (ml_batch_size={ml_batch_size}, ml_queue_maxsize={ml_queue_maxsize}, qdrant_batch_size={qdrant_batch_size}, db_queue_maxsize={db_queue_maxsize})")
+    return ctx.job_id
 
 def get_job_status(job_id: str) -> Optional[JobContext]:
     return active_jobs.get(job_id)

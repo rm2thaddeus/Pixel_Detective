@@ -29,6 +29,12 @@ async def process_files(ctx: JobContext, collection_name: str):
         try:
             file_path = await ctx.raw_queue.get()
 
+            # Sentinel propagation for batching/shutdown
+            if file_path is None:
+                await ctx.ml_queue.put(None)
+                ctx.raw_queue.task_done()
+                break
+
             try:
                 # --- CPU-bound work ---
                 # Run synchronous file I/O and hashing in a separate thread

@@ -31,6 +31,9 @@ async def scan_directory(ctx: JobContext, directory_path: str):
             await asyncio.sleep(0)
 
         ctx.total_files = file_count
+        # Send sentinel (None) for each CPU worker to signal end-of-stream
+        for _ in range(ctx.cpu_worker_count):
+            await ctx.raw_queue.put(None)
         # This log is now in the manager after this task completes.
         
     except Exception as e:

@@ -44,6 +44,24 @@ ML_SERVICE_URL = (
 ML_BATCH_SIZE = int(os.getenv("ML_INFERENCE_BATCH_SIZE", "25"))
 QDRANT_BATCH_SIZE = int(os.getenv("QDRANT_UPSERT_BATCH_SIZE", "32"))
 
+
+def update_batch_sizes(ml_batch_size: int = None, qdrant_batch_size: int = None):
+    """
+    Update ML_BATCH_SIZE and QDRANT_BATCH_SIZE from environment or provided values.
+    """
+    global ML_BATCH_SIZE, QDRANT_BATCH_SIZE
+    if ml_batch_size is not None:
+        ML_BATCH_SIZE = int(ml_batch_size)
+        os.environ["ML_INFERENCE_BATCH_SIZE"] = str(ML_BATCH_SIZE)
+    else:
+        ML_BATCH_SIZE = int(os.getenv("ML_INFERENCE_BATCH_SIZE", ML_BATCH_SIZE))
+    if qdrant_batch_size is not None:
+        QDRANT_BATCH_SIZE = int(qdrant_batch_size)
+        os.environ["QDRANT_UPSERT_BATCH_SIZE"] = str(QDRANT_BATCH_SIZE)
+    else:
+        QDRANT_BATCH_SIZE = int(os.getenv("QDRANT_UPSERT_BATCH_SIZE", QDRANT_BATCH_SIZE))
+    logger.info(f"[Batch Config] Updated ML_BATCH_SIZE={ML_BATCH_SIZE}, QDRANT_BATCH_SIZE={QDRANT_BATCH_SIZE}")
+
 # NEW ➡️  Feature flag to enable multipart uploads (pre-decoded PNG streaming)
 USE_MULTIPART_UPLOAD = os.getenv("USE_MULTIPART_UPLOAD", "0") not in {"0", "false", "False"}
 
@@ -97,11 +115,23 @@ async def start_ingestion(
     if not os.path.isdir(request.directory_path):
         raise HTTPException(status_code=400, detail="Directory not found.")
 
+    # Compute batch sizes and worker counts
+    ml_batch_size = ML_BATCH_SIZE
+    qdrant_batch_size = QDRANT_BATCH_SIZE
+    cpu_worker_count = max(2, ml_batch_size // 32)
+    ml_worker_count = 1
+    db_worker_count = max(1, qdrant_batch_size // 64)
+
     job_id = await pipeline_manager.start_pipeline(
         directory_path=request.directory_path,
         collection_name=collection_name,
         background_tasks=background_tasks,
-        qdrant_client=qdrant_client
+        qdrant_client=qdrant_client,
+        ml_batch_size=ml_batch_size,
+        qdrant_batch_size=qdrant_batch_size,
+        cpu_worker_count=cpu_worker_count,
+        ml_worker_count=ml_worker_count,
+        db_worker_count=db_worker_count,
     )
     return JobResponse(job_id=job_id, status="started", message="Ingestion job started successfully.")
 
@@ -118,11 +148,23 @@ async def start_ingestion_from_path(
     if not os.path.isdir(request.directory_path):
         raise HTTPException(status_code=400, detail="Directory not found.")
         
+    # Compute batch sizes and worker counts
+    ml_batch_size = ML_BATCH_SIZE
+    qdrant_batch_size = QDRANT_BATCH_SIZE
+    cpu_worker_count = max(2, ml_batch_size // 32)
+    ml_worker_count = 1
+    db_worker_count = max(1, qdrant_batch_size // 64)
+
     job_id = await pipeline_manager.start_pipeline(
         directory_path=request.directory_path,
         collection_name=collection_name,
         background_tasks=background_tasks,
-        qdrant_client=qdrant_client
+        qdrant_client=qdrant_client,
+        ml_batch_size=ml_batch_size,
+        qdrant_batch_size=qdrant_batch_size,
+        cpu_worker_count=cpu_worker_count,
+        ml_worker_count=ml_worker_count,
+        db_worker_count=db_worker_count,
     )
     return JobResponse(job_id=job_id, status="started", message="Ingestion scan started successfully.")
 
@@ -1028,10 +1070,22 @@ async def schedule_ingestion(
     if not os.path.isdir(payload.directory_path):
         raise HTTPException(status_code=400, detail="Directory not found.")
 
+    # Compute batch sizes and worker counts
+    ml_batch_size = ML_BATCH_SIZE
+    qdrant_batch_size = QDRANT_BATCH_SIZE
+    cpu_worker_count = max(2, ml_batch_size // 32)
+    ml_worker_count = 1
+    db_worker_count = max(1, qdrant_batch_size // 64)
+
     job_id = await pipeline_manager.start_pipeline(
         directory_path=payload.directory_path,
         collection_name=collection_name,
         background_tasks=background_tasks,
-        qdrant_client=qdrant_client
+        qdrant_client=qdrant_client,
+        ml_batch_size=ml_batch_size,
+        qdrant_batch_size=qdrant_batch_size,
+        cpu_worker_count=cpu_worker_count,
+        ml_worker_count=ml_worker_count,
+        db_worker_count=db_worker_count,
     )
     return JobResponse(job_id=job_id, status="started", message="Ingestion job started successfully.")
