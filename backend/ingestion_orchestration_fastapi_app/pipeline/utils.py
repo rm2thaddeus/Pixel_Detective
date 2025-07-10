@@ -3,7 +3,9 @@ import hashlib
 import base64
 import io
 import logging
-from typing import List as TypingList, Dict, Any
+import asyncio
+from asyncio import Queue
+from typing import List as TypingList, Dict, Any, TypeVar
 
 import exifread
 from PIL import Image
@@ -171,3 +173,37 @@ def create_thumbnail_base64(image_path: str, size: tuple = (200, 200)) -> str:
     except Exception as e:
         logger.error(f"Failed to create thumbnail for {image_path}: {e}", exc_info=True)
         return ""
+
+T = TypeVar('T')
+
+async def gather_batch(queue: Queue[T], max_size: int, timeout: float) -> TypingList[T]:
+    """
+    Gathers a batch of items from an asyncio queue with a timeout.
+
+    Args:
+        queue: The asyncio queue to pull items from.
+        max_size: The maximum number of items in a batch.
+        timeout: The maximum time to wait for the first item.
+
+    Returns:
+        A list of items, which may be empty if the timeout is reached.
+    """
+    batch = []
+    try:
+        # Wait for the first item with a timeout
+        first_item = await asyncio.wait_for(queue.get(), timeout=timeout)
+        batch.append(first_item)
+        queue.task_done()
+
+        # Gather remaining items without blocking
+        while len(batch) < max_size:
+            try:
+                item = queue.get_nowait()
+                batch.append(item)
+                queue.task_done()
+            except asyncio.QueueEmpty:
+                break  # No more items in the queue
+    except asyncio.TimeoutError:
+        pass  # No items received within the timeout
+
+    return batch

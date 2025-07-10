@@ -7,6 +7,7 @@ from qdrant_client import QdrantClient
 from qdrant_client.http.models import PointStruct
 
 from .manager import JobContext
+from . import utils
 
 logger = logging.getLogger(__name__)
 
@@ -23,21 +24,11 @@ async def upsert_to_db(
     """
     while True:
         try:
-            batch_points: List[PointStruct] = []
-            # Gather a batch of items with a timeout
-            try:
-                # Wait for the first item
-                first_point = await ctx.db_queue.get()
-                batch_points.append(first_point)
-
-                # Gather subsequent items with a short timeout
-                while len(batch_points) < QDRANT_BATCH_SIZE:
-                    point = await asyncio.wait_for(ctx.db_queue.get(), timeout=1.0)
-                    batch_points.append(point)
-
-            except asyncio.TimeoutError:
-                # Batch is ready to be sent
-                pass
+            batch_points: List[PointStruct] = await utils.gather_batch(
+                ctx.db_queue,
+                max_size=QDRANT_BATCH_SIZE,
+                timeout=1.0
+            )
 
             if not batch_points:
                 continue
@@ -54,10 +45,7 @@ async def upsert_to_db(
                 # Increment failed count for each item in the failed batch
                 ctx.failed_files += len(batch_points)
                 ctx.add_log(f"Failed to upsert {len(batch_points)} points: {e}", level="error")
-            finally:
-                # Mark all items in the batch as done
-                for _ in batch_points:
-                    ctx.db_queue.task_done()
+            # No need to call task_done here as gather_batch does it
         
         except asyncio.CancelledError:
             logger.info(f"[{ctx.job_id}] DB Upserter worker cancelled.")

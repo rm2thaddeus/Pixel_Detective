@@ -58,21 +58,12 @@ async def process_ml_batches(ctx: JobContext):
     """
     while True:
         try:
-            batch_items = []
-            # Gather a batch of items with a timeout
-            try:
-                # Wait for the first item with no timeout
-                first_item = await ctx.ml_queue.get()
-                batch_items.append(first_item)
-                
-                # Gather subsequent items with a short timeout to create batches
-                while len(batch_items) < ML_BATCH_SIZE:
-                    item = await asyncio.wait_for(ctx.ml_queue.get(), timeout=1.0)
-                    batch_items.append(item)
-            
-            except asyncio.TimeoutError:
-                # Timeout means batch is ready to be sent
-                pass
+            # Gather a batch of items using the new utility function
+            batch_items = await utils.gather_batch(
+                ctx.ml_queue, 
+                max_size=ML_BATCH_SIZE, 
+                timeout=1.0
+            )
 
             if not batch_items:
                 continue
@@ -121,9 +112,7 @@ async def process_ml_batches(ctx: JobContext):
                         logger.error(f"[{ctx.job_id}] Error processing ML result for {file_hash}: {e}", exc_info=True)
                         ctx.failed_files += 1
                 
-            # Mark all items in the batch as done
-            for _ in batch_items:
-                ctx.ml_queue.task_done()
+            # No need to call task_done here as gather_batch does it
 
         except asyncio.CancelledError:
             logger.info(f"[{ctx.job_id}] GPU worker cancelled.")

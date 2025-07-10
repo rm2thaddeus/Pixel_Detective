@@ -21,7 +21,7 @@ import exifread
 import glob
 from datetime import datetime
 
-from ..dependencies import get_qdrant_client, get_active_collection
+from ..dependencies import get_qdrant_client, get_active_collection, app_state
 from ..pipeline import manager as pipeline_manager
 
 logger = logging.getLogger(__name__)
@@ -990,3 +990,48 @@ async def process_and_cleanup_directory(job_id: str, directory_path: str, collec
             logger.info(f"Successfully removed temporary directory: {directory_path}")
         except Exception as e:
             logger.error(f"Failed to remove temporary directory {directory_path}: {e}")
+
+@router.post("/", status_code=202)
+async def schedule_ingestion(
+    payload: IngestRequest,
+    background_tasks: BackgroundTasks,
+    qdrant_client: QdrantClient = Depends(get_qdrant_client),
+):
+    """
+    Schedules a new ingestion pipeline run for a given directory.
+    This is the primary endpoint for starting a new import/scan job.
+    """
+    # --- Readiness Check ---
+    if not app_state.is_ready_for_ingestion:
+        logger.warning(
+            "Rejecting ingestion request: Service is not ready. "
+            "ML service capabilities have not been successfully fetched."
+        )
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "Service is not ready for ingestion. This usually means it cannot "
+                "connect to the ML inference service to determine safe batch sizes. "
+                "Please check the ML service logs and restart the ingestion service."
+            ),
+        )
+
+    # Use the globally active collection
+    collection_name = get_active_collection.__wrapped__()
+
+    if not collection_name:
+        raise HTTPException(
+            status_code=500,
+            detail="No active collection found. Please configure a collection before starting ingestion."
+        )
+
+    if not os.path.isdir(payload.directory_path):
+        raise HTTPException(status_code=400, detail="Directory not found.")
+
+    job_id = await pipeline_manager.start_pipeline(
+        directory_path=payload.directory_path,
+        collection_name=collection_name,
+        background_tasks=background_tasks,
+        qdrant_client=qdrant_client
+    )
+    return JobResponse(job_id=job_id, status="started", message="Ingestion job started successfully.")

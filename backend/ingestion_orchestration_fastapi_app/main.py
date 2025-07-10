@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, APIRouter, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from qdrant_client import QdrantClient
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from pydantic import BaseModel
 import diskcache
 from PIL import Image
@@ -14,15 +14,35 @@ import asyncio
 from .dependencies import app_state, get_qdrant_client
 
 # Dynamic batch-size helper (runs in lifespan → sets env vars before heavy work)
-from .utils.autosize import autosize_batches
+# from .utils import autosize
 
 # Routers – imported *after* helper to ensure any module-level constants read the
 # finalised environment variables.
-from .routers import search, images, duplicates, random, collections, umap, curation  # and any others
+from .routers import search, images, duplicates, random, collections, umap, curation, ingest
 
 # Configure logging
 logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO").upper())
 logger = logging.getLogger(__name__)
+
+
+# --- App State ---
+# The AppState class and app_state instance are now managed in `dependencies.py`
+# to avoid circular imports and provide a single source of truth for application state.
+
+
+# --- Pydantic Models ---
+class CapabilitiesResponse(BaseModel):
+    ml_batch_size: int
+    qdrant_batch_size: int
+    is_ready_for_ingestion: bool
+    active_collection: Optional[str] = None
+    ml_service_url: str
+
+class IngestRequest(BaseModel):
+    pass  # Placeholder for now
+
+class IngestResponse(BaseModel):
+    job_id: str
 
 
 @asynccontextmanager
@@ -37,8 +57,9 @@ async def lifespan(app: FastAPI):
     # ------------------------------------------------------------------
     # 0️⃣  Dynamically size batch parameters (RAM-aware)
     # ------------------------------------------------------------------
-    autosize_batches(os.getenv("ML_INFERENCE_SERVICE_URL", "http://localhost:8001"))
-
+    # await autosize.autosize_batches(os.getenv("ML_INFERENCE_SERVICE_URL", "http://localhost:8001"))
+    # app_state.is_ready_for_ingestion = autosize.CAPABILITIES_FETCHED
+    
     # ------------------------------------------------------------------
     # Env-var aliasing – ensure both ML_SERVICE_URL and ML_INFERENCE_SERVICE_URL
     # are populated to avoid mismatches across routers/modules.
@@ -86,8 +107,29 @@ async def lifespan(app: FastAPI):
     app_state.qdrant_client = QdrantClient(host=qdrant_host, port=qdrant_port)
     logger.info(f"Qdrant client initialized for {qdrant_host}:{qdrant_port}")
 
+    # --- NEW: Wait for Qdrant to be healthy before proceeding ---
+    max_retries = 10
+    retry_delay_seconds = 5
+    for attempt in range(max_retries):
+        try:
+            logger.info(f"Checking Qdrant health (attempt {attempt + 1}/{max_retries})...")
+            # A simple operation to confirm connectivity and readiness
+            app_state.qdrant_client.get_collections()
+            logger.info("Qdrant is healthy. Proceeding with startup.")
+            break
+        except Exception as e:
+            logger.warning(f"Qdrant not ready yet: {e}")
+            if attempt < max_retries - 1:
+                await asyncio.sleep(retry_delay_seconds)
+            else:
+                logger.error("Qdrant health check failed after multiple retries. The service might be unavailable.")
+                # Depending on requirements, you might want to raise an exception here
+                # to prevent the service from starting in a broken state.
+                # For now, we'll log the error and continue, but endpoints will likely fail.
+
     # Note: We don't load ML models here anymore - we use the ML service via HTTP
-    logger.info("Using ML service at http://localhost:8001 for embeddings")
+    app_state.ml_service_url = os.getenv("ML_INFERENCE_SERVICE_URL", "http://localhost:8001")
+    logger.info("Using ML service at %s for embeddings", app_state.ml_service_url)
 
     # No default active collection - users must explicitly select one
     app_state.active_collection = None
@@ -166,7 +208,6 @@ app.include_router(umap.router)
 app.include_router(curation.router)
 
 # Import and include the ingest router
-from .routers import ingest
 app.include_router(ingest.router)
 
 # --- API V1 Router Setup ---
@@ -189,7 +230,8 @@ async def health():
     for attempt in range(max_retries):
         try:
             # This is the operation that might fail during startup
-            app_state.qdrant_client.get_collections()
+            client = get_qdrant_client()
+            client.get_collections()
             qdrant_status = "ok"
             break  # Success, exit the loop
         except Exception as e:
@@ -207,41 +249,24 @@ async def health():
         raise HTTPException(status_code=503, detail={"status": "error", "services": {"qdrant": qdrant_status, "ml_service": "external"}})
 
 
-# ---------------------------------------------------------------------------
-# Service capabilities – exposes effective batch sizes for UI and other
-# services so they can adapt dynamically without reading env vars directly.
-# ---------------------------------------------------------------------------
-
-
-class CapabilitiesResponse(BaseModel):
-    ml_inference_batch_size: int
-    qdrant_upsert_batch_size: int
-
-
 @app.get("/api/v1/capabilities", response_model=CapabilitiesResponse)
 async def get_capabilities():
-    """Return the effective ingestion service batch sizes so clients can
-    display accurate configuration info or auto-tune their behaviour."""
+    """Returns the current operational capabilities of the ingestion service."""
     return CapabilitiesResponse(
-        ml_inference_batch_size=int(os.getenv("ML_INFERENCE_BATCH_SIZE", "25")),
-        qdrant_upsert_batch_size=int(os.getenv("QDRANT_UPSERT_BATCH_SIZE", "32")),
+        ml_batch_size=int(os.environ.get("ML_INFERENCE_BATCH_SIZE", "1")),
+        qdrant_batch_size=int(os.environ.get("QDRANT_UPSERT_BATCH_SIZE", "1")),
+        is_ready_for_ingestion=app_state.is_ready_for_ingestion,
+        active_collection=app_state.active_collection,
+        ml_service_url=app_state.ml_service_url,
     )
 
 
-# Example endpoint to change the active collection
-# @app.post("/api/v1/collections/select", tags=["collections"])
-# def select_collection(collection_name: str):
-#     """
-#     An endpoint to change the globally active collection.
-#     """
-#     logger.info(f"Changing active collection from '{app_state.active_collection}' to '{collection_name}'")
-#     app_state.active_collection = collection_name
-#     return {"message": f"Active collection changed to '{collection_name}'"}
-
-# Legacy collection routes were replaced by `routers/collections.py` to avoid duplication and validation issues.
-
-# --- Legacy image endpoints removed ---
-# Image serving is now handled by the images router in routers/images.py
+@app.post("/api/v1/ingest", response_model=IngestResponse, status_code=202)
+async def schedule_ingestion(
+    request: IngestRequest
+):
+    # Placeholder for now
+    pass
 
 if __name__ == "__main__":
     import uvicorn
