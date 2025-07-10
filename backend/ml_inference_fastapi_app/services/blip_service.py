@@ -27,13 +27,26 @@ async def load_blip_model() -> Tuple[Any, Any]:
 
     logger.info(f"Loading BLIP model: {BLIP_MODEL_NAME_CONFIG} on device: {DEVICE}")
     try:
-        processor = AutoProcessor.from_pretrained(BLIP_MODEL_NAME_CONFIG)
-        model = BlipForConditionalGeneration.from_pretrained(BLIP_MODEL_NAME_CONFIG).to(DEVICE)
-        model.eval()
-        BLIP_MODEL = model
-        BLIP_PROCESSOR = processor
+        blip_processor = AutoProcessor.from_pretrained(BLIP_MODEL_NAME_CONFIG)
+        blip_model = BlipForConditionalGeneration.from_pretrained(BLIP_MODEL_NAME_CONFIG)
+
+        if DEVICE.type == 'cuda':
+            # Move model to GPU with FP16 for memory efficiency
+            blip_model.to(torch.float16)
+            
+            # Apply torch.compile for performance (PyTorch 2.0+)
+            try:
+                blip_model = torch.compile(blip_model, mode="reduce-overhead")
+                logger.info("✅ Applied torch.compile optimization to BLIP model")
+            except Exception as e:
+                logger.warning("torch.compile for BLIP failed, continuing without it: %s", e)
+
+        blip_model = blip_model.to(DEVICE)
+        blip_model.eval()
+        BLIP_MODEL = blip_model
+        BLIP_PROCESSOR = blip_processor
         logger.info("BLIP model loaded successfully.")
-        return model, processor
+        return blip_model, blip_processor
     except Exception as e:
         logger.error(f"Failed to load BLIP model: {e}", exc_info=True)
         BLIP_MODEL = "failed"

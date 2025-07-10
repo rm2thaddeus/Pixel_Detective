@@ -30,12 +30,26 @@ async def load_clip_model() -> Tuple[Any, Any]:
     logger.info(f"Loading CLIP model: {CLIP_MODEL_NAME_CONFIG} on device: {DEVICE}")
     try:
         processor = AutoProcessor.from_pretrained(CLIP_MODEL_NAME_CONFIG)
-        model = AutoModel.from_pretrained(CLIP_MODEL_NAME_CONFIG).to(DEVICE)
-        model.eval()
-        CLIP_MODEL = model
+        clip_model = AutoModel.from_pretrained(CLIP_MODEL_NAME_CONFIG)
+
+        if DEVICE.type == 'cuda':
+            # FP16 for memory efficiency
+            clip_model.to(torch.float16)
+            
+            # Apply torch.compile for performance (PyTorch 2.0+)
+            try:
+                # mode="reduce-overhead" is great for inference
+                clip_model = torch.compile(clip_model, mode="reduce-overhead")
+                logger.info("✅ Applied torch.compile optimization to CLIP model")
+            except Exception as e:
+                logger.warning("torch.compile for CLIP failed, continuing without it: %s", e)
+
+        clip_model = clip_model.to(DEVICE)
+        clip_model.eval()
+        CLIP_MODEL = clip_model
         CLIP_PROCESSOR = processor
         logger.info("CLIP model loaded successfully.")
-        return model, processor
+        return clip_model, processor
     except Exception as e:
         logger.error(f"Failed to load CLIP model: {e}", exc_info=True)
         CLIP_MODEL = "failed" # Mark as failed to prevent retries

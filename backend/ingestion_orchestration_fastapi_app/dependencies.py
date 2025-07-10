@@ -2,9 +2,6 @@ from fastapi import Request, HTTPException
 from qdrant_client import QdrantClient
 import os
 
-from .pipeline.manager import PipelineManager
-from .config import get_settings
-
 # Environment variables for Qdrant connection
 QDRANT_HOST = os.environ.get("QDRANT_HOST", "localhost")
 QDRANT_PORT = int(os.environ.get("QDRANT_PORT", 6333))

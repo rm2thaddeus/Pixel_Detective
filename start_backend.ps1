@@ -92,7 +92,7 @@ if ($UseJobs) {
     # 3.1  ML Inference Service
     # Run from repository root using package path to enable relative imports
     $mlDir = $RepoRoot
-    $mlCmd = "uvicorn backend.ml_inference_fastapi_app.main:app --host 0.0.0.0 --port 8001"
+    $mlCmd = "uvicorn backend.ml_inference_fastapi_app.main:app --host 0.0.0.0 --port 8001 --reload"
     Write-Info "Starting ML Inference FastAPI service (port 8001) as background job..."
     Start-Job -Name "MLInference" -ScriptBlock {
         param($dir, $cmd)
@@ -127,7 +127,7 @@ if ($UseJobs) {
     # 3.1  ML Inference Service
     # Run from repository root using package path to enable relative imports
     $mlDir = $RepoRoot
-    $mlCmd = "uvicorn backend.ml_inference_fastapi_app.main:app --host 0.0.0.0 --port 8001"
+    $mlCmd = "uvicorn backend.ml_inference_fastapi_app.main:app --host 0.0.0.0 --port 8001 --reload"
     Write-Info "Launching ML Inference FastAPI service (port 8001)..."
     Start-ServiceWindow $mlDir $mlCmd "ML Inference Service"
 
