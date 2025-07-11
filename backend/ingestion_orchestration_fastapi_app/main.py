@@ -14,7 +14,7 @@ import asyncio
 from .dependencies import app_state, get_qdrant_client
 
 # Dynamic batch-size helper (runs in lifespan → sets env vars before heavy work)
-# from .utils import autosize
+from .utils import autosize
 
 # Routers – imported *after* helper to ensure any module-level constants read the
 # finalised environment variables.
@@ -57,8 +57,10 @@ async def lifespan(app: FastAPI):
     # ------------------------------------------------------------------
     # 0️⃣  Dynamically size batch parameters (RAM-aware)
     # ------------------------------------------------------------------
-    # await autosize.autosize_batches(os.getenv("ML_INFERENCE_SERVICE_URL", "http://localhost:8001"))
-    # app_state.is_ready_for_ingestion = autosize.CAPABILITIES_FETCHED
+    await autosize.autosize_batches(
+        os.getenv("ML_INFERENCE_SERVICE_URL", "http://localhost:8001")
+    )
+    app_state.is_ready_for_ingestion = autosize.CAPABILITIES_FETCHED
     
     # ------------------------------------------------------------------
     # Env-var aliasing – ensure both ML_SERVICE_URL and ML_INFERENCE_SERVICE_URL

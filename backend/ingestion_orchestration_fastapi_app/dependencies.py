@@ -2,7 +2,8 @@ from fastapi import Request, HTTPException
 from qdrant_client import QdrantClient
 import os
 
-from .pipeline.manager import PipelineManager
+from typing import Union
+
 from .config import get_settings
 
 # Environment variables for Qdrant connection
