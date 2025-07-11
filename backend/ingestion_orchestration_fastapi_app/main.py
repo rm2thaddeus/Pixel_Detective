@@ -14,7 +14,7 @@ import asyncio
 from .dependencies import app_state, get_qdrant_client
 
 # Dynamic batch-size helper (runs in lifespan → sets env vars before heavy work)
-# from .utils import autosize
+from .utils import autosize
 
 # Routers – imported *after* helper to ensure any module-level constants read the
 # finalised environment variables.
@@ -52,14 +52,14 @@ async def lifespan(app: FastAPI):
     startup and shutdown events in modern FastAPI.
     """
     logger.info("Starting up services...")
-    # --- Dynamic batch size negotiation ---
-    # TODO: Fetch ML service capabilities and update batch sizes here
-    # Example (pseudo):
-    # async with httpx.AsyncClient() as client:
-    #     resp = await client.get(f"{app_state.ml_service_url}/api/v1/capabilities")
-    #     caps = resp.json()
-    #     ingest.update_batch_sizes(ml_batch_size=caps.get("safe_clip_batch"))
-    ingest.update_batch_sizes()  # Ensure env and globals are synced
+    
+    # ------------------------------------------------------------------
+    # 0️⃣  Dynamically size batch parameters (RAM-aware)
+    # ------------------------------------------------------------------
+    await autosize.autosize_batches(
+        os.getenv("ML_INFERENCE_SERVICE_URL", "http://localhost:8001")
+    )
+    app_state.is_ready_for_ingestion = autosize.CAPABILITIES_FETCHED
     
     # ------------------------------------------------------------------
     # Env-var aliasing – ensure both ML_SERVICE_URL and ML_INFERENCE_SERVICE_URL

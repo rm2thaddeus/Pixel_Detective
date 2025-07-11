@@ -1,6 +1,7 @@
 from fastapi import Request, HTTPException
 from qdrant_client import QdrantClient
 import os
+from typing import Union
 
 # Environment variables for Qdrant connection
 QDRANT_HOST = os.environ.get("QDRANT_HOST", "localhost")
