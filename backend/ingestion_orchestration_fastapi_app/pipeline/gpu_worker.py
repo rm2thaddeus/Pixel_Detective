@@ -55,8 +55,7 @@ async def process_ml_batches(ctx: JobContext):
     """
     Consumes items from ml_queue, batches them, sends them to the ML service,
     and places the results in the db_queue. Runs until all CPU workers are done.
-    Implements smart batch flushing: at pipeline start, if a full batch is not reached within 30s, flush whatever is available.
-    After the first batch, flush as soon as a batch is full, or after 3s of waiting for more items.
+    Implements smart batch flushing: first batch flushes after 30s if not full, then always flushes as soon as possible.
     """
     batch = []
     sentinels_received = 0
@@ -64,133 +63,113 @@ async def process_ml_batches(ctx: JobContext):
     first_batch_start = None
     while True:
         try:
-            # For the first batch, use a long timeout (30s), then switch to short (3s)
-            batch_timeout = 30.0 if first_batch else 3.0
-            # If batch is empty, block with timeout for the first item
-            if not batch:
+            if first_batch:
+                # For the first batch, wait up to 30s for items to fill the batch
+                if first_batch_start is None:
+                    first_batch_start = asyncio.get_event_loop().time()
+                timeout = 30.0 - (asyncio.get_event_loop().time() - first_batch_start)
+                if timeout <= 0:
+                    timeout = 0.01
                 try:
-                    first_batch_start = first_batch_start or asyncio.get_event_loop().time()
-                    item = await asyncio.wait_for(ctx.ml_queue.get(), timeout=batch_timeout)
-                    batch.append(item)
-                    ctx.ml_queue.task_done()
+                    item = await asyncio.wait_for(ctx.ml_queue.get(), timeout=timeout)
                 except asyncio.TimeoutError:
-                    # If nothing arrives in timeout, and batch is empty, just continue
+                    # Timeout: flush whatever is in the batch
+                    if batch:
+                        logger.info(f"[{ctx.job_id}] [ML] Flushing first batch early after 30s: {len(batch)} items")
+                        await _flush_ml_batch(ctx, batch)
+                        batch = []
+                        first_batch = False
+                        first_batch_start = None
                     continue
-            # Try to fill the batch up to ml_batch_size, but don't block
-            while len(batch) < ctx.ml_batch_size:
-                try:
-                    item = ctx.ml_queue.get_nowait()
-                    batch.append(item)
+                if item is None:
+                    sentinels_received += 1
                     ctx.ml_queue.task_done()
-                except asyncio.QueueEmpty:
-                    break
-            # If batch is full, or if we've waited long enough for the first batch, or if we've waited 3s for subsequent batches, flush
-            should_flush = False
-            if len(batch) >= ctx.ml_batch_size:
-                should_flush = True
-            elif first_batch and first_batch_start and (asyncio.get_event_loop().time() - first_batch_start >= 30.0):
-                should_flush = True
-            elif not first_batch and batch and len(batch) > 0:
-                # For subsequent batches, flush if we've waited 3s since last item
-                should_flush = True
-            if should_flush:
-                logger.info(f"[{ctx.job_id}] Sending ML batch of size {len(batch)}: {[i['file_hash'] for i in batch]}")
-                ml_results = await send_batch_to_ml_service(batch)
-                item_map = {i["file_hash"]: i for i in batch}
-                for result in ml_results:
-                    file_hash = result.get("unique_id")
-                    original_item = item_map.get(file_hash)
-                    if not original_item:
-                        logger.warning(f"[{ctx.job_id}] Received ML result for unknown hash: {file_hash}")
-                        continue
-                    if result.get("error"):
-                        ctx.failed_files += 1
-                        ctx.add_log(f"ML service failed for {original_item['metadata']['filename']}: {result['error']}", level="error")
+                    # Only exit after all CPU workers have sent their sentinel
+                    if sentinels_received == ctx.cpu_worker_count:
+                        if batch:
+                            logger.info(f"[{ctx.job_id}] [ML] Flushing final ML batch of size {len(batch)} (first batch mode)")
+                            await _flush_ml_batch(ctx, batch)
+                        for _ in range(ctx.db_worker_count):
+                            await ctx.db_queue.put(None)
+                        break
                     else:
-                        try:
-                            payload = original_item["metadata"]
-                            payload["caption"] = result.get("caption")
-                            payload["thumbnail_base64"] = original_item.get("thumbnail_base64")
-                            point_id = str(uuid.uuid4())
-                            point = PointStruct(
-                                id=point_id,
-                                vector=result["embedding"],
-                                payload=payload
-                            )
-                            await ctx.db_queue.put(point)
-                            cache_key = f"{original_item['collection_name']}:{file_hash}"
-                            cache.set(cache_key, {
-                                "id": point_id,
-                                "vector": result["embedding"],
-                                "payload": payload
-                            })
-                        except Exception as e:
-                            logger.error(f"[{ctx.job_id}] Error processing ML result for {file_hash}: {e}", exc_info=True)
-                            ctx.failed_files += 1
-                batch = []
-                if first_batch:
+                        continue
+                batch.append(item)
+                if len(batch) >= ctx.ml_batch_size:
+                    logger.info(f"[{ctx.job_id}] [ML] Sending first full ML batch of size {len(batch)}")
+                    await _flush_ml_batch(ctx, batch)
+                    batch = []
                     first_batch = False
                     first_batch_start = None
-            # Check for sentinels (end of stream)
-            # If a sentinel is in the queue, process it
-            while True:
+                ctx.ml_queue.task_done()
+            else:
+                # After first batch, always flush as soon as batch is full, or if queue is empty for a short time
                 try:
-                    item = ctx.ml_queue.get_nowait()
-                    if item is None:
-                        sentinels_received += 1
-                        if sentinels_received == ctx.cpu_worker_count:
-                            # Flush any remaining items
-                            if batch:
-                                logger.info(f"[{ctx.job_id}] Flushing final ML batch of size {len(batch)}: {[i['file_hash'] for i in batch]}")
-                                ml_results = await send_batch_to_ml_service(batch)
-                                item_map = {i["file_hash"]: i for i in batch}
-                                for result in ml_results:
-                                    file_hash = result.get("unique_id")
-                                    original_item = item_map.get(file_hash)
-                                    if not original_item:
-                                        logger.warning(f"[{ctx.job_id}] Received ML result for unknown hash: {file_hash}")
-                                        continue
-                                    if result.get("error"):
-                                        ctx.failed_files += 1
-                                        ctx.add_log(f"ML service failed for {original_item['metadata']['filename']}: {result['error']}", level="error")
-                                    else:
-                                        try:
-                                            payload = original_item["metadata"]
-                                            payload["caption"] = result.get("caption")
-                                            payload["thumbnail_base64"] = original_item.get("thumbnail_base64")
-                                            point_id = str(uuid.uuid4())
-                                            point = PointStruct(
-                                                id=point_id,
-                                                vector=result["embedding"],
-                                                payload=payload
-                                            )
-                                            await ctx.db_queue.put(point)
-                                            cache_key = f"{original_item['collection_name']}:{file_hash}"
-                                            cache.set(cache_key, {
-                                                "id": point_id,
-                                                "vector": result["embedding"],
-                                                "payload": payload
-                                            })
-                                        except Exception as e:
-                                            logger.error(f"[{ctx.job_id}] Error processing ML result for {file_hash}: {e}", exc_info=True)
-                                            ctx.failed_files += 1
-                                batch = []
-                            # Propagate sentinels downstream for all DB upserter workers
-                            for _ in range(ctx.db_worker_count):
-                                await ctx.db_queue.put(None)
-                            ctx.ml_queue.task_done()
-                            return
-                        else:
-                            ctx.ml_queue.task_done()
-                            continue
+                    item = await asyncio.wait_for(ctx.ml_queue.get(), timeout=2.0)
+                except asyncio.TimeoutError:
+                    # Timeout: flush whatever is in the batch
+                    if batch:
+                        logger.info(f"[{ctx.job_id}] [ML] Flushing partial ML batch after idle: {len(batch)} items")
+                        await _flush_ml_batch(ctx, batch)
+                        batch = []
+                    continue
+                if item is None:
+                    sentinels_received += 1
+                    ctx.ml_queue.task_done()
+                    if sentinels_received == ctx.cpu_worker_count:
+                        if batch:
+                            logger.info(f"[{ctx.job_id}] [ML] Flushing final ML batch of size {len(batch)}")
+                            await _flush_ml_batch(ctx, batch)
+                        for _ in range(ctx.db_worker_count):
+                            await ctx.db_queue.put(None)
+                        break
                     else:
-                        batch.append(item)
-                        ctx.ml_queue.task_done()
-                except asyncio.QueueEmpty:
-                    break
+                        continue
+                batch.append(item)
+                if len(batch) >= ctx.ml_batch_size:
+                    logger.info(f"[{ctx.job_id}] [ML] Sending ML batch of size {len(batch)}")
+                    await _flush_ml_batch(ctx, batch)
+                    batch = []
+                ctx.ml_queue.task_done()
         except asyncio.CancelledError:
             logger.info(f"[{ctx.job_id}] GPU worker cancelled.")
             break
         except Exception as e:
             logger.error(f"[{ctx.job_id}] Unhandled error in GPU worker: {e}", exc_info=True)
             break
+
+async def _flush_ml_batch(ctx: JobContext, batch: list):
+    if not batch:
+        return
+    ml_results = await send_batch_to_ml_service(batch)
+    item_map = {i["file_hash"]: i for i in batch}
+    for result in ml_results:
+        file_hash = result.get("unique_id")
+        original_item = item_map.get(file_hash)
+        if not original_item:
+            logger.warning(f"[{ctx.job_id}] Received ML result for unknown hash: {file_hash}")
+            continue
+        if result.get("error"):
+            ctx.failed_files += 1
+            ctx.add_log(f"ML service failed for {original_item['metadata']['filename']}: {result['error']}", level="error")
+        else:
+            try:
+                payload = original_item["metadata"]
+                payload["caption"] = result.get("caption")
+                payload["thumbnail_base64"] = original_item.get("thumbnail_base64")
+                point_id = str(uuid.uuid4())
+                point = PointStruct(
+                    id=point_id,
+                    vector=result["embedding"],
+                    payload=payload
+                )
+                await ctx.db_queue.put(point)
+                cache_key = f"{original_item['collection_name']}:{file_hash}"
+                cache.set(cache_key, {
+                    "id": point_id,
+                    "vector": result["embedding"],
+                    "payload": payload
+                })
+            except Exception as e:
+                logger.error(f"[{ctx.job_id}] Error processing ML result for {file_hash}: {e}", exc_info=True)
+                ctx.failed_files += 1
