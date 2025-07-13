@@ -50,6 +50,7 @@ async def lifespan(app: FastAPI):
     """
     Application lifespan manager. This is the recommended way to manage
     startup and shutdown events in modern FastAPI.
+    Now includes a periodic background task to sync ML service capabilities.
     """
     logger.info("Starting up services...")
     
@@ -60,6 +61,28 @@ async def lifespan(app: FastAPI):
         os.getenv("ML_INFERENCE_SERVICE_URL", "http://localhost:8001")
     )
     app_state.is_ready_for_ingestion = autosize.CAPABILITIES_FETCHED
+
+    async def periodic_ml_capability_sync():
+        """Background task: periodically fetch ML service capabilities and update batch sizes/readiness.
+        - Retry every 10 seconds until first successful fetch.
+        - After first success, sync every 15 minutes (900 seconds).
+        """
+        ml_url = os.getenv("ML_INFERENCE_SERVICE_URL", "http://localhost:8001")
+        first_success = False
+        while True:
+            try:
+                await autosize.autosize_batches(ml_url)
+                app_state.is_ready_for_ingestion = autosize.CAPABILITIES_FETCHED
+                logger.info("[Periodic Sync] ML capabilities fetched and batch sizes updated. is_ready_for_ingestion=%s", app_state.is_ready_for_ingestion)
+                if not first_success:
+                    first_success = True
+                    logger.info("[Periodic Sync] First successful ML capability fetch. Switching to 15-minute interval.")
+            except Exception as e:
+                logger.warning(f"[Periodic Sync] Failed to fetch ML capabilities: {e}")
+            await asyncio.sleep(900 if first_success else 10)  # 15 min after first success, else 10s
+
+    # Start the periodic sync as a background task
+    periodic_task = asyncio.create_task(periodic_ml_capability_sync())
     
     # ------------------------------------------------------------------
     # Env-var aliasing – ensure both ML_SERVICE_URL and ML_INFERENCE_SERVICE_URL
@@ -143,6 +166,12 @@ async def lifespan(app: FastAPI):
     if app_state.qdrant_client:
         # Qdrant client might have a close() method in some versions
         # app_state.qdrant_client.close()
+        pass
+    # Cancel the periodic sync task
+    periodic_task.cancel()
+    try:
+        await periodic_task
+    except Exception:
         pass
     logger.info("Shutdown complete.")
 

@@ -115,23 +115,12 @@ async def start_ingestion(
     if not os.path.isdir(request.directory_path):
         raise HTTPException(status_code=400, detail="Directory not found.")
 
-    # Compute batch sizes and worker counts
-    ml_batch_size = ML_BATCH_SIZE
-    qdrant_batch_size = QDRANT_BATCH_SIZE
-    cpu_worker_count = max(2, ml_batch_size // 32)
-    ml_worker_count = 1
-    db_worker_count = max(1, qdrant_batch_size // 64)
-
+    # Do NOT compute or pass batch sizes or worker counts here; let pipeline manager handle it
     job_id = await pipeline_manager.start_pipeline(
         directory_path=request.directory_path,
         collection_name=collection_name,
         background_tasks=background_tasks,
         qdrant_client=qdrant_client,
-        ml_batch_size=ml_batch_size,
-        qdrant_batch_size=qdrant_batch_size,
-        cpu_worker_count=cpu_worker_count,
-        ml_worker_count=ml_worker_count,
-        db_worker_count=db_worker_count,
     )
     return JobResponse(job_id=job_id, status="started", message="Ingestion job started successfully.")
 
@@ -148,23 +137,12 @@ async def start_ingestion_from_path(
     if not os.path.isdir(request.directory_path):
         raise HTTPException(status_code=400, detail="Directory not found.")
         
-    # Compute batch sizes and worker counts
-    ml_batch_size = ML_BATCH_SIZE
-    qdrant_batch_size = QDRANT_BATCH_SIZE
-    cpu_worker_count = max(2, ml_batch_size // 32)
-    ml_worker_count = 1
-    db_worker_count = max(1, qdrant_batch_size // 64)
-
+    # Do NOT compute or pass batch sizes or worker counts here; let pipeline manager handle it
     job_id = await pipeline_manager.start_pipeline(
         directory_path=request.directory_path,
         collection_name=collection_name,
         background_tasks=background_tasks,
         qdrant_client=qdrant_client,
-        ml_batch_size=ml_batch_size,
-        qdrant_batch_size=qdrant_batch_size,
-        cpu_worker_count=cpu_worker_count,
-        ml_worker_count=ml_worker_count,
-        db_worker_count=db_worker_count,
     )
     return JobResponse(job_id=job_id, status="started", message="Ingestion scan started successfully.")
 

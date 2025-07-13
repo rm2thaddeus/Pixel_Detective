@@ -6,6 +6,8 @@ This service provides a robust backend for orchestrating the ingestion of image 
 
 The service is designed around a decoupled, asynchronous pipeline managed by a central `PipelineManager`. When a user requests to ingest a directory, the service immediately returns a job ID and begins processing in the background using a series of queues and workers.
 
+**New in June 2025:** The ingestion service now includes a periodic background task that fetches ML service capabilities every 10 seconds. This ensures that batch sizes and readiness are always up to date, even if the ML service is slow to start or restarts. The system will self-heal and become ready for ingestion as soon as the ML service is available, without requiring a restart.
+
 ```mermaid
 graph TD
     subgraph "User Interaction"
@@ -190,6 +192,7 @@ curl -X POST http://localhost:8002/api/v1/collections/cache/clear
 The service can be configured using the following environment variables:
 
 -   `ML_INFERENCE_SERVICE_URL`: URL of the ML Inference service. (Default: `http://localhost:8001`)
+    -   **Note:** The ingestion service periodically fetches capabilities from this endpoint to dynamically update batch sizes and readiness.
 -   `QDRANT_HOST`: Hostname of the Qdrant database. (Default: `localhost`)
 -   `QDRANT_PORT`: Port for the Qdrant database. (Default: `6333`)
 -   `QDRANT_VECTOR_SIZE`: The dimension of the vectors to be stored. Must match the output of the ML model. (Default: `512`)

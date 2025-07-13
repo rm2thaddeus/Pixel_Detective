@@ -67,7 +67,7 @@ Vibe Coding implements a modern, scalable microservices architecture featuring a
 - **Port:** 8002
 - **Key Responsibilities:**
   - `Collection Management`: CRUD operations for Qdrant collections.
-  - `Ingestion Pipeline`: Orchestrates file processing, **dynamically auto-sizes batch parameters on startup**, and (when `USE_MULTIPART_UPLOAD=1`) streams pre-decoded PNGs via the high-throughput endpoint `POST /api/v1/batch_embed_and_caption_multipart`.
+  - `Ingestion Pipeline`: Orchestrates file processing, **dynamically auto-sizes batch parameters on startup and periodically syncs with the ML service to ensure optimal batch sizes and readiness, even if the ML service is slow to start or restarts**.
   - `Search Gateway`: Receives search queries, gets embeddings from the ML service, and queries Qdrant.
   - `Image Serving`: Provides endpoints for retrieving image thumbnails and full-resolution files.
   - `Duplicate Detection`: Manages tasks for finding near-duplicates within a collection.

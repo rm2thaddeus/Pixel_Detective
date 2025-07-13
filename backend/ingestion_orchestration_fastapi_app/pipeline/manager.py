@@ -36,7 +36,10 @@ class JobContext:
     cpu_worker_count: int = 2
     ml_worker_count: int = 1
     db_worker_count: int = 1
-
+    # --- New: Model-specific batch sizes ---
+    clip_batch_size: Optional[int] = None
+    blip_batch_size: Optional[int] = None
+    
     # --- Queues for pipeline stages ---
     raw_queue: asyncio.Queue = field(init=False)
     ml_queue: asyncio.Queue = field(init=False)
@@ -167,32 +170,78 @@ def get_ingestion_service_capabilities(ingestion_service_url: str) -> dict:
         logger.warning(f"Could not fetch ingestion service capabilities: {e}")
         return {}
 
+# --- ML Capabilities Cache and Robust Fetch Logic ---
+_ml_capabilities_cache = None
+_ml_capabilities_last_fetch = 0
+ML_CAPABILITIES_TTL = 60  # seconds
+
+def fetch_ml_service_capabilities(ml_service_url: str, retries: int = 3) -> dict:
+    """Fetch ML service capabilities with retries and cache the result."""
+    global _ml_capabilities_cache, _ml_capabilities_last_fetch
+    for attempt in range(retries):
+        try:
+            resp = httpx.get(f"{ml_service_url}/api/v1/capabilities", timeout=10)
+            resp.raise_for_status()
+            caps = resp.json()
+            _ml_capabilities_cache = caps
+            _ml_capabilities_last_fetch = time.time()
+            return caps
+        except Exception as e:
+            logger.warning(f"Attempt {attempt+1}: Could not fetch ML service capabilities: {e}")
+            time.sleep(2 ** attempt)  # Exponential backoff
+    # Fallback to cache if available
+    if _ml_capabilities_cache:
+        logger.info("Using cached ML capabilities")
+        return _ml_capabilities_cache
+    # Final fallback
+    logger.warning("No ML capabilities available, defaulting to safe values")
+    return {"safe_batch_size": 1}
+
+def get_latest_ml_capabilities(ml_service_url: str) -> dict:
+    """Return cached ML capabilities if recent, else fetch new."""
+    if _ml_capabilities_cache and (time.time() - _ml_capabilities_last_fetch < ML_CAPABILITIES_TTL):
+        return _ml_capabilities_cache
+    return fetch_ml_service_capabilities(ml_service_url)
+
 async def start_pipeline(
     directory_path: str,
     collection_name: str,
     background_tasks: BackgroundTasks,
     qdrant_client: QdrantClient,
-    ml_batch_size: int = 32,
-    qdrant_batch_size: int = 64,
-    cpu_worker_count: int = 2,
-    ml_worker_count: int = 1,
-    db_worker_count: int = 1,
 ) -> str:
     # Dynamically determine ML batch size and queue size from ML service capabilities
     ML_SERVICE_URL = os.environ.get("ML_INFERENCE_SERVICE_URL", "http://localhost:8001")
-    ml_caps = get_ml_service_capabilities(ML_SERVICE_URL)
-    safe_ml_batch_size = ml_caps.get("safe_batch_size") or ml_caps.get("SAFE_BLIP_BATCH_SIZE")
-    if safe_ml_batch_size:
-        ml_batch_size = int(safe_ml_batch_size)
+    ml_caps = get_latest_ml_capabilities(ML_SERVICE_URL)
+    logger.info(f"[Batch Size Negotiation] ML service capabilities: {ml_caps}")
+    safe_clip_batch_size = ml_caps.get("safe_clip_batch")  # <-- fixed key
+    safe_blip_batch_size = ml_caps.get("safe_blip_batch")  # <-- fixed key
+    safe_ml_batch_size = ml_caps.get("safe_batch_size")    # <-- fallback for legacy
+
+    # Prefer model-specific batch sizes, fallback to generic
+    clip_batch_size = int(safe_clip_batch_size) if safe_clip_batch_size else (int(safe_ml_batch_size) if safe_ml_batch_size else 32)
+    blip_batch_size = int(safe_blip_batch_size) if safe_blip_batch_size else (int(safe_ml_batch_size) if safe_ml_batch_size else 32)
+
+    # Use BLIP batch size for ML operations (since we're doing captioning)
+    ml_batch_size = blip_batch_size
     ml_queue_maxsize = ml_batch_size * 2
 
-    # Dynamically determine Qdrant batch size and queue size from ingestion service capabilities
-    INGESTION_SERVICE_URL = os.environ.get("INGESTION_SERVICE_URL", "http://localhost:8002")
-    ingest_caps = get_ingestion_service_capabilities(INGESTION_SERVICE_URL)
-    safe_qdrant_batch_size = ingest_caps.get("qdrant_batch_size")
-    if safe_qdrant_batch_size:
-        qdrant_batch_size = int(safe_qdrant_batch_size)
+    # Log the batch size selection for debugging
+    logger.info(f"[Batch Size Selection] ML capabilities: {ml_caps}")
+    logger.info(f"[Batch Size Selection] CLIP batch size: {clip_batch_size}, BLIP batch size: {blip_batch_size}")
+    logger.info(f"[Batch Size Selection] Using ML batch size: {ml_batch_size} (BLIP-based)")
+
+    # Set Qdrant batch size and queue size from environment or fallback
+    qdrant_batch_size = int(os.environ.get("QDRANT_UPSERT_BATCH_SIZE", 64))
     db_queue_maxsize = qdrant_batch_size * 2
+
+    # Compute worker counts based on batch sizes
+    cpu_worker_count = max(2, ml_batch_size // 32)
+    ml_worker_count = 1
+    db_worker_count = 1
+
+    # Update environment variables for consistency
+    os.environ["ML_INFERENCE_BATCH_SIZE"] = str(ml_batch_size)
+    os.environ["QDRANT_UPSERT_BATCH_SIZE"] = str(qdrant_batch_size)
 
     ctx = JobContext(
         job_id=str(uuid.uuid4()),
@@ -201,6 +250,8 @@ async def start_pipeline(
         cpu_worker_count=cpu_worker_count,
         ml_worker_count=ml_worker_count,
         db_worker_count=db_worker_count,
+        clip_batch_size=clip_batch_size,
+        blip_batch_size=blip_batch_size,
     )
     # Override queue maxsize for ML and DB queues
     ctx.raw_queue = asyncio.Queue(maxsize=ml_queue_maxsize)
@@ -217,7 +268,7 @@ async def start_pipeline(
         qdrant_client
     )
 
-    logger.info(f"Scheduled pipeline job {ctx.job_id} for collection '{collection_name}' (ml_batch_size={ml_batch_size}, ml_queue_maxsize={ml_queue_maxsize}, qdrant_batch_size={qdrant_batch_size}, db_queue_maxsize={db_queue_maxsize})")
+    logger.info(f"Scheduled pipeline job {ctx.job_id} for collection '{collection_name}' (ml_batch_size={ml_batch_size}, ml_queue_maxsize={ml_queue_maxsize}, qdrant_batch_size={qdrant_batch_size}, db_queue_maxsize={db_queue_maxsize}, clip_batch_size={clip_batch_size}, blip_batch_size={blip_batch_size}, cpu_worker_count={cpu_worker_count}, ml_worker_count={ml_worker_count}, db_worker_count={db_worker_count})")
     return ctx.job_id
 
 def get_job_status(job_id: str) -> Optional[JobContext]:
