@@ -16,39 +16,99 @@ logger = logging.getLogger(__name__)
 ML_SERVICE_URL = os.environ.get("ML_INFERENCE_SERVICE_URL", "http://localhost:8001")
 # Remove ML_BATCH_SIZE global, always use ctx.ml_batch_size
 REQUEST_TIMEOUT = int(os.environ.get("ML_REQUEST_TIMEOUT", "300"))
+POLL_INTERVAL = float(os.environ.get("ML_POLL_INTERVAL", "1.0"))
 
 async def send_batch_to_ml_service(batch_items: list[dict]) -> list[dict]:
-    """Sends a batch of items to the ML inference service."""
+    """Submit a batch to the ML service and poll until results are ready."""
     if not batch_items:
         return []
 
-    # Prepare request data
-    images_payload = []
-    for item in batch_items:
-        images_payload.append({
+    images_payload = [
+        {
             "unique_id": item["file_hash"],
             "image_base64": item["image_base64"],
             "filename": item["filename"],
-        })
-
-    if not images_payload:
-        return []
+        }
+        for item in batch_items
+    ]
 
     async with httpx.AsyncClient() as client:
         try:
-            response = await client.post(
+            submit_resp = await client.post(
                 f"{ML_SERVICE_URL}/api/v1/batch_embed_and_caption",
                 json={"images": images_payload},
                 timeout=REQUEST_TIMEOUT,
             )
-            response.raise_for_status()
-            return response.json().get("results", [])
-        except httpx.RequestError as e:
-            logger.error(f"HTTP request to ML service failed: {e}")
-            return [{"unique_id": item["unique_id"], "error": str(e)} for item in images_payload]
+            submit_resp.raise_for_status()
+            submit_data = submit_resp.json()
+
+            # Legacy behaviour: immediate results
+            if "results" in submit_data:
+                return submit_data.get("results", [])
+
+            job_id = submit_data.get("job_id")
+            if not job_id:
+                logger.error("ML service response missing job_id")
+                return [
+                    {"unique_id": item["unique_id"], "error": "No job_id returned"}
+                    for item in images_payload
+                ]
+
+            results_map: dict[str, dict] = {}
+            start = asyncio.get_event_loop().time()
+
+            while True:
+                try:
+                    status_resp = await client.get(
+                        f"{ML_SERVICE_URL}/status/{job_id}", timeout=REQUEST_TIMEOUT
+                    )
+                    status_resp.raise_for_status()
+                    status_data = status_resp.json()
+                except Exception as poll_error:
+                    logger.error(
+                        f"Error polling ML job {job_id}: {poll_error}", exc_info=True
+                    )
+                    if asyncio.get_event_loop().time() - start > REQUEST_TIMEOUT:
+                        break
+                    await asyncio.sleep(POLL_INTERVAL)
+                    continue
+
+                for res in status_data.get("results", []):
+                    uid = res.get("unique_id")
+                    if uid:
+                        results_map[uid] = res
+
+                if status_data.get("status") in {"completed", "failed"}:
+                    break
+                if len(results_map) == len(images_payload):
+                    break
+                if asyncio.get_event_loop().time() - start > REQUEST_TIMEOUT:
+                    logger.warning(
+                        f"Timeout waiting for ML job {job_id}, returning partial results"
+                    )
+                    break
+
+                await asyncio.sleep(POLL_INTERVAL)
+
+            # Assemble results in original order with fallbacks for missing items
+            final_results: list[dict] = []
+            for item in images_payload:
+                uid = item["unique_id"]
+                if uid in results_map:
+                    final_results.append(results_map[uid])
+                else:
+                    final_results.append({"unique_id": uid, "error": "No result"})
+            return final_results
+
         except Exception as e:
-            logger.error(f"An unexpected error occurred when calling ML service: {e}", exc_info=True)
-            return [{"unique_id": item["unique_id"], "error": "Unknown error"} for item in images_payload]
+            logger.error(
+                f"An unexpected error occurred when calling ML service: {e}",
+                exc_info=True,
+            )
+            return [
+                {"unique_id": item["unique_id"], "error": str(e)}
+                for item in images_payload
+            ]
 
 
 async def process_ml_batches(ctx: JobContext):
