@@ -8,6 +8,7 @@ import torch
 
 # Import the new service and router modules
 from .services import clip_service, blip_service
+from .services import scheduler
 from .routers import inference
 
 # Configure logging
@@ -27,9 +28,12 @@ async def lifespan(app: FastAPI):
     async with clip_service.gpu_lock:
         await clip_service.load_clip_model()
         clip_service.recalculate_safe_batch_size()
-        
+
         await blip_service.load_blip_model()
         blip_service.recalculate_safe_batch_size()
+
+    # Start job scheduler
+    await scheduler.start_scheduler()
     
     logger.info("Startup complete. Models are loaded and ready.")
     yield
@@ -38,6 +42,7 @@ async def lifespan(app: FastAPI):
     async with clip_service.gpu_lock:
         await clip_service.cooldown_clip_model()
         await blip_service.cooldown_blip_model()
+    await scheduler.stop_scheduler()
     logger.info("Shutdown complete.")
 
 
