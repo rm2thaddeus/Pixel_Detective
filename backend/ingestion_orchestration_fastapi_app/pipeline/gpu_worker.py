@@ -20,8 +20,11 @@ REQUEST_TIMEOUT = int(os.environ.get("ML_REQUEST_TIMEOUT", "300"))
 async def send_batch_to_ml_service(batch_items: list[dict]) -> list[dict]:
     """Sends a batch of items to the ML inference service."""
     if not batch_items:
+        logger.info("[ML] Attempted to send empty batch to ML service. Skipping.")
         return []
 
+    logger.info(f"[ML] Sending batch of {len(batch_items)} items to ML service. Example filenames: {[item['filename'] for item in batch_items[:3]]}{'...' if len(batch_items) > 3 else ''}")
+    start_time = asyncio.get_event_loop().time()
     # Prepare request data
     images_payload = []
     for item in batch_items:
@@ -42,6 +45,8 @@ async def send_batch_to_ml_service(batch_items: list[dict]) -> list[dict]:
                 timeout=REQUEST_TIMEOUT,
             )
             response.raise_for_status()
+            elapsed = asyncio.get_event_loop().time() - start_time
+            logger.info(f"[ML] Received response for batch of {len(batch_items)} items in {elapsed:.2f}s.")
             return response.json().get("results", [])
         except httpx.RequestError as e:
             logger.error(f"HTTP request to ML service failed: {e}")
@@ -55,7 +60,7 @@ async def process_ml_batches(ctx: JobContext):
     """
     Consumes items from ml_queue, batches them, sends them to the ML service,
     and places the results in the db_queue. Runs until all CPU workers are done.
-    Implements smart batch flushing: first batch flushes after 30s if not full, then always flushes as soon as possible.
+    Implements robust sequential batching: only one batch is ever in flight to the ML service at a time.
     """
     batch = []
     sentinels_received = 0
@@ -64,18 +69,33 @@ async def process_ml_batches(ctx: JobContext):
     while True:
         try:
             if first_batch:
-                # For the first batch, wait up to 30s for items to fill the batch
                 if first_batch_start is None:
+                    logger.info(f"[{ctx.job_id}] [ML] Waiting for first item in ML queue...")
+                    item = await ctx.ml_queue.get()
+                    if item is None:
+                        sentinels_received += 1
+                        ctx.ml_queue.task_done()
+                        if sentinels_received == ctx.cpu_worker_count:
+                            if batch:
+                                logger.info(f"[{ctx.job_id}] [ML] Flushing final ML batch of size {len(batch)} (first batch mode)")
+                                await _flush_ml_batch(ctx, batch)
+                            for _ in range(ctx.db_worker_count):
+                                await ctx.db_queue.put(None)
+                            break
+                        else:
+                            continue
+                    batch.append(item)
                     first_batch_start = asyncio.get_event_loop().time()
-                timeout = 30.0 - (asyncio.get_event_loop().time() - first_batch_start)
+                    ctx.ml_queue.task_done()
+                timeout = 60.0 - (asyncio.get_event_loop().time() - first_batch_start)
                 if timeout <= 0:
                     timeout = 0.01
                 try:
+                    logger.info(f"[{ctx.job_id}] [ML] Waiting up to {timeout:.2f}s for more items to fill first batch (current size: {len(batch)})...")
                     item = await asyncio.wait_for(ctx.ml_queue.get(), timeout=timeout)
                 except asyncio.TimeoutError:
-                    # Timeout: flush whatever is in the batch
                     if batch:
-                        logger.info(f"[{ctx.job_id}] [ML] Flushing first batch early after 30s: {len(batch)} items")
+                        logger.info(f"[{ctx.job_id}] [ML] Flushing first batch early after 60s: {len(batch)} items")
                         await _flush_ml_batch(ctx, batch)
                         batch = []
                         first_batch = False
@@ -84,7 +104,6 @@ async def process_ml_batches(ctx: JobContext):
                 if item is None:
                     sentinels_received += 1
                     ctx.ml_queue.task_done()
-                    # Only exit after all CPU workers have sent their sentinel
                     if sentinels_received == ctx.cpu_worker_count:
                         if batch:
                             logger.info(f"[{ctx.job_id}] [ML] Flushing final ML batch of size {len(batch)} (first batch mode)")
@@ -103,34 +122,47 @@ async def process_ml_batches(ctx: JobContext):
                     first_batch_start = None
                 ctx.ml_queue.task_done()
             else:
-                # After first batch, always flush as soon as batch is full, or if queue is empty for a short time
-                try:
-                    item = await asyncio.wait_for(ctx.ml_queue.get(), timeout=2.0)
-                except asyncio.TimeoutError:
-                    # Timeout: flush whatever is in the batch
-                    if batch:
-                        logger.info(f"[{ctx.job_id}] [ML] Flushing partial ML batch after idle: {len(batch)} items")
-                        await _flush_ml_batch(ctx, batch)
-                        batch = []
-                    continue
-                if item is None:
-                    sentinels_received += 1
+                flush_due_to_idle = False
+                if not batch:
+                    logger.info(f"[{ctx.job_id}] [ML] Waiting for first item of next batch...")
+                    item = await ctx.ml_queue.get()
+                    if item is None:
+                        sentinels_received += 1
+                        ctx.ml_queue.task_done()
+                        if sentinels_received == ctx.cpu_worker_count:
+                            if batch:
+                                logger.info(f"[{ctx.job_id}] [ML] Flushing final ML batch of size {len(batch)}")
+                                await _flush_ml_batch(ctx, batch)
+                            for _ in range(ctx.db_worker_count):
+                                await ctx.db_queue.put(None)
+                            break
+                        else:
+                            continue
+                    batch.append(item)
                     ctx.ml_queue.task_done()
-                    if sentinels_received == ctx.cpu_worker_count:
-                        if batch:
-                            logger.info(f"[{ctx.job_id}] [ML] Flushing final ML batch of size {len(batch)}")
-                            await _flush_ml_batch(ctx, batch)
-                        for _ in range(ctx.db_worker_count):
-                            await ctx.db_queue.put(None)
+                batch_start_time = asyncio.get_event_loop().time()
+                while len(batch) < ctx.ml_batch_size:
+                    timeout = 60.0 - (asyncio.get_event_loop().time() - batch_start_time)
+                    if timeout <= 0:
                         break
-                    else:
-                        continue
-                batch.append(item)
-                if len(batch) >= ctx.ml_batch_size:
-                    logger.info(f"[{ctx.job_id}] [ML] Sending ML batch of size {len(batch)}")
+                    try:
+                        logger.info(f"[{ctx.job_id}] [ML] Waiting up to {timeout:.2f}s for more items to fill batch (current size: {len(batch)})...")
+                        item = await asyncio.wait_for(ctx.ml_queue.get(), timeout=timeout)
+                    except asyncio.TimeoutError:
+                        break
+                    if item is None:
+                        sentinels_received += 1
+                        ctx.ml_queue.task_done()
+                        if sentinels_received == ctx.cpu_worker_count:
+                            break
+                        else:
+                            continue
+                    batch.append(item)
+                    ctx.ml_queue.task_done()
+                if batch:
+                    logger.info(f"[{ctx.job_id}] [ML] Flushing ML batch after idle or full: {len(batch)} items")
                     await _flush_ml_batch(ctx, batch)
                     batch = []
-                ctx.ml_queue.task_done()
         except asyncio.CancelledError:
             logger.info(f"[{ctx.job_id}] GPU worker cancelled.")
             break
@@ -140,8 +172,13 @@ async def process_ml_batches(ctx: JobContext):
 
 async def _flush_ml_batch(ctx: JobContext, batch: list):
     if not batch:
+        logger.info(f"[{ctx.job_id}] [ML] _flush_ml_batch called with empty batch. Skipping.")
         return
+    logger.info(f"[{ctx.job_id}] [ML] Flushing ML batch of size {len(batch)}. Example filenames: {[item['metadata'].get('filename', 'unknown') for item in batch[:3]]}{'...' if len(batch) > 3 else ''}")
+    start_time = asyncio.get_event_loop().time()
     ml_results = await send_batch_to_ml_service(batch)
+    elapsed = asyncio.get_event_loop().time() - start_time
+    logger.info(f"[{ctx.job_id}] [ML] ML batch processed in {elapsed:.2f}s. Received {len(ml_results)} results.")
     item_map = {i["file_hash"]: i for i in batch}
     for result in ml_results:
         file_hash = result.get("unique_id")
@@ -152,6 +189,7 @@ async def _flush_ml_batch(ctx: JobContext, batch: list):
         if result.get("error"):
             ctx.failed_files += 1
             ctx.add_log(f"ML service failed for {original_item['metadata']['filename']}: {result['error']}", level="error")
+            logger.error(f"[{ctx.job_id}] [ML] ML service failed for {original_item['metadata']['filename']}: {result['error']}")
         else:
             try:
                 payload = original_item["metadata"]
@@ -170,6 +208,7 @@ async def _flush_ml_batch(ctx: JobContext, batch: list):
                     "vector": result["embedding"],
                     "payload": payload
                 })
+                logger.info(f"[{ctx.job_id}] [ML] Successfully processed and cached {payload.get('filename', 'unknown')}")
             except Exception as e:
                 logger.error(f"[{ctx.job_id}] Error processing ML result for {file_hash}: {e}", exc_info=True)
                 ctx.failed_files += 1

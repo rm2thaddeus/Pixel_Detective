@@ -70,14 +70,33 @@ def encode_text_batch(texts: list[str]) -> torch.Tensor:
     return text_features
 
 def encode_image_batch(images: list[Any]) -> torch.Tensor:
-    """Encodes a batch of pre-processed images using the loaded CLIP model."""
+    """Encodes a batch of pre-processed images using the loaded CLIP model.
+    If an OOM error occurs, splits the batch and retries recursively.
+    """
     if not get_clip_model_status():
         raise RuntimeError("CLIP model is not available.")
 
-    inputs = CLIP_PROCESSOR(images=images, return_tensors="pt").to(DEVICE)
-    with torch.no_grad():
-        image_features = CLIP_MODEL.get_image_features(**inputs)
-    return image_features
+    try:
+        inputs = CLIP_PROCESSOR(images=images, return_tensors="pt").to(DEVICE)
+        with torch.no_grad():
+            image_features = CLIP_MODEL.get_image_features(**inputs)
+        return image_features
+    except RuntimeError as e:
+        # WARNING: This function previously caused CUDA OOM errors when batch size was too large.
+        # If you see 'CUDA out of memory', this block will split the batch and retry.
+        if "out of memory" in str(e).lower() or "cuda" in str(e).lower():
+            logger.warning(f"[CLIP] OOM detected for batch of size {len(images)}. Splitting and retrying.")
+            torch.cuda.empty_cache()
+            if len(images) == 1:
+                logger.error(f"[CLIP] OOM on single image. Cannot split further.")
+                raise
+            mid = len(images) // 2
+            left = encode_image_batch(images[:mid])
+            right = encode_image_batch(images[mid:])
+            # Concatenate results
+            return torch.cat([left, right], dim=0)
+        else:
+            raise
 
 # --- Performance & Memory Probing ---
 

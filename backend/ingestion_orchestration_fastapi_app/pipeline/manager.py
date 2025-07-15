@@ -90,65 +90,69 @@ async def _run_pipeline(
 
     ctx.status = JobStatus.RUNNING
     ctx.add_log(f"Starting pipeline for directory: {directory_path}")
+    logger.info(f"[Pipeline {job_id}] Starting pipeline for directory: {directory_path}")
 
     # Log queue and worker configuration
-    logger.info(f"[Pipeline Config] ml_batch_size={ctx.ml_batch_size}, qdrant_batch_size={ctx.qdrant_batch_size}, "
+    logger.info(f"[Pipeline {job_id}] Config: ml_batch_size={ctx.ml_batch_size}, qdrant_batch_size={ctx.qdrant_batch_size}, "
                 f"raw_queue.maxsize={ctx.raw_queue.maxsize}, ml_queue.maxsize={ctx.ml_queue.maxsize}, db_queue.maxsize={ctx.db_queue.maxsize}, "
                 f"cpu_worker_count={ctx.cpu_worker_count}, ml_worker_count={ctx.ml_worker_count}, db_worker_count={ctx.db_worker_count}")
 
     try:
         # --- Define and start all workers ---
+        logger.info(f"[Pipeline {job_id}] Starting IO scanner...")
         scanner_task = asyncio.create_task(io_scanner.scan_directory(ctx, directory_path))
-        
+        logger.info(f"[Pipeline {job_id}] Starting {ctx.cpu_worker_count} CPU workers...")
         cpu_workers = [
             cpu_processor.process_files(ctx, collection_name)
             for _ in range(ctx.cpu_worker_count)
         ]
-        
+        logger.info(f"[Pipeline {job_id}] Starting {ctx.ml_worker_count} GPU workers...")
         gpu_workers = [
             gpu_worker.process_ml_batches(ctx)
             for _ in range(ctx.ml_worker_count)
         ]
-        
+        logger.info(f"[Pipeline {job_id}] Starting {ctx.db_worker_count} DB upserters...")
         db_upserters = [
             db_upserter.upsert_to_db(ctx, collection_name, qdrant_client)
             for _ in range(ctx.db_worker_count)
         ]
-        
         all_workers = cpu_workers + gpu_workers + db_upserters
         ctx.tasks = [asyncio.create_task(worker) for worker in all_workers]
 
         # --- Orchestrate the pipeline flow ---
         await scanner_task # 1. Wait for the directory scan to complete
         ctx.add_log(f"Scan finished. Found {ctx.total_files} files.")
-        
+        logger.info(f"[Pipeline {job_id}] IO scan complete. Found {ctx.total_files} files.")
+
         await ctx.raw_queue.join() # 2. Wait for all files to be processed by CPU workers
         ctx.add_log("CPU processing stage complete.")
-        
+        logger.info(f"[Pipeline {job_id}] CPU processing stage complete.")
+
         await ctx.ml_queue.join() # 3. Wait for all ML batches to be processed by GPU workers
         ctx.add_log("ML inference stage complete.")
-        
+        logger.info(f"[Pipeline {job_id}] ML inference stage complete.")
+
         await ctx.db_queue.join() # 4. Wait for all points to be upserted to the database
         ctx.add_log("Database upsert stage complete.")
+        logger.info(f"[Pipeline {job_id}] Database upsert stage complete.")
 
         ctx.status = JobStatus.COMPLETED
         ctx.add_log("Pipeline completed successfully.")
-        
+        logger.info(f"[Pipeline {job_id}] Pipeline completed successfully.")
+
     except Exception as e:
         logger.error(f"Pipeline for job {job_id} failed: {e}", exc_info=True)
         ctx.status = JobStatus.FAILED
         ctx.add_log(f"Pipeline failed: {str(e)}", level="error")
+        logger.error(f"[Pipeline {job_id}] Pipeline failed: {e}")
     finally:
         # --- Cleanup ---
-        # Cancel all worker tasks to ensure they exit their while True loops
         for task in ctx.tasks:
             if not task.done():
                 task.cancel()
-        # Wait for tasks to acknowledge cancellation
         await asyncio.gather(*ctx.tasks, return_exceptions=True)
-        
         ctx.end_time = time.time()
-        logger.info(f"[{ctx.job_id}] Pipeline finished with status: {ctx.status.value}")
+        logger.info(f"[Pipeline {job_id}] Pipeline finished with status: {ctx.status.value}")
 
 
 # Add a function to get ML service capabilities

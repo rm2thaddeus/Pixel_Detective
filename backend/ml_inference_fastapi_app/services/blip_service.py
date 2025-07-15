@@ -57,16 +57,33 @@ def get_blip_model_status() -> bool:
     return BLIP_MODEL is not None and BLIP_MODEL != "failed"
 
 def generate_captions(images: list[Any], text: str = None, do_rescale: bool = True) -> list[str]:
-    """Generates captions for a batch of pre-processed images."""
+    """Generates captions for a batch of pre-processed images.
+    If an OOM error occurs, splits the batch and retries recursively.
+    """
     if not get_blip_model_status():
         raise RuntimeError("BLIP model is not available.")
 
-    inputs = BLIP_PROCESSOR(images=images, text=text, return_tensors="pt", do_rescale=do_rescale).to(DEVICE)
-    with torch.no_grad():
-        outputs = BLIP_MODEL.generate(**inputs)
-    
-    captions = [BLIP_PROCESSOR.decode(out, skip_special_tokens=True) for out in outputs]
-    return captions
+    try:
+        inputs = BLIP_PROCESSOR(images=images, text=text, return_tensors="pt", do_rescale=do_rescale).to(DEVICE)
+        with torch.no_grad():
+            outputs = BLIP_MODEL.generate(**inputs)
+        captions = [BLIP_PROCESSOR.decode(out, skip_special_tokens=True) for out in outputs]
+        return captions
+    except RuntimeError as e:
+        # WARNING: This function previously caused CUDA OOM errors when batch size was too large.
+        # If you see 'CUDA out of memory', this block will split the batch and retry.
+        if "out of memory" in str(e).lower() or "cuda" in str(e).lower():
+            logger.warning(f"[BLIP] OOM detected for batch of size {len(images)}. Splitting and retrying.")
+            torch.cuda.empty_cache()
+            if len(images) == 1:
+                logger.error(f"[BLIP] OOM on single image. Cannot split further.")
+                raise
+            mid = len(images) // 2
+            left = generate_captions(images[:mid], text=text, do_rescale=do_rescale)
+            right = generate_captions(images[mid:], text=text, do_rescale=do_rescale)
+            return left + right
+        else:
+            raise
 
 # --- Performance & Memory Probing ---
 
