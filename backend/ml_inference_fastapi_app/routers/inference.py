@@ -9,7 +9,7 @@ from pydantic import BaseModel
 from PIL import Image
 import torch
 
-from ..services import clip_service, blip_service
+from ..services import clip_service, blip_service, scheduler
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -38,6 +38,16 @@ class BatchResultItem(BaseModel):
 class BatchEmbedAndCaptionResponse(BaseModel):
     results: List[BatchResultItem]
 
+class JobStatusResponse(BaseModel):
+    job_id: str
+    status: str
+    result: Optional[BatchEmbedAndCaptionResponse] = None
+    error: Optional[str] = None
+
+class JobResponse(BaseModel):
+    job_id: str
+    status: str
+
 class CapabilitiesResponse(BaseModel):
     safe_clip_batch: int
     safe_blip_batch: int
@@ -48,7 +58,7 @@ class CapabilitiesResponse(BaseModel):
 
 # --- Endpoints ---
 
-@router.post("/batch_embed_and_caption", response_model=BatchEmbedAndCaptionResponse)
+@router.post("/batch_embed_and_caption", response_model=JobResponse)
 async def batch_embed_and_caption_endpoint(request: BatchEmbedAndCaptionRequest = Body(...)):
     if not clip_service.get_clip_model_status() or not blip_service.get_blip_model_status():
         raise HTTPException(status_code=503, detail="Models are not ready. Please use /warmup first.")
@@ -65,40 +75,52 @@ async def batch_embed_and_caption_endpoint(request: BatchEmbedAndCaptionRequest 
             logger.error(f"Failed to decode base64 for {item.unique_id} ({item.filename}): {e}", exc_info=True)
             failed_decodes[item.unique_id] = f"Failed to decode image: {e}"
 
-    results: Dict[str, BatchResultItem] = {
-        uid: BatchResultItem(unique_id=uid, filename="", error=err)
-        for uid, err in failed_decodes.items()
-    }
-    
-    if not valid_images:
-        # Add original filenames to the error response for better context
+    async def _process() -> Dict[str, Any]:
+        results: Dict[str, BatchResultItem] = {
+            uid: BatchResultItem(unique_id=uid, filename="", error=err)
+            for uid, err in failed_decodes.items()
+        }
+
+        if valid_images:
+            image_list = list(valid_images.values())
+            embeddings = clip_service.encode_image_batch(image_list)
+            captions = blip_service.generate_captions(image_list)
+
+            for i, uid in enumerate(valid_images.keys()):
+                original_item = next((item for item in request.images if item.unique_id == uid), None)
+                results[uid] = BatchResultItem(
+                    unique_id=uid,
+                    filename=original_item.filename if original_item else "",
+                    embedding=embeddings[i].tolist(),
+                    embedding_shape=list(embeddings[i].shape),
+                    caption=captions[i]
+                )
+
+        # Add filenames for decode errors
         for item in request.images:
-            if item.unique_id in results:
+            if item.unique_id in results and not results[item.unique_id].filename:
                 results[item.unique_id].filename = item.filename
-        return BatchEmbedAndCaptionResponse(results=list(results.values()))
 
-    # Batch process embeddings and captions under a single GPU lock
-    async with clip_service.gpu_lock:
-        # Embeddings
-        image_list = list(valid_images.values())
-        embeddings = clip_service.encode_image_batch(image_list)
-        
-        # Captions
-        captions = blip_service.generate_captions(image_list)
+        final_results = [results[item.unique_id] for item in request.images]
+        return BatchEmbedAndCaptionResponse(results=final_results).dict()
 
-    # Process results for valid images
-    for i, (uid, image) in enumerate(valid_images.items()):
-        original_item = next((item for item in request.images if item.unique_id == uid), None)
-        results[uid] = BatchResultItem(
-            unique_id=uid,
-            filename=original_item.filename if original_item else "",
-            embedding=embeddings[i].tolist(),
-            embedding_shape=list(embeddings[i].shape),
-            caption=captions[i]
-        )
-        
-    final_results = [results[item.unique_id] for item in request.images]
-    return BatchEmbedAndCaptionResponse(results=final_results)
+    job_id = scheduler.enqueue_job(_process)
+    return JobResponse(job_id=job_id, status="queued")
+
+
+@router.get("/status/{job_id}", response_model=JobStatusResponse)
+async def get_job_status(job_id: str):
+    status = scheduler.get_job_status(job_id)
+    if not status:
+        raise HTTPException(status_code=404, detail="Job not found")
+    if status.get("status") in {"completed", "failed"}:
+        result = status.get("result")
+        error = status.get("error")
+        result_model = None
+        if result:
+            result_model = BatchEmbedAndCaptionResponse(**result)
+        return JobStatusResponse(job_id=job_id, status=status["status"], result=result_model, error=error)
+    return JobStatusResponse(job_id=job_id, status=status["status"])
 
 
 @router.get("/capabilities", response_model=CapabilitiesResponse)
