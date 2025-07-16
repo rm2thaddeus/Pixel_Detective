@@ -8,3 +8,4 @@ transformers
 Pillow
 numpy
 python-multipart 
+aioredis>=2.0.1 

@@ -17,6 +17,7 @@ ML_SERVICE_URL = os.environ.get("ML_INFERENCE_SERVICE_URL", "http://localhost:80
 # Remove ML_BATCH_SIZE global, always use ctx.ml_batch_size
 REQUEST_TIMEOUT = int(os.environ.get("ML_REQUEST_TIMEOUT", "300"))
 POLL_INTERVAL = float(os.environ.get("ML_POLL_INTERVAL", "1.0"))
+ML_BATCH_FILL_TIMEOUT = float(os.environ.get("ML_BATCH_FILL_TIMEOUT", "120"))
 
 async def send_batch_to_ml_service(batch_items: list[dict]) -> list[dict]:
     """Submit a batch to the ML service and poll until results are ready."""
@@ -122,6 +123,7 @@ async def process_ml_batches(ctx: JobContext):
     sentinels_received = 0
     first_batch = True
     first_batch_start = None
+    logger.info(f"[{ctx.job_id}] [ML] Using ML_BATCH_FILL_TIMEOUT={ML_BATCH_FILL_TIMEOUT}s for batch filling.")
     while True:
         try:
             if first_batch:
@@ -143,7 +145,7 @@ async def process_ml_batches(ctx: JobContext):
                     batch.append(item)
                     first_batch_start = asyncio.get_event_loop().time()
                     ctx.ml_queue.task_done()
-                timeout = 60.0 - (asyncio.get_event_loop().time() - first_batch_start)
+                timeout = ML_BATCH_FILL_TIMEOUT - (asyncio.get_event_loop().time() - first_batch_start)
                 if timeout <= 0:
                     timeout = 0.01
                 try:
@@ -151,7 +153,7 @@ async def process_ml_batches(ctx: JobContext):
                     item = await asyncio.wait_for(ctx.ml_queue.get(), timeout=timeout)
                 except asyncio.TimeoutError:
                     if batch:
-                        logger.info(f"[{ctx.job_id}] [ML] Flushing first batch early after 60s: {len(batch)} items")
+                        logger.info(f"[{ctx.job_id}] [ML] Flushing first batch early after {ML_BATCH_FILL_TIMEOUT}s: {len(batch)} items")
                         await _flush_ml_batch(ctx, batch)
                         batch = []
                         first_batch = False
@@ -198,7 +200,7 @@ async def process_ml_batches(ctx: JobContext):
                     ctx.ml_queue.task_done()
                 batch_start_time = asyncio.get_event_loop().time()
                 while len(batch) < ctx.ml_batch_size:
-                    timeout = 60.0 - (asyncio.get_event_loop().time() - batch_start_time)
+                    timeout = ML_BATCH_FILL_TIMEOUT - (asyncio.get_event_loop().time() - batch_start_time)
                     if timeout <= 0:
                         break
                     try:

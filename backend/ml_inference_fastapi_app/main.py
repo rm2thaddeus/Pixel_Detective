@@ -8,7 +8,7 @@ import torch
 
 # Import the new service and router modules
 from .services import clip_service, blip_service
-from .services import scheduler
+from .services import redis_scheduler as scheduler
 from .routers import inference
 
 # Configure logging
@@ -32,7 +32,7 @@ async def lifespan(app: FastAPI):
         await blip_service.load_blip_model()
         blip_service.recalculate_safe_batch_size()
 
-    # Start job scheduler
+    # Start Redis job scheduler
     await scheduler.start_scheduler()
     
     logger.info("Startup complete. Models are loaded and ready.")

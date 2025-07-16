@@ -9,7 +9,8 @@ from pydantic import BaseModel
 from PIL import Image
 import torch
 
-from ..services import clip_service, blip_service, scheduler
+from ..services import clip_service, blip_service
+from ..services import redis_scheduler as scheduler
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -58,7 +59,7 @@ class CapabilitiesResponse(BaseModel):
 
 # --- Endpoints ---
 
-@router.post("/batch_embed_and_caption", response_model=JobResponse)
+@router.post("/batch_embed_and_caption", response_model=BatchEmbedAndCaptionResponse)
 async def batch_embed_and_caption_endpoint(request: BatchEmbedAndCaptionRequest = Body(...)):
     logger.info(f"[ML Service] Received batch_embed_and_caption request with {len(request.images)} images. Example filenames: {[item.filename for item in request.images[:3]]}{'...' if len(request.images) > 3 else ''}")
     batch_start_time = asyncio.get_event_loop().time()
@@ -77,42 +78,38 @@ async def batch_embed_and_caption_endpoint(request: BatchEmbedAndCaptionRequest 
             logger.error(f"[ML Service] Failed to decode base64 for {item.unique_id} ({item.filename}): {e}", exc_info=True)
             failed_decodes[item.unique_id] = f"Failed to decode image: {e}"
 
-    async def _process() -> Dict[str, Any]:
-        results: Dict[str, BatchResultItem] = {
-            uid: BatchResultItem(unique_id=uid, filename="", error=err)
-            for uid, err in failed_decodes.items()
-        }
+    results: Dict[str, BatchResultItem] = {
+        uid: BatchResultItem(unique_id=uid, filename="", error=err)
+        for uid, err in failed_decodes.items()
+    }
 
-        if valid_images:
-            image_list = list(valid_images.values())
-            embeddings = clip_service.encode_image_batch(image_list)
-            captions = blip_service.generate_captions(image_list)
+    if valid_images:
+        image_list = list(valid_images.values())
+        embeddings = clip_service.encode_image_batch(image_list)
+        captions = blip_service.generate_captions(image_list)
 
-            for i, uid in enumerate(valid_images.keys()):
-                original_item = next((item for item in request.images if item.unique_id == uid), None)
-                results[uid] = BatchResultItem(
-                    unique_id=uid,
-                    filename=original_item.filename if original_item else "",
-                    embedding=embeddings[i].tolist(),
-                    embedding_shape=list(embeddings[i].shape),
-                    caption=captions[i]
-                )
+        for i, uid in enumerate(valid_images.keys()):
+            original_item = next((item for item in request.images if item.unique_id == uid), None)
+            results[uid] = BatchResultItem(
+                unique_id=uid,
+                filename=original_item.filename if original_item else "",
+                embedding=embeddings[i].tolist(),
+                embedding_shape=list(embeddings[i].shape),
+                caption=captions[i]
+            )
 
-        # Add filenames for decode errors
-        for item in request.images:
-            if item.unique_id in results and not results[item.unique_id].filename:
-                results[item.unique_id].filename = item.filename
+    # Add filenames for decode errors
+    for item in request.images:
+        if item.unique_id in results and not results[item.unique_id].filename:
+            results[item.unique_id].filename = item.filename
 
-        final_results = [results[item.unique_id] for item in request.images]
-        return BatchEmbedAndCaptionResponse(results=final_results).dict()
-
-    job_id = scheduler.enqueue_job(_process)
-    return JobResponse(job_id=job_id, status="queued")
+    final_results = [results[item.unique_id] for item in request.images]
+    return BatchEmbedAndCaptionResponse(results=final_results)
 
 
 @router.get("/status/{job_id}", response_model=JobStatusResponse)
 async def get_job_status(job_id: str):
-    status = scheduler.get_job_status(job_id)
+    status = await scheduler.get_job_status(job_id)
     if not status:
         raise HTTPException(status_code=404, detail="Job not found")
     if status.get("status") in {"completed", "failed"}:
