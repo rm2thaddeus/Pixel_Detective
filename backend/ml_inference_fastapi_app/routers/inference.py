@@ -57,6 +57,14 @@ class CapabilitiesResponse(BaseModel):
     device_type: str
     cuda_available: bool
 
+class TextEmbedRequest(BaseModel):
+    text: str
+    description: Optional[str] = None
+
+class TextEmbedResponse(BaseModel):
+    embedding: List[float]
+    embedding_shape: List[int]
+
 # --- Endpoints ---
 
 @router.post("/batch_embed_and_caption", response_model=BatchEmbedAndCaptionResponse)
@@ -156,3 +164,17 @@ async def cooldown_models():
         await blip_service.cooldown_blip_model()
         
     return {"message": "Models cooled down and unloaded."} 
+
+@router.post("/embed_text", response_model=TextEmbedResponse)
+async def embed_text_endpoint(request: TextEmbedRequest):
+    """Embed a text string using the CLIP model and return the embedding."""
+    if not clip_service.get_clip_model_status():
+        raise HTTPException(status_code=503, detail="CLIP model is not available.")
+    try:
+        features = clip_service.encode_text_batch([request.text])
+        embedding = features[0].detach().cpu().numpy().tolist()
+        embedding_shape = list(features[0].shape)
+        return TextEmbedResponse(embedding=embedding, embedding_shape=embedding_shape)
+    except Exception as e:
+        logger.error(f"Failed to embed text: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to embed text: {e}") 
