@@ -103,3 +103,7 @@ transformers
 numpy
 pytest
 pytest-asyncio
+
+neo4j
+pydriller
+gitpython
