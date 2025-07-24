@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from typing import List, Dict, Any
 from pydantic import BaseModel, Field
 from qdrant_client import QdrantClient, models as qdr
-from qdrant_client.http.models import Distance, VectorParams
+from qdrant_client.http.models import Distance, VectorParams, HnswConfigDiff
 import logging
 
 from ..dependencies import get_qdrant_client, app_state
@@ -112,7 +112,8 @@ async def create_collection(req: CreateCollectionRequest, qdrant: QdrantClient =
 
     qdrant.create_collection(
         collection_name=req.collection_name,
-        vectors_config=VectorParams(size=req.vector_size, distance=dist_enum)
+        vectors_config=VectorParams(size=req.vector_size, distance=dist_enum, on_disk=True),
+        hnsw_config=HnswConfigDiff(on_disk=True)
     )
     return {"status": "success", "collection": req.collection_name}
 
@@ -143,7 +144,8 @@ async def create_collection_from_selection(
     # 3) Create destination collection with the same vector size / distance
     qdrant.create_collection(
         collection_name=req.new_collection_name,
-        vectors_config=VectorParams(size=vec_params.size, distance=vec_params.distance)
+        vectors_config=VectorParams(size=vec_params.size, distance=vec_params.distance, on_disk=True),
+        hnsw_config=HnswConfigDiff(on_disk=True)
     )
 
     # 4) Retrieve the selected points (vectors + payload) in batches to avoid URL length limits
