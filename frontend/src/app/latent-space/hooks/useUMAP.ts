@@ -53,18 +53,22 @@ async function ensureGpuServiceHealthy(): Promise<boolean> {
   return false;
 }
 
-const fetchUMAPProjection = async (
+export const fetchUMAPProjection = async (
   collection: string | null,
-  sampleSize: number = 500
+  sampleSize: number = 500,
+  bbox?: [number, number, number, number],
+  full: boolean = false
 ): Promise<UMAPProjectionResponse> => {
-  console.log(`🔍 fetchUMAPProjection called with collection: ${collection}, sampleSize: ${sampleSize}`);
+  console.log(`🔍 fetchUMAPProjection called with collection: ${collection}, sampleSize: ${sampleSize}, bbox: ${bbox}`);
   
   if (!collection) {
     throw new Error("A collection must be selected to compute UMAP projections.");
   }
   
   console.log(`🌐 Requesting UMAP projection from main backend, sample_size: ${sampleSize}`);
-  const params = { sample_size: sampleSize };
+  const params: Record<string, any> = { sample_size: sampleSize };
+  if (bbox) params.bbox = bbox.join(',');
+  if (full) params.full = 'true';
   const response = await api.get(`/umap/projection`, { params, timeout: 30000 });
   console.log(`✅ UMAP projection response received:`, {
     status: response.status,
@@ -198,4 +202,19 @@ export function useUMAP(sampleSize: number = 500) {
     isLoading: basicProjection.isLoading && basicProjection.isFetching,
     error: basicProjection.error,
   };
-} 
+}
+
+export function useUMAPZoom(
+  bbox: [number, number, number, number] | null,
+  sampleSize: number = 500,
+  full: boolean = false,
+) {
+  const { collection } = useStore();
+  return useQuery({
+    queryKey: ['umap', 'zoom', collection, bbox, sampleSize, full],
+    queryFn: () => fetchUMAPProjection(collection, sampleSize, bbox ?? undefined, full),
+    enabled: !!collection && !!bbox,
+    staleTime: 5 * 60 * 1000,
+    retry: 1,
+  });
+}

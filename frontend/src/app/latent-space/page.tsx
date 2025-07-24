@@ -29,7 +29,7 @@ import { UMAPScatterPlot } from './components/UMAPScatterPlot';
 import { ClusteringControls } from './components/ClusteringControls';
 import { ThumbnailOverlay } from './components/ThumbnailOverlay';
 import { StatsBar } from './components/StatsBar';
-import { useUMAP } from './hooks/useUMAP';
+import { useUMAP, useUMAPZoom, fetchUMAPProjection } from './hooks/useUMAP';
 import { useStore } from '@/store/useStore';
 import { useLatentSpaceStore } from './hooks/useLatentSpaceStore';
 import { UMAPPoint } from './types/latent-space';
@@ -110,8 +110,19 @@ export default function LatentSpacePage() {
     onSettled: onClose,
   });
 
+  const loadAllMutation = useMutation({
+    mutationFn: () => fetchUMAPProjection(collection, 5000, undefined, true),
+    onSuccess: (data) => {
+      useLatentSpaceStore.getState().setProjectionData(data);
+    },
+  });
+
   const handleArchive = () => {
     archiveMutation.mutate(Array.from(selectedIds));
+  };
+
+  const handleLoadAll = () => {
+    loadAllMutation.mutate();
   };
 
   const debugInfo = {
@@ -368,6 +379,9 @@ export default function LatentSpacePage() {
               stats={effectiveProjection.clustering_info}
               totalPoints={effectiveProjection.points.length}
             />
+            <Button size="sm" onClick={handleLoadAll} alignSelf="start">
+              Load all points
+            </Button>
 
             {/* Cluster Labeling Panel */}
             <ClusterLabelingPanel
