@@ -105,21 +105,21 @@ class StreamingUMAPService:
                 # Convert data to numpy array
                 data_array = np.array(data, dtype=np.float32)
                 
-                # Initialize UMAP with first chunk
-                first_chunk = data_array[:self.chunk_size]
+                # For UMAP, we need to fit on the entire dataset first, then transform in chunks
+                # This is because UMAP needs to see the full dataset structure
+                logger.info(f"Job {job.job_id}: Fitting UMAP on full dataset")
                 
                 async with (self.gpu_lock if self.gpu_lock else asyncio.Lock()):
                     reducer = UMAP(**umap_params)
-                    reducer.fit(first_chunk)
+                    # Fit on the entire dataset
+                    reducer.fit(data_array)
                 
-                # Process remaining chunks
+                # Now transform in chunks for progress updates
                 all_embeddings = []
-                all_embeddings.extend(reducer.transform(first_chunk).tolist())
-                job.processed_points = len(first_chunk)
-                job.current_chunk = 1
+                job.processed_points = 0
+                job.current_chunk = 0
                 
-                # Process remaining chunks
-                for chunk_start in range(self.chunk_size, len(data_array), self.chunk_size):
+                for chunk_start in range(0, len(data_array), self.chunk_size):
                     chunk_end = min(chunk_start + self.chunk_size, len(data_array))
                     chunk_data = data_array[chunk_start:chunk_end]
                     
@@ -127,7 +127,12 @@ class StreamingUMAPService:
                     async with (self.gpu_lock if self.gpu_lock else asyncio.Lock()):
                         chunk_embeddings = reducer.transform(chunk_data)
                     
-                    all_embeddings.extend(chunk_embeddings.tolist())
+                    # Convert to list and extend results
+                    if hasattr(chunk_embeddings, 'tolist'):
+                        all_embeddings.extend(chunk_embeddings.tolist())
+                    else:
+                        all_embeddings.extend(chunk_embeddings)
+                    
                     job.processed_points = chunk_end
                     job.current_chunk += 1
                     
@@ -164,7 +169,10 @@ class StreamingUMAPService:
         self,
         data: List[List[float]],
         algorithm: str = "dbscan",
-        **clustering_params
+        n_clusters: Optional[int] = None,
+        eps: Optional[float] = None,
+        min_samples: Optional[int] = None,
+        min_cluster_size: Optional[int] = None
     ) -> str:
         """Start streaming clustering for large datasets."""
         
@@ -185,7 +193,13 @@ class StreamingUMAPService:
         self.active_jobs[job_id] = job
         
         # Start processing in background
-        asyncio.create_task(self._process_clustering_job(job, data, algorithm, clustering_params))
+        asyncio.create_task(self._process_clustering_job(job, data, algorithm, {
+            'n_clusters': n_clusters,
+            'eps': eps,
+            'min_samples': min_samples,
+            'min_cluster_size': min_cluster_size,
+            'data': data  # Pass data for eps calculation
+        }))
         
         logger.info(f"Started streaming clustering job {job_id} for {total_points} points")
         return job_id
@@ -251,9 +265,10 @@ class StreamingUMAPService:
             eps = params.get('eps')
             if eps is None:
                 from sklearn.neighbors import NearestNeighbors
-                k = min(5, len(params.get('data', [])) - 1)
-                nbrs = NearestNeighbors(n_neighbors=k + 1).fit(params['data'])
-                dists, _ = nbrs.kneighbors(params['data'])
+                data = params.get('data', [])
+                k = min(5, len(data) - 1)
+                nbrs = NearestNeighbors(n_neighbors=k + 1).fit(data)
+                dists, _ = nbrs.kneighbors(data)
                 eps = float(np.median(dists[:, k]))
             
             min_samples = params.get('min_samples', 5)

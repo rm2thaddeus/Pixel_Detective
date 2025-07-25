@@ -19,7 +19,7 @@ except Exception:
         cuHDBSCAN = None
     CUDA_AVAILABLE = False
 
-from .streaming_service import streaming_service, ProcessingStatus
+from .streaming_service import streaming_service, ProcessingStatus, ProcessingJob
 
 logger = logging.getLogger(__name__)
 
@@ -222,8 +222,26 @@ async def start_streaming_umap(req: StreamingUMAPRequest):
             data_array = np.array(req.data, dtype=np.float32)
             embeddings = reducer.fit_transform(data_array)
             
+            # Store the result in the streaming service for consistency
+            job_id = "immediate"
+            streaming_service.active_jobs[job_id] = ProcessingJob(
+                job_id=job_id,
+                status=ProcessingStatus.COMPLETED,
+                total_points=len(req.data),
+                processed_points=len(req.data),
+                current_chunk=1,
+                total_chunks=1,
+                start_time=time.time(),
+                result={
+                    "embeddings": embeddings.tolist() if hasattr(embeddings, 'tolist') else embeddings,
+                    "total_points": len(req.data),
+                    "processing_time": 0.0,
+                    "chunks_processed": 1
+                }
+            )
+            
             return JobStartResponse(
-                job_id="immediate",
+                job_id=job_id,
                 status="completed",
                 message="Small dataset processed immediately",
                 total_points=len(req.data),
@@ -296,8 +314,69 @@ async def start_streaming_clustering(req: StreamingClusterRequest):
             
             labels = clusterer.fit_predict(data_array)
             
+            # Convert labels safely
+            try:
+                if hasattr(labels, 'to_numpy'):
+                    labels = labels.to_numpy()
+                elif 'cupy' in str(type(labels)):
+                    import cupy as cp
+                    labels = cp.asnumpy(labels)
+            except Exception:
+                pass
+            
+            labels = labels.astype(int)
+            
+            # Compute cluster statistics
+            from collections import defaultdict
+            cluster_stats = defaultdict(lambda: {"points": []})
+            for pt, lbl in zip(data_array.tolist(), labels):
+                cluster_stats[int(lbl)]["points"].append(pt)
+            
+            clusters_summary = {}
+            from shapely.geometry import MultiPoint
+            for cid, info in cluster_stats.items():
+                pts = np.array(info["points"], dtype=np.float32)
+                centroid = pts.mean(axis=0).tolist()
+                hull_coords = None
+                if len(pts) >= 3:
+                    try:
+                        hull = MultiPoint(pts).convex_hull
+                        hull_coords = list(map(list, hull.exterior.coords)) if hull and hasattr(hull, "exterior") else None
+                    except Exception:
+                        hull_coords = None
+                clusters_summary[cid] = {
+                    "size": len(pts),
+                    "centroid": centroid,
+                    "hull": hull_coords,
+                }
+            
+            # Calculate silhouette score
+            score = None
+            unique_labels = set(labels)
+            if len(unique_labels) > 1 and not (-1 in unique_labels and len(unique_labels) == 2):
+                score = float(silhouette_score(data_array, labels))
+            
+            # Store the result in the streaming service for consistency
+            job_id = "immediate"
+            streaming_service.active_jobs[job_id] = ProcessingJob(
+                job_id=job_id,
+                status=ProcessingStatus.COMPLETED,
+                total_points=len(req.data),
+                processed_points=len(req.data),
+                current_chunk=1,
+                total_chunks=1,
+                start_time=time.time(),
+                result={
+                    "labels": labels.tolist(),
+                    "silhouette_score": score,
+                    "clusters": clusters_summary,
+                    "total_points": len(req.data),
+                    "processing_time": 0.0
+                }
+            )
+            
             return JobStartResponse(
-                job_id="immediate",
+                job_id=job_id,
                 status="completed",
                 message="Small dataset processed immediately",
                 total_points=len(req.data),

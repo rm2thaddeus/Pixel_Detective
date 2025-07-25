@@ -30,6 +30,8 @@ import { ClusteringControls } from './components/ClusteringControls';
 import { ThumbnailOverlay } from './components/ThumbnailOverlay';
 import { StatsBar } from './components/StatsBar';
 import { useUMAP } from './hooks/useUMAP';
+import { useStreamingUMAP } from './hooks/useStreamingUMAP';
+import { StreamingProgressMonitor } from './components/StreamingProgressMonitor';
 import { useStore } from '@/store/useStore';
 import { useLatentSpaceStore } from './hooks/useLatentSpaceStore';
 import { UMAPPoint } from './types/latent-space';
@@ -38,6 +40,7 @@ import { VisualizationBar } from './components/VisualizationBar';
 import { ClusterLabelingPanel } from './components/ClusterLabelingPanel';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { archiveSelection } from '@/lib/api';
+import { ClientOnly } from '@/components/ClientOnly';
 
 export default function LatentSpacePage() {
   const { collection } = useStore();
@@ -67,6 +70,19 @@ export default function LatentSpacePage() {
 
   // Use an adaptive sample size (1 000) to balance detail and API latency.
   const { basicProjection, isLoading, error, clusteringMutation } = useUMAP(1000);
+  
+  // Streaming UMAP functionality
+  const { 
+    startUMAPJob, 
+    startClusteringJob,
+    activeJobs, 
+    cancelJob,
+    hasActiveJobs,
+    getJobStatus
+  } = useStreamingUMAP();
+  
+  const [expandedJobs, setExpandedJobs] = useState<Set<string>>(new Set());
+  
   const { 
     selectedCluster, 
     setSelectedCluster,
@@ -84,71 +100,185 @@ export default function LatentSpacePage() {
   const cancelRef = React.useRef<HTMLButtonElement | null>(null);
   const deckRef = React.useRef<HTMLElement>(null); // For export functionality
   const toast = useToast();
-  const queryClient = useQueryClient();
 
-  const archiveMutation = useMutation({
-    mutationFn: (pointIds: string[]) => archiveSelection(pointIds),
-    onSuccess: () => {
+  // Handle streaming job results
+  useEffect(() => {
+    activeJobs.forEach(job => {
+      if (job.status === 'completed' && job.result) {
+        console.log(`Job ${job.job_id} completed successfully`);
+        
+        if (job.result.embeddings) {
+          // UMAP job completed - convert embeddings to points
+          const points = job.result.embeddings.map((embedding: number[], index: number) => ({
+            id: `point_${index}`,
+            position: embedding,
+            x: embedding[0],
+            y: embedding[1],
+            cluster_id: undefined,
+            is_outlier: false,
+            metadata: {}
+          }));
+          
+          // Update the store with new projection data
+          useLatentSpaceStore.getState().setProjectionData({
+            points,
+            collection: collection || 'unknown',
+            clustering_info: undefined
+          });
+          
+          toast({
+            title: 'UMAP Processing Complete',
+            description: `Generated ${points.length} embeddings in ${job.processing_time.toFixed(1)}s`,
+            status: 'success',
+            duration: 5000,
+            isClosable: true,
+          });
+        } else if (job.result.labels) {
+          // Clustering job completed - apply labels to existing points
+          const currentData = useLatentSpaceStore.getState().projectionData;
+          if (currentData && currentData.points) {
+            const updatedPoints = currentData.points.map((point, index) => ({
+              ...point,
+              cluster_id: job.result.labels[index],
+              is_outlier: job.result.labels[index] === -1,
+            }));
+            
+            const clusteringInfo = {
+              algorithm: 'streaming',
+              n_clusters: Object.keys(job.result.clusters || {}).length,
+              silhouette_score: job.result.silhouette_score,
+              n_outliers: job.result.labels.filter((l: number) => l === -1).length,
+              parameters: {},
+              clusters: job.result.clusters,
+            };
+            
+            useLatentSpaceStore.getState().setProjectionData({
+              ...currentData,
+              points: updatedPoints,
+              clustering_info: clusteringInfo
+            });
+            
+            toast({
+              title: 'Clustering Complete',
+              description: `Found ${clusteringInfo.n_clusters} clusters in ${job.processing_time.toFixed(1)}s`,
+              status: 'success',
+              duration: 5000,
+              isClosable: true,
+            });
+          }
+        }
+      } else if (job.status === 'failed') {
+        toast({
+          title: 'Processing Failed',
+          description: job.error || 'An error occurred during processing',
+          status: 'error',
+          duration: 10000,
+          isClosable: true,
+        });
+      }
+    });
+  }, [activeJobs, collection, toast]);
+
+  // Handle large dataset processing
+  const handleLargeDatasetProcessing = async (data: number[][], isUMAP: boolean = true) => {
+    try {
+      if (isUMAP) {
+        const result = await startUMAPJob.mutateAsync({
+          data,
+          n_components: 2,
+          n_neighbors: 15,
+          min_dist: 0.1,
+          metric: "cosine",
+          random_state: 42
+        });
+        
+        if (result.job_id === 'immediate') {
+          // Small dataset - result is already available
+          const job = getJobStatus('immediate');
+          if (job?.result?.embeddings) {
+            const points = job.result.embeddings.map((embedding: number[], index: number) => ({
+              id: `point_${index}`,
+              position: embedding,
+              x: embedding[0],
+              y: embedding[1],
+              cluster_id: undefined,
+              is_outlier: false,
+              metadata: {}
+            }));
+            
+            useLatentSpaceStore.getState().setProjectionData({
+              points,
+              collection: collection || 'unknown',
+              clustering_info: undefined
+            });
+          }
+        } else {
+          toast({
+            title: 'UMAP Processing Started',
+            description: `Processing ${data.length} points in background`,
+            status: 'info',
+            duration: 3000,
+            isClosable: true,
+          });
+        }
+      } else {
+        // Clustering
+        const result = await startClusteringJob.mutateAsync({
+          data,
+          algorithm: clusteringParams.algorithm || 'dbscan',
+          n_clusters: clusteringParams.n_clusters,
+          eps: clusteringParams.eps,
+          min_samples: clusteringParams.min_samples,
+          min_cluster_size: clusteringParams.min_cluster_size
+        });
+        
+        if (result.job_id === 'immediate') {
+          // Small dataset - result is already available
+          const job = getJobStatus('immediate');
+          if (job?.result?.labels) {
+            const currentData = useLatentSpaceStore.getState().projectionData;
+            if (currentData && currentData.points) {
+              const updatedPoints = currentData.points.map((point, index) => ({
+                ...point,
+                cluster_id: job.result.labels[index],
+                is_outlier: job.result.labels[index] === -1,
+              }));
+              
+              const clusteringInfo = {
+                algorithm: clusteringParams.algorithm || 'dbscan',
+                n_clusters: Object.keys(job.result.clusters || {}).length,
+                silhouette_score: job.result.silhouette_score,
+                n_outliers: job.result.labels.filter((l: number) => l === -1).length,
+                parameters: clusteringParams,
+                clusters: job.result.clusters,
+              };
+              
+              useLatentSpaceStore.getState().setProjectionData({
+                ...currentData,
+                points: updatedPoints,
+                clustering_info: clusteringInfo
+              });
+            }
+          }
+        } else {
+          toast({
+            title: 'Clustering Started',
+            description: `Processing ${data.length} points in background`,
+            status: 'info',
+            duration: 3000,
+            isClosable: true,
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Failed to start processing:', error);
       toast({
-        title: 'Selection archived.',
-        status: 'success',
-        duration: 3000,
-        isClosable: true,
-      });
-      setSelectedIds(new Set());
-      queryClient.invalidateQueries({ queryKey: ['umap', collection] }); // Refetch UMAP data
-    },
-    onError: (err: Error) => {
-      toast({
-        title: 'Archiving failed.',
-        description: err.message,
+        title: 'Processing Failed',
+        description: 'Failed to start background processing',
         status: 'error',
         duration: 5000,
         isClosable: true,
       });
-    },
-    onSettled: onClose,
-  });
-
-  const handleArchive = () => {
-    archiveMutation.mutate(Array.from(selectedIds));
-  };
-
-  const debugInfo = {
-    collection,
-    isLoading,
-    error: error?.message,
-    hasData: !!basicProjection.data,
-    pointsCount: basicProjection.data?.points?.length,
-    clusteringInfo: basicProjection.data?.clustering_info,
-    selectedCluster,
-    colorPalette,
-    showOutliers,
-    pointSize,
-    timestamp: new Date().toISOString(),
-  };
-
-  // Log once per relevant change
-  useEffect(() => {
-    console.log('🔍 Latent Space Debug:', debugInfo);
-  }, [debugInfo]);
-
-  // Handle mouse movement for thumbnail overlay
-  useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      setMousePosition({ x: e.clientX, y: e.clientY });
-    };
-
-    if (hoveredPoint) {
-      document.addEventListener('mousemove', handleMouseMove);
-      return () => document.removeEventListener('mousemove', handleMouseMove);
-    }
-  }, [hoveredPoint]);
-
-  const handlePointHover = (point: UMAPPoint | null) => {
-    setHoveredPoint(point);
-    if (!point) {
-      setMousePosition(null);
     }
   };
 
@@ -165,19 +295,29 @@ export default function LatentSpacePage() {
       basicProjection.data?.points?.length &&
       !basicProjection.data?.clustering_info &&
       !clusteringMutation.isPending &&
-      !clusteringMutation.isSuccess
+      !clusteringMutation.isSuccess &&
+      !hasActiveJobs()
     ) {
       console.info('[LatentSpacePage] Auto-triggering initial clustering run');
-      clusteringMutation.mutate({
-        ...clusteringParams,
-        points: basicProjection.data.points,
-      }, {
-        onSuccess: (data) => {
-          useLatentSpaceStore.getState().setProjectionData(data);
-        },
-      });
+      
+      // Check if we should use streaming for large datasets
+      if (basicProjection.data.points.length > 1000) {
+        // Use streaming for large datasets
+        const dataForApi = basicProjection.data.points.map(p => [p.x, p.y]);
+        handleLargeDatasetProcessing(dataForApi, false);
+      } else {
+        // Use traditional approach for small datasets
+        clusteringMutation.mutate({
+          ...clusteringParams,
+          points: basicProjection.data.points,
+        }, {
+          onSuccess: (data) => {
+            useLatentSpaceStore.getState().setProjectionData(data);
+          },
+        });
+      }
     }
-  }, [basicProjection.data, clusteringParams, clusteringMutation]);
+  }, [basicProjection.data, clusteringParams, clusteringMutation, hasActiveJobs]);
 
   // Prefer the projection data that may have been stored after clusteringMutation
   const storedProjectionData = useLatentSpaceStore((s) => s.projectionData);
@@ -196,71 +336,82 @@ export default function LatentSpacePage() {
     return () => window.removeEventListener('keydown', keyHandler);
   }, []);
 
-  // Loading state
-  if (isLoading) {
+  const handlePointHover = (point: UMAPPoint | null, mousePos?: { x: number; y: number }) => {
+    setHoveredPoint(point);
+    setMousePosition(mousePos || null);
+  };
+
+  const handleArchiveSelection = useMutation({
+    mutationFn: archiveSelection,
+    onSuccess: () => {
+      toast({
+        title: 'Selection Archived',
+        description: `${selectedIds.size} images have been archived.`,
+        status: 'success',
+        duration: 5000,
+        isClosable: true,
+      });
+      setSelectedIds(new Set());
+    },
+    onError: (error) => {
+      toast({
+        title: 'Archive Failed',
+        description: error.message || 'Failed to archive selection.',
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+      });
+    },
+  });
+
+  const handleArchiveConfirm = () => {
+    if (selectedIds.size > 0) {
+      handleArchiveSelection.mutate(Array.from(selectedIds));
+      onClose();
+    }
+  };
+
+  if (!collection) {
     return (
       <Box minH="100vh">
-        <Header />
-        <Container maxW="full" p={6}>
-          <VStack spacing={6} align="center" justify="center" minH="60vh">
-            <Spinner size="xl" color="purple.500" thickness="4px" />
-            <VStack spacing={2}>
-              <Text fontSize="lg" fontWeight="semibold">
-                Loading Latent Space Visualization
-              </Text>
-              <Text color="gray.600" textAlign="center" maxW="md">
-                Fetching embeddings and computing 2D projections...
-                <br />
-                This may take a few moments for large collections.
-              </Text>
-            </VStack>
+        <ClientOnly>
+          <Header />
+        </ClientOnly>
+        <Container maxW="6xl" p={6}>
+          <VStack spacing={8} align="center" justify="center" minH="60vh">
+            <Alert status="info" borderRadius="lg">
+              <AlertIcon />
+              <VStack align="start" spacing={2}>
+                <Text fontWeight="semibold">No Collection Selected</Text>
+                <Text fontSize="sm">
+                  Please select a collection to view the latent space visualization.
+                </Text>
+              </VStack>
+            </Alert>
           </VStack>
         </Container>
       </Box>
     );
   }
 
-  // Error state
   if (error) {
-    console.error('❌ Latent Space Error:', error);
     return (
       <Box minH="100vh">
-        <Header />
-        <Container maxW="full" p={6}>
-          <Alert status="error" borderRadius="md">
-            <AlertIcon />
-            <VStack align="start" spacing={2}>
-              <Text fontWeight="semibold">Failed to load latent space data</Text>
-              <Text fontSize="sm">
-                {error instanceof Error ? error.message : 'Unknown error occurred'}
-              </Text>
-            </VStack>
-          </Alert>
-        </Container>
-      </Box>
-    );
-  }
-
-  // No data state
-  if (!effectiveProjection || !effectiveProjection.points || effectiveProjection.points.length === 0) {
-    console.warn('⚠️ No data available:', {
-      hasProjection: !!effectiveProjection,
-      hasPoints: !!effectiveProjection?.points,
-      pointsLength: effectiveProjection?.points?.length,
-    });
-    return (
-      <Box minH="100vh">
-        <Header />
-        <Container maxW="full" p={6}>
-          <Alert status="info" borderRadius="md">
-            <AlertIcon />
-            <VStack align="start" spacing={2}>
-              <Text fontWeight="semibold">No images found</Text>
-              <Text fontSize="sm">
-                Add some images to your collection to see them in the latent space visualization.
-              </Text>
-            </VStack>
-          </Alert>
+        <ClientOnly>
+          <Header />
+        </ClientOnly>
+        <Container maxW="6xl" p={6}>
+          <VStack spacing={8} align="center" justify="center" minH="60vh">
+            <Alert status="error" borderRadius="lg">
+              <AlertIcon />
+              <VStack align="start" spacing={2}>
+                <Text fontWeight="semibold">Failed to Load Visualization</Text>
+                <Text fontSize="sm">
+                  {error.message || 'An error occurred while loading the UMAP projection.'}
+                </Text>
+              </VStack>
+            </Alert>
+          </VStack>
         </Container>
       </Box>
     );
@@ -268,122 +419,143 @@ export default function LatentSpacePage() {
 
   return (
     <Box minH="100vh">
-      <Header />
-      <AlertDialog isOpen={isOpen} leastDestructiveRef={cancelRef} onClose={onClose}>
+      <ClientOnly>
+        <Header />
+      </ClientOnly>
+
+      <Container maxW="6xl" p={6}>
+        <VStack spacing={6} align="stretch">
+          {/* Page Header */}
+          <Box>
+            <Text fontSize="2xl" fontWeight="bold" mb={2}>
+              Latent Space Visualization
+            </Text>
+            <Text color="gray.600" fontSize="sm">
+              Explore your image collection through UMAP dimensionality reduction and clustering analysis.
+            </Text>
+          </Box>
+
+          {/* Loading State */}
+          {isLoading && !effectiveProjection && (
+            <VStack spacing={4} py={12}>
+              <Spinner size="xl" />
+              <Text>Loading visualization...</Text>
+            </VStack>
+          )}
+
+          {/* Main Visualization */}
+          {effectiveProjection && (
+            <Flex direction="column" gap={4}>
+              <Flex direction={{ base: 'column', lg: 'row' }} gap={4}>
+                {/* UMAP Plot */}
+                <AspectRatio ratio={1} flex="1" w="100%" onMouseEnter={() => setShowControls(true)}>
+                  <Box
+                    position="relative"
+                    borderRadius="lg"
+                    overflow="hidden"
+                  >
+                    <UMAPScatterPlot
+                      data={effectiveProjection}
+                      onPointHover={handlePointHover}
+                      onPointClick={handlePointClick}
+                      selectedClusterId={selectedCluster}
+                      colorPalette={colorPalette}
+                      showOutliers={showOutliers}
+                      pointSize={pointSize}
+                      deckRef={deckRef}
+                    />
+                    {/* Mobile collapsible toolbar */}
+                  </Box>
+                </AspectRatio>
+
+                {/* Persistent controls column (desktop) */}
+                <Box display={{ base: 'none', lg: 'block' }} w="240px" flexShrink={0}>
+                  <ClusteringControls 
+                    variant="compact" 
+                    deckRef={deckRef}
+                    selectedClusterId={selectedCluster}
+                  />
+                </Box>
+              </Flex>
+
+              {/* Visualization Settings Bar */}
+              <VisualizationBar />
+
+              {/* Stats Bar */}
+              <StatsBar
+                stats={effectiveProjection.clustering_info}
+                totalPoints={effectiveProjection.points.length}
+              />
+
+              {/* Cluster Labeling Panel */}
+              <ClusterLabelingPanel
+                points={effectiveProjection.points}
+                selectedClusterId={selectedCluster}
+                colorPalette={colorPalette}
+              />
+            </Flex>
+          )}
+        </VStack>
+      </Container>
+
+      {/* Thumbnail Overlay */}
+      {hoveredPoint && mousePosition && (
+        <ThumbnailOverlay
+          point={hoveredPoint}
+          position={mousePosition}
+        />
+      )}
+
+      {/* Archive Selection Dialog */}
+      <AlertDialog
+        isOpen={isOpen}
+        leastDestructiveRef={cancelRef}
+        onClose={onClose}
+      >
         <AlertDialogOverlay>
           <AlertDialogContent>
-            <AlertDialogHeader>Archive Selection</AlertDialogHeader>
+            <AlertDialogHeader fontSize="lg" fontWeight="bold">
+              Archive Selected Images
+            </AlertDialogHeader>
+
             <AlertDialogBody>
-              Are you sure you want to archive {selectedIds.size} selected images?
-              This action is reversible from the filesystem, but will remove the items from the database.
+              Are you sure you want to archive {selectedIds.size} selected images? 
+              This action cannot be undone.
             </AlertDialogBody>
+
             <AlertDialogFooter>
-              <Button ref={cancelRef} onClick={onClose}>Cancel</Button>
-              <Button colorScheme="red" onClick={handleArchive} ml={3} isLoading={archiveMutation.isPending}>
+              <Button ref={cancelRef} onClick={onClose}>
+                Cancel
+              </Button>
+              <Button 
+                colorScheme="red" 
+                onClick={handleArchiveConfirm} 
+                ml={3}
+                isLoading={handleArchiveSelection.isPending}
+              >
                 Archive
               </Button>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialogOverlay>
       </AlertDialog>
-      <Container maxW="full" p={6}>
-        <VStack spacing={6} align="stretch">
-          {/* Header Section */}
-          <Box>
-            <Text fontSize="2xl" fontWeight="bold" mb={1}>Latent Space Visualization</Text>
-            <Text color="gray.600">
-              Interactive 2D embedding space for collection analysis and clustering.
-            </Text>
-            <HStack spacing={4} mt={2} fontSize="sm">
-              <Text color="blue.500">
-                {effectiveProjection.points.length} points • {effectiveProjection.clustering_info?.n_clusters || 0} clusters
-              </Text>
-              {effectiveProjection.clustering_info?.algorithm && (
-                <Text color="green.500">
-                  Algorithm: {effectiveProjection.clustering_info.algorithm}
-                </Text>
-              )}
-              {selectedCluster !== null && (
-                <Text color="purple.500">
-                  Selected cluster: {selectedCluster}
-                </Text>
-              )}
-            </HStack>
-            {selectedIds.size > 0 && (
-              <HStack>
-                <Text color="red.500" fontWeight="bold">
-                  {selectedIds.size} points selected
-                </Text>
-                <Button size="sm" colorScheme="red" onClick={onOpen}>
-                  Archive Selection
-                </Button>
-                <Button size="sm" variant="ghost" onClick={() => setSelectedIds(new Set())}>
-                  Clear Selection
-                </Button>
-              </HStack>
-            )}
-          </Box>
 
-          <Divider />
-
-          {/* === Compact Vertical Layout === */}
-          <Flex direction="column" gap={4}>
-            <Flex direction={{ base: 'column', lg: 'row' }} gap={4}>
-              {/* UMAP Plot */}
-              <AspectRatio ratio={1} flex="1" w="100%" onMouseEnter={() => setShowControls(true)}>
-                <Box
-                  position="relative"
-                  borderRadius="lg"
-                  overflow="hidden"
-                >
-                  <UMAPScatterPlot
-                    data={effectiveProjection}
-                    onPointHover={handlePointHover}
-                    onPointClick={handlePointClick}
-                    selectedClusterId={selectedCluster}
-                    colorPalette={colorPalette}
-                    showOutliers={showOutliers}
-                    pointSize={pointSize}
-                    deckRef={deckRef}
-                  />
-                  {/* Mobile collapsible toolbar */}
-                </Box>
-              </AspectRatio>
-
-              {/* Persistent controls column (desktop) */}
-              <Box display={{ base: 'none', lg: 'block' }} w="240px" flexShrink={0}>
-                <ClusteringControls 
-                  variant="compact" 
-                  deckRef={deckRef}
-                  selectedClusterId={selectedCluster}
-                />
-              </Box>
-            </Flex>
-
-            {/* Visualization Settings Bar */}
-            <VisualizationBar />
-
-            {/* Stats Bar */}
-            <StatsBar
-              stats={effectiveProjection.clustering_info}
-              totalPoints={effectiveProjection.points.length}
-            />
-
-            {/* Cluster Labeling Panel */}
-            <ClusterLabelingPanel
-              points={effectiveProjection.points}
-              selectedClusterId={selectedCluster}
-              colorPalette={colorPalette}
-            />
-          </Flex>
-        </VStack>
-      </Container>
-
-      {/* Thumbnail Overlay */}
-      <ThumbnailOverlay
-        point={hoveredPoint}
-        mousePosition={mousePosition}
-        onImageClick={handlePointClick}
+      {/* Streaming Progress Monitor */}
+      <StreamingProgressMonitor
+        jobs={activeJobs}
+        onCancelJob={cancelJob.mutate}
+        onExpand={(jobId) => {
+          setExpandedJobs(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(jobId)) {
+              newSet.delete(jobId);
+            } else {
+              newSet.add(jobId);
+            }
+            return newSet;
+          });
+        }}
+        expandedJobs={expandedJobs}
       />
     </Box>
   );
