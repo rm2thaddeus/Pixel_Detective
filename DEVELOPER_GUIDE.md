@@ -687,4 +687,20 @@ frontend/src/
 ├── lib/
 │ └── api.ts # ✅ Typed Axios client
 └── store/
-└── useStore.ts # ✅ Zustand client state
+└── useStore.ts # ✅ Zustand client state\n## Developer Graph
+The Developer Graph maps commits, requirements and sprint docs into a Neo4j database.
+
+**Setup**
+1. Ensure `docker-compose.yml` is configured with the `neo4j` and `dev_graph_api` services.
+2. Export `NEO4J_PASSWORD` before starting containers.
+3. Run `docker-compose up neo4j dev_graph_api` to launch the graph services.
+4. Execute `scripts/update_dev_graph.sh` to ingest data.
+
+The script can be run after each push to keep the graph up to date.
+
+**API Usage**
+- `GET /api/v1/dev-graph/nodes?node_type=Requirement` – list nodes
+- `GET /api/v1/dev-graph/relations?start_id=1` – list relations
+- `GET /api/v1/dev-graph/search?q=FR-10` – search the graph
+
+The API binds to `127.0.0.1:8080` by default. Update variables to expose remotely.

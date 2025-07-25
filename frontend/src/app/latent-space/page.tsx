@@ -29,7 +29,7 @@ import { UMAPScatterPlot } from './components/UMAPScatterPlot';
 import { ClusteringControls } from './components/ClusteringControls';
 import { ThumbnailOverlay } from './components/ThumbnailOverlay';
 import { StatsBar } from './components/StatsBar';
-import { useUMAP } from './hooks/useUMAP';
+import { useUMAP, useUMAPZoom, fetchUMAPProjection } from './hooks/useUMAP';
 import { useStreamingUMAP } from './hooks/useStreamingUMAP';
 import { StreamingProgressMonitor } from './components/StreamingProgressMonitor';
 import { useStore } from '@/store/useStore';
@@ -98,7 +98,7 @@ export default function LatentSpacePage() {
   const [showControls, setShowControls] = useState(false);
   const { isOpen, onOpen, onClose } = useDisclosure();
   const cancelRef = React.useRef<HTMLButtonElement | null>(null);
-  const deckRef = React.useRef<HTMLElement>(null); // For export functionality
+  const deckRef = React.useRef<HTMLElement>(null);
   const toast = useToast();
 
   // Handle streaming job results
@@ -279,6 +279,60 @@ export default function LatentSpacePage() {
         duration: 5000,
         isClosable: true,
       });
+    },
+    onSettled: onClose,
+  });
+
+  const loadAllMutation = useMutation({
+    mutationFn: () => fetchUMAPProjection(collection, 5000, undefined, true),
+    onSuccess: (data) => {
+      useLatentSpaceStore.getState().setProjectionData(data);
+    },
+  });
+
+  const handleArchive = () => {
+    archiveMutation.mutate(Array.from(selectedIds));
+  };
+
+  const handleLoadAll = () => {
+    loadAllMutation.mutate();
+  };
+
+  const debugInfo = {
+    collection,
+    isLoading,
+    error: error?.message,
+    hasData: !!basicProjection.data,
+    pointsCount: basicProjection.data?.points?.length,
+    clusteringInfo: basicProjection.data?.clustering_info,
+    selectedCluster,
+    colorPalette,
+    showOutliers,
+    pointSize,
+    timestamp: new Date().toISOString(),
+  };
+
+  // Log once per relevant change
+  useEffect(() => {
+    console.log('🔍 Latent Space Debug:', debugInfo);
+  }, [debugInfo]);
+
+  // Handle mouse movement for thumbnail overlay
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      setMousePosition({ x: e.clientX, y: e.clientY });
+    };
+
+    if (hoveredPoint) {
+      document.addEventListener('mousemove', handleMouseMove);
+      return () => document.removeEventListener('mousemove', handleMouseMove);
+    }
+  }, [hoveredPoint]);
+
+  const handlePointHover = (point: UMAPPoint | null) => {
+    setHoveredPoint(point);
+    if (!point) {
+      setMousePosition(null);
     }
   };
 
@@ -336,42 +390,8 @@ export default function LatentSpacePage() {
     return () => window.removeEventListener('keydown', keyHandler);
   }, []);
 
-  const handlePointHover = (point: UMAPPoint | null, mousePos?: { x: number; y: number }) => {
-    setHoveredPoint(point);
-    setMousePosition(mousePos || null);
-  };
-
-  const handleArchiveSelection = useMutation({
-    mutationFn: archiveSelection,
-    onSuccess: () => {
-      toast({
-        title: 'Selection Archived',
-        description: `${selectedIds.size} images have been archived.`,
-        status: 'success',
-        duration: 5000,
-        isClosable: true,
-      });
-      setSelectedIds(new Set());
-    },
-    onError: (error) => {
-      toast({
-        title: 'Archive Failed',
-        description: error.message || 'Failed to archive selection.',
-        status: 'error',
-        duration: 5000,
-        isClosable: true,
-      });
-    },
-  });
-
-  const handleArchiveConfirm = () => {
-    if (selectedIds.size > 0) {
-      handleArchiveSelection.mutate(Array.from(selectedIds));
-      onClose();
-    }
-  };
-
-  if (!collection) {
+  // Loading state
+  if (isLoading) {
     return (
       <Box minH="100vh">
         <ClientOnly>
@@ -486,6 +506,14 @@ export default function LatentSpacePage() {
                 stats={effectiveProjection.clustering_info}
                 totalPoints={effectiveProjection.points.length}
               />
+            {/* Stats Bar */}
+            <StatsBar
+              stats={effectiveProjection.clustering_info}
+              totalPoints={effectiveProjection.points.length}
+            />
+            <Button size="sm" onClick={handleLoadAll} alignSelf="start">
+              Load all points
+            </Button>
 
               {/* Cluster Labeling Panel */}
               <ClusterLabelingPanel
@@ -499,63 +527,10 @@ export default function LatentSpacePage() {
       </Container>
 
       {/* Thumbnail Overlay */}
-      {hoveredPoint && mousePosition && (
-        <ThumbnailOverlay
-          point={hoveredPoint}
-          position={mousePosition}
-        />
-      )}
-
-      {/* Archive Selection Dialog */}
-      <AlertDialog
-        isOpen={isOpen}
-        leastDestructiveRef={cancelRef}
-        onClose={onClose}
-      >
-        <AlertDialogOverlay>
-          <AlertDialogContent>
-            <AlertDialogHeader fontSize="lg" fontWeight="bold">
-              Archive Selected Images
-            </AlertDialogHeader>
-
-            <AlertDialogBody>
-              Are you sure you want to archive {selectedIds.size} selected images? 
-              This action cannot be undone.
-            </AlertDialogBody>
-
-            <AlertDialogFooter>
-              <Button ref={cancelRef} onClick={onClose}>
-                Cancel
-              </Button>
-              <Button 
-                colorScheme="red" 
-                onClick={handleArchiveConfirm} 
-                ml={3}
-                isLoading={handleArchiveSelection.isPending}
-              >
-                Archive
-              </Button>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialogOverlay>
-      </AlertDialog>
-
-      {/* Streaming Progress Monitor */}
-      <StreamingProgressMonitor
-        jobs={activeJobs}
-        onCancelJob={cancelJob.mutate}
-        onExpand={(jobId) => {
-          setExpandedJobs(prev => {
-            const newSet = new Set(prev);
-            if (newSet.has(jobId)) {
-              newSet.delete(jobId);
-            } else {
-              newSet.add(jobId);
-            }
-            return newSet;
-          });
-        }}
-        expandedJobs={expandedJobs}
+      <ThumbnailOverlay
+        point={hoveredPoint}
+        mousePosition={mousePosition}
+        onImageClick={handlePointClick}
       />
     </Box>
   );

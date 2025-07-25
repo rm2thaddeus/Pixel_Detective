@@ -11,6 +11,7 @@ import httpx
 
 from fastapi import BackgroundTasks
 from qdrant_client import QdrantClient
+from qdrant_client.http.models import HnswConfigDiff
 
 # Logger setup
 logger = logging.getLogger(__name__)
@@ -39,6 +40,7 @@ class JobContext:
     # --- New: Model-specific batch sizes ---
     clip_batch_size: Optional[int] = None
     blip_batch_size: Optional[int] = None
+    caption: bool = True
     
     # --- Queues for pipeline stages ---
     raw_queue: asyncio.Queue = field(init=False)
@@ -90,7 +92,7 @@ async def _run_pipeline(
 
     ctx.status = JobStatus.RUNNING
     ctx.add_log(f"Starting pipeline for directory: {directory_path}")
-    logger.info(f"[Pipeline {job_id}] Starting pipeline for directory: {directory_path}")
+    logger.info(f"[Pipeline {job_id}] Starting pipeline for directory: {directory_path} (caption={ctx.caption})")
 
     # Log queue and worker configuration
     logger.info(f"[Pipeline {job_id}] Config: ml_batch_size={ctx.ml_batch_size}, qdrant_batch_size={ctx.qdrant_batch_size}, "
@@ -98,6 +100,15 @@ async def _run_pipeline(
                 f"cpu_worker_count={ctx.cpu_worker_count}, ml_worker_count={ctx.ml_worker_count}, db_worker_count={ctx.db_worker_count}")
 
     try:
+        try:
+            qdrant_client.update_collection(
+                collection_name=collection_name,
+                hnsw_config=HnswConfigDiff(m=0, on_disk=True)
+            )
+            logger.info(f"[Pipeline {job_id}] Temporarily disabled HNSW indexing for ingestion")
+        except Exception as e:
+            logger.warning(f"[Pipeline {job_id}] Failed to disable indexing: {e}")
+
         # --- Define and start all workers ---
         logger.info(f"[Pipeline {job_id}] Starting IO scanner...")
         scanner_task = asyncio.create_task(io_scanner.scan_directory(ctx, directory_path))
@@ -135,6 +146,15 @@ async def _run_pipeline(
         await ctx.db_queue.join() # 4. Wait for all points to be upserted to the database
         ctx.add_log("Database upsert stage complete.")
         logger.info(f"[Pipeline {job_id}] Database upsert stage complete.")
+
+        try:
+            qdrant_client.update_collection(
+                collection_name=collection_name,
+                hnsw_config=HnswConfigDiff(m=16, on_disk=True)
+            )
+            logger.info(f"[Pipeline {job_id}] Re-enabled HNSW indexing")
+        except Exception as e:
+            logger.warning(f"[Pipeline {job_id}] Failed to re-enable indexing: {e}")
 
         ctx.status = JobStatus.COMPLETED
         ctx.add_log("Pipeline completed successfully.")
@@ -212,6 +232,7 @@ async def start_pipeline(
     collection_name: str,
     background_tasks: BackgroundTasks,
     qdrant_client: QdrantClient,
+    caption: bool = True,
 ) -> str:
     # Dynamically determine ML batch size and queue size from ML service capabilities
     ML_SERVICE_URL = os.environ.get("ML_INFERENCE_SERVICE_URL", "http://localhost:8001")
@@ -256,6 +277,7 @@ async def start_pipeline(
         db_worker_count=db_worker_count,
         clip_batch_size=clip_batch_size,
         blip_batch_size=blip_batch_size,
+        caption=caption,
     )
     # Override queue maxsize for ML and DB queues
     ctx.raw_queue = asyncio.Queue(maxsize=ml_queue_maxsize)

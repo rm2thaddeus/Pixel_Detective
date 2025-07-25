@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks, File, UploadFile
+from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks, File, UploadFile, Query
 from pydantic import BaseModel, Field
 from typing import Dict, Any, List
 import logging
@@ -105,7 +105,8 @@ async def start_ingestion(
     request: IngestRequest,
     background_tasks: BackgroundTasks,
     qdrant_client: QdrantClient = Depends(get_qdrant_client),
-    collection_name: str = Depends(get_active_collection)
+    collection_name: str = Depends(get_active_collection),
+    caption: bool = Query(True, description="Generate captions during ingestion"),
 ):
     """
     Starts a background ingestion job for a local directory path.
@@ -121,6 +122,7 @@ async def start_ingestion(
         collection_name=collection_name,
         background_tasks=background_tasks,
         qdrant_client=qdrant_client,
+        caption=caption,
     )
     return JobResponse(job_id=job_id, status="started", message="Ingestion job started successfully.")
 
@@ -129,7 +131,8 @@ async def start_ingestion_from_path(
     request: IngestRequest,
     background_tasks: BackgroundTasks,
     qdrant_client: QdrantClient = Depends(get_qdrant_client),
-    collection_name: str = Depends(get_active_collection)
+    collection_name: str = Depends(get_active_collection),
+    caption: bool = Query(True, description="Generate captions during ingestion"),
 ):
     """
     Alias for the main ingestion endpoint. Starts a background ingestion job for a given path.
@@ -143,6 +146,7 @@ async def start_ingestion_from_path(
         collection_name=collection_name,
         background_tasks=background_tasks,
         qdrant_client=qdrant_client,
+        caption=caption,
     )
     return JobResponse(job_id=job_id, status="started", message="Ingestion scan started successfully.")
 
@@ -156,7 +160,8 @@ async def upload_and_ingest_files(
     background_tasks: BackgroundTasks,
     files: List[UploadFile] = File(...),
     qdrant_client: QdrantClient = Depends(get_qdrant_client),
-    collection_name: str = Depends(get_active_collection)
+    collection_name: str = Depends(get_active_collection),
+    caption: bool = Query(True, description="Generate captions during ingestion"),
 ):
     """
     Accepts file uploads, saves them to a temporary directory,
@@ -185,7 +190,8 @@ async def upload_and_ingest_files(
         directory_path=temp_dir,
         collection_name=collection_name,
         background_tasks=background_tasks,
-        qdrant_client=qdrant_client
+        qdrant_client=qdrant_client,
+        caption=caption,
     )
     
     # The cleanup will be handled by the background task associated with the request that started the pipeline

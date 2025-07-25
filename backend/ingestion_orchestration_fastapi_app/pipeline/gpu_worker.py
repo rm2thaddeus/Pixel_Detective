@@ -19,7 +19,7 @@ REQUEST_TIMEOUT = int(os.environ.get("ML_REQUEST_TIMEOUT", "300"))
 POLL_INTERVAL = float(os.environ.get("ML_POLL_INTERVAL", "1.0"))
 ML_BATCH_FILL_TIMEOUT = float(os.environ.get("ML_BATCH_FILL_TIMEOUT", "120"))
 
-async def send_batch_to_ml_service(batch_items: list[dict]) -> list[dict]:
+async def send_batch_to_ml_service(batch_items: list[dict], caption: bool = True) -> list[dict]:
     """Submit a batch to the ML service and poll until results are ready."""
     if not batch_items:
         logger.info("[ML] Attempted to send empty batch to ML service. Skipping.")
@@ -38,6 +38,7 @@ async def send_batch_to_ml_service(batch_items: list[dict]) -> list[dict]:
         try:
             submit_resp = await client.post(
                 f"{ML_SERVICE_URL}/api/v1/batch_embed_and_caption",
+                params={"caption": str(caption).lower()},
                 json={"images": images_payload},
                 timeout=REQUEST_TIMEOUT,
             )
@@ -234,7 +235,7 @@ async def _flush_ml_batch(ctx: JobContext, batch: list):
         return
     logger.info(f"[{ctx.job_id}] [ML] Flushing ML batch of size {len(batch)}. Example filenames: {[item['metadata'].get('filename', 'unknown') for item in batch[:3]]}{'...' if len(batch) > 3 else ''}")
     start_time = asyncio.get_event_loop().time()
-    ml_results = await send_batch_to_ml_service(batch)
+    ml_results = await send_batch_to_ml_service(batch, caption=ctx.caption)
     elapsed = asyncio.get_event_loop().time() - start_time
     logger.info(f"[{ctx.job_id}] [ML] ML batch processed in {elapsed:.2f}s. Received {len(ml_results)} results.")
     item_map = {i["file_hash"]: i for i in batch}

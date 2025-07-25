@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, Query, HTTPException
 from typing import List, Dict, Any, Optional
 from ..dependencies import get_qdrant_client, get_active_collection
 from qdrant_client import QdrantClient
+import os
 from qdrant_client.http.models import PointStruct, Filter, FieldCondition, MatchValue
 import numpy as np
 import logging
@@ -51,6 +52,9 @@ class UMAPProjectionResponse(BaseModel):
 @router.get("/projection", response_model=UMAPProjectionResponse, summary="Get 2-D UMAP projection for a sample of points")
 async def umap_projection(
     sample_size: int = Query(500, ge=10, le=5000, description="Number of points to project"),
+    bbox: Optional[str] = Query(None, description="minX,minY,maxX,maxY"),
+    level: Optional[int] = Query(None, ge=0, description="Zoom level for progressive loading"),
+    full: bool = Query(False, description="Return all points"),
     qdrant: QdrantClient = Depends(get_qdrant_client),
     collection_name: str = Depends(get_active_collection),
 ):
@@ -65,13 +69,25 @@ async def umap_projection(
         start_time = time.time()
         
         # 1. Sample points (random seed fixed for determinism per call)
-        search_result = qdrant.scroll(
-            collection_name=collection_name,
-            with_vectors=True,
-            with_payload=True,
-            limit=sample_size,
-        )
-        points, _ = search_result
+        points: list[PointStruct] = []
+        next_cursor = None
+        fetch_limit = sample_size if not full else 10000
+        if full:
+            total = qdrant.count(collection_name=collection_name, exact=True).count
+            max_points_full = int(os.environ.get("UMAP_MAX_POINTS_FULL", "20000"))
+            if total > max_points_full:
+                raise HTTPException(status_code=400, detail=f"Collection too large to load fully ({total} > {max_points_full})")
+        while True:
+            batch, next_cursor = qdrant.scroll(
+                collection_name=collection_name,
+                with_vectors=True,
+                with_payload=True,
+                limit=fetch_limit,
+                offset=next_cursor,
+            )
+            points.extend(batch)
+            if not full or next_cursor is None:
+                break
         if not points:
             raise HTTPException(status_code=404, detail="Collection is empty")
 
@@ -97,6 +113,13 @@ async def umap_projection(
                 "filename": payload.get("filename"),
                 "caption": payload.get("caption")
             })
+
+        if bbox:
+            try:
+                min_x, min_y, max_x, max_y = [float(v) for v in bbox.split(',')]
+                results = [r for r in results if min_x <= r["x"] <= max_x and min_y <= r["y"] <= max_y]
+            except Exception:
+                pass
 
         return UMAPProjectionResponse(
             points=results, 

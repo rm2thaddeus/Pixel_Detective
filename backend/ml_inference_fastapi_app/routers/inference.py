@@ -4,7 +4,7 @@ import base64
 import io
 from typing import List, Dict, Any, Optional, Tuple
 
-from fastapi import APIRouter, Depends, HTTPException, Body
+from fastapi import APIRouter, Depends, HTTPException, Body, Query
 from pydantic import BaseModel
 from PIL import Image
 import torch
@@ -67,8 +67,14 @@ class TextEmbedResponse(BaseModel):
 
 # --- Endpoints ---
 
+from fastapi import Query
+
+
 @router.post("/batch_embed_and_caption", response_model=BatchEmbedAndCaptionResponse)
-async def batch_embed_and_caption_endpoint(request: BatchEmbedAndCaptionRequest = Body(...)):
+async def batch_embed_and_caption_endpoint(
+    request: BatchEmbedAndCaptionRequest = Body(...),
+    caption: bool = Query(True, description="Generate captions in addition to embeddings"),
+):
     logger.info(f"[ML Service] Received batch_embed_and_caption request with {len(request.images)} images. Example filenames: {[item.filename for item in request.images[:3]]}{'...' if len(request.images) > 3 else ''}")
     batch_start_time = asyncio.get_event_loop().time()
     if not clip_service.get_clip_model_status() or not blip_service.get_blip_model_status():
@@ -94,7 +100,11 @@ async def batch_embed_and_caption_endpoint(request: BatchEmbedAndCaptionRequest 
     if valid_images:
         image_list = list(valid_images.values())
         embeddings = clip_service.encode_image_batch(image_list)
-        captions = blip_service.generate_captions(image_list)
+        captions = []
+        if caption:
+            captions = blip_service.generate_captions(image_list)
+        else:
+            captions = ["" for _ in image_list]
 
         for i, uid in enumerate(valid_images.keys()):
             original_item = next((item for item in request.images if item.unique_id == uid), None)
