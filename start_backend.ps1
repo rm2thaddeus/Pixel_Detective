@@ -58,8 +58,10 @@ Set-Location $RepoRoot
 if (-not $SkipContainers) {
     # 2.1  Create the shared network – harmless if it already exists
     Write-Info "Ensuring docker network 'vibe_net' exists..."
-    docker network inspect vibe_net *> $null 2>&1
-    if ($LASTEXITCODE -ne 0) {
+    # Avoid terminating on missing network when $ErrorActionPreference is 'Stop'
+    # by querying the list of networks instead of inspecting a non-existent one.
+    $networkNames = docker network ls --format "{{.Name}}"
+    if ($networkNames -notcontains 'vibe_net') {
         docker network create vibe_net | Out-Null
         Write-Done "Created network 'vibe_net'."
     } else {
@@ -76,6 +78,11 @@ if (-not $SkipContainers) {
     Write-Info "Starting GPU-UMAP container via $umapCompose ..."
     docker compose -f $umapCompose up -d gpu_umap_service
     Write-Done "UMAP API container is up (port 8003)."
+
+    # 2.4  Start Neo4j and Developer Graph API via root docker-compose
+    Write-Info "Starting Neo4j and Developer Graph API (root docker-compose)..."
+    docker compose up -d neo4j dev_graph_api
+    Write-Done "Neo4j and Developer Graph API are up."
 }
 else {
     Write-Warn "-- SkipContainers flag detected -> skipping all Docker workflows."
@@ -111,6 +118,9 @@ if ($UseJobs) {
     } -ArgumentList $RepoRoot, $ingestCmd | Out-Null
     Write-Done "Ingestion Orchestrator job started."
     
+    # 3.3  Developer Graph Service is managed via docker-compose; skip local job
+    Write-Info "Developer Graph FastAPI runs in Docker compose; skipping local job."
+    
     Write-Info "Background jobs status:"
     Get-Job | Format-Table -AutoSize
     
@@ -135,6 +145,9 @@ if ($UseJobs) {
     $ingestCmd = "uvicorn backend.ingestion_orchestration_fastapi_app.main:app --host 0.0.0.0 --port 8002 --reload"
     Write-Info "Launching Ingestion Orchestrator (port 8002)..."
     Start-ServiceWindow $RepoRoot $ingestCmd "Ingestion Orchestrator"
+
+    # 3.3  Developer Graph Service is managed via docker-compose; skip separate window
+    Write-Info "Developer Graph FastAPI runs in Docker compose; skipping separate window."
 }
 
 Write-Done "All backend services started!"
@@ -144,6 +157,8 @@ Write-Host "Qdrant UI (vector DB):              http://localhost:6333" -Foregrou
 Write-Host "ML Inference Swagger UI:            http://localhost:8001/docs" -ForegroundColor Magenta
 Write-Host "Ingestion Orchestrator Swagger UI:  http://localhost:8002/docs" -ForegroundColor Magenta
 Write-Host "GPU UMAP API Swagger UI:             http://localhost:8003/docs" -ForegroundColor Magenta
+Write-Host "Developer Graph API (Neo4j):           http://localhost:8080/docs" -ForegroundColor Magenta
+Write-Host "Neo4j Browser:                         http://localhost:7474" -ForegroundColor Magenta
 Write-Host ""
 
 if ($UseJobs) {
@@ -159,3 +174,4 @@ Write-Host "To stop containers:  docker compose down; docker compose -f backend/
 if ($UseJobs) {
     Write-Host "To stop services:    Get-Job | Stop-Job; Get-Job | Remove-Job" -ForegroundColor Yellow
 } 
+Write-Host "To stop Neo4j:        docker stop vibe_neo4j; docker rm vibe_neo4j" -ForegroundColor Yellow 

@@ -12,6 +12,7 @@
 | **ML Inference API** | `backend/ml_inference_fastapi_app` | FastAPI + PyTorch 2 | Runs CLIP & BLIP models on GPU to generate image embeddings & captions; returns results for single images or batches; reports GPU capability info; supports text embedding for semantic search. |
 | **Vector DB (Qdrant)** | External container / local native | Rust server | Stores high-dimensional image embeddings plus arbitrary JSON payload including base64 thumbnails; provides similarity search. |
 | **Disk Cache** | `backend/.diskcache` (SQLite) | Python `diskcache` | Local on-disk cache used by ingestion service for deduplication and progress persistence. |
+| **Developer Graph API** | `backend/developer_graph_service` | FastAPI (Python 3.11) + Neo4j | Exposes developer/project graph queries and relationships via REST API; powered by Neo4j graph database. |
 
 ---
 
@@ -151,16 +152,20 @@ graph TD
     subgraph "Service Layer"
         ING["Ingestion Orchestration API\n(FastAPI, port 8002)"]
         ML["ML Inference API\n(FastAPI + GPU, port 8001)"]
+        DEVGRAPH["Developer Graph API\n(FastAPI + Neo4j, port 8080)"]
     end
 
     subgraph "State & Infra"
         VDB["Qdrant Vector DB\n(port 6333)"]
         DKC["Diskcache SQLite"]
+        NEO4J["Neo4j Graph DB\n(port 7687/7474)"]
         GPU[("NVIDIA GPU")]
     end
 
     FE -- REST --> ING
     CLI -- REST --> ING
+    FE -- REST --> DEVGRAPH
+    CLI -- REST --> DEVGRAPH
 
     ING -- "/batch_embed_and_caption" --> ML
     ING -- SDK --> VDB
@@ -168,11 +173,34 @@ graph TD
 
     ML -- GPU-compute --> GPU
     ML -- "/capabilities" --> ING
-    
+    DEVGRAPH -- bolt --> NEO4J
     FE -- "/images/{id}/thumbnail" --> ING
     FE -- "/search/text" --> ING
     FE -- "/collections/{name}/info" --> ING
 ```
+
+---
+
+## 7  Developer Graph API (Neo4j)
+
+The Developer Graph API is a FastAPI microservice exposing project/developer graph queries and relationships, powered by a Neo4j graph database. It enables advanced queries over project structure, dependencies, and developer relationships.
+
+- **Location:** `backend/developer_graph_service`
+- **Runtime:** FastAPI (Python 3.11), Neo4j (Docker container, port 7687/7474)
+- **Endpoints:**
+    - `GET /api/v1/dev-graph/nodes` – List nodes (optionally by type)
+    - `GET /api/v1/dev-graph/relations` – List relationships (optionally filtered)
+    - `GET /api/v1/dev-graph/search` – Search nodes by property value
+- **Neo4j Connection:**
+    - Default: `bolt://localhost:7687` (user: `neo4j`, password: `password`)
+    - Configurable via env vars: `NEO4J_URI`, `NEO4J_USER`, `NEO4J_PASSWORD`
+- **Docker Startup:**
+    - Container name: `vibe_neo4j`
+    - Image: `neo4j:5`
+    - Ports: 7687 (bolt), 7474 (browser)
+    - Auth: `NEO4J_AUTH` env var
+
+**This service is now a required part of the backend stack.**
 
 ---
 

@@ -1,7 +1,7 @@
 'use client';
 
 import { Box, Flex, Text, Badge, useColorModeValue, HStack, Icon, Button } from '@chakra-ui/react';
-import { FiZap, FiHome, FiSearch, FiFolder } from 'react-icons/fi';
+import { FiZap, FiHome, FiSearch, FiFolder, FiGitBranch } from 'react-icons/fi';
 import { useStore } from '@/store/useStore';
 import { useEffect, useState } from 'react';
 import { ping } from '@/lib/api';
@@ -90,6 +90,13 @@ export function Header() {
             onClick={() => router.push('/latent-space')}
           >
             Latent Space
+          </Button>
+          <Button
+            variant="ghost"
+            leftIcon={<Icon as={FiGitBranch} />}
+            onClick={() => router.push('/dev-graph')}
+          >
+            Dev Graph
           </Button>
           <Button
             variant="ghost"

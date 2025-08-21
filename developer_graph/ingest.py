@@ -157,7 +157,13 @@ class DevGraphIngester:
             return libs
         diff = commit.diff(commit.parents[0], paths=["requirements.txt", "package.json"])
         for d in diff:
-            for line in d.diff.decode("utf-8", errors="ignore").splitlines():
+            # Handle both string and bytes diff formats
+            if isinstance(d.diff, bytes):
+                diff_lines = d.diff.decode("utf-8", errors="ignore").splitlines()
+            else:
+                diff_lines = str(d.diff).splitlines()
+            
+            for line in diff_lines:
                 if line.startswith("+"):
                     lib = self._parse_library_line(line[1:], d.b_path)
                     if lib:
