@@ -47,16 +47,6 @@ export default function DevGraphPage() {
 		[nodesQuery.data, linksQuery.data]
 	);
 
-	console.log('Graph data for rendering:', data);
-
-	// Data validation
-	const isValidData = data.nodes.length > 0 && data.links.length > 0;
-	const hasValidLinks = data.links.every((link: any) => 
-		link.from && link.to && link.type && 
-		data.nodes.some((node: any) => node.id === link.from) &&
-		data.nodes.some((node: any) => node.id === link.to)
-	);
-
 	const [showEvolves, setShowEvolves] = useState(true);
 
 	const filteredData = useMemo(() => {
@@ -65,7 +55,17 @@ export default function DevGraphPage() {
 			nodes: nodesQuery.data,
 			links: linksQuery.data.filter((l: any) => showEvolves ? true : l.type !== 'EVOLVES_FROM'),
 		};
-	}, [nodesQuery.data, linksQuery.data, showEvolves]);
+	}, [nodesQuery.data, linksQuery.data, showEvolves, data]);
+
+	console.log('Graph data for rendering:', data);
+
+	// Data validation
+	const isValidData = (filteredData.nodes?.length ?? 0) > 0 && (filteredData.links?.length ?? 0) > 0;
+	const hasValidLinks = (filteredData.links ?? []).every((link: any) => 
+		link.from && link.to && link.type && 
+		(filteredData.nodes ?? []).some((node: any) => node.id === link.from) &&
+		(filteredData.nodes ?? []).some((node: any) => node.id === link.to)
+	);
 
 	return (
 		<Box minH="100vh">
@@ -126,6 +126,9 @@ export default function DevGraphPage() {
 						graphData={filteredData} 
 						height={600} 
 						width={1000}
+						nodeId="id"
+						linkSource="from"
+						linkTarget="to"
 						nodeLabel={(n: any) => `${n.id}\n${n.type ?? ''}`}
 						linkLabel={(l: any) => l.type}
 						nodeAutoColorBy={(n: any) => n.type ?? 'Unknown'}
