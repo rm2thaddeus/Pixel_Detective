@@ -1,10 +1,11 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { Box, Heading, Spinner, Alert, AlertIcon, Text, HStack, Switch } from '@chakra-ui/react';
+import { Box, Heading, Spinner, Alert, AlertIcon, Text, HStack, Switch, Slider, SliderFilledTrack, SliderThumb, SliderTrack } from '@chakra-ui/react';
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Header } from '@/components/Header';
+import TimelineView from './components/TimelineView';
 
 // Use the 2D-only bundle to avoid VR/A-Frame dependencies being pulled in
 const ForceGraph2D = dynamic<any>(() => import('react-force-graph-2d'), { ssr: false });
@@ -38,6 +39,18 @@ export default function DevGraphPage() {
 		},
 		staleTime: 5 * 60 * 1000,
 	});
+
+	const commitsQuery = useQuery({
+		queryKey: ['dev-graph', 'commits'],
+		queryFn: async () => {
+			const res = await fetch(`${DEV_GRAPH_API_URL}/api/v1/dev-graph/commits?limit=${commitLimit}`);
+			if (!res.ok) throw new Error('Failed to load commits');
+			return res.json();
+		},
+		staleTime: 5 * 60 * 1000,
+	});
+
+	const [commitLimit, setCommitLimit] = useState(100);
 
 	const data = useMemo(
 		() => ({
@@ -78,6 +91,7 @@ export default function DevGraphPage() {
 					<Text fontWeight="bold">Debug Info:</Text>
 					<Text>Nodes loaded: {nodesQuery.data?.length || 0}</Text>
 					<Text>Links loaded: {linksQuery.data?.length || 0}</Text>
+					<Text>Commits loaded: {Array.isArray(commitsQuery.data) ? commitsQuery.data.length : 0}</Text>
 					<Text>Data valid: {isValidData ? 'Yes' : 'No'}</Text>
 					<Text>Links valid: {hasValidLinks ? 'Yes' : 'No'}</Text>
 					{!hasValidLinks && data.links.length > 0 && (
@@ -97,9 +111,31 @@ export default function DevGraphPage() {
 						<Switch isChecked={showEvolves} onChange={(e) => setShowEvolves(e.target.checked)} />
 						<Text>Show EVOLVES_FROM</Text>
 					</HStack>
+					<HStack flex={1} pl={6} pr={2}>
+						<Text fontSize="sm" color="gray.600">Commits:</Text>
+						<Slider aria-label='commit-limit' min={20} max={500} step={10} value={commitLimit} onChange={setCommitLimit}>
+							<SliderTrack>
+								<SliderFilledTrack />
+							</SliderTrack>
+							<SliderThumb />
+						</Slider>
+						<Text fontSize="sm" width={10}>{commitLimit}</Text>
+					</HStack>
 				</HStack>
 
 				{/* Legend */}
+				{/* Timeline */}
+				<Box mb={4}>
+					<TimelineView
+						events={(Array.isArray(commitsQuery.data) ? commitsQuery.data : []).map((c: any) => ({
+							id: c.hash,
+							title: c.message,
+							timestamp: c.timestamp,
+							author: c.author_email,
+							type: 'commit',
+						}))}
+					/>
+				</Box>
 				<Box mb={3} fontSize="sm">
 					<Text><span style={{ color: '#888' }}>■</span> PART_OF</Text>
 					<Text><span style={{ color: '#2b8a3e' }}>■</span> EVOLVES_FROM</Text>

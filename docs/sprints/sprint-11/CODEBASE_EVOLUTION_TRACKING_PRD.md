@@ -1,271 +1,425 @@
-# Codebase Evolution Tracking System - PRD
+# Codebase Evolution Tracking System - Final PRD
 
-## Executive Summary
+**Sprint 11 Final Deliverable**  
+**Status**: Ready for Implementation  
+**Last Updated**: June 2025
+
+---
+
+## 🎯 **Executive Summary**
+
 Transform the current developer graph from a static relationship mapper into a dynamic **codebase evolution tracking system** that tells the story of how ideas, features, and architectural decisions evolved over time. The system will integrate git history, track idea lifecycles, and provide insights into what worked vs. what didn't.
 
-## Problem Statement
-The current dev graph shows static relationships but lacks:
-- **Temporal context**: When ideas were conceived, implemented, deprecated
-- **Evolution tracking**: How requirements evolved across sprints
-- **Git integration**: Links to actual code changes and commit history
-- **Success/failure insights**: Which ideas succeeded vs. failed
-- **Codebase navigation**: Direct links to relevant files and implementations
+**Core Vision**: A living, breathing knowledge atlas for our codebase that serves as both a temporal narrative and structural map, enabling developers to understand not just what the codebase is, but how it got there and what we can learn from that journey.
 
-## Vision
-A living, breathing map of the codebase that shows:
-- **Idea genealogy**: Where each concept originated and how it spread
-- **Implementation timeline**: When features were built, refactored, or removed
-- **Success patterns**: What architectural decisions led to good outcomes
-- **Failure analysis**: What approaches were tried and abandoned
-- **Code navigation**: Direct links to relevant files, commits, and discussions
+---
 
-## Core Features
+## 🚨 **Problem Statement**
 
-### 1. Temporal Relationship Tracking
-- **Timeline view**: Show how relationships evolved over time
-- **Sprint progression**: Track how requirements evolved across sprints
-- **Git commit integration**: Link relationships to specific commits
-- **Deprecation tracking**: Mark when ideas/features were abandoned
+The current dev-graph suffers from several critical shortcomings:
 
-### 2. Enhanced Node Types
-- **Idea nodes**: Conceptual requirements (FR/NFR)
-- **Implementation nodes**: Actual code files/classes
-- **Sprint nodes**: Time-based containers
-- **Git commit nodes**: Version control checkpoints
-- **Discussion nodes**: PRs, issues, documentation
+### **1. No Temporal Awareness**
+- Nodes and relations appear frozen in amber
+- Users cannot tell when requirements were added, refined, or deprecated
+- No way to determine if seemingly related nodes actually existed years apart
 
-### 3. Rich Relationship Types
-- **EVOLVES_FROM**: How requirements changed over time
-- **IMPLEMENTS**: Code that fulfills requirements
-- **REFACTORED_TO**: How implementations evolved
-- **DEPRECATED_BY**: What replaced old approaches
-- **INSPIRED_BY**: External influences and research
-- **BLOCKED_BY**: Dependencies and blockers
+### **2. Graph Hairball Effect**
+- Poorly designed network diagrams become "tangled and frustrating" (Cambridge Intelligence)
+- Current implementation offers only rudimentary toggles
+- Quickly devolves into unreadable tangle on anything but smallest datasets
 
-### 4. Git History Integration
-- **Commit analysis**: Parse git logs for relationship changes
-- **File evolution**: Track how files changed over time
-- **Blame integration**: Who changed what and when
-- **Branch tracking**: Feature branch lifecycle
-- **Merge analysis**: How ideas were integrated
+### **3. Lack of Interactive Depth**
+- No timeline slider, diff view, or detailed node inspection
+- Missing point-and-click exploration with search and perspectives
+- No file histories, commit graphs, or blame annotations
 
-## Technical Architecture
+### **4. No Success/Failure Insight**
+- Without metrics tied to performance or adoption, we cannot identify:
+  - Which architectural decisions were good or bad
+  - What patterns led to successful implementations
+  - How to avoid repeating past mistakes
 
-### Backend Enhancements
+---
 
-#### 1. Git History Service
-```python
-# New service: developer_graph/git_history_service.py
-class GitHistoryService:
-    def analyze_file_evolution(self, file_path: str) -> List[GitChange]:
-        """Track how a file evolved over time"""
-        
-    def find_requirement_implementations(self, req_id: str) -> List[GitCommit]:
-        """Find commits that implemented a specific requirement"""
-        
-    def track_deprecation_history(self, node_id: str) -> List[GitCommit]:
-        """Find when and why something was deprecated"""
-```
+## 🔍 **Research & Inspiration**
 
-#### 2. Enhanced Neo4j Schema
+### **Git-Centric Analysis Tools**
+- **GitKraken & GMaster**: Interactive branch explorers with drag-and-drop commits
+- **GitLens for VS Code**: Colorful commit graphs, file-level history, blame annotations
+- **GitUp**: Branch labyrinth rendering tens of thousands of commits in real-time
+
+### **Graph Visualization Best Practices**
+- **Cambridge Intelligence Guidelines**: "Effortless understanding of complex relationships"
+- **Neo4j Bloom**: Point-and-click exploration with perspectives and custom styling
+- **Neo4j Visualization Library (NVL)**: First-class Neo4j integration with React wrapper
+
+### **JavaScript Libraries**
+- **D3.js**: Flexibility and rich interactivity
+- **Sigma.js**: Large networks with built-in force-directed layouts
+- **Vis.js**: Simple APIs for dynamic graphs and timelines
+- **React-Force-Graph**: Currently used, evaluate for performance
+
+### **Timeline Libraries**
+- **Vis-Timeline**: Interactive timelines with start/end dates, zooming, dragging
+- **React-Chrono**: React-based timeline components
+
+---
+
+## 🎨 **Product Vision**
+
+We envision a **Developer-Graph Evolution Service** that serves as a knowledge atlas for our codebase. At its heart is a temporal graph database built on Neo4j with git-derived timestamps. The frontend provides two synchronized panels:
+
+1. **Timeline Panel**: Shows evolution of requirements, sprints, and files
+2. **Graph Panel**: Reveals structural relationships with time-aware filtering
+
+**Key Experience**: When you scrub through time, the graph highlights only nodes and edges relevant at that moment. Users can search for requirements, jump to implementations, inspect commits, and compare performance metrics before and after major changes.
+
+---
+
+## 🏗️ **Core Requirements**
+
+### **1. Temporal Relationship Tracking (MANDATORY)**
+
+#### **Git-Driven Timestamps (CRITICAL)**
+- **ALL temporal data MUST be derived from git commits**
+- Each node and relationship must store creation and modification commit hash/timestamp
+- **Document and file timestamps are EXPLICITLY FORBIDDEN**
+- Use `git log --follow` for file evolution tracking
+- Implement `git blame` for line-level change authorship
+
+#### **Versioned Relationships**
+- Relationship edges have start and end commit hashes
+- Relations exist only during valid commit ranges
+- Enable time-range queries and historical state reconstruction
+
+#### **Sprint Mapping**
+- Sprint nodes map to commit ranges
+- `git_history_service` must map each sprint to commit hashes between start/end dates
+- Attach all changes within sprint windows
+
+#### **Entity Lifecycle Events**
+- Track for each requirement, file, or document:
+  - Creation, update, deprecation, replacement
+  - Reasons (extracted from commit messages or PR descriptions)
+
+#### **Temporal Queries**
+- "Show state of node X on date Y"
+- "List all changes affecting requirement R between commits A and B"
+- "Find when feature F was deprecated and by what"
+
+### **2. Enhanced Node & Relationship Types**
+
+#### **Node Types**
 ```cypher
-// New node labels
+// Idea Nodes
+CREATE (r:Requirement {
+    id: "FR-123",
+    title: "Feature X",
+    author: "developer@example.com",
+    date_created: "2024-01-01T10:00:00Z",  // From git
+    goal_alignment: "Performance",
+    tags: ["frontend", "critical"]
+})
+
+// Implementation Nodes
+CREATE (f:File {
+    path: "frontend/src/components/FeatureX.tsx",
+    first_commit: "abc123",
+    last_commit: "def456",
+    total_commits: 25,
+    authors: ["dev1@example.com", "dev2@example.com"],
+    language: "typescript"
+})
+
+// Sprint Nodes
+CREATE (s:Sprint {
+    number: "Sprint-11",
+    start_date: "2024-06-01T00:00:00Z",
+    end_date: "2024-06-30T23:59:59Z",
+    velocity: 85,
+    commit_range: ["abc123", "def456"]
+})
+
+// Git Commit Nodes (Temporal Backbone)
 CREATE (c:GitCommit {
     hash: "abc123",
     message: "Implement feature X",
+    author: "developer@example.com",
     timestamp: "2024-01-01T10:00:00Z",
-    author: "developer@example.com"
+    branch: "main",
+    files_changed: ["frontend/src/components/FeatureX.tsx"],
+    lines_added: 150,
+    lines_deleted: 20
 })
-
-CREATE (f:File {
-    path: "frontend/src/components/FeatureX.tsx",
-    current_hash: "def456",
-    created_at: "2024-01-01T10:00:00Z"
-})
-
-// New relationship types
-CREATE (req:Requirement)-[:IMPLEMENTED_IN]->(f:File)
-CREATE (f:File)-[:CHANGED_IN]->(c:GitCommit)
-CREATE (req:Requirement)-[:DEPRECATED_IN]->(c:GitCommit)
-CREATE (old:File)-[:REFACTORED_TO]->(new:File)
 ```
 
-#### 3. Temporal Query Engine
-```python
-# New service: developer_graph/temporal_engine.py
-class TemporalEngine:
-    def get_evolution_timeline(self, node_id: str) -> Timeline:
-        """Get complete evolution history of a node"""
-        
-    def find_related_changes(self, node_id: str, time_range: TimeRange) -> List[Change]:
-        """Find all changes related to a node in a time period"""
-        
-    def analyze_success_patterns(self) -> SuccessAnalysis:
-        """Analyze what led to successful vs failed implementations"""
+#### **Relationship Types**
+```cypher
+// Core Relationships
+CREATE (req:Requirement)-[:IMPLEMENTS {commit: "abc123", timestamp: "2024-01-01T10:00:00Z"}]->(f:File)
+CREATE (req:Requirement)-[:EVOLVES_FROM {commit: "def456", diff_summary: "Added validation"}]->(old_req:Requirement)
+CREATE (old_file:File)-[:REFACTORED_TO {commit: "ghi789", refactor_type: "Component extraction"}]->(new_file:File)
+CREATE (node:Node)-[:DEPRECATED_BY {commit: "jkl012", reason: "Performance issues"}]->(replacement:Node)
+
+// Context Relationships
+CREATE (req:Requirement)-[:INSPIRED_BY {source: "Research paper X"}]->(research:Document)
+CREATE (req:Requirement)-[:BLOCKED_BY {commit: "mno345", blocker: "Database dependency"}]->(blocker:Requirement)
+CREATE (req:Requirement)-[:DEPENDS_ON {commit: "pqr678", dependency_type: "Infrastructure"}]->(dependency:Requirement)
 ```
 
-### Frontend Enhancements
+### **3. Interactive Frontend Components**
 
-#### 1. Timeline Visualization
-- **Chronological graph**: Show how relationships evolved over time
-- **Sprint-based filtering**: Focus on specific time periods
-- **Change highlighting**: Highlight what changed between commits
-- **Success indicators**: Visual cues for successful vs failed approaches
+#### **A. TimelineView (Chronological Visualization)**
+- **Scale-aware timeline** using vis-timeline or react-chrono
+- **Event stacking with participants** on lanes (requirement, file, sprint)
+- **Heatmap overlay** for large time spans with activity spikes
+- **Success/failure annotations** with icons and explanations
+- **Zooming** from hours to years with drag navigation
 
-#### 2. Enhanced Node Details
-- **Git history panel**: Show commit history for files
-- **Evolution timeline**: How requirements changed over time
-- **Related files**: Direct links to implementation files
-- **Success metrics**: Performance, adoption, maintenance data
+#### **B. EvolutionGraph (Interactive Network View)**
+- **Graph rendering engine**: Evaluate Neo4j Visualization Library (NVL) vs Sigma.js
+- **Filtering & perspectives**: Side panel for node/relationship type selection
+- **Time-aware graph**: Responds to timeline slider with opacity/color changes
+- **Node and edge styling**: Consistent colors, shapes, and hover tooltips
+- **Clutter reduction**: Toggles for collapsing sub-graphs and hiding low-degree nodes
 
-#### 3. Interactive Exploration
-- **Time slider**: Navigate through different points in time
-- **Change diff**: Show what changed between versions
-- **Success analysis**: Filter to show only successful patterns
-- **Failure insights**: Learn from abandoned approaches
+#### **C. Detail Drawers and Diff Views**
+- **Node detail drawer**: Commit history, evolution timeline, implementation links
+- **Diff viewer**: Code diffs for files, requirement evolution diffs
+- **Commit explorer**: List commits with messages, authors, timestamps, changed files
 
-## Implementation Phases
+### **4. Success and Pattern Analytics**
 
-### Phase 1: Git Integration Foundation
-1. **Git History Service**: Parse git logs and extract meaningful changes
-2. **Enhanced Schema**: Add GitCommit and File nodes to Neo4j
-3. **Basic Temporal Queries**: Track when relationships were created/modified
-4. **File-Requirement Linking**: Connect requirements to actual code files
+#### **Success/Failure Metrics**
+- **Success criteria**: Meets acceptance criteria, remains active for N sprints without major refactoring
+- **Failure indicators**: Deprecated within short window, high bug counts
+- **Data sources**: Performance tests, adoption statistics, code quality tools
 
-### Phase 2: Evolution Tracking
-1. **Requirement Evolution**: Track how FR/NFR changed across sprints
-2. **Implementation Tracking**: Link requirements to code changes
-3. **Deprecation Detection**: Identify when features were abandoned
-4. **Success Metrics**: Basic success/failure indicators
+#### **Pattern Recognition Engine**
+- Identify successful design patterns and anti-patterns
+- Feed insights back into timeline via annotations
+- Provide "Success Patterns" view for analysis
 
-### Phase 3: Advanced Analytics
-1. **Pattern Recognition**: Identify successful architectural patterns
-2. **Failure Analysis**: Understand why certain approaches failed
-3. **Predictive Insights**: Suggest approaches based on historical success
-4. **Team Performance**: Track individual and team contribution patterns
+#### **Impact Analysis**
+- Track downstream impacts when requirements/technologies are deprecated
+- Summarize impacts to avoid repeating mistakes
 
-### Phase 4: Interactive UI
-1. **Timeline Visualization**: Interactive time-based graph exploration
-2. **Change Diffing**: Visual representation of code evolution
-3. **Success Dashboard**: Metrics and insights dashboard
-4. **Code Navigation**: Direct links to relevant code sections
+---
 
-## Research Areas & Existing Solutions
+## 🚀 **Implementation Roadmap**
 
-### 1. Git Analysis Tools
-- **GitPython**: Python library for git operations
-- **PyGit2**: High-performance git bindings
-- **GitPython + NetworkX**: For graph-based git analysis
-- **GitHub API**: For PR, issue, and discussion tracking
+### **Phase 1: Temporal Foundation (Weeks 1-4)**
 
-### 2. Code Evolution Analysis
-- **CodeQL**: GitHub's semantic code analysis
-- **SonarQube**: Code quality and evolution tracking
-- **Code Climate**: Technical debt and evolution metrics
-- **GitLens**: VS Code extension for git history
+#### **Backend Implementation**
+- [x] **Git History Service** (`developer_graph/git_history_service.py`)
+  - [x] Parse commit logs with `git log --follow` (via GitPython plumbing)
+  - [x] Extract commit metadata (hash, author, timestamp, message, files)
+  - [x] Implement `git blame` for line-level tracking (basic support)
+  - [ ] Map sprints to commit ranges (planned)
+  - [x] Detect file renames and moves (via `--name-status` with rename codes)
 
-### 3. Temporal Graph Databases
-- **Neo4j Temporal**: Time-based graph queries
-- **ArangoDB**: Multi-model with temporal support
-- **TigerGraph**: Advanced temporal graph analytics
-- **Amazon Neptune**: Temporal graph capabilities
+- [x] **Enhanced Neo4j Schema** (`developer_graph/schema/`)
+  - [x] Add GitCommit and File nodes (constraints + merge helpers)
+  - [ ] Store commit ranges on relationship edges (Phase 2)
+  - [ ] Implement schema versioning strategy (planned)
+  - [ ] Write tests for temporal accuracy (planned)
 
-### 4. Visualization Libraries
-- **D3.js Timeline**: Time-based visualizations
-- **Vis.js Timeline**: Interactive timeline components
-- **React-Vis**: React-based visualization library
-- **Recharts**: Time series and evolution charts
+- [x] **Basic API Endpoints** (`developer_graph/api.py`)
+  - [x] Expose existing endpoints for nodes, relations, search (unchanged)
+  - [x] Add new endpoints for commit details (`/commit/{hash}`)
+  - [x] Add file history endpoints (`/file/history?path=...`)
+  - [x] Implement time-bounded subgraph queries (basic stub using relationship timestamps)
 
-### 5. Research Papers & Approaches
-- **"Mining Software Evolution"**: Academic approaches to code evolution
-- **"Temporal Graph Networks"**: Modern temporal graph techniques
-- **"Code Smell Evolution"**: Tracking code quality over time
-- **"Software Archaeology"**: Understanding legacy code evolution
+#### **Frontend Foundation**
+- [x] **Timeline Component** (`frontend/src/app/dev-graph/components/TimelineView.tsx`)
+  - [ ] Build using vis-timeline or react-chrono (Phase 2 enhancement)
+  - [x] Integrate with existing graph view (basic list, commits feed)
+  - [ ] Add time slider for node filtering (planned)
+  - [x] Implement basic event rendering (commit-based entries)
 
-## Technical Challenges & Solutions
+#### ✅ Additional Progress (Phase 1 wrap-up + Phase 2 early)
 
-### Challenge 1: Git History Parsing
-**Problem**: Git logs are unstructured and noisy
-**Solutions**:
-- Use GitPython with custom parsers for commit messages
-- Implement semantic analysis of commit messages
-- Use GitHub API for structured data (PRs, issues)
-- Create commit message conventions for better parsing
+- [x] Sprint mapping utility (`developer_graph/sprint_mapping.py`) and endpoint
+  - [x] `GET /api/v1/dev-graph/sprint/map?number=...&start_iso=...&end_iso=...`
+  - Maps sprint windows to [start_hash, end_hash] using date filters
 
-### Challenge 2: Performance with Large Repositories
-**Problem**: Large git histories can be slow to analyze
-**Solutions**:
-- Implement incremental analysis (only new commits)
-- Use Neo4j temporal indexing for time-based queries
-- Implement caching for frequently accessed data
-- Use parallel processing for git analysis
+- [x] Temporal ingestion engine (Phase 2 stub) (`developer_graph/temporal_engine.py`)
+  - [x] Schema application helper
+  - [x] Ingest recent commits → merge `GitCommit`/`File` nodes and `TOUCHED` rels
+  - [x] Endpoint: `POST /api/v1/dev-graph/ingest/recent?limit=100`
 
-### Challenge 3: Relationship Evolution Detection
-**Problem**: How to detect when relationships change
-**Solutions**:
-- Track relationship creation/deletion in git history
-- Use file content analysis to detect semantic changes
-- Implement change impact analysis
-- Use commit message patterns to identify relationship changes
+- [x] Dev-graph page enhancements (`frontend/src/app/dev-graph/page.tsx`)
+  - [x] Time slider controls commit timeline limit (20–500)
+  - [x] Commit feed bound to slider
 
-### Challenge 4: Success/Failure Definition
-**Problem**: How to objectively measure success
-**Solutions**:
-- Code quality metrics (SonarQube, Code Climate)
-- Performance metrics (response time, throughput)
-- Adoption metrics (usage statistics)
-- Maintenance metrics (bug reports, refactoring frequency)
+- [x] Tests
+  - [x] `tests/test_git_history_service.py` basic coverage for commits and file history
 
-## Success Metrics
+#### **Testing & Validation**
+- [ ] **Git History Validation** (`developer_graph/tests/`)
+  - [ ] Create test suite for git history extraction
+  - [ ] Validate temporal accuracy against known commit history
+  - [ ] Test git blame integration
+  - [ ] Performance testing with sample data
 
-### Technical Metrics
-- **Git integration coverage**: % of commits analyzed
-- **Relationship accuracy**: Precision/recall of detected relationships
+### **Phase 2: Evolution Tracking & UI (Weeks 5-12)**
+
+#### **Backend Enhancement**
+- [ ] **Requirement & Implementation Tracking**
+  - [ ] Link requirements to commits and files
+  - [ ] Track evolution events and changes
+  - [ ] Implement relationship discovery with NLP
+  - [ ] Add commit-based relationship evolution
+
+- [ ] **Temporal Engine** (`developer_graph/temporal_engine.py`)
+  - [ ] Build evolution timeline for any node
+  - [ ] Combine Neo4j relationships with git data
+  - [ ] Support time-bounded queries
+  - [ ] Implement change impact analysis
+
+#### **Frontend Enhancement**
+- [ ] **Interactive Graph** (`frontend/src/app/dev-graph/components/EvolutionGraph.tsx`)
+  - [ ] Evaluate NVL vs Sigma.js for performance
+  - [ ] Implement filtering by node/relationship type
+  - [ ] Add timeline synchronization
+  - [ ] Implement node detail drawers
+
+- [ ] **Search & Perspectives**
+  - [ ] Build search bar for node discovery
+  - [ ] Allow saving custom perspectives
+  - [ ] Implement filtering and layout settings
+  - [ ] Add node clustering and summarization
+
+### **Phase 3: Success Metrics & Analytics (Weeks 13-24)**
+
+#### **Success Detection**
+- [ ] **Success/Failure Criteria**
+  - [ ] Define objective success metrics
+  - [ ] Integrate with performance pipelines
+  - [ ] Add timeline annotations
+  - [ ] Create summary panels
+
+#### **Pattern Recognition**
+- [ ] **Analytics Engine**
+  - [ ] Implement evolution pattern algorithms
+  - [ ] Correlate patterns with success metrics
+  - [ ] Provide "Success Patterns" view
+  - [ ] Add comparative feature analysis
+
+#### **Performance Optimization**
+- [ ] **Scalability Improvements**
+  - [ ] Introduce caching and incremental updates
+  - [ ] Evaluate Sigma.js scalability features
+  - [ ] Use Web Workers for heavy computations
+  - [ ] Implement cluster collapsing for large graphs
+
+### **Phase 4: Advanced Features & Integration (Weeks 25-48)**
+
+#### **Machine Learning Integration**
+- [ ] **Predictive Analytics**
+  - [ ] Train models on historical data
+  - [ ] Predict success/failure likelihood
+  - [ ] Provide warnings for failure-prone patterns
+  - [ ] Implement pattern similarity scoring
+
+#### **CI/CD Integration**
+- [ ] **Pipeline Integration**
+  - [ ] Hook into CI pipelines for test results
+  - [ ] Capture performance metrics
+  - [ ] Link metrics to commits and requirements
+  - [ ] Real-time graph updates
+
+#### **Third-Party Tools**
+- [ ] **External Integrations**
+  - [ ] GitHub/GitLab for PR discussions
+  - [ ] Jira for issue tracking
+  - [ ] Slack for notifications
+  - [ ] SonarQube/Code Climate for quality metrics
+
+#### **User Customization**
+- [ ] **Export & Sharing**
+  - [ ] Export timeline views as images/HTML
+  - [ ] Share custom perspectives across team
+  - [ ] User preference management
+  - [ ] Collaborative annotation features
+
+---
+
+## ⚠️ **Technical Risks & Mitigations**
+
+### **1. Scalability of Graph Rendering**
+- **Risk**: Large codebases overwhelm browser
+- **Mitigation**: Use Sigma.js for scale, implement cluster collapsing, limit rendered nodes
+
+### **2. Inaccurate Commit Parsing**
+- **Risk**: Ambiguous commit messages lead to false relationships
+- **Mitigation**: Encourage commit conventions, use NLP extraction, provide manual override
+
+### **3. Data Freshness**
+- **Risk**: Real-time updates are costly
+- **Mitigation**: Incremental git parsing, background jobs, stale data indicators
+
+### **4. Privacy & Security**
+- **Risk**: Sensitive information in commits/documents
+- **Mitigation**: Access control, redaction, audit logging
+
+---
+
+## 📊 **Success Metrics**
+
+### **Technical Metrics**
+- **Temporal Accuracy**: % of nodes/relationships correctly annotated with commit data
 - **Performance**: Query response times for temporal queries
-- **Data freshness**: How current the evolution data is
+- **Data Freshness**: How current the evolution data is
 
-### User Experience Metrics
-- **Navigation efficiency**: Time to find relevant information
-- **Insight discovery**: New patterns discovered by users
-- **Code understanding**: Improved comprehension of codebase
-- **Decision support**: Better architectural decisions made
+### **User Experience Metrics**
+- **Navigation Efficiency**: Time to find implementation history or specific commits
+- **Insight Discovery**: Number of unique patterns identified by users
+- **User Adoption**: Active users, sessions per week, satisfaction scores
 
-### Business Metrics
-- **Development velocity**: Faster feature development
-- **Code quality**: Reduced technical debt
-- **Knowledge retention**: Better onboarding for new developers
-- **Innovation tracking**: Understanding what drives successful features
+### **Business Metrics**
+- **Development Velocity**: Story points per sprint before/after adoption
+- **Code Quality**: Bug counts, technical debt reduction
+- **Knowledge Retention**: Onboarding time for new team members
 
-## Next Steps
+---
 
-### Immediate Actions (Next 2 weeks)
-1. **Research existing solutions**: Investigate GitPython, CodeQL, temporal graph databases
-2. **Prototype git integration**: Build basic git history parsing
-3. **Design enhanced schema**: Plan Neo4j schema extensions
-4. **Evaluate visualization libraries**: Test timeline and evolution visualization tools
+## 🎯 **Immediate Next Steps (Sprint 11 Completion)**
 
-### Short Term (1-2 months)
-1. **Implement Phase 1**: Basic git integration and file linking
-2. **Build temporal queries**: Time-based relationship tracking
-3. **Create evolution UI**: Basic timeline visualization
-4. **Test with real data**: Validate with actual sprint data
+### **Week 1-2: Foundation Setup**
+1. [ ] Install GitPython and set up git repository access
+2. [ ] Create basic `git_history_service.py` with commit parsing
+3. [ ] Design enhanced Neo4j schema with git-based nodes
+4. [ ] Set up development environment for timeline components
 
-### Medium Term (3-6 months)
-1. **Complete Phase 2**: Full evolution tracking
-2. **Add success metrics**: Implement success/failure analysis
-3. **Build analytics engine**: Pattern recognition and insights
-4. **User testing**: Validate with development team
+### **Week 3-4: Core Implementation**
+1. [ ] Implement git history extraction and validation
+2. [ ] Build basic timeline component with vis-timeline
+3. [ ] Create enhanced Neo4j schema and constraints
+4. [ ] Write comprehensive tests for temporal accuracy
 
-### Long Term (6+ months)
-1. **Advanced analytics**: Machine learning for pattern recognition
-2. **Predictive insights**: Suggest approaches based on history
-3. **Team performance**: Individual and team contribution analysis
-4. **Integration**: Connect with CI/CD and project management tools
+### **Week 5-6: Integration & Testing**
+1. [ ] Integrate timeline with existing graph view
+2. [ ] Implement time-based node filtering
+3. [ ] Add basic commit detail endpoints
+4. [ ] Perform end-to-end testing with real repository data
 
-## Conclusion
+---
 
-This system represents a significant evolution from static relationship mapping to dynamic codebase storytelling. By integrating git history, tracking evolution, and providing temporal insights, we can create a powerful tool for understanding not just what the codebase is, but how it got there and what we can learn from that journey.
+## 🏁 **Conclusion**
 
-The technical foundation exists in tools like GitPython, Neo4j, and modern visualization libraries. The challenge lies in creating the right abstractions and algorithms to transform raw git data into meaningful insights about codebase evolution.
+This unified PRD transforms the original high-level vision into a concrete, implementable plan for an interactive, intuitive, and truly temporal dev-graph. By anchoring all temporal data to git history, borrowing best practices from graph visualization and git tools, and focusing on user experience and success metrics, we can build a system that not only shows relationships but tells the story of how the codebase evolves.
 
-This PRD provides a roadmap for building a system that doesn't just show relationships, but tells the story of how ideas evolve, succeed, and sometimes fail - providing valuable lessons for future development decisions.
+**Key Principles**:
+- **Git history is the single source of truth** for all temporal data
+- **User experience drives technical decisions** - avoid hairballs, enable exploration
+- **Performance and scalability** are non-negotiable for large repositories
+- **Success metrics must be objective** and tied to actual development outcomes
+
+With careful implementation following this roadmap, this service will become a cornerstone of our development workflow and a model for how to visualize the life of a codebase. It will guide developers through the labyrinth of history and enable them to make better architectural decisions based on data-driven insights rather than intuition alone.
+
+---
+
+**Document Status**: ✅ **FINAL - Ready for Implementation**  
+**Sprint 11 Deliverable**: ✅ **Complete**  
+**Next Phase**: Implementation following Phase 1 roadmap

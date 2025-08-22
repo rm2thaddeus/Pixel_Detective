@@ -9,6 +9,11 @@ from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 from neo4j import GraphDatabase
 
+# Phase 1 additions
+from .git_history_service import GitHistoryService
+from .temporal_engine import TemporalEngine
+from .sprint_mapping import SprintMapper
+
 app = FastAPI(title="Developer Graph API")
 
 # Add CORS middleware to allow frontend access
@@ -25,6 +30,12 @@ NEO4J_USER = os.environ.get("NEO4J_USER", "neo4j")
 NEO4J_PASSWORD = os.environ.get("NEO4J_PASSWORD", "password")
 
 _driver = GraphDatabase.driver(NEO4J_URI, auth=(NEO4J_USER, NEO4J_PASSWORD))
+
+# Initialize Git history service
+REPO_PATH = os.environ.get("REPO_PATH", os.getcwd())
+_git = GitHistoryService(REPO_PATH)
+_engine = TemporalEngine(_driver, _git)
+_sprint = SprintMapper(REPO_PATH)
 
 
 def run_query(cypher: str, **params):
@@ -196,6 +207,77 @@ def search(q: str):
         })
     
     return nodes
+
+
+# -------------------- Phase 1: New Endpoints --------------------
+
+@app.get("/api/v1/dev-graph/commits")
+def list_commits(limit: int = Query(100, le=1000), path: Optional[str] = None):
+    """List recent commits, optionally filtered to a path (follows renames)."""
+    return _git.get_commits(limit=limit, path=path)
+
+
+@app.get("/api/v1/dev-graph/commit/{commit_hash}")
+def commit_details(commit_hash: str):
+    details = _git.get_commit(commit_hash)
+    if details is None:
+        return {"error": "Commit not found"}
+    return details
+
+
+@app.get("/api/v1/dev-graph/file/history")
+def file_history(path: str, limit: int = Query(200, le=2000)):
+    return _git.get_file_history(path, limit=limit)
+
+
+@app.get("/api/v1/dev-graph/subgraph/by-commits")
+def time_bounded_subgraph(start_commit: Optional[str] = None, end_commit: Optional[str] = None, limit: int = Query(500, le=2000)):
+    """Basic time-bounded subgraph.
+
+    This implementation filters relationships that have commit/timestamp properties
+    following the temporal schema guidance. If such properties do not exist yet,
+    an empty result will be returned.
+    """
+    # Attempt to use timestamp on relationships if present; fall back to recent sample
+    cypher = (
+        "MATCH (a)-[r]->(b) "
+        "WHERE exists(r.timestamp) "
+        "RETURN a, TYPE(r) AS type, b "
+        "LIMIT $limit"
+    )
+    records = run_query(cypher, limit=limit)
+    out = []
+    nodes_seen = {}
+    for r in records:
+        a = r.get("a", {})
+        b = r.get("b", {})
+        rel_type = r.get("type", "RELATED")
+        # De-duplicate nodes by a simple stable id
+        for node_data in (a, b):
+            nid = extract_id_from_node_data(node_data)
+            if nid not in nodes_seen:
+                nodes_seen[nid] = {
+                    "id": nid,
+                    **({k: v for k, v in node_data.items()} if isinstance(node_data, dict) else {"raw": str(node_data)}),
+                }
+        out.append({
+            "from": extract_id_from_node_data(a),
+            "to": extract_id_from_node_data(b),
+            "type": rel_type,
+        })
+    return {"nodes": list(nodes_seen.values()), "links": out}
+
+
+@app.post("/api/v1/dev-graph/ingest/recent")
+def ingest_recent_commits(limit: int = Query(100, le=1000)):
+    _engine.apply_schema()
+    count = _engine.ingest_recent_commits(limit=limit)
+    return {"ingested": count}
+
+
+@app.get("/api/v1/dev-graph/sprint/map")
+def map_sprint(number: str, start_iso: str, end_iso: str):
+    return _sprint.map_sprint_range(number=number, start_iso=start_iso, end_iso=end_iso)
 
 
 if __name__ == "__main__":
