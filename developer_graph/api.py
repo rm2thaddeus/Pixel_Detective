@@ -232,40 +232,8 @@ def file_history(path: str, limit: int = Query(200, le=2000)):
 
 @app.get("/api/v1/dev-graph/subgraph/by-commits")
 def time_bounded_subgraph(start_commit: Optional[str] = None, end_commit: Optional[str] = None, limit: int = Query(500, le=2000)):
-    """Basic time-bounded subgraph.
-
-    This implementation filters relationships that have commit/timestamp properties
-    following the temporal schema guidance. If such properties do not exist yet,
-    an empty result will be returned.
-    """
-    # Attempt to use timestamp on relationships if present; fall back to recent sample
-    cypher = (
-        "MATCH (a)-[r]->(b) "
-        "WHERE exists(r.timestamp) "
-        "RETURN a, TYPE(r) AS type, b "
-        "LIMIT $limit"
-    )
-    records = run_query(cypher, limit=limit)
-    out = []
-    nodes_seen = {}
-    for r in records:
-        a = r.get("a", {})
-        b = r.get("b", {})
-        rel_type = r.get("type", "RELATED")
-        # De-duplicate nodes by a simple stable id
-        for node_data in (a, b):
-            nid = extract_id_from_node_data(node_data)
-            if nid not in nodes_seen:
-                nodes_seen[nid] = {
-                    "id": nid,
-                    **({k: v for k, v in node_data.items()} if isinstance(node_data, dict) else {"raw": str(node_data)}),
-                }
-        out.append({
-            "from": extract_id_from_node_data(a),
-            "to": extract_id_from_node_data(b),
-            "type": rel_type,
-        })
-    return {"nodes": list(nodes_seen.values()), "links": out}
+    """Time-bounded subgraph filtered by relationship timestamps derived from commits."""
+    return _engine.time_bounded_subgraph(start_commit=start_commit, end_commit=end_commit, limit=limit)
 
 
 @app.post("/api/v1/dev-graph/ingest/recent")
@@ -278,6 +246,18 @@ def ingest_recent_commits(limit: int = Query(100, le=1000)):
 @app.get("/api/v1/dev-graph/sprint/map")
 def map_sprint(number: str, start_iso: str, end_iso: str):
     return _sprint.map_sprint_range(number=number, start_iso=start_iso, end_iso=end_iso)
+
+
+# -------------------- Phase 2: Evolution APIs --------------------
+
+@app.get("/api/v1/dev-graph/evolution/requirement/{req_id}")
+def requirement_evolution(req_id: str, limit: int = Query(500, le=2000)):
+    return _engine.build_evolution_timeline_for_requirement(req_id=req_id, limit=limit)
+
+
+@app.get("/api/v1/dev-graph/evolution/file")
+def file_evolution(path: str, limit: int = Query(500, le=2000)):
+    return _engine.build_evolution_timeline_for_file(path=path, limit=limit)
 
 
 if __name__ == "__main__":

@@ -1,17 +1,20 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { Box, Heading, Spinner, Alert, AlertIcon, Text, HStack, Switch, Slider, SliderFilledTrack, SliderThumb, SliderTrack } from '@chakra-ui/react';
+import { Box, Heading, Spinner, Alert, AlertIcon, Text, HStack, Switch, Slider, SliderFilledTrack, SliderThumb, SliderTrack, useDisclosure, Button } from '@chakra-ui/react';
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Header } from '@/components/Header';
 import TimelineView from './components/TimelineView';
+import EvolutionGraph from './components/EvolutionGraph';
+import NodeDetailDrawer from './components/NodeDetailDrawer';
+import SearchBar from './components/SearchBar';
 
 // Use the 2D-only bundle to avoid VR/A-Frame dependencies being pulled in
 const ForceGraph2D = dynamic<any>(() => import('react-force-graph-2d'), { ssr: false });
 
-// Developer Graph API runs on port 8080
-const DEV_GRAPH_API_URL = 'http://localhost:8080';
+// Developer Graph API base URL (configurable via env)
+const DEV_GRAPH_API_URL = process.env.NEXT_PUBLIC_DEV_GRAPH_API_URL || 'http://localhost:8080';
 
 export default function DevGraphPage() {
 	const nodesQuery = useQuery({
@@ -51,24 +54,42 @@ export default function DevGraphPage() {
 	});
 
 	const [commitLimit, setCommitLimit] = useState(100);
+	const [ingesting, setIngesting] = useState(false);
+	const [selectedRange, setSelectedRange] = useState<{ start?: string; end?: string }>({});
+	const [subgraph, setSubgraph] = useState<{ nodes: any[]; links: any[] }>({ nodes: [], links: [] });
+
+	const fetchSubgraph = async (startCommit?: string, endCommit?: string) => {
+		const params = new URLSearchParams();
+		if (startCommit) params.set('start_commit', startCommit);
+		if (endCommit) params.set('end_commit', endCommit);
+		params.set('limit', '800');
+		const url = `${DEV_GRAPH_API_URL}/api/v1/dev-graph/subgraph/by-commits?${params.toString()}`;
+		const res = await fetch(url);
+		if (!res.ok) throw new Error('Failed to load time-bounded subgraph');
+		const sg = await res.json();
+		setSubgraph(sg);
+	};
 
 	const data = useMemo(
 		() => ({
-			nodes: nodesQuery.data ?? [],
-			links: linksQuery.data ?? [],
+			nodes: selectedRange.start || selectedRange.end ? (subgraph.nodes ?? []) : (nodesQuery.data ?? []),
+			links: selectedRange.start || selectedRange.end ? (subgraph.links ?? []) : (linksQuery.data ?? []),
 		}),
-		[nodesQuery.data, linksQuery.data]
+		[nodesQuery.data, linksQuery.data, selectedRange, subgraph]
 	);
 
 	const [showEvolves, setShowEvolves] = useState(true);
+	const [selectedNode, setSelectedNode] = useState<any | null>(null);
+	const drawer = useDisclosure();
 
 	const filteredData = useMemo(() => {
-		if (!nodesQuery.data || !linksQuery.data) return data;
+		const baseNodes = data.nodes ?? [];
+		const baseLinks = data.links ?? [];
 		return {
-			nodes: nodesQuery.data,
-			links: linksQuery.data.filter((l: any) => showEvolves ? true : l.type !== 'EVOLVES_FROM'),
+			nodes: baseNodes,
+			links: baseLinks.filter((l: any) => showEvolves ? true : l.type !== 'EVOLVES_FROM'),
 		};
-	}, [nodesQuery.data, linksQuery.data, showEvolves, data]);
+	}, [data, showEvolves]);
 
 	console.log('Graph data for rendering:', data);
 
@@ -121,7 +142,43 @@ export default function DevGraphPage() {
 						</Slider>
 						<Text fontSize="sm" width={10}>{commitLimit}</Text>
 					</HStack>
+					<Button isLoading={ingesting} onClick={async () => {
+						try {
+							setIngesting(true);
+							await fetch(`${DEV_GRAPH_API_URL}/api/v1/dev-graph/ingest/recent?limit=100`, { method: 'POST' });
+							await Promise.all([
+								nodesQuery.refetch(),
+								linksQuery.refetch(),
+								commitsQuery.refetch(),
+							]);
+						} catch (e) {
+							console.error('Ingest failed', e);
+						} finally {
+							setIngesting(false);
+						}
+					}} colorScheme="blue">
+						Ingest Latest
+					</Button>
 				</HStack>
+
+				{/* Search */}
+				<Box mb={3}>
+					<SearchBar onSearch={async (q) => {
+						try {
+							const res = await fetch(`${DEV_GRAPH_API_URL}/api/v1/dev-graph/search?q=${encodeURIComponent(q)}`);
+							if (!res.ok) throw new Error('Search failed');
+							const nodes = await res.json();
+							// naive perspective: show only found nodes and their existing links from current dataset
+							const nodeIds = new Set(nodes.map((n: any) => n.id));
+							const links = (selectedRange.start || selectedRange.end ? subgraph.links : linksQuery.data) || [];
+							const filteredLinks = links.filter((l: any) => nodeIds.has(l.from) || nodeIds.has(l.to));
+							setSubgraph({ nodes, links: filteredLinks });
+							setSelectedRange({});
+						} catch (e) {
+							console.error(e);
+						}
+					}} />
+				</Box>
 
 				{/* Legend */}
 				{/* Timeline */}
@@ -134,7 +191,28 @@ export default function DevGraphPage() {
 							author: c.author_email,
 							type: 'commit',
 						}))}
+						onSelect={(ev) => {
+							// Toggle range selection: first click sets start, second sets end and fetches subgraph
+							if (!selectedRange.start || (selectedRange.start && selectedRange.end)) {
+								setSelectedRange({ start: ev.id, end: undefined });
+							} else if (selectedRange.start && !selectedRange.end) {
+								const start = selectedRange.start;
+								const end = ev.id;
+								setSelectedRange({ start, end });
+								fetchSubgraph(start, end).catch(console.error);
+							}
+						}}
+						onRangeSelect={(startId, endId) => {
+							setSelectedRange({ start: startId, end: endId });
+							fetchSubgraph(startId, endId).catch(console.error);
+						}}
 					/>
+					{(selectedRange.start || selectedRange.end) && (
+						<HStack mt={2} spacing={3}>
+							<Text fontSize="sm" color="gray.600">Selected window: {selectedRange.start} → {selectedRange.end || '…'}</Text>
+							<Button size="sm" onClick={() => { setSelectedRange({}); setSubgraph({ nodes: [], links: [] }); }}>Clear</Button>
+						</HStack>
+					)}
 				</Box>
 				<Box mb={3} fontSize="sm">
 					<Text><span style={{ color: '#888' }}>■</span> PART_OF</Text>
@@ -158,22 +236,9 @@ export default function DevGraphPage() {
 				)}
 				
 				{isValidData && hasValidLinks && (
-					<ForceGraph2D 
-						graphData={filteredData} 
-						height={600} 
-						width={1000}
-						nodeId="id"
-						linkSource="from"
-						linkTarget="to"
-						nodeLabel={(n: any) => `${n.id}\n${n.type ?? ''}`}
-						linkLabel={(l: any) => l.type}
-						nodeAutoColorBy={(n: any) => n.type ?? 'Unknown'}
-						linkColor={(l: any) => (
-							l.type === 'PART_OF' ? '#888' :
-							l.type === 'EVOLVES_FROM' ? '#2b8a3e' :
-							l.type === 'REFERENCES' ? '#1c7ed6' :
-							l.type === 'DEPENDS_ON' ? '#e67700' : '#999'
-						)}
+					<EvolutionGraph 
+						data={filteredData}
+						onNodeClick={(n: any) => { setSelectedNode(n); drawer.onOpen(); }}
 					/>
 				)}
 				
@@ -191,6 +256,7 @@ export default function DevGraphPage() {
 					</Alert>
 				)}
 			</Box>
+			<NodeDetailDrawer isOpen={drawer.isOpen} onClose={drawer.onClose} node={selectedNode} />
 		</Box>
 	);
 }
