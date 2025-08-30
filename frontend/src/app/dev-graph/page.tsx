@@ -1,7 +1,7 @@
 'use client';
-
+_
 import dynamic from 'next/dynamic';
-import { Box, Heading, Spinner, Alert, AlertIcon, Text, HStack, Switch, Slider, SliderFilledTrack, SliderThumb, SliderTrack, useDisclosure, Button } from '@chakra-ui/react';
+import { Box, Heading, Spinner, Alert, AlertIcon, Text, HStack, Switch, Slider, SliderFilledTrack, SliderThumb, SliderTrack, useDisclosure, Button, useToast, Tabs, TabList, TabPanels, Tab, TabPanel } from '@chakra-ui/react';
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Header } from '@/components/Header';
@@ -9,6 +9,8 @@ import TimelineView from './components/TimelineView';
 import EvolutionGraph from './components/EvolutionGraph';
 import NodeDetailDrawer from './components/NodeDetailDrawer';
 import SearchBar from './components/SearchBar';
+import { SprintView, Sprint } from './components/SprintView';
+import { TemporalAnalytics } from './components/TemporalAnalytics';
 
 // Use the 2D-only bundle to avoid VR/A-Frame dependencies being pulled in
 const ForceGraph2D = dynamic<any>(() => import('react-force-graph-2d'), { ssr: false });
@@ -55,8 +57,13 @@ export default function DevGraphPage() {
 
 	const [commitLimit, setCommitLimit] = useState(100);
 	const [ingesting, setIngesting] = useState(false);
+	const [selectedNode, setSelectedNode] = useState<any>(null);
 	const [selectedRange, setSelectedRange] = useState<{ start?: string; end?: string }>({});
 	const [subgraph, setSubgraph] = useState<{ nodes: any[]; links: any[] }>({ nodes: [], links: [] });
+	const [selectedSprint, setSelectedSprint] = useState<Sprint | undefined>();
+	
+	const drawer = useDisclosure();
+	const toast = useToast();
 
 	const fetchSubgraph = async (startCommit?: string, endCommit?: string) => {
 		const params = new URLSearchParams();
@@ -79,8 +86,6 @@ export default function DevGraphPage() {
 	);
 
 	const [showEvolves, setShowEvolves] = useState(true);
-	const [selectedNode, setSelectedNode] = useState<any | null>(null);
-	const drawer = useDisclosure();
 
 	const filteredData = useMemo(() => {
 		const baseNodes = data.nodes ?? [];
@@ -163,50 +168,141 @@ export default function DevGraphPage() {
 
 				{/* Search */}
 				<Box mb={3}>
-					<SearchBar onSearch={async (q) => {
+					<SearchBar onSearch={async (q, filters) => {
 						try {
-							const res = await fetch(`${DEV_GRAPH_API_URL}/api/v1/dev-graph/search?q=${encodeURIComponent(q)}`);
+							// Build search query with filters
+							const params = new URLSearchParams();
+							params.set('q', q);
+							if (filters.nodeType) params.set('node_type', filters.nodeType);
+							if (filters.relationshipType) params.set('relationship_type', filters.relationshipType);
+							
+							const res = await fetch(`${DEV_GRAPH_API_URL}/api/v1/dev-graph/search?${params.toString()}`);
 							if (!res.ok) throw new Error('Search failed');
 							const nodes = await res.json();
-							// naive perspective: show only found nodes and their existing links from current dataset
+							
+							// Show only found nodes and their existing links from current dataset
 							const nodeIds = new Set(nodes.map((n: any) => n.id));
 							const links = (selectedRange.start || selectedRange.end ? subgraph.links : linksQuery.data) || [];
 							const filteredLinks = links.filter((l: any) => nodeIds.has(l.from) || nodeIds.has(l.to));
+							
 							setSubgraph({ nodes, links: filteredLinks });
 							setSelectedRange({});
+							
+							console.log(`Search results: ${nodes.length} nodes found with filters:`, filters);
 						} catch (e) {
-							console.error(e);
+							console.error('Search failed:', e);
 						}
 					}} />
 				</Box>
 
-				{/* Legend */}
-				{/* Timeline */}
+				{/* Temporal Views Tabs */}
 				<Box mb={4}>
-					<TimelineView
-						events={(Array.isArray(commitsQuery.data) ? commitsQuery.data : []).map((c: any) => ({
-							id: c.hash,
-							title: c.message,
-							timestamp: c.timestamp,
-							author: c.author_email,
-							type: 'commit',
-						}))}
-						onSelect={(ev) => {
-							// Toggle range selection: first click sets start, second sets end and fetches subgraph
-							if (!selectedRange.start || (selectedRange.start && selectedRange.end)) {
-								setSelectedRange({ start: ev.id, end: undefined });
-							} else if (selectedRange.start && !selectedRange.end) {
-								const start = selectedRange.start;
-								const end = ev.id;
-								setSelectedRange({ start, end });
-								fetchSubgraph(start, end).catch(console.error);
-							}
-						}}
-						onRangeSelect={(startId, endId) => {
-							setSelectedRange({ start: startId, end: endId });
-							fetchSubgraph(startId, endId).catch(console.error);
-						}}
-					/>
+					<Tabs variant="enclosed" colorScheme="green">
+						<TabList>
+							<Tab>Timeline View</Tab>
+							<Tab>Sprint View</Tab>
+							<Tab>Analytics</Tab>
+						</TabList>
+						
+						<TabPanels>
+							{/* Timeline Tab */}
+							<TabPanel>
+								<TimelineView
+									events={(Array.isArray(commitsQuery.data) ? commitsQuery.data : []).map((c: any) => ({
+										id: c.hash,
+										title: c.message,
+										timestamp: c.timestamp,
+										author: c.author_email,
+										type: 'commit',
+										commit_hash: c.hash,
+										files_changed: c.files_changed,
+									}))}
+									onSelect={(ev) => {
+										// Toggle range selection: first click sets start, second sets end and fetches subgraph
+										if (!selectedRange.start || (selectedRange.start && selectedRange.end)) {
+											setSelectedRange({ start: ev.id, end: undefined });
+										} else if (selectedRange.start && !selectedRange.end) {
+											const start = selectedRange.start;
+											const end = ev.id;
+											setSelectedRange({ start, end });
+											fetchSubgraph(start, end).catch(console.error);
+										}
+									}}
+									onRangeSelect={(startId, endId) => {
+										setSelectedRange({ start: startId, end: endId });
+										fetchSubgraph(startId, endId).catch(console.error);
+									}}
+									onTimeScrub={(timestamp) => {
+										// Time scrubber functionality: highlight nodes active at this timestamp
+										console.log('Time scrubbing to:', timestamp);
+										// TODO: Implement graph filtering based on timestamp
+										// This will be enhanced in the next iteration
+									}}
+								/>
+							</TabPanel>
+							
+							{/* Sprint Tab */}
+							<TabPanel>
+								<SprintView
+									sprints={[
+										// Mock sprint data - replace with real API call
+										{
+											number: "1",
+											start_date: "2024-01-01",
+											end_date: "2024-01-14",
+											commit_range: {
+												start: "abc123",
+												end: "def456"
+											},
+											metrics: {
+												total_commits: 45,
+												files_changed: 23,
+												requirements_implemented: 8,
+												authors: 3
+											}
+										},
+										{
+											number: "2",
+											start_date: "2024-01-15",
+											end_date: "2024-01-28",
+											commit_range: {
+												start: "def456",
+												end: "ghi789"
+											},
+											metrics: {
+												total_commits: 52,
+												files_changed: 31,
+												requirements_implemented: 12,
+												authors: 4
+											}
+										}
+									]}
+									onSprintSelect={(sprint) => {
+										setSelectedSprint(sprint);
+										// Fetch subgraph for sprint commit range
+										fetchSubgraph(sprint.commit_range.start, sprint.commit_range.end).catch(console.error);
+									}}
+									selectedSprint={selectedSprint}
+								/>
+							</TabPanel>
+							
+							{/* Analytics Tab */}
+							<TabPanel>
+								<TemporalAnalytics
+									events={(Array.isArray(commitsQuery.data) ? commitsQuery.data : []).map((c: any) => ({
+										id: c.hash,
+										timestamp: c.timestamp,
+										type: c.type || 'commit',
+										author: c.author_email,
+										files_changed: c.files_changed,
+									}))}
+									nodes={nodesQuery.data || []}
+									links={linksQuery.data || []}
+								/>
+							</TabPanel>
+						</TabPanels>
+					</Tabs>
+					
 					{(selectedRange.start || selectedRange.end) && (
 						<HStack mt={2} spacing={3}>
 							<Text fontSize="sm" color="gray.600">Selected window: {selectedRange.start} → {selectedRange.end || '…'}</Text>
@@ -239,6 +335,11 @@ export default function DevGraphPage() {
 					<EvolutionGraph 
 						data={filteredData}
 						onNodeClick={(n: any) => { setSelectedNode(n); drawer.onOpen(); }}
+						currentTimestamp={selectedRange.start ? commitsQuery.data?.find((c: any) => c.hash === selectedRange.start)?.timestamp : undefined}
+						timeRange={selectedRange.start && selectedRange.end ? {
+							start: commitsQuery.data?.find((c: any) => c.hash === selectedRange.start)?.timestamp || '',
+							end: commitsQuery.data?.find((c: any) => c.hash === selectedRange.end)?.timestamp || ''
+						} : undefined}
 					/>
 				)}
 				
