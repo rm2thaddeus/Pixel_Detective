@@ -1,37 +1,6 @@
 'use client';
 
-import { Box, Text, VStack, HStack, Badge } from '@chakra-ui/react';
-
-export function TemporalAnalytics({ events, nodes, relations }: { events: any[]; nodes: any[]; relations: any[] }) {
-  const totalCommits = events.length;
-  const totalNodes = nodes.length;
-  const totalRelations = relations.length;
-  const types = new Map<string, number>();
-  for (const r of relations) {
-    types.set(r.type, (types.get(r.type) || 0) + 1);
-  }
-  return (
-    <Box borderWidth="1px" borderRadius="md" p={3}>
-      <Text fontWeight="bold" mb={2}>Temporal Analytics</Text>
-      <VStack align="start" spacing={2}>
-        <Text fontSize="sm">Commits: {totalCommits}</Text>
-        <Text fontSize="sm">Nodes: {totalNodes}</Text>
-        <Text fontSize="sm">Relations: {totalRelations}</Text>
-        <HStack spacing={2} flexWrap="wrap">
-          {Array.from(types.entries()).map(([t, c]) => (
-            <Badge key={t} colorScheme="blue">{t}: {c}</Badge>
-          ))}
-        </HStack>
-      </VStack>
-    </Box>
-  );
-}
-
-export default TemporalAnalytics;
-
-'use client';
-
-import { Box, VStack, HStack, Text, Stat, StatLabel, StatNumber, StatHelpText, StatArrow, useColorModeValue, SimpleGrid, Progress, Badge } from '@chakra-ui/react';
+import { Box, VStack, HStack, Text, Stat, StatLabel, StatNumber, StatHelpText, StatArrow, useColorModeValue, SimpleGrid, Progress, Badge, Icon } from '@chakra-ui/react';
 import { useMemo } from 'react';
 import { FiTrendingUp, FiTrendingDown, FiClock, FiUsers, FiGitCommit, FiFile } from 'react-icons/fi';
 
@@ -100,171 +69,137 @@ export function TemporalAnalytics({ events, nodes, relations }: TemporalAnalytic
     const endDate = new Date(sortedEvents[sortedEvents.length - 1].timestamp);
     const duration = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
 
-    // Activity per day
-    const activityByDay = new Map<string, number>();
-    const filesByDay = new Map<string, number>();
-    const authorsByDay = new Map<string, Set<string>>();
+    // Calculate daily activity
+    const dailyActivity = new Map<string, number>();
+    const dailyFiles = new Map<string, number>();
+    const dailyAuthors = new Map<string, Set<string>>();
 
     events.forEach(event => {
-      const day = new Date(event.timestamp).toDateString();
-      activityByDay.set(day, (activityByDay.get(day) || 0) + 1);
+      const date = event.timestamp.split('T')[0];
+      dailyActivity.set(date, (dailyActivity.get(date) || 0) + 1);
       
       if (event.files_changed) {
-        filesByDay.set(day, (filesByDay.get(day) || 0) + event.files_changed.length);
+        dailyFiles.set(date, (dailyFiles.get(date) || 0) + event.files_changed.length);
       }
       
       if (event.author) {
-        if (!authorsByDay.has(day)) {
-          authorsByDay.set(day, new Set());
+        if (!dailyAuthors.has(date)) {
+          dailyAuthors.set(date, new Set());
         }
-        authorsByDay.get(day)!.add(event.author);
+        dailyAuthors.get(date)!.add(event.author);
       }
     });
 
-    const commitsPerDay = events.length / duration;
-    const filesChangedPerDay = events.reduce((sum, e) => sum + (e.files_changed?.length || 0), 0) / duration;
-    const authorsPerDay = Array.from(authorsByDay.values()).reduce((sum, authors) => sum + authors.size, 0) / duration;
+    const commitsPerDay = events.length / Math.max(duration, 1);
+    const filesChangedPerDay = Array.from(dailyFiles.values()).reduce((sum, count) => sum + count, 0) / Math.max(duration, 1);
+    const authorsPerDay = Array.from(dailyAuthors.values()).reduce((sum, authors) => sum + authors.size, 0) / Math.max(duration, 1);
 
     // Find peak activity day
     let peakActivityDay = '';
     let peakActivityCount = 0;
-    activityByDay.forEach((count, day) => {
+    dailyActivity.forEach((count, date) => {
       if (count > peakActivityCount) {
         peakActivityCount = count;
-        peakActivityDay = day;
+        peakActivityDay = date;
       }
     });
 
-    // Evolution metrics
-    const requirementsEvolved = relations.filter(r => r.type === 'EVOLVES_FROM').length;
-    const filesRefactored = relations.filter(r => r.type === 'REFACTORED_TO').length;
-    const dependenciesChanged = relations.filter(r => r.type === 'DEPENDS_ON').length;
-    const evolutionRate = (requirementsEvolved + filesRefactored) / nodes.length * 100;
+    // Calculate evolution metrics
+    const requirementsEvolved = nodes.filter(node => 
+      node.type === 'requirement' && node.updated_at && node.updated_at !== node.created_at
+    ).length;
 
-    // Trends (simplified calculation)
-    const midPoint = Math.floor(events.length / 2);
-    const firstHalf = events.slice(0, midPoint).length;
-    const secondHalf = events.slice(midPoint).length;
-    
-    const commitTrend = secondHalf > firstHalf ? 'increasing' : secondHalf < firstHalf ? 'decreasing' : 'stable';
-    const complexityTrend = nodes.length > events.length / 2 ? 'increasing' : 'decreasing';
-    const teamActivityTrend = authorsByDay.size > duration / 2 ? 'increasing' : 'decreasing';
+    const filesRefactored = relations.filter(rel => 
+      rel.type === 'refactors' || rel.type === 'modifies'
+    ).length;
+
+    const dependenciesChanged = relations.filter(rel => 
+      rel.type === 'depends_on' || rel.type === 'imports'
+    ).length;
+
+    const evolutionRate = Math.round((requirementsEvolved / Math.max(nodes.filter(n => n.type === 'requirement').length, 1)) * 100);
+
+    // Calculate trends
+    const commitTrend = commitsPerDay > 5 ? 'increasing' : commitsPerDay > 2 ? 'stable' : 'decreasing';
+    const complexityTrend = filesRefactored > 10 ? 'increasing' : filesRefactored > 5 ? 'stable' : 'decreasing';
+    const teamActivityTrend = authorsPerDay > 3 ? 'increasing' : authorsPerDay > 1 ? 'stable' : 'decreasing';
 
     return {
       totalEvents: events.length,
       timeSpan: {
-        start: startDate.toLocaleDateString(),
-        end: endDate.toLocaleDateString(),
-        duration,
+        start: startDate.toISOString().split('T')[0],
+        end: endDate.toISOString().split('T')[0],
+        duration
       },
       activityMetrics: {
         commitsPerDay: Math.round(commitsPerDay * 100) / 100,
         filesChangedPerDay: Math.round(filesChangedPerDay * 100) / 100,
         authorsPerDay: Math.round(authorsPerDay * 100) / 100,
         peakActivityDay,
-        peakActivityCount,
+        peakActivityCount
       },
       evolutionMetrics: {
         requirementsEvolved,
         filesRefactored,
         dependenciesChanged,
-        evolutionRate: Math.round(evolutionRate * 100) / 100,
+        evolutionRate
       },
       trends: {
         commitTrend,
         complexityTrend,
-        teamActivityTrend,
-      },
+        teamActivityTrend
+      }
     };
   }, [events, nodes, relations]);
 
+  const getTrendIcon = (trend: string) => {
+    if (trend === 'increasing') {
+      return <Icon as={FiTrendingUp} color="green.500" boxSize={6} />;
+    } else if (trend === 'decreasing') {
+      return <Icon as={FiTrendingDown} color="red.500" boxSize={6} />;
+    }
+    return <Icon as={FiClock} color="gray.500" boxSize={6} />;
+  };
+
+  const getTrendColor = (trend: string) => {
+    if (trend === 'increasing') return 'green';
+    if (trend === 'decreasing') return 'red';
+    return 'gray';
+  };
+
   if (!metrics) {
     return (
-      <Box p={4} bg={bgColor} borderWidth={1} borderColor={borderColor} borderRadius="md">
-        <Text color="gray.500">No temporal data available for analysis</Text>
+      <Box p={6} textAlign="center" bg={bgColor} borderRadius="lg" borderWidth="1px" borderColor={borderColor}>
+        <Text color="gray.500">No temporal data available</Text>
       </Box>
     );
   }
 
-  const getTrendIcon = (trend: string) => {
-    switch (trend) {
-      case 'increasing':
-        return <StatArrow type="increase" color="green.500" />;
-      case 'decreasing':
-        return <StatArrow type="decrease" color="red.500" />;
-      default:
-        return <StatArrow type="decrease" color="gray.500" />;
-    }
-  };
-
-  const getTrendColor = (trend: string) => {
-    switch (trend) {
-      case 'increasing':
-        return 'green';
-      case 'decreasing':
-        return 'red';
-      default:
-        return 'gray';
-    }
-  };
-
   return (
-    <Box p={4} bg={bgColor} borderWidth={1} borderColor={borderColor} borderRadius="md">
+    <Box p={6} bg={bgColor} borderWidth="1" borderColor={borderColor} borderRadius="lg">
       <VStack spacing={6} align="stretch">
-        {/* Header */}
-        <Box>
-          <Text fontSize="lg" fontWeight="bold" mb={2}>Temporal Analytics</Text>
-          <Text fontSize="sm" color="gray.500">
-            Analysis of development activity over {metrics.timeSpan.duration} days
-          </Text>
-        </Box>
+        <Text fontSize="xl" fontWeight="bold" color={useColorModeValue('gray.800', 'white')}>
+          Temporal Analytics
+        </Text>
 
-        {/* Time Span Overview */}
-        <Box p={4} bg={`${accentColor}10`} borderRadius="md">
-          <HStack justify="space-between" align="center">
-            <VStack align="start" spacing={1}>
-              <Text fontSize="sm" fontWeight="medium">Time Period</Text>
-              <Text fontSize="lg">
-                {metrics.timeSpan.start} → {metrics.timeSpan.end}
-              </Text>
-            </VStack>
-            <VStack align="end" spacing={1}>
-              <Text fontSize="sm" color="gray.500">Duration</Text>
-              <Text fontSize="lg" fontWeight="bold">
-                {metrics.timeSpan.duration} days
-              </Text>
-            </VStack>
-          </HStack>
-        </Box>
-
-        {/* Activity Metrics */}
+        {/* Overview Stats */}
         <Box>
-          <Text fontSize="md" fontWeight="medium" mb={3}>Activity Metrics</Text>
-          <SimpleGrid columns={{ base: 1, md: 2, lg: 4 }} spacing={4}>
+          <Text fontSize="md" fontWeight="medium" mb={3}>Overview</Text>
+          <SimpleGrid columns={{ base: 1, md: 3 }} spacing={4}>
             <Stat>
-              <StatLabel>Commits/Day</StatLabel>
-              <StatNumber>{metrics.activityMetrics.commitsPerDay}</StatNumber>
+              <StatLabel>Total Events</StatLabel>
+              <StatNumber>{metrics.totalEvents}</StatNumber>
               <StatHelpText>
-                <FiGitCommit style={{ display: 'inline', marginRight: '4px' }} />
-                Average daily commits
+                <StatArrow type="increase" />
+                {metrics.activityMetrics.commitsPerDay} per day
               </StatHelpText>
             </Stat>
             
             <Stat>
-              <StatLabel>Files Changed/Day</StatLabel>
-              <StatNumber>{metrics.activityMetrics.filesChangedPerDay}</StatNumber>
+              <StatLabel>Time Span</StatLabel>
+              <StatNumber>{metrics.timeSpan.duration}</StatNumber>
               <StatHelpText>
-                <FiFile style={{ display: 'inline', marginRight: '4px' }} />
-                Average daily file changes
-              </StatHelpText>
-            </Stat>
-            
-            <Stat>
-              <StatLabel>Authors/Day</StatLabel>
-              <StatNumber>{metrics.activityMetrics.authorsPerDay}</StatNumber>
-              <StatHelpText>
-                <FiUsers style={{ display: 'inline', marginRight: '4px' }} />
-                Average daily contributors
+                {metrics.timeSpan.start} to {metrics.timeSpan.end}
               </StatHelpText>
             </Stat>
             
@@ -272,10 +207,39 @@ export function TemporalAnalytics({ events, nodes, relations }: TemporalAnalytic
               <StatLabel>Peak Activity</StatLabel>
               <StatNumber>{metrics.activityMetrics.peakActivityCount}</StatNumber>
               <StatHelpText>
-                <FiClock style={{ display: 'inline', marginRight: '4px' }} />
-                {metrics.activityMetrics.peakActivityDay}
+                on {metrics.activityMetrics.peakActivityDay}
               </StatHelpText>
             </Stat>
+          </SimpleGrid>
+        </Box>
+
+        {/* Activity Metrics */}
+        <Box>
+          <Text fontSize="md" fontWeight="medium" mb={3}>Daily Activity</Text>
+          <SimpleGrid columns={{ base: 1, md: 3 }} spacing={4}>
+            <Box p={4} borderWidth="1" borderColor={borderColor} borderRadius="md">
+              <VStack spacing={2}>
+                <Icon as={FiGitCommit} color={accentColor} boxSize={6} />
+                <Text fontSize="lg" fontWeight="bold">{metrics.activityMetrics.commitsPerDay}</Text>
+                <Text fontSize="sm" color="gray.500">Commits per day</Text>
+              </VStack>
+            </Box>
+            
+            <Box p={4} borderWidth="1" borderColor={borderColor} borderRadius="md">
+              <VStack spacing={2}>
+                <Icon as={FiFile} color={accentColor} boxSize={6} />
+                <Text fontSize="lg" fontWeight="bold">{metrics.activityMetrics.filesChangedPerDay}</Text>
+                <Text fontSize="sm" color="gray.500">Files changed per day</Text>
+              </VStack>
+            </Box>
+            
+            <Box p={4} borderWidth="1" borderColor={borderColor} borderRadius="md">
+              <VStack spacing={2}>
+                <Icon as={FiUsers} color={accentColor} boxSize={6} />
+                <Text fontSize="lg" fontWeight="bold">{metrics.activityMetrics.authorsPerDay}</Text>
+                <Text fontSize="sm" color="gray.500">Authors per day</Text>
+              </VStack>
+            </Box>
           </SimpleGrid>
         </Box>
 
@@ -283,7 +247,7 @@ export function TemporalAnalytics({ events, nodes, relations }: TemporalAnalytic
         <Box>
           <Text fontSize="md" fontWeight="medium" mb={3}>Evolution Metrics</Text>
           <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
-            <Box p={4} borderWidth={1} borderColor={borderColor} borderRadius="md">
+            <Box p={4} borderWidth="1" borderColor={borderColor} borderRadius="md">
               <VStack spacing={3} align="stretch">
                 <HStack justify="space-between">
                   <Text fontSize="sm">Requirements Evolution</Text>
@@ -300,7 +264,7 @@ export function TemporalAnalytics({ events, nodes, relations }: TemporalAnalytic
               </VStack>
             </Box>
             
-            <Box p={4} borderWidth={1} borderColor={borderColor} borderRadius="md">
+            <Box p={4} borderWidth="1" borderColor={borderColor} borderRadius="md">
               <VStack spacing={3} align="stretch">
                 <Text fontSize="sm">Evolution Rate</Text>
                 <Progress 
@@ -323,7 +287,7 @@ export function TemporalAnalytics({ events, nodes, relations }: TemporalAnalytic
         <Box>
           <Text fontSize="md" fontWeight="medium" mb={3}>Development Trends</Text>
           <SimpleGrid columns={{ base: 1, md: 3 }} spacing={4}>
-            <Box p={4} borderWidth={1} borderColor={borderColor} borderRadius="md">
+            <Box p={4} borderWidth="1" borderColor={borderColor} borderRadius="md">
               <HStack justify="space-between" align="center">
                 <VStack align="start" spacing={1}>
                   <Text fontSize="sm">Commit Activity</Text>
@@ -334,11 +298,11 @@ export function TemporalAnalytics({ events, nodes, relations }: TemporalAnalytic
                 {getTrendIcon(metrics.trends.commitTrend)}
               </HStack>
               <Badge colorScheme={getTrendColor(metrics.trends.commitTrend)} mt={2}>
-                {metrics.trends.commitTrend === 'increasing' ? <FiTrendingUp /> : <FiTrendingDown />}
+                {metrics.trends.commitTrend === 'increasing' ? <Icon as={FiTrendingUp} /> : <Icon as={FiTrendingDown} />}
               </Badge>
             </Box>
             
-            <Box p={4} borderWidth={1} borderColor={borderColor} borderRadius="md">
+            <Box p={4} borderWidth="1" borderColor={borderColor} borderRadius="md">
               <HStack justify="space-between" align="center">
                 <VStack align="start" spacing={1}>
                   <Text fontSize="sm">Code Complexity</Text>
@@ -349,11 +313,11 @@ export function TemporalAnalytics({ events, nodes, relations }: TemporalAnalytic
                 {getTrendIcon(metrics.trends.complexityTrend)}
               </HStack>
               <Badge colorScheme={getTrendColor(metrics.trends.complexityTrend)} mt={2}>
-                {metrics.trends.complexityTrend === 'increasing' ? <FiTrendingUp /> : <FiTrendingDown />}
+                {metrics.trends.complexityTrend === 'increasing' ? <Icon as={FiTrendingUp} /> : <Icon as={FiTrendingDown} />}
               </Badge>
             </Box>
             
-            <Box p={4} borderWidth={1} borderColor={borderColor} borderRadius="md">
+            <Box p={4} borderWidth="1" borderColor={borderColor} borderRadius="md">
               <HStack justify="space-between" align="center">
                 <VStack align="start" spacing={1}>
                   <Text fontSize="sm">Team Activity</Text>
@@ -364,7 +328,7 @@ export function TemporalAnalytics({ events, nodes, relations }: TemporalAnalytic
                 {getTrendIcon(metrics.trends.teamActivityTrend)}
               </HStack>
               <Badge colorScheme={getTrendColor(metrics.trends.teamActivityTrend)} mt={2}>
-                {metrics.trends.teamActivityTrend === 'increasing' ? <FiTrendingUp /> : <FiTrendingDown />}
+                {metrics.trends.teamActivityTrend === 'increasing' ? <Icon as={FiTrendingUp} /> : <Icon as={FiTrendingDown} />}
               </Badge>
             </Box>
           </SimpleGrid>
@@ -373,3 +337,5 @@ export function TemporalAnalytics({ events, nodes, relations }: TemporalAnalytic
     </Box>
   );
 }
+
+export default TemporalAnalytics;

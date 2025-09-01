@@ -1,47 +1,6 @@
 'use client';
 
-import { Box, HStack, VStack, Text, Button, Badge } from '@chakra-ui/react';
-
-export type Sprint = {
-  number: string;
-  start_date: string;
-  end_date: string;
-  commit_range: { start: string | null; end: string | null };
-  metrics?: Record<string, any>;
-};
-
-export function SprintView({ sprints, onSprintSelect, selectedSprint }: { sprints: Sprint[]; onSprintSelect: (s: Sprint) => void; selectedSprint?: Sprint }) {
-  return (
-    <VStack align="stretch" spacing={3}>
-      {sprints.map((s) => (
-        <HStack key={s.number} justify="space-between" borderWidth="1px" borderRadius="md" p={3}>
-          <VStack align="start" spacing={0}>
-            <Text fontWeight="bold">Sprint {s.number}</Text>
-            <Text fontSize="sm" color="gray.600">{s.start_date} → {s.end_date}</Text>
-            <Text fontSize="xs" color="gray.500">Commits: {s.commit_range.start} → {s.commit_range.end}</Text>
-          </VStack>
-          <HStack>
-            {s.metrics?.count != null && (
-              <Badge colorScheme="green">{s.metrics.count} commits</Badge>
-            )}
-            <Button size="sm" onClick={() => onSprintSelect(s)} colorScheme={selectedSprint?.number === s.number ? 'green' : 'blue'}>
-              View
-            </Button>
-          </HStack>
-        </HStack>
-      ))}
-      {sprints.length === 0 && (
-        <Box p={4} borderWidth="1px" borderRadius="md"><Text>No sprints found</Text></Box>
-      )}
-    </VStack>
-  );
-}
-
-export default SprintView;
-
-'use client';
-
-import { Box, VStack, HStack, Text, Select, Badge, useColorModeValue, Divider, Progress } from '@chakra-ui/react';
+import { Box, VStack, HStack, Text, Select, Badge, useColorModeValue, Divider, Progress, SimpleGrid, Button, Icon } from '@chakra-ui/react';
 import { useState, useEffect } from 'react';
 import { FiCalendar, FiGitCommit, FiFile, FiUsers } from 'react-icons/fi';
 
@@ -107,14 +66,22 @@ export function SprintView({ sprints, onSprintSelect, selectedSprint }: SprintVi
       }
       
       if (sortOrder === 'asc') {
-        return aVal > bVal ? 1 : -1;
+        return aVal < bVal ? -1 : aVal > bVal ? 1 : 0;
       } else {
-        return aVal < bVal ? 1 : -1;
+        return aVal > bVal ? -1 : aVal < bVal ? 1 : 0;
       }
     });
     
     setFilteredSprints(sorted);
   }, [sprints, sortBy, sortOrder]);
+
+  const handleSortChange = (value: string) => {
+    setSortBy(value);
+  };
+
+  const toggleSortOrder = () => {
+    setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc');
+  };
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString();
@@ -143,13 +110,21 @@ export function SprintView({ sprints, onSprintSelect, selectedSprint }: SprintVi
     return { status: 'Active', color: 'orange' };
   };
 
+  if (sprints.length === 0) {
+    return (
+      <Box p={6} textAlign="center" bg={bgColor} borderRadius="lg" borderWidth="1px" borderColor={borderColor}>
+        <Text color="gray.500">No sprints found</Text>
+      </Box>
+    );
+  }
+
   return (
     <Box p={4} bg={bgColor} borderWidth={1} borderColor={borderColor} borderRadius="md">
       <VStack spacing={4} align="stretch">
         {/* Header */}
         <HStack justify="space-between" align="center">
           <HStack>
-            <FiCalendar />
+            <Icon as={FiCalendar} />
             <Text fontSize="lg" fontWeight="bold">Sprint Timeline</Text>
           </HStack>
           <Badge colorScheme="green" variant="subtle">
@@ -163,7 +138,7 @@ export function SprintView({ sprints, onSprintSelect, selectedSprint }: SprintVi
             <Text fontSize="sm" mb={1}>Sort By</Text>
             <Select
               value={sortBy}
-              onChange={(e) => setSortBy(e.target.value)}
+              onChange={(e) => handleSortChange(e.target.value)}
               size="sm"
             >
               <option value="number">Sprint Number</option>
@@ -175,14 +150,14 @@ export function SprintView({ sprints, onSprintSelect, selectedSprint }: SprintVi
           
           <Box>
             <Text fontSize="sm" mb={1}>Order</Text>
-            <Select
-              value={sortOrder}
-              onChange={(e) => setSortOrder(e.target.value as 'asc' | 'desc')}
+            <Button
               size="sm"
+              variant="outline"
+              onClick={toggleSortOrder}
+              leftIcon={<Icon as={FiCalendar} />}
             >
-              <option value="desc">Descending</option>
-              <option value="asc">Ascending</option>
-            </Select>
+              {sortOrder === 'asc' ? 'Ascending' : 'Descending'}
+            </Button>
           </Box>
         </HStack>
 
@@ -243,19 +218,19 @@ export function SprintView({ sprints, onSprintSelect, selectedSprint }: SprintVi
                   {/* Metrics */}
                   <HStack spacing={6} justify="center">
                     <VStack spacing={1}>
-                      <FiGitCommit />
+                      <Icon as={FiGitCommit} />
                       <Text fontSize="sm" fontWeight="medium">{sprint.metrics.total_commits}</Text>
                       <Text fontSize="xs" color="gray.500">Commits</Text>
                     </VStack>
                     
                     <VStack spacing={1}>
-                      <FiFile />
+                      <Icon as={FiFile} />
                       <Text fontSize="sm" fontWeight="medium">{sprint.metrics.files_changed}</Text>
                       <Text fontSize="xs" color="gray.500">Files</Text>
                     </VStack>
                     
                     <VStack spacing={1}>
-                      <FiUsers />
+                      <Icon as={FiUsers} />
                       <Text fontSize="sm" fontWeight="medium">{sprint.metrics.authors}</Text>
                       <Text fontSize="xs" color="gray.500">Authors</Text>
                     </VStack>
@@ -285,3 +260,5 @@ export function SprintView({ sprints, onSprintSelect, selectedSprint }: SprintVi
     </Box>
   );
 }
+
+export default SprintView;

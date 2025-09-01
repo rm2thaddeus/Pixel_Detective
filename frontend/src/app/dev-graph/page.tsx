@@ -98,10 +98,60 @@ export default function DevGraphPage() {
 	};
 
 	const data = useMemo(
-		() => ({
-			nodes: selectedRange.start || selectedRange.end ? (subgraph.nodes ?? []) : ((nodesQuery.data?.pages || []).flat()),
-			relations: selectedRange.start || selectedRange.end ? (subgraph.links ?? []) : ((relationsQuery.data?.pages || []).flat()),
-		}),
+		() => {
+			const rawNodes = selectedRange.start || selectedRange.end ? (subgraph.nodes ?? []) : ((nodesQuery.data?.pages || []).flat());
+			const rawRelations = selectedRange.start || selectedRange.end ? (subgraph.links ?? []) : ((relationsQuery.data?.pages || []).flat());
+			
+			// Add coordinates to nodes that don't have them
+			const nodesWithCoords = rawNodes.map((node: any, index: number) => {
+				// Use deterministic positioning based on node ID hash for consistent layout
+				const hash = node.id.split('').reduce((a: number, b: string) => {
+					a = ((a << 5) - a) + b.charCodeAt(0);
+					return a & a;
+				}, 0);
+				
+				// Calculate coordinates with additional validation
+				let x = typeof node.x === 'number' && !isNaN(node.x) && isFinite(node.x) ? node.x : Math.abs(hash % 1000);
+				let y = typeof node.y === 'number' && !isNaN(node.y) && isFinite(node.y) ? node.y : Math.abs((hash >> 8) % 1000);
+				const size = typeof node.size === 'number' && !isNaN(node.size) && isFinite(node.size) ? node.size : 1;
+				
+				// Final validation to ensure coordinates are valid
+				if (!isFinite(x) || x < -10000 || x > 10000) {
+					console.warn(`Invalid x coordinate for node ${node.id}, using fallback`);
+					x = Math.abs(hash % 1000);
+				}
+				if (!isFinite(y) || y < -10000 || y > 10000) {
+					console.warn(`Invalid y coordinate for node ${node.id}, using fallback`);
+					y = Math.abs((hash >> 8) % 1000);
+				}
+				
+				return {
+					...node,
+					x,
+					y,
+					size,
+				};
+			});
+			
+			console.log('Data preprocessing complete:', {
+				rawNodesCount: rawNodes.length,
+				processedNodesCount: nodesWithCoords.length,
+				sampleProcessedNode: nodesWithCoords[0],
+				sampleCoords: nodesWithCoords[0] ? {
+					x: nodesWithCoords[0].x,
+					y: nodesWithCoords[0].y,
+					xType: typeof nodesWithCoords[0].x,
+					yType: typeof nodesWithCoords[0].y,
+					xValid: isFinite(nodesWithCoords[0].x),
+					yValid: isFinite(nodesWithCoords[0].y)
+				} : null
+			});
+			
+			return {
+				nodes: nodesWithCoords,
+				relations: rawRelations,
+			};
+		},
 		[nodesQuery.data, relationsQuery.data, selectedRange, subgraph]
 	);
 
