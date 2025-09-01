@@ -1,12 +1,12 @@
 'use client';
 
-import dynamic from 'next/dynamic';
 import { Box } from '@chakra-ui/react';
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
+import Graph from 'graphology';
+import louvain from 'graphology-communities-louvain';
+import { Sigma } from 'sigma';
 
-const ForceGraph2D = dynamic<any>(() => import('react-force-graph-2d'), { ssr: false });
-
-export type GraphData = { nodes: any[]; links: any[] };
+export type GraphData = { nodes: any[]; relations: any[] };
 
 export function EvolutionGraph({
   data,
@@ -15,6 +15,9 @@ export function EvolutionGraph({
   onNodeClick,
   currentTimestamp,
   timeRange,
+  enableClustering = false,
+  showOnlyViewport = false,
+  onViewportChange,
 }: {
   data: GraphData;
   height?: number;
@@ -22,96 +25,183 @@ export function EvolutionGraph({
   onNodeClick?: (node: any) => void;
   currentTimestamp?: string;
   timeRange?: { start: string; end: string };
+  enableClustering?: boolean;
+  showOnlyViewport?: boolean;
+  onViewportChange?: (bounds: { x: number; y: number; width: number; height: number; zoom: number }) => void;
 }) {
-  // Time-aware node styling
-  const timeAwareData = useMemo(() => {
-    if (!currentTimestamp || !timeRange) return data;
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const sigmaRef = useRef<Sigma | null>(null);
+  const hoveredNodeRef = useRef<string | null>(null);
 
-    const currentTime = new Date(currentTimestamp).getTime();
-    const startTime = new Date(timeRange.start).getTime();
-    const endTime = new Date(timeRange.end).getTime();
-    
-    // Calculate time position (0 = start, 1 = end)
-    const timePosition = Math.max(0, Math.min(1, (currentTime - startTime) / (endTime - startTime)));
+  const graph = useMemo(() => {
+    const g = new Graph();
+    // Add nodes
+    for (const n of data.nodes || []) {
+      if (!g.hasNode(n.id)) {
+        g.addNode(n.id, {
+          label: String(n.id),
+          type: n.type || 'Unknown',
+          color:
+            n.type === 'Requirement' ? '#2b8a3e' :
+            n.type === 'File' ? '#1c7ed6' :
+            n.type === 'Sprint' ? '#e67700' : '#888',
+          ...n,
+        });
+      }
+    }
+    // Add edges
+    let edgeIndex = 0;
+    for (const e of data.relations || []) {
+      const edgeId = `${e.type}-${edgeIndex++}`;
+      if (!g.hasNode(e.from) || !g.hasNode(e.to)) continue;
+      g.addEdge(e.from, e.to, {
+        label: e.type,
+        type: e.type,
+        color:
+          e.type === 'PART_OF' ? '#888' :
+          e.type === 'EVOLVES_FROM' ? '#2b8a3e' :
+          e.type === 'REFERENCES' ? '#1c7ed6' :
+          e.type === 'DEPENDS_ON' ? '#e67700' : '#999',
+        timestamp: e.timestamp,
+        ...e,
+      });
+    }
+    // Optional Louvain clustering to color communities
+    if (enableClustering && g.order > 0) {
+      try {
+        louvain.assign(g, { resolution: 1 });
+        g.forEachNode((node, attrs) => {
+          const community = (attrs as any).community;
+          const colorPalette = ['#2b8a3e', '#1c7ed6', '#e67700', '#845ef7', '#099268', '#c92a2a'];
+          const color = colorPalette[Math.abs((community ?? 0) % colorPalette.length)];
+          g.setNodeAttribute(node, 'color', color);
+        });
+      } catch {}
+    }
+    return g;
+  }, [data, enableClustering]);
 
-    return {
-      ...data,
-      nodes: data.nodes.map(node => ({
-        ...node,
-        // Add time-aware properties for styling
-        timePosition,
-        isActive: true, // All nodes are active in current implementation
-      })),
-      links: data.links.map(link => ({
-        ...link,
-        // Add time-aware properties for styling
-        timePosition,
-        isActive: true, // All links are active in current implementation
-      }))
+  useEffect(() => {
+    if (!containerRef.current) return;
+
+    // Destroy previous instance if any
+    if (sigmaRef.current) {
+      sigmaRef.current.kill();
+      sigmaRef.current = null;
+    }
+
+    // Initialize Sigma
+    const sigma = new Sigma(graph, containerRef.current, {
+      allowInvalidContainer: false,
+      renderLabels: true,
+      labelDensity: 0.07,
+      labelGridCellSize: 100,
+      labelRenderedSizeThreshold: 14,
+      enableEdgeHoverEvents: true,
+      zIndex: true,
+    } as any);
+
+    // Hover/selection reducers to reduce clutter
+    sigma.setSetting('nodeReducer', (n, attrs) => {
+      const res: any = { ...attrs };
+      // Hide labels by default; show on hover
+      if (hoveredNodeRef.current === n) {
+        res.label = attrs.label || String(n);
+      } else {
+        res.label = undefined;
+      }
+      return res;
+    });
+    sigma.setSetting('edgeReducer', (e, attrs) => {
+      const res: any = { ...attrs };
+      return res;
+    });
+
+    // Forward node click
+    sigma.on('clickNode', ({ node }) => {
+      const attrs = graph.getNodeAttributes(node);
+      onNodeClick && onNodeClick({ id: node, ...attrs });
+    });
+    sigma.on('enterNode', ({ node }) => {
+      hoveredNodeRef.current = String(node);
+      sigma.refresh();
+    });
+    sigma.on('leaveNode', () => {
+      hoveredNodeRef.current = null;
+      sigma.refresh();
+    });
+
+    sigmaRef.current = sigma;
+    return () => {
+      sigma.kill();
+      sigmaRef.current = null;
     };
-  }, [data, currentTimestamp, timeRange]);
+  }, [graph, onNodeClick]);
+
+  // Time-aware styling hook (placeholder for future opacity modulation)
+  useEffect(() => {
+    if (!sigmaRef.current) return;
+    // Example: could adjust rendering based on currentTimestamp/timeRange
+  }, [currentTimestamp, timeRange]);
+
+  // Optional: viewport-only filtering (client-side)
+  useEffect(() => {
+    const sigma = sigmaRef.current;
+    if (!sigma) return;
+    if (!showOnlyViewport) {
+      sigma.setSetting('nodeReducer', (n, attrs) => {
+        const res: any = { ...attrs };
+        if (hoveredNodeRef.current === n) res.label = attrs.label || String(n);
+        else res.label = undefined;
+        return res;
+      });
+      sigma.refresh();
+      return;
+    }
+    const camera = sigma.getCamera();
+    const isInView = (x: number, y: number) => {
+      const { width: W, height: H } = sigma.getDimensions();
+      const p = sigma.graphToViewport({ x, y });
+      return p.x >= 0 && p.y >= 0 && p.x <= W && p.y <= H;
+    };
+    sigma.setSetting('nodeReducer', (n, attrs) => {
+      const res: any = { ...attrs };
+      const pos = sigma.getGraph().getNodeAttributes(n) as any;
+      const show = typeof pos.x === 'number' && typeof pos.y === 'number' ? isInView(pos.x, pos.y) : true;
+      res.hidden = !show;
+      if (hoveredNodeRef.current === n && show) res.label = attrs.label || String(n);
+      else res.label = undefined;
+      return res;
+    });
+    const onCamera = () => sigma.refresh();
+    camera.on('updated', onCamera);
+    sigma.refresh();
+    return () => {
+      camera.off('updated', onCamera);
+    };
+  }, [showOnlyViewport]);
+
+  // Emit viewport changes upstream (for auto-loading)
+  useEffect(() => {
+    const sigma = sigmaRef.current;
+    if (!sigma || !onViewportChange) return;
+    const camera = sigma.getCamera();
+    const handler = () => {
+      const { x, y, angle, ratio } = camera.getState();
+      const { width, height } = sigma.getDimensions();
+      onViewportChange({ x, y, width, height, zoom: 1 / ratio });
+    };
+    camera.on('updated', handler);
+    handler();
+    return () => camera.off('updated', handler);
+  }, [onViewportChange]);
 
   return (
-    <Box>
-      <ForceGraph2D
-        graphData={timeAwareData}
-        height={height}
-        width={width}
-        nodeId="id"
-        linkSource="from"
-        linkTarget="to"
-        nodeLabel={(n: any) => `${n.id}\n${n.type ?? ''}`}
-        linkLabel={(l: any) => l.type}
-        nodeAutoColorBy={(n: any) => n.type ?? 'Unknown'}
-        linkColor={(l: any) => (
-          l.type === 'PART_OF' ? '#888' :
-          l.type === 'EVOLVES_FROM' ? '#2b8a3e' :
-          l.type === 'REFERENCES' ? '#1c7ed6' :
-          l.type === 'DEPENDS_ON' ? '#e67700' : '#999'
-        )}
-        onNodeClick={onNodeClick}
-        // Time-aware node styling
-        nodeRelSize={6}
-        nodeCanvasObject={(node: any, ctx, globalScale) => {
-          const label = node.id || 'Unknown';
-          const fontSize = 12/globalScale;
-          ctx.font = `${fontSize}px Sans-Serif`;
-          const textWidth = ctx.measureText(label).width;
-          const bckgDimensions = [textWidth, fontSize].map(n => n + fontSize * 0.2);
-
-          // Time-aware opacity
-          const opacity = timeRange && currentTimestamp ? 0.8 : 1.0;
-          
-          ctx.fillStyle = `rgba(255, 255, 255, ${opacity})`;
-          ctx.fillRect(node.x - bckgDimensions[0] / 2, node.y - bckgDimensions[1] / 2, ...bckgDimensions);
-
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-          ctx.fillStyle = `rgba(0, 0, 0, ${opacity})`;
-          ctx.fillText(label, node.x, node.y);
-
-          // Draw node circle
-          ctx.beginPath();
-          ctx.arc(node.x, node.y, 6, 0, 2 * Math.PI, false);
-          ctx.fillStyle = `rgba(43, 138, 62, ${opacity})`;
-          ctx.fill();
-        }}
-        // Time-aware link styling
-        linkWidth={(link: any) => {
-          // Thinner links when time-aware filtering is active
-          console.log('Link width for:', link.type); // Use link to avoid warning
-          return timeRange && currentTimestamp ? 1 : 2;
-        }}
-        linkOpacity={(link: any) => {
-          // Reduce opacity when time-aware filtering is active
-          console.log('Link opacity for:', link.type); // Use link to avoid warning
-          return timeRange && currentTimestamp ? 0.6 : 1.0;
-        }}
-      />
+    <Box style={{ height, width }}>
+      <div ref={containerRef} style={{ height: '100%', width: '100%' }} />
     </Box>
   );
 }
 
 export default EvolutionGraph;
-
 

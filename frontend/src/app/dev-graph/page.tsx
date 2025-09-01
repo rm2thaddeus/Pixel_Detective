@@ -1,9 +1,8 @@
 'use client';
-_
 import dynamic from 'next/dynamic';
 import { Box, Heading, Spinner, Alert, AlertIcon, Text, HStack, Switch, Slider, SliderFilledTrack, SliderThumb, SliderTrack, useDisclosure, Button, useToast, Tabs, TabList, TabPanels, Tab, TabPanel } from '@chakra-ui/react';
 import { useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { Header } from '@/components/Header';
 import TimelineView from './components/TimelineView';
 import EvolutionGraph from './components/EvolutionGraph';
@@ -12,37 +11,35 @@ import SearchBar from './components/SearchBar';
 import { SprintView, Sprint } from './components/SprintView';
 import { TemporalAnalytics } from './components/TemporalAnalytics';
 
-// Use the 2D-only bundle to avoid VR/A-Frame dependencies being pulled in
-const ForceGraph2D = dynamic<any>(() => import('react-force-graph-2d'), { ssr: false });
+// Removed react-force-graph usage in favor of Sigma.js (see EvolutionGraph)
 
 // Developer Graph API base URL (configurable via env)
 const DEV_GRAPH_API_URL = process.env.NEXT_PUBLIC_DEV_GRAPH_API_URL || 'http://localhost:8080';
 
 export default function DevGraphPage() {
-	const nodesQuery = useQuery({
-		queryKey: ['dev-graph', 'nodes'],
-		queryFn: async () => {
-			console.log('Fetching nodes from:', `${DEV_GRAPH_API_URL}/api/v1/dev-graph/nodes?limit=200`);
-			const res = await fetch(`${DEV_GRAPH_API_URL}/api/v1/dev-graph/nodes?limit=200`);
+	const PAGE_SIZE = 200;
+	const nodesQuery = useInfiniteQuery({
+		queryKey: ['dev-graph', 'nodes', PAGE_SIZE],
+		queryFn: async ({ pageParam = 0 }) => {
+			const res = await fetch(`${DEV_GRAPH_API_URL}/api/v1/dev-graph/nodes?limit=${PAGE_SIZE}&offset=${pageParam}`);
 			if (!res.ok) throw new Error('Failed to load nodes');
-			const data = await res.json();
-			console.log('Nodes data:', data);
-			return data;
+			return res.json();
 		},
-		staleTime: 5 * 60 * 1000,
+		initialPageParam: 0,
+		getNextPageParam: (_lastPage, allPages) => allPages.length * PAGE_SIZE,
+		staleTime: 60_000,
 	});
 
-	const linksQuery = useQuery({
-		queryKey: ['dev-graph', 'relations'],
-		queryFn: async () => {
-			console.log('Fetching relations from:', `${DEV_GRAPH_API_URL}/api/v1/dev-graph/relations?limit=500`);
-			const res = await fetch(`${DEV_GRAPH_API_URL}/api/v1/dev-graph/relations?limit=500`);
+	const relationsQuery = useInfiniteQuery({
+		queryKey: ['dev-graph', 'relations', PAGE_SIZE],
+		queryFn: async ({ pageParam = 0 }) => {
+			const res = await fetch(`${DEV_GRAPH_API_URL}/api/v1/dev-graph/relations?limit=${PAGE_SIZE}&offset=${pageParam}`);
 			if (!res.ok) throw new Error('Failed to load relations');
-			const data = await res.json();
-			console.log('Relations data:', data);
-			return data;
+			return res.json();
 		},
-		staleTime: 5 * 60 * 1000,
+		initialPageParam: 0,
+		getNextPageParam: (_lastPage, allPages) => allPages.length * PAGE_SIZE,
+		staleTime: 60_000,
 	});
 
 	const commitsQuery = useQuery({
@@ -65,42 +62,70 @@ export default function DevGraphPage() {
 	const drawer = useDisclosure();
 	const toast = useToast();
 
-	const fetchSubgraph = async (startCommit?: string, endCommit?: string) => {
+	// Sprints
+	const sprintsQuery = useQuery({
+		queryKey: ['dev-graph', 'sprints'],
+		queryFn: async () => {
+			const res = await fetch(`${DEV_GRAPH_API_URL}/api/v1/dev-graph/sprints`);
+			if (!res.ok) throw new Error('Failed to load sprints');
+			return res.json();
+		},
+		staleTime: 60_000,
+	});
+
+	const fetchSubgraph = async (startCommit?: string, endCommit?: string, offset: number = 0, append: boolean = false) => {
 		const params = new URLSearchParams();
 		if (startCommit) params.set('start_commit', startCommit);
 		if (endCommit) params.set('end_commit', endCommit);
 		params.set('limit', '800');
+		params.set('offset', String(offset));
 		const url = `${DEV_GRAPH_API_URL}/api/v1/dev-graph/subgraph/by-commits?${params.toString()}`;
 		const res = await fetch(url);
 		if (!res.ok) throw new Error('Failed to load time-bounded subgraph');
 		const sg = await res.json();
-		setSubgraph(sg);
+		if (!append) {
+			setSubgraph(sg);
+			return;
+		}
+		// Append with de-duplication
+		setSubgraph(prev => {
+			const seenNode = new Set((prev.nodes || []).map((n: any) => n.id));
+			const mergedNodes = [...prev.nodes, ...((sg.nodes || []).filter((n: any) => !seenNode.has(n.id)))];
+			const seenEdge = new Set((prev.links || []).map((l: any) => `${l.from}|${l.to}|${l.type}|${l.timestamp || ''}`));
+			const newEdges = (sg.links || []).filter((l: any) => !seenEdge.has(`${l.from}|${l.to}|${l.type}|${l.timestamp || ''}`));
+			return { nodes: mergedNodes, links: [...prev.links, ...newEdges] };
+		});
 	};
 
 	const data = useMemo(
 		() => ({
-			nodes: selectedRange.start || selectedRange.end ? (subgraph.nodes ?? []) : (nodesQuery.data ?? []),
-			links: selectedRange.start || selectedRange.end ? (subgraph.links ?? []) : (linksQuery.data ?? []),
+			nodes: selectedRange.start || selectedRange.end ? (subgraph.nodes ?? []) : ((nodesQuery.data?.pages || []).flat()),
+			relations: selectedRange.start || selectedRange.end ? (subgraph.links ?? []) : ((relationsQuery.data?.pages || []).flat()),
 		}),
-		[nodesQuery.data, linksQuery.data, selectedRange, subgraph]
+		[nodesQuery.data, relationsQuery.data, selectedRange, subgraph]
 	);
 
 	const [showEvolves, setShowEvolves] = useState(true);
+	const [showViewportOnly, setShowViewportOnly] = useState(false);
+	const [enableClustering, setEnableClustering] = useState(false);
 
 	const filteredData = useMemo(() => {
 		const baseNodes = data.nodes ?? [];
-		const baseLinks = data.links ?? [];
+		const nodeIds = new Set((baseNodes ?? []).map((n: any) => n.id));
+		const baseRelations = (data as any).relations ?? [];
 		return {
 			nodes: baseNodes,
-			links: baseLinks.filter((l: any) => showEvolves ? true : l.type !== 'EVOLVES_FROM'),
+			relations: baseRelations
+				.filter((l: any) => showEvolves ? true : l.type !== 'EVOLVES_FROM')
+				.filter((l: any) => nodeIds.has(l.from) && nodeIds.has(l.to)),
 		};
 	}, [data, showEvolves]);
 
 	console.log('Graph data for rendering:', data);
 
 	// Data validation
-	const isValidData = (filteredData.nodes?.length ?? 0) > 0 && (filteredData.links?.length ?? 0) > 0;
-	const hasValidLinks = (filteredData.links ?? []).every((link: any) => 
+	const isValidData = (filteredData.nodes?.length ?? 0) > 0 && (((filteredData as any).relations)?.length ?? 0) > 0;
+	const hasValidRelations = (((filteredData as any).relations) ?? []).every((link: any) => 
 		link.from && link.to && link.type && 
 		(filteredData.nodes ?? []).some((node: any) => node.id === link.from) &&
 		(filteredData.nodes ?? []).some((node: any) => node.id === link.to)
@@ -115,20 +140,20 @@ export default function DevGraphPage() {
 				{/* Debug Info */}
 				<Box mb={4} p={4} bg="gray.100" borderRadius="md" fontSize="sm">
 					<Text fontWeight="bold">Debug Info:</Text>
-					<Text>Nodes loaded: {nodesQuery.data?.length || 0}</Text>
-					<Text>Links loaded: {linksQuery.data?.length || 0}</Text>
-					<Text>Commits loaded: {Array.isArray(commitsQuery.data) ? commitsQuery.data.length : 0}</Text>
-					<Text>Data valid: {isValidData ? 'Yes' : 'No'}</Text>
-					<Text>Links valid: {hasValidLinks ? 'Yes' : 'No'}</Text>
-					{!hasValidLinks && data.links.length > 0 && (
-						<Text color="red">
-							Invalid links: {data.links.filter((link: any) => 
-								!link.from || !link.to || !link.type ||
-								!data.nodes.some((node: any) => node.id === link.from) ||
-								!data.nodes.some((node: any) => node.id === link.to)
-							).length} found
-						</Text>
-					)}
+					<Text>Nodes loaded: {((nodesQuery.data?.pages as any[] | undefined) || []).reduce((acc: number, p: any[]) => acc + p.length, 0)}</Text>
+						<Text>Relations loaded: {((relationsQuery.data?.pages as any[] | undefined) || []).reduce((acc: number, p: any[]) => acc + p.length, 0)}</Text>
+						<Text>Commits loaded: {Array.isArray(commitsQuery.data) ? commitsQuery.data.length : 0}</Text>
+						<Text>Data valid: {isValidData ? 'Yes' : 'No'}</Text>
+						<Text>Relations valid: {hasValidRelations ? 'Yes' : 'No'}</Text>
+						{!hasValidRelations && (((data as any).relations)?.length ?? 0) > 0 && (
+							<Text color="red">
+								Invalid relations: {(data as any).relations.filter((link: any) => 
+									!link.from || !link.to || !link.type ||
+									!(data.nodes ?? []).some((node: any) => node.id === link.from) ||
+									!(data.nodes ?? []).some((node: any) => node.id === link.to)
+								).length} found
+							</Text>
+						)}
 				</Box>
 
 				{/* Controls */}
@@ -136,6 +161,14 @@ export default function DevGraphPage() {
 					<HStack>
 						<Switch isChecked={showEvolves} onChange={(e) => setShowEvolves(e.target.checked)} />
 						<Text>Show EVOLVES_FROM</Text>
+					</HStack>
+					<HStack pl={4}>
+						<Switch isChecked={showViewportOnly} onChange={(e) => setShowViewportOnly(e.target.checked)} />
+						<Text>Viewport-only</Text>
+					</HStack>
+					<HStack pl={4}>
+						<Switch isChecked={enableClustering} onChange={(e) => setEnableClustering(e.target.checked)} />
+						<Text>Cluster (Louvain)</Text>
 					</HStack>
 					<HStack flex={1} pl={6} pr={2}>
 						<Text fontSize="sm" color="gray.600">Commits:</Text>
@@ -153,7 +186,7 @@ export default function DevGraphPage() {
 							await fetch(`${DEV_GRAPH_API_URL}/api/v1/dev-graph/ingest/recent?limit=100`, { method: 'POST' });
 							await Promise.all([
 								nodesQuery.refetch(),
-								linksQuery.refetch(),
+								relationsQuery.refetch(),
 								commitsQuery.refetch(),
 							]);
 						} catch (e) {
@@ -182,7 +215,7 @@ export default function DevGraphPage() {
 							
 							// Show only found nodes and their existing links from current dataset
 							const nodeIds = new Set(nodes.map((n: any) => n.id));
-							const links = (selectedRange.start || selectedRange.end ? subgraph.links : linksQuery.data) || [];
+							const links = (selectedRange.start || selectedRange.end ? subgraph.links : ((relationsQuery.data?.pages || []).flat())) || [];
 							const filteredLinks = links.filter((l: any) => nodeIds.has(l.from) || nodeIds.has(l.to));
 							
 							setSubgraph({ nodes, links: filteredLinks });
@@ -239,56 +272,36 @@ export default function DevGraphPage() {
 										// This will be enhanced in the next iteration
 									}}
 								/>
+								<HStack mt={2}>
+									<Button size="sm" onClick={() => nodesQuery.fetchNextPage()}>Load more nodes</Button>
+									<Button size="sm" onClick={() => relationsQuery.fetchNextPage()}>Load more relations</Button>
+									{selectedRange.start && selectedRange.end && (
+										<Button size="sm" onClick={() => { const next = (subgraph as any)._offset ? (subgraph as any)._offset + 800 : 800; (subgraph as any)._offset = next; fetchSubgraph(selectedRange.start, selectedRange.end, next, true).catch(console.error); }}>Load more in range</Button>
+									)}
+								</HStack>
 							</TabPanel>
 							
 							{/* Sprint Tab */}
 							<TabPanel>
-								<SprintView
-									sprints={[
-										// Mock sprint data - replace with real API call
-										{
-											number: "1",
-											start_date: "2024-01-01",
-											end_date: "2024-01-14",
-											commit_range: {
-												start: "abc123",
-												end: "def456"
-											},
-											metrics: {
-												total_commits: 45,
-												files_changed: 23,
-												requirements_implemented: 8,
-												authors: 3
-											}
-										},
-										{
-											number: "2",
-											start_date: "2024-01-15",
-											end_date: "2024-01-28",
-											commit_range: {
-												start: "def456",
-												end: "ghi789"
-											},
-											metrics: {
-												total_commits: 52,
-												files_changed: 31,
-												requirements_implemented: 12,
-												authors: 4
-											}
-										}
-									]}
-									onSprintSelect={(sprint) => {
-										setSelectedSprint(sprint);
-										// Fetch subgraph for sprint commit range
-										fetchSubgraph(sprint.commit_range.start, sprint.commit_range.end).catch(console.error);
-									}}
-									selectedSprint={selectedSprint}
-								/>
+								{sprintsQuery.isLoading && <Text>Loading sprints…</Text>}
+								{sprintsQuery.error && (
+									<Alert status="error" mb={2}><AlertIcon />{(sprintsQuery.error as Error).message}</Alert>
+								)}
+								{Array.isArray(sprintsQuery.data) && (
+									<SprintView
+										sprints={sprintsQuery.data}
+										onSprintSelect={(sprint) => {
+											setSelectedSprint(sprint);
+											fetchSubgraph(sprint.commit_range.start || undefined, sprint.commit_range.end || undefined).catch(console.error);
+										}}
+										selectedSprint={selectedSprint}
+									/>
+								)}
 							</TabPanel>
 							
 							{/* Analytics Tab */}
 							<TabPanel>
-								<TemporalAnalytics
+									<TemporalAnalytics
 									events={(Array.isArray(commitsQuery.data) ? commitsQuery.data : []).map((c: any) => ({
 										id: c.hash,
 										timestamp: c.timestamp,
@@ -296,9 +309,9 @@ export default function DevGraphPage() {
 										author: c.author_email,
 										files_changed: c.files_changed,
 									}))}
-									nodes={nodesQuery.data || []}
-									links={linksQuery.data || []}
-								/>
+										nodes={((nodesQuery.data?.pages as any[] | undefined) || []).flat()}
+										relations={((relationsQuery.data?.pages as any[] | undefined) || []).flat()}
+									/>
 							</TabPanel>
 						</TabPanels>
 					</Tabs>
@@ -317,31 +330,40 @@ export default function DevGraphPage() {
 					<Text><span style={{ color: '#e67700' }}>■</span> DEPENDS_ON</Text>
 				</Box>
 
-				{(nodesQuery.isLoading || linksQuery.isLoading) && (
+				{(nodesQuery.isLoading || relationsQuery.isLoading) && (
 					<Box display="flex" alignItems="center" gap={2} mb={4}>
 						<Spinner size="sm" />
 						Loading graph...
 					</Box>
 				)}
 				
-				{(nodesQuery.error || linksQuery.error) && (
+				{(nodesQuery.error || relationsQuery.error) && (
 					<Alert status="error" mb={4}>
 						<AlertIcon />
-						{(nodesQuery.error as Error)?.message || (linksQuery.error as Error)?.message || 'Failed to load graph'}
+						{(nodesQuery.error as Error)?.message || (relationsQuery.error as Error)?.message || 'Failed to load graph'}
 					</Alert>
 				)}
 				
-				{isValidData && hasValidLinks && (
-					<EvolutionGraph 
-						data={filteredData}
-						onNodeClick={(n: any) => { setSelectedNode(n); drawer.onOpen(); }}
-						currentTimestamp={selectedRange.start ? commitsQuery.data?.find((c: any) => c.hash === selectedRange.start)?.timestamp : undefined}
-						timeRange={selectedRange.start && selectedRange.end ? {
-							start: commitsQuery.data?.find((c: any) => c.hash === selectedRange.start)?.timestamp || '',
-							end: commitsQuery.data?.find((c: any) => c.hash === selectedRange.end)?.timestamp || ''
-						} : undefined}
-					/>
-				)}
+					{isValidData && hasValidRelations && (
+						<EvolutionGraph 
+							data={filteredData}
+							onNodeClick={(n: any) => { setSelectedNode(n); drawer.onOpen(); }}
+							currentTimestamp={selectedRange.start ? commitsQuery.data?.find((c: any) => c.hash === selectedRange.start)?.timestamp : undefined}
+							timeRange={selectedRange.start && selectedRange.end ? {
+								start: commitsQuery.data?.find((c: any) => c.hash === selectedRange.start)?.timestamp || '',
+								end: commitsQuery.data?.find((c: any) => c.hash === selectedRange.end)?.timestamp || ''
+							} : undefined}
+							enableClustering={enableClustering}
+							showOnlyViewport={showViewportOnly}
+							onViewportChange={({ zoom }) => {
+								// Simple heuristic: if zoomed in beyond threshold, load more pages
+								if (zoom > 1.5) {
+									nodesQuery.fetchNextPage();
+									relationsQuery.fetchNextPage();
+								}
+							}}
+						/>
+					)}
 				
 				{!isValidData && !nodesQuery.isLoading && (
 					<Alert status="info">
@@ -350,12 +372,12 @@ export default function DevGraphPage() {
 					</Alert>
 				)}
 				
-				{isValidData && !hasValidLinks && (
-					<Alert status="warning">
-						<AlertIcon />
-						Graph data loaded but some links reference non-existent nodes. Check the debug info above.
-					</Alert>
-				)}
+					{isValidData && !hasValidRelations && (
+						<Alert status="warning">
+							<AlertIcon />
+							Graph data loaded but some relations reference non-existent nodes. Check the debug info above.
+						</Alert>
+					)}
 			</Box>
 			<NodeDetailDrawer isOpen={drawer.isOpen} onClose={drawer.onClose} node={selectedNode} />
 		</Box>

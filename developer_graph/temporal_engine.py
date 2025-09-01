@@ -166,7 +166,7 @@ class TemporalEngine:
             end_ts = ec.get("timestamp") if ec else None
         return {"start": start_ts, "end": end_ts}
 
-    def time_bounded_subgraph(self, start_commit: Optional[str], end_commit: Optional[str], limit: int = 1000) -> Dict[str, object]:
+    def time_bounded_subgraph(self, start_commit: Optional[str], end_commit: Optional[str], limit: int = 1000, offset: int = 0) -> Dict[str, object]:
         bounds = self._commit_timestamps_from_hashes(start_commit, end_commit)
         start_ts = bounds.get("start")
         end_ts = bounds.get("end")
@@ -184,12 +184,14 @@ class TemporalEngine:
             "MATCH (a)-[r]->(b) "
             f"WHERE {' AND '.join(where_clauses)} "
             "RETURN a, TYPE(r) AS type, r.timestamp AS ts, b "
-            "LIMIT $limit"
+            "ORDER BY ts DESC "
+            "SKIP $offset LIMIT $limit"
         )
 
         nodes_seen: Dict[str, Dict[str, object]] = {}
         links: List[Dict[str, object]] = []
         with self.driver.session() as session:
+            params["offset"] = max(0, int(offset))
             result = session.run(cypher, params)
             for rec in result:
                 a = rec.get("a", {})

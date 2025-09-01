@@ -5,7 +5,9 @@ import os
 import re
 from typing import List, Optional
 
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, Query, HTTPException
+import logging
+import os as _os_mod
 from fastapi.middleware.cors import CORSMiddleware
 from neo4j import GraphDatabase
 
@@ -55,6 +57,10 @@ def extract_id_from_node_data(node_data):
     if 'id' in node_data:
         return str(node_data['id'])
 
+    # Git commit nodes with hash
+    if 'hash' in node_data:
+        return str(node_data['hash'])
+
     # Sprint nodes with number
     if 'number' in node_data:
         return f"sprint-{node_data['number']}"
@@ -79,12 +85,12 @@ def extract_id_from_node_data(node_data):
 
 
 @app.get("/api/v1/dev-graph/nodes")
-def get_nodes(node_type: Optional[str] = None, limit: int = Query(200, le=1000)):
+def get_nodes(node_type: Optional[str] = None, limit: int = Query(200, ge=1, le=5000), offset: int = Query(0, ge=0)):
     if node_type:
-        cypher = f"MATCH (n:{node_type}) RETURN n, labels(n) AS labels LIMIT $limit"
+        cypher = f"MATCH (n:{node_type}) RETURN n, labels(n) AS labels SKIP $offset LIMIT $limit"
     else:
-        cypher = "MATCH (n) RETURN n, labels(n) AS labels LIMIT $limit"
-    records = run_query(cypher, limit=limit)
+        cypher = "MATCH (n) RETURN n, labels(n) AS labels SKIP $offset LIMIT $limit"
+    records = run_query(cypher, limit=limit, offset=offset)
     
     nodes = []
     for r in records:
@@ -117,8 +123,15 @@ def get_nodes(node_type: Optional[str] = None, limit: int = Query(200, le=1000))
     return nodes
 
 
+@app.get("/api/v1/dev-graph/nodes/count")
+def count_nodes():
+    rec = run_query("MATCH (n) RETURN count(n) AS total")
+    total = rec[0]["total"] if rec else 0
+    return {"total": total}
+
+
 @app.get("/api/v1/dev-graph/relations")
-def get_relations(start_id: Optional[int] = None, rel_type: Optional[str] = None, limit: int = Query(200, le=1000)):
+def get_relations(start_id: Optional[int] = None, rel_type: Optional[str] = None, limit: int = Query(200, ge=1, le=5000), offset: int = Query(0, ge=0)):
     cypher = "MATCH (a)-[r]->(b)"
     clauses = []
     if start_id is not None:
@@ -127,8 +140,8 @@ def get_relations(start_id: Optional[int] = None, rel_type: Optional[str] = None
         clauses.append("type(r)=$rt")
     if clauses:
         cypher += " WHERE " + " AND ".join(clauses)
-    cypher += " RETURN a,r,b LIMIT $limit"
-    records = run_query(cypher, sid=start_id, rt=rel_type, limit=limit)
+    cypher += " RETURN a,r,b SKIP $offset LIMIT $limit"
+    records = run_query(cypher, sid=start_id, rt=rel_type, limit=limit, offset=offset)
     
     out = []
     for r in records:
@@ -164,8 +177,8 @@ def get_relations(start_id: Optional[int] = None, rel_type: Optional[str] = None
                 r_type = "EVOLVES_FROM"
             elif "REFERENCES" in r_str:
                 r_type = "REFERENCES"
-            elif "TOUCHES" in r_str:
-                r_type = "TOUCHES"
+            elif "TOUCHED" in r_str:
+                r_type = "TOUCHED"
             elif "USES" in r_str:
                 r_type = "USES"
             elif "PROTOTYPED_IN" in r_str:
@@ -180,6 +193,13 @@ def get_relations(start_id: Optional[int] = None, rel_type: Optional[str] = None
         })
     
     return out
+
+
+@app.get("/api/v1/dev-graph/relations/count")
+def count_relations():
+    rec = run_query("MATCH ()-[r]->() RETURN count(r) AS total")
+    total = rec[0]["total"] if rec else 0
+    return {"total": total}
 
 
 @app.get("/api/v1/dev-graph/search")
@@ -231,16 +251,23 @@ def file_history(path: str, limit: int = Query(200, le=2000)):
 
 
 @app.get("/api/v1/dev-graph/subgraph/by-commits")
-def time_bounded_subgraph(start_commit: Optional[str] = None, end_commit: Optional[str] = None, limit: int = Query(500, le=2000)):
+def time_bounded_subgraph(start_commit: Optional[str] = None, end_commit: Optional[str] = None, limit: int = Query(500, ge=1, le=5000), offset: int = Query(0, ge=0)):
     """Time-bounded subgraph filtered by relationship timestamps derived from commits."""
-    return _engine.time_bounded_subgraph(start_commit=start_commit, end_commit=end_commit, limit=limit)
+    return _engine.time_bounded_subgraph(start_commit=start_commit, end_commit=end_commit, limit=limit, offset=offset)
 
 
 @app.post("/api/v1/dev-graph/ingest/recent")
-def ingest_recent_commits(limit: int = Query(100, le=1000)):
-    _engine.apply_schema()
-    count = _engine.ingest_recent_commits(limit=limit)
-    return {"ingested": count}
+def ingest_recent_commits(limit: int = Query(100, ge=1, le=5000)):
+    try:
+        # Basic environment validation
+        if not _os_mod.path.isdir(REPO_PATH):
+            raise RuntimeError(f"Invalid REPO_PATH: {REPO_PATH}")
+        _engine.apply_schema()
+        count = _engine.ingest_recent_commits(limit=limit)
+        return {"ingested": count}
+    except Exception as e:
+        logging.exception("Ingest failed")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.get("/api/v1/dev-graph/sprint/map")
@@ -258,6 +285,94 @@ def requirement_evolution(req_id: str, limit: int = Query(500, le=2000)):
 @app.get("/api/v1/dev-graph/evolution/file")
 def file_evolution(path: str, limit: int = Query(500, le=2000)):
     return _engine.build_evolution_timeline_for_file(path=path, limit=limit)
+
+
+@app.get("/api/v1/dev-graph/sprints")
+def list_sprints():
+    base = _os_mod.path.join(_os_mod.getcwd(), "docs", "sprints")
+    out = []
+    if not _os_mod.path.isdir(base):
+        return out
+    # Gather sprint directories like sprint-01, sprint-10, etc.
+    for name in sorted(_os_mod.listdir(base)):
+        if not name.startswith("sprint-"):
+            continue
+        number = name.split("-", 1)[1]
+        sprint_dir = _os_mod.path.join(base, name)
+        # Try to find dates from planning file
+        start_iso = None
+        end_iso = None
+        planning = _os_mod.path.join(base, "planning", "SPRINT_STATUS.md")
+        if _os_mod.path.isfile(planning):
+            try:
+                with open(planning, "r", encoding="utf-8") as f:
+                    content = f.read()
+                # naive parse: look for "Sprint {number}" lines and capture Start/End
+                import re as _re
+                # Example: "Sprint 10" followed by Start Date: YYYY-MM-DD
+                pat = _re.compile(rf"Sprint\s*{number}.*?Start Date\W*:?\s*([0-9-]{8,10}).*?End Date\W*:?\s*([0-9-]{8,10})", _re.IGNORECASE | _re.DOTALL)
+                m = pat.search(content)
+                if m:
+                    start_iso = m.group(1)
+                    end_iso = m.group(2)
+            except Exception:
+                pass
+        # Fallback: two-week window ending today
+        from datetime import datetime, timedelta
+        if not start_iso or not end_iso:
+            end_iso = datetime.utcnow().date().isoformat()
+            start_iso = (datetime.utcnow().date() - timedelta(days=14)).isoformat()
+        mapped = _sprint.map_sprint_range(number=str(number), start_iso=start_iso, end_iso=end_iso)
+        # add basic metrics stub
+        out.append({
+            "number": number,
+            "start_date": start_iso,
+            "end_date": end_iso,
+            "commit_range": {"start": mapped.get("commit_range", [None, None])[0], "end": mapped.get("commit_range", [None, None])[-1] if mapped.get("commit_range") else None},
+            "metrics": {
+                "count": mapped.get("count", 0),
+            }
+        })
+    return out
+
+
+@app.get("/api/v1/dev-graph/sprints/{number}")
+def sprint_details(number: str):
+    """Return sprint details including commit range and basic metrics.
+
+    Dates are resolved from planning doc when possible, with fallback window.
+    """
+    base = _os_mod.path.join(_os_mod.getcwd(), "docs", "sprints")
+    start_iso = None
+    end_iso = None
+    planning = _os_mod.path.join(base, "planning", "SPRINT_STATUS.md")
+    if _os_mod.path.isfile(planning):
+        try:
+            with open(planning, "r", encoding="utf-8") as f:
+                content = f.read()
+            import re as _re
+            pat = _re.compile(rf"Sprint\s*{number}.*?Start Date\W*:?\s*([0-9-]{8,10}).*?End Date\W*:?\s*([0-9-]{8,10})", _re.IGNORECASE | _re.DOTALL)
+            m = pat.search(content)
+            if m:
+                start_iso = m.group(1)
+                end_iso = m.group(2)
+        except Exception:
+            pass
+    from datetime import datetime, timedelta
+    if not start_iso or not end_iso:
+        end_iso = datetime.utcnow().date().isoformat()
+        start_iso = (datetime.utcnow().date() - timedelta(days=14)).isoformat()
+    mapped = _sprint.map_sprint_range(number=str(number), start_iso=start_iso, end_iso=end_iso)
+    return {
+        "number": number,
+        "start_date": start_iso,
+        "end_date": end_iso,
+        "commit_range": {
+            "start": (mapped.get("commit_range") or [None, None])[0],
+            "end": (mapped.get("commit_range") or [None, None])[-1] if mapped.get("commit_range") else None,
+        },
+        "metrics": {"count": mapped.get("count", 0)},
+    }
 
 
 if __name__ == "__main__":

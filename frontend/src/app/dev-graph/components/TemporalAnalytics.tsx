@@ -1,5 +1,36 @@
 'use client';
 
+import { Box, Text, VStack, HStack, Badge } from '@chakra-ui/react';
+
+export function TemporalAnalytics({ events, nodes, relations }: { events: any[]; nodes: any[]; relations: any[] }) {
+  const totalCommits = events.length;
+  const totalNodes = nodes.length;
+  const totalRelations = relations.length;
+  const types = new Map<string, number>();
+  for (const r of relations) {
+    types.set(r.type, (types.get(r.type) || 0) + 1);
+  }
+  return (
+    <Box borderWidth="1px" borderRadius="md" p={3}>
+      <Text fontWeight="bold" mb={2}>Temporal Analytics</Text>
+      <VStack align="start" spacing={2}>
+        <Text fontSize="sm">Commits: {totalCommits}</Text>
+        <Text fontSize="sm">Nodes: {totalNodes}</Text>
+        <Text fontSize="sm">Relations: {totalRelations}</Text>
+        <HStack spacing={2} flexWrap="wrap">
+          {Array.from(types.entries()).map(([t, c]) => (
+            <Badge key={t} colorScheme="blue">{t}: {c}</Badge>
+          ))}
+        </HStack>
+      </VStack>
+    </Box>
+  );
+}
+
+export default TemporalAnalytics;
+
+'use client';
+
 import { Box, VStack, HStack, Text, Stat, StatLabel, StatNumber, StatHelpText, StatArrow, useColorModeValue, SimpleGrid, Progress, Badge } from '@chakra-ui/react';
 import { useMemo } from 'react';
 import { FiTrendingUp, FiTrendingDown, FiClock, FiUsers, FiGitCommit, FiFile } from 'react-icons/fi';
@@ -45,7 +76,7 @@ export interface TemporalAnalyticsProps {
     created_at?: string;
     updated_at?: string;
   }>;
-  links: Array<{
+  relations: Array<{
     from: string;
     to: string;
     type: string;
@@ -53,7 +84,7 @@ export interface TemporalAnalyticsProps {
   }>;
 }
 
-export function TemporalAnalytics({ events, nodes, links }: TemporalAnalyticsProps) {
+export function TemporalAnalytics({ events, nodes, relations }: TemporalAnalyticsProps) {
   const bgColor = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.200', 'gray.600');
   const accentColor = useColorModeValue('green.500', 'green.400');
@@ -105,9 +136,9 @@ export function TemporalAnalytics({ events, nodes, links }: TemporalAnalyticsPro
     });
 
     // Evolution metrics
-    const requirementsEvolved = links.filter(l => l.type === 'EVOLVES_FROM').length;
-    const filesRefactored = links.filter(l => l.type === 'REFACTORED_TO').length;
-    const dependenciesChanged = links.filter(l => l.type === 'DEPENDS_ON').length;
+    const requirementsEvolved = relations.filter(r => r.type === 'EVOLVES_FROM').length;
+    const filesRefactored = relations.filter(r => r.type === 'REFACTORED_TO').length;
+    const dependenciesChanged = relations.filter(r => r.type === 'DEPENDS_ON').length;
     const evolutionRate = (requirementsEvolved + filesRefactored) / nodes.length * 100;
 
     // Trends (simplified calculation)
@@ -145,7 +176,7 @@ export function TemporalAnalytics({ events, nodes, links }: TemporalAnalyticsPro
         teamActivityTrend,
       },
     };
-  }, [events, nodes, links]);
+  }, [events, nodes, relations]);
 
   if (!metrics) {
     return (

@@ -1,8 +1,8 @@
-# Codebase Evolution Tracking System - Final PRD
+# Codebase Evolution Tracking System - Updated PRD
 
 **Sprint 11 Final Deliverable**  
-**Status**: ✅ **Phase 1 COMPLETED** | ✅ **Phase 2 COMPLETED** - Ready for Phase 3 Implementation  
-**Last Updated**: December 2024
+**Status**: ✅ **Phase 1 COMPLETED** | ✅ **Phase 2 COMPLETED** | 🚨 **Phase 3 IN PROGRESS**  
+**Last Updated**: January 2025
 
 ---
 
@@ -33,39 +33,46 @@ Transform the current developer graph from a static relationship mapper into a d
 - **Advanced Timeline Visualization**: Interactive timeline with react-chrono, time scrubber, playback controls
 - **Sprint Views**: Sprint visualization with metrics and filtering
 - **Temporal Analytics**: Dashboard for development metrics and trends
-- **Enhanced Search**: Advanced filtering by node type, relationship type, author, and commit hash
 
-### **🔧 Phase 3: Success Metrics & Analytics - READY TO START**
-- **Success & Pattern Analytics**: Define objective success metrics and pattern recognition
-- **Performance Optimization**: Scalability improvements and caching
-- **Advanced Visualization**: Enhanced graph rendering and interaction
+### **🚨 Phase 3: Critical Issues & Stabilization - IN PROGRESS**
+- **Graph Rendering Problems**: Labels scattered, hardcoded 1000 limits, poor performance
+- **Sprint Data Integration**: Only 2 mock sprints visible, 11 real sprints not connected
+- **Ingest Functionality**: Button returns errors, no proper error handling
+- **Performance Issues**: No streaming/pagination, UI becomes unreadable with large datasets
 
 ---
 
-## 🚨 **Problem Statement**
+## 🚨 **CRITICAL ISSUES IDENTIFIED (January 2025)**
 
-The current dev-graph suffers from several critical shortcomings:
+### **1. Graph Visualization Failures**
+- **Problem**: Labels appear randomly scattered across points, making graph unreadable
+- **Root Cause**: Poor label positioning in `react-force-graph-2d`, no collision detection
+- **Impact**: Users cannot read node labels or understand relationships
+- **Priority**: 🔴 **CRITICAL** - Blocks basic usability
 
-### **1. No Temporal Awareness**
-- Nodes and relations appear frozen in amber
-- Users cannot tell when requirements were added, refined, or deprecated
-- No way to determine if seemingly related nodes actually existed years apart
+### **2. Data Loading Limitations**
+- **Problem**: Hardcoded 1000 limits for both nodes and relations
+- **Root Cause**: No pagination or streaming implementation
+- **Impact**: Large codebases overwhelm the UI, no progressive loading
+- **Priority**: 🔴 **CRITICAL** - Blocks scalability
 
-### **2. Graph Hairball Effect**
-- Poorly designed network diagrams become "tangled and frustrating" (Cambridge Intelligence)
-- Current implementation offers only rudimentary toggles
-- Quickly devolves into unreadable tangle on anything but smallest datasets
+### **3. Sprint Data Disconnect**
+- **Problem**: Only 2 mock sprints visible, 11 real sprint directories exist but aren't ingested
+- **Root Cause**: Sprint mapping exists but isn't connected to frontend
+- **Impact**: Users cannot see actual project history or sprint evolution
+- **Priority**: 🟡 **HIGH** - Core functionality missing
 
-### **3. Lack of Interactive Depth**
-- No timeline slider, diff view, or detailed node inspection
-- Missing point-and-click exploration with search and perspectives
-- No file histories, commit graphs, or blame annotations
+### **4. Ingest Button Failures**
+- **Problem**: Ingest button returns errors, no user feedback
+- **Root Cause**: Potential Neo4j connection issues or git service dependencies
+- **Impact**: Users cannot update graph data or add new commits
+- **Priority**: 🟡 **HIGH** - Core functionality broken
 
-### **4. No Success/Failure Insight**
-- Without metrics tied to performance or adoption, we cannot identify:
-  - Which architectural decisions were good or bad
-  - What patterns led to successful implementations
-  - How to avoid repeating past mistakes
+### **5. Missing UMAP-Style Streaming**
+- **Problem**: No progressive loading like successful UMAP implementation
+- **Root Cause**: All data loaded at once, no viewport-based loading
+- **Impact**: UI becomes crowded and unresponsive with large datasets
+- **Priority**: 🟡 **HIGH** - Performance critical
 
 ---
 
@@ -83,9 +90,9 @@ The current dev-graph suffers from several critical shortcomings:
 
 ### **JavaScript Libraries**
 - **D3.js**: Flexibility and rich interactivity
-- **Sigma.js**: Large networks with built-in force-directed layouts
+- **Sigma.js**: Large networks with built-in force-directed layouts (RECOMMENDED REPLACEMENT)
 - **Vis.js**: Simple APIs for dynamic graphs and timelines
-- **React-Force-Graph**: Currently used, evaluate for performance
+- **React-Force-Graph**: Currently used, **PERFORMANCE ISSUES IDENTIFIED**
 
 ### **Timeline Libraries**
 - **Vis-Timeline**: Interactive timelines with start/end dates, zooming, dragging
@@ -206,11 +213,11 @@ CREATE (req:Requirement)-[:DEPENDS_ON {commit: "pqr678", dependency_type: "Infra
 - **Zooming** from hours to years with drag navigation
 
 #### **B. EvolutionGraph (Interactive Network View)**
-- **Graph rendering engine**: React-Force-Graph with time-aware filtering
+- **Graph rendering engine**: **REPLACED with Sigma.js** for better large graph handling
 - **Filtering & perspectives**: Advanced search with node/relationship type selection
 - **Time-aware graph**: Responds to timeline slider with opacity/color changes
 - **Node and edge styling**: Consistent colors, shapes, and hover tooltips
-- **Clutter reduction**: Toggles for collapsing sub-graphs and hiding low-degree nodes
+- **Clutter reduction**: Labels appear on hover; reduced clutter at scale
 
 #### **C. Detail Drawers and Diff Views**
 - **Node detail drawer**: Commit history, evolution timeline, implementation links
@@ -305,7 +312,7 @@ CREATE (req:Requirement)-[:DEPENDS_ON {commit: "pqr678", dependency_type: "Infra
 
 #### **Frontend Enhancement**
 - [x] **Interactive Graph** (`frontend/src/app/dev-graph/components/EvolutionGraph.tsx`)
-  - [x] Enhanced React-Force-Graph with time-aware filtering
+  - [x] Replaced with Sigma.js; hover labels; time-aware hooks
   - [x] Implement filtering by node/relationship type
   - [x] Add timeline synchronization
   - [x] Implement node detail drawers
@@ -339,87 +346,144 @@ CREATE (req:Requirement)-[:DEPENDS_ON {commit: "pqr678", dependency_type: "Infra
 - **Integrated UI**: Tabbed interface with Timeline View, Sprint View, and Analytics
 - **Time-Aware Features**: Graph responds to timeline changes with opacity/color adjustments
 
-### **Phase 3: Success Metrics & Analytics (Weeks 13-24)**
+### **Phase 3: Critical Issues & Stabilization (IN PROGRESS)**
 
-#### **🔧 NEW SESSION - READY TO START**
+#### **🚨 CRITICAL ISSUES TO RESOLVE (Next 2-3 Days)**
 
 **Approach for Phase 3:**
-This phase will focus on building objective success metrics and pattern recognition capabilities. The approach will be:
+This phase focuses on fixing the critical issues that are blocking basic usability of the dev graph. The approach will be:
 
-1. **Success Metrics Framework**: Define quantifiable success criteria based on:
-   - Code quality metrics (bug counts, technical debt scores)
-   - Performance metrics (response times, resource usage)
-   - Adoption metrics (usage patterns, team adoption)
-   - Maintenance metrics (refactoring frequency, deprecation rates)
+1. **Immediate Graph Rendering Fixes**: Replace problematic visualization library and fix label positioning
+2. **Data Loading Optimization**: Implement progressive loading and pagination
+3. **Sprint Data Integration**: Connect real sprint data to the frontend
+4. **Ingest Functionality**: Debug and fix the ingest button errors
 
-2. **Pattern Recognition Engine**: Implement algorithms to identify:
-   - Successful architectural patterns
-   - Anti-patterns and failure modes
-   - Evolution trends and correlations
-   - Impact analysis for changes
+#### **3.1 Graph Rendering & Performance (CRITICAL - Day 1)**
+- [x] **Replace React-Force-Graph with Sigma.js**
+  - [x] Installed and configured Sigma.js for large graph handling
+  - [x] Initial label strategy (hover labels) to avoid collisions
+  - [x] Optional node clustering toggle (Louvain) with color-by-community
+  - [ ] UMAP streaming pattern — planned
+  - [x] Viewport-only rendering toggle to reduce clutter
 
-3. **Performance Optimization**: Address scalability challenges:
-   - Implement caching strategies for temporal queries
-   - Optimize graph rendering for large datasets
-   - Add Web Workers for heavy computations
-   - Implement cluster collapsing for large graphs
+- [x] **Fix Label Positioning Issues**
+  - [x] Default labels hidden; show on hover; avoids overlaps
+  - [ ] Advanced collision detection — planned
+  - [ ] Label clustering and toggles — planned
 
-4. **Integration with External Tools**: Connect with:
-   - CI/CD pipelines for test results
-   - Code quality tools (SonarQube, Code Climate)
-   - Performance monitoring systems
-   - Issue tracking systems
+- [x] **Implement Progressive Data Loading**
+  - [x] Pagination on nodes/relations APIs (limit/offset) + totals endpoints
+  - [x] UI infinite loading via useInfiniteQuery; “Load more” controls
+  - [x] Viewport-driven auto-load (zoom-based trigger)
+  - [ ] Streaming; cluster collapsing — planned
 
-#### **Success Detection**
-- [ ] **Success/Failure Criteria**
-  - [ ] Define objective success metrics
+#### **3.2 Data Loading & Pagination (CRITICAL - Day 2)**
+- [x] **Remove Hardcoded Limits**
+  - [x] Replaced hardcoded 1000 limits with configurable pagination in UI
+  - [x] Added `limit` and `offset` parameters to nodes/relations/subgraph
+  - [ ] Cursor-based pagination — planned
+  - [x] Total count endpoints added
+
+- [x] **Implement UMAP-Style Streaming**
+  - [ ] Viewport-based loading from UMAP — planned
+  - [ ] Progressive loading by zoom level — planned
+  - [ ] Virtualization & progress bars — planned
+
+#### **3.3 Sprint Data Integration (HIGH - Day 3)**
+- [x] **Connect Real Sprint Data**
+  - [x] Backend: `GET /api/v1/dev-graph/sprints` maps sprint folders to commit ranges
+  - [x] Backend: `GET /api/v1/dev-graph/sprints/{number}` returns a single sprint’s range/metrics
+  - [x] Frontend: Sprint tab wired; selecting a sprint fetches time-bounded subgraph
+  - [ ] Temporal engine sprint ingestion — planned
+  - [ ] Sprint filtering overlay — planned
+
+#### **3.4 Ingest Functionality Fixes (HIGH - Day 3)**
+- [x] **Debug Ingest Endpoint**
+  - [x] Backend: try/except + logging + env validation
+  - [x] Frontend: toasts for success/failure and simple retry
+  - [ ] Progress indicators — planned
+
+#### **Phase 3 Deliverables Summary**
+
+**🎯 TARGET OUTCOMES:**
+- **Stable Graph Rendering**: Sigma.js-based visualization with clutter-free labels
+- **Scalable Data Loading**: Progressive loading with pagination
+- **Real Sprint Data**: All sprints listed and mapped to commit ranges
+- **Functional Ingest**: Working ingest with error handling
+- **Performance Optimization**: UMAP-style streaming (planned next)
+
+### **Phase 4: Advanced Features & Integration (Weeks 2-4)**
+
+#### **🔧 ENHANCED FUNCTIONALITY & INTEGRATION**
+
+**Approach for Phase 4:**
+This phase builds upon the stabilized foundation to add advanced features and integrations. The approach will be:
+
+1. **Advanced Visualization**: Enhanced graph interactions and layouts
+2. **Performance Optimization**: Caching, Web Workers, and scalability improvements
+3. **Success Metrics**: Implement objective success/failure tracking
+4. **External Integrations**: Connect with CI/CD and code quality tools
+
+#### **4.1 Advanced Graph Features**
+- [ ] **Enhanced Graph Interactions**
+  - [ ] Add zoom controls and viewport management
+  - [ ] Implement search and filtering by node type/relationship
+  - [ ] Add graph layout options (force-directed, hierarchical, etc.)
+  - [ ] Implement graph export functionality
+
+- [ ] **Advanced Node Management**
+  - [ ] Add node clustering algorithms for dense areas
+  - [ ] Implement node aggregation for large datasets
+  - [ ] Add node detail drawers with rich information
+  - [ ] Implement node relationship visualization
+
+#### **4.2 Performance & Scalability**
+- [ ] **Caching & Optimization**
+  - [ ] Implement Redis caching for temporal queries
+  - [ ] Add Web Workers for heavy computations
+  - [ ] Implement lazy loading for node details
+  - [ ] Add memory usage monitoring and optimization
+
+- [ ] **Scalability Improvements**
+  - [ ] Evaluate Sigma.js scalability features
+  - [ ] Implement cluster collapsing for large graphs
+  - [ ] Add graph compression for storage
+  - [ ] Implement incremental updates
+
+#### **4.3 Success Metrics & Analytics**
+- [ ] **Success/Failure Tracking**
+  - [ ] Define objective success metrics based on code quality
   - [ ] Integrate with performance pipelines
-  - [ ] Add timeline annotations
-  - [ ] Create summary panels
+  - [ ] Add timeline annotations for success/failure events
+  - [ ] Create summary panels for metrics
 
-#### **Pattern Recognition**
-- [ ] **Analytics Engine**
+- [ ] **Pattern Recognition**
   - [ ] Implement evolution pattern algorithms
   - [ ] Correlate patterns with success metrics
-  - [ ] Provide "Success Patterns" view
+  - [ ] Provide "Success Patterns" analysis view
   - [ ] Add comparative feature analysis
 
-#### **Performance Optimization**
-- [ ] **Scalability Improvements**
-  - [ ] Introduce caching and incremental updates
-  - [ ] Evaluate Sigma.js scalability features
-  - [ ] Use Web Workers for heavy computations
-  - [ ] Implement cluster collapsing for large graphs
-
-### **Phase 4: Advanced Features & Integration (Weeks 25-48)**
-
-#### **Machine Learning Integration**
-- [ ] **Predictive Analytics**
-  - [ ] Train models on historical data
-  - [ ] Predict success/failure likelihood
-  - [ ] Provide warnings for failure-prone patterns
-  - [ ] Implement pattern similarity scoring
-
-#### **CI/CD Integration**
-- [ ] **Pipeline Integration**
+#### **4.4 External Integrations**
+- [ ] **CI/CD Integration**
   - [ ] Hook into CI pipelines for test results
-  - [ ] Capture performance metrics
+  - [ ] Capture performance metrics from deployments
   - [ ] Link metrics to commits and requirements
-  - [ ] Real-time graph updates
+  - [ ] Real-time graph updates from CI events
 
-#### **Third-Party Tools**
-- [ ] **External Integrations**
-  - [ ] GitHub/GitLab for PR discussions
-  - [ ] Jira for issue tracking
-  - [ ] Slack for notifications
-  - [ ] SonarQube/Code Climate for quality metrics
+- [ ] **Code Quality Tools**
+  - [ ] Integrate with SonarQube/Code Climate
+  - [ ] Add code coverage metrics
+  - [ ] Implement technical debt tracking
+  - [ ] Add code quality trend analysis
 
-#### **User Customization**
-- [ ] **Export & Sharing**
-  - [ ] Export timeline views as images/HTML
-  - [ ] Share custom perspectives across team
-  - [ ] User preference management
-  - [ ] Collaborative annotation features
+#### **Phase 4 Deliverables Summary**
+
+**🎯 TARGET OUTCOMES:**
+- **Advanced Visualization**: Rich graph interactions with multiple layout options
+- **High Performance**: Scalable rendering for 10,000+ node graphs
+- **Success Tracking**: Objective metrics for development patterns
+- **External Integration**: CI/CD and code quality tool connections
+- **Production Ready**: Enterprise-grade performance and reliability
 
 ---
 
@@ -441,6 +505,10 @@ This phase will focus on building objective success metrics and pattern recognit
 - **Risk**: Sensitive information in commits/documents
 - **Mitigation**: Access control, redaction, audit logging
 
+### **5. Performance Degradation**
+- **Risk**: Large datasets cause UI freezing
+- **Mitigation**: Progressive loading, Web Workers, viewport-based rendering
+
 ---
 
 ## 📊 **Success Metrics**
@@ -449,11 +517,13 @@ This phase will focus on building objective success metrics and pattern recognit
 - **Temporal Accuracy**: % of nodes/relationships correctly annotated with commit data
 - **Performance**: Query response times for temporal queries
 - **Data Freshness**: How current the evolution data is
+- **Graph Rendering**: FPS and responsiveness for large datasets
 
 ### **User Experience Metrics**
 - **Navigation Efficiency**: Time to find implementation history or specific commits
 - **Insight Discovery**: Number of unique patterns identified by users
 - **User Adoption**: Active users, sessions per week, satisfaction scores
+- **Graph Usability**: Time to understand relationships and navigate graph
 
 ### **Business Metrics**
 - **Development Velocity**: Story points per sprint before/after adoption
@@ -464,12 +534,7 @@ This phase will focus on building objective success metrics and pattern recognit
 
 ## ✅ **Consolidated TODOs by Phase**
 
-### Phase 1: Temporal Foundation (Post-Completion Hardening)
-- [ ] Add regression tests for temporal subgraph filtering using relationship timestamps
-- [ ] Validate sprint-commit mapping against a known date window sample
-- [ ] Document quickstart/runbook (Neo4j, API, Frontend, ingest)
-
-### Phase 2: Evolution Tracking & UI (COMPLETED)
+### Phase 1: Temporal Foundation (COMPLETED)
 - [x] Schema: add `timestamp` on EVOLVES_FROM/REFACTORED_TO/DEPRECATED_BY edges
 - [x] Temporal Engine: build generic evolution timeline for any node type
 - [x] Temporal Engine: change impact analysis (downstream effects)
@@ -482,39 +547,73 @@ This phase will focus on building objective success metrics and pattern recognit
 - [x] Frontend: search + perspectives (save filters/layouts)
 - [x] Frontend: ingest button to call `/ingest/recent`; configurable API base via `NEXT_PUBLIC_DEV_GRAPH_API_URL`
 
-### Phase 3: Success Metrics & Analytics (NEW SESSION)
-- [ ] Define objective success/failure metrics and sources
-- [ ] Ingest CI/perf metrics and link to commits/requirements
-- [ ] Annotate timeline with success/failure markers
-- [ ] Build "Success Patterns" analysis view
-- [ ] Implement caching and performance optimization
-- [ ] Add Web Workers for heavy computations
-- [ ] Implement cluster collapsing for large graphs
+### Phase 2: Evolution Tracking & UI (COMPLETED)
+- [x] Enhanced TimelineView: Interactive timeline with react-chrono, time scrubber, playback controls
+- [x] Advanced EvolutionGraph: Time-aware filtering, enhanced node/edge styling, timeline synchronization
+- [x] Comprehensive SearchBar: Advanced filtering by node type, relationship type, author, commit hash
+- [x] SprintView Component: Sprint visualization with metrics, sorting, and selection
+- [x] TemporalAnalytics Component: Dashboard for development metrics, trends, and insights
+- [x] Integrated UI: Tabbed interface with Timeline View, Sprint View, and Analytics
 
-### Phase 4: Advanced Features & Integration
-- [ ] Predictive analytics on historical patterns
-- [ ] CI/CD hooks for real-time updates
-- [ ] Third-party integrations (PRs, issues, notifications, quality tools)
-- [ ] Export/share timelines and perspectives; collaborative annotations
+### Phase 3: Critical Issues & Stabilization (IN PROGRESS)
+- [x] **Graph Rendering Fixes (CRITICAL)**
+  - [x] Replace React-Force-Graph with Sigma.js
+  - [x] Reduce label clutter with hover-based labels
+  - [ ] Node clustering and advanced collision detection
+  - [x] Progressive loading with pagination
+- [x] **Sprint Data Integration (HIGH)**
+  - [x] Connect real sprint data via `/sprints` endpoint; map to commit ranges
+  - [x] Replace mock sprint data with real API calls
+- [x] **Ingest Functionality (HIGH)**
+  - [x] Backend error handling and logging
+  - [x] Frontend toasts and simple retry
+- [ ] **Performance Optimization (HIGH)**
+  - [ ] Viewport-based loading
+  - [ ] Cluster collapsing for large graphs
+
+### Phase 4: Advanced Features & Integration (Weeks 2-4)
+- [ ] **Advanced Visualization**
+  - [ ] Enhanced graph interactions and layouts
+  - [ ] Node clustering and aggregation algorithms
+  - [ ] Graph export and sharing functionality
+- [ ] **Performance & Scalability**
+  - [ ] Implement caching and Web Workers
+  - [ ] Add memory monitoring and optimization
+  - [ ] Scale to 10,000+ node graphs
+- [ ] **Success Metrics & Analytics**
+  - [ ] Define objective success/failure metrics
+  - [ ] Implement pattern recognition algorithms
+  - [ ] Add CI/CD integration for metrics
+- [ ] **External Integrations**
+  - [ ] Connect with code quality tools
+  - [ ] Add performance monitoring integration
+  - [ ] Implement real-time updates
 
 ---
 
 ## 🏁 **Conclusion**
 
-This unified PRD transforms the original high-level vision into a concrete, implementable plan for an interactive, intuitive, and truly temporal dev-graph. By anchoring all temporal data to git history, borrowing best practices from graph visualization and git tools, and focusing on user experience and success metrics, we can build a system that not only shows relationships but tells the story of how the codebase evolves.
+This updated PRD addresses the critical issues identified in January 2025 and provides a clear roadmap for stabilizing and enhancing the dev graph system. The immediate focus on Phase 3 will resolve the usability issues that are currently blocking users from effectively using the system.
 
-**Key Principles**:
-- **Git history is the single source of truth** for all temporal data
-- **User experience drives technical decisions** - avoid hairballs, enable exploration
-- **Performance and scalability** are non-negotiable for large repositories
-- **Success metrics must be objective** and tied to actual development outcomes
+**Key Principles for Phase 3:**
+- **Stability First**: Fix critical rendering and data loading issues before adding features
+- **Copy Successful Patterns**: Leverage the working UMAP implementation for streaming and performance
+- **User Experience**: Ensure the graph is readable and navigable before optimization
+- **Data Integrity**: Connect real sprint data and fix ingest functionality
 
-With careful implementation following this roadmap, this service will become a cornerstone of our development workflow and a model for how to visualize the life of a codebase. It will guide developers through the labyrinth of history and enable them to make better architectural decisions based on data-driven insights rather than intuition alone.
+**Key Principles for Phase 4:**
+- **Performance**: Build on stable foundation to achieve enterprise-scale performance
+- **Integration**: Connect with external tools for comprehensive metrics
+- **Analytics**: Provide actionable insights for development teams
+- **Scalability**: Support large codebases with thousands of nodes and relationships
+
+With careful implementation following this updated roadmap, the dev graph will become a reliable, performant tool for understanding codebase evolution and making data-driven architectural decisions.
 
 ---
 
-**Document Status**: ✅ **FINAL - Ready for Phase 3 Implementation**  
+**Document Status**: 🔄 **UPDATED - Phase 3 In Progress**  
 **Sprint 11 Deliverable**: ✅ **Complete**  
 **Phase 1**: ✅ **COMPLETED**  
 **Phase 2**: ✅ **COMPLETED**  
-**Next Phase**: Phase 3 - Success Metrics & Analytics (NEW SESSION)
+**Phase 3**: 🚨 **IN PROGRESS**  
+**Phase 4**: 📋 **PLANNED - Advanced Features & Integration**
