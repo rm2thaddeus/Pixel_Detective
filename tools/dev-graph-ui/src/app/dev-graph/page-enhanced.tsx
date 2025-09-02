@@ -61,6 +61,8 @@ export default function EnhancedDevGraphPage() {
   // Color scheme for different relation types
   const relationTypeColors: Record<string, string> = {
     'TOUCHES': 'red',
+    'TOUCHED': 'red',
+    'MODIFIED': 'cyan',
     'CONTAINS_DOC': 'blue',
     'CONTAINS_CHUNK': 'green',
     'MENTIONS': 'purple',
