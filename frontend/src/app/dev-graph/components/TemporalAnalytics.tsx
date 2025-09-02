@@ -57,6 +57,7 @@ export function TemporalAnalytics({ events, nodes, relations }: TemporalAnalytic
   const bgColor = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.200', 'gray.600');
   const accentColor = useColorModeValue('green.500', 'green.400');
+  const textColor = useColorModeValue('gray.800', 'white');
 
   const metrics = useMemo(() => {
     if (!events.length) return null;
@@ -178,7 +179,7 @@ export function TemporalAnalytics({ events, nodes, relations }: TemporalAnalytic
   return (
     <Box p={6} bg={bgColor} borderWidth="1" borderColor={borderColor} borderRadius="lg">
       <VStack spacing={6} align="stretch">
-        <Text fontSize="xl" fontWeight="bold" color={useColorModeValue('gray.800', 'white')}>
+        <Text fontSize="xl" fontWeight="bold" color={textColor}>
           Temporal Analytics
         </Text>
 

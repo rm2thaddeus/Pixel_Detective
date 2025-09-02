@@ -291,15 +291,17 @@ export default function DevGraphPage() {
 							{/* Timeline Tab */}
 							<TabPanel>
 								<TimelineView
-									events={(Array.isArray(commitsQuery.data) ? commitsQuery.data : []).map((c: any) => ({
-										id: c.hash,
-										title: c.message,
-										timestamp: c.timestamp,
-										author: c.author_email,
-										type: 'commit',
-										commit_hash: c.hash,
-										files_changed: c.files_changed,
-									}))}
+									events={(Array.isArray(commitsQuery.data) ? commitsQuery.data : [])
+										.filter((c: any) => c && c.hash && c.timestamp)
+										.map((c: any) => ({
+											id: c.hash,
+											title: c.message || 'Untitled Commit',
+											timestamp: c.timestamp,
+											author: c.author_email || 'Unknown Author',
+											type: 'commit',
+											commit_hash: c.hash,
+											files_changed: c.files_changed || [],
+										}))}
 									onSelect={(ev) => {
 										// Toggle range selection: first click sets start, second sets end and fetches subgraph
 										if (!selectedRange.start || (selectedRange.start && selectedRange.end)) {
@@ -352,13 +354,15 @@ export default function DevGraphPage() {
 							{/* Analytics Tab */}
 							<TabPanel>
 									<TemporalAnalytics
-									events={(Array.isArray(commitsQuery.data) ? commitsQuery.data : []).map((c: any) => ({
-										id: c.hash,
-										timestamp: c.timestamp,
-										type: c.type || 'commit',
-										author: c.author_email,
-										files_changed: c.files_changed,
-									}))}
+									events={(Array.isArray(commitsQuery.data) ? commitsQuery.data : [])
+										.filter((c: any) => c && c.hash && c.timestamp)
+										.map((c: any) => ({
+											id: c.hash,
+											timestamp: c.timestamp,
+											type: c.type || 'commit',
+											author: c.author_email || 'Unknown Author',
+											files_changed: c.files_changed || [],
+										}))}
 										nodes={((nodesQuery.data?.pages as any[] | undefined) || []).flat()}
 										relations={((relationsQuery.data?.pages as any[] | undefined) || []).flat()}
 									/>

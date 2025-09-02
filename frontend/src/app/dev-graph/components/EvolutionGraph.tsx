@@ -302,6 +302,9 @@ export function EvolutionGraph({
         labelRenderedSizeThreshold: 14,
         enableEdgeHoverEvents: true,
         zIndex: true,
+        // Enable dragging and other interactions
+        enableNodeDrag: true,
+        enableNodeHover: true,
         // Sigma v3 uses default rendering - no need to configure nodeProgramClasses or edgeProgramClasses
         // All nodes will use the default circle program, all edges will use the default line program
       });
@@ -337,6 +340,17 @@ export function EvolutionGraph({
       sigma.on('leaveNode', () => {
         hoveredNodeRef.current = null;
         sigma.refresh();
+      });
+
+      // Add drag events for better user feedback
+      sigma.on('downNode', ({ node }: { node: string }) => {
+        // Node is being dragged
+        console.log('Dragging node:', node);
+      });
+
+      sigma.on('upNode', ({ node }: { node: string }) => {
+        // Node drag ended
+        console.log('Finished dragging node:', node);
       });
 
       sigmaRef.current = sigma;

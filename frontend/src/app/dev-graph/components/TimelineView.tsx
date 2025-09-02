@@ -29,6 +29,13 @@ export function TimelineView({
   const [selectedTimeRange, setSelectedTimeRange] = useState<[number, number]>([0, 100]);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTimeIndex, setCurrentTimeIndex] = useState(0);
+
+  // Ensure currentTimeIndex is always within bounds
+  useEffect(() => {
+    if (events.length > 0 && currentTimeIndex >= events.length) {
+      setCurrentTimeIndex(events.length - 1);
+    }
+  }, [events.length, currentTimeIndex]);
   const [autoRefresh, setAutoRefresh] = useState(false);
   const [refreshInterval, setRefreshInterval] = useState(1000);
   
@@ -61,10 +68,10 @@ export function TimelineView({
 
   // Convert events to react-chrono format
   const chronoItems = useMemo(() => {
-    return events.map((ev, index) => ({
-      title: ev.title,
-      cardTitle: ev.title,
-      cardSubtitle: ev.author,
+    return events.filter(ev => ev && ev.timestamp).map((ev, index) => ({
+      title: ev.title || 'Untitled Event',
+      cardTitle: ev.title || 'Untitled Event',
+      cardSubtitle: ev.author || 'Unknown Author',
       cardDetailedText: ev.files_changed?.join(', ') || 'No files changed',
       date: new Date(ev.timestamp).toLocaleDateString(),
       timestamp: ev.timestamp,
@@ -227,7 +234,7 @@ export function TimelineView({
         </Box>
 
         {/* Current Time Indicator */}
-        {events.length > 0 && (
+        {events.length > 0 && events[currentTimeIndex] && (
           <Box>
             <Text fontSize="sm" mb={2}>Current Time: {new Date(events[currentTimeIndex].timestamp).toLocaleString()}</Text>
             <Text fontSize="xs" color="gray.500">
