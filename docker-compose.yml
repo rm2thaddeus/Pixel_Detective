@@ -92,6 +92,19 @@ services:
     networks:
       - vibe_net
 
+  dev_graph_ui:
+    build:
+      context: ./tools/dev-graph-ui
+      dockerfile: Dockerfile
+    ports:
+      - "127.0.0.1:3001:3000"
+    environment:
+      - NEXT_PUBLIC_DEV_GRAPH_API_URL=http://localhost:8080
+    depends_on:
+      - dev_graph_api
+    networks:
+      - vibe_net
+
 volumes:
   qdrant_storage:
   neo4j_data:

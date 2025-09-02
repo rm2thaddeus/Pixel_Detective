@@ -94,7 +94,7 @@ export function Header() {
           <Button
             variant="ghost"
             leftIcon={<Icon as={FiGitBranch} />}
-            onClick={() => router.push('/dev-graph')}
+            onClick={() => window.open('http://localhost:3001', '_blank')}
           >
             Dev Graph
           </Button>

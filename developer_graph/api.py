@@ -19,9 +19,19 @@ from .sprint_mapping import SprintMapper
 app = FastAPI(title="Developer Graph API")
 
 # Add CORS middleware to allow frontend access
+_default_origins = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://localhost:3001",
+    "http://127.0.0.1:3001",
+]
+_env_origins = os.environ.get("CORS_ORIGINS")
+_origins = (
+    [o.strip() for o in _env_origins.split(",") if o.strip()] if _env_origins else _default_origins
+)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],  # Next.js dev server
+    allow_origins=_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

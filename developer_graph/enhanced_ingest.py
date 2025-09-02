@@ -37,34 +37,52 @@ class EnhancedDevGraphIngester:
     def ingest(self):
         """Main ingestion process with enhanced coverage."""
         print("Starting enhanced ingestion...")
-        
+
         # Parse all available data
         sprints = self.parse_all_sprints()
         requirements = self.extract_all_requirements()
         documents = self.parse_documents()
+        chunks = self.parse_chunks()
         cross_references = self.find_cross_references()
-        
-        print(f"Found {len(sprints)} sprints, {len(requirements)} requirements, {len(documents)} documents")
-        
+
+        print(
+            f"Found {len(sprints)} sprints, {len(requirements)} requirements, {len(documents)} documents, {len(chunks)} chunks"
+        )
+
         with self.driver.session() as session:
             # Create constraints
             session.execute_write(self._create_constraints)
-            
+
             # Create nodes
             for sprint in sprints:
                 session.execute_write(self._merge_sprint, sprint)
-            
+
             for req in requirements:
                 session.execute_write(self._merge_requirement, req)
-            
+
             for doc in documents:
                 session.execute_write(self._merge_document, doc)
-            
+
+            for ch in chunks:
+                session.execute_write(self._merge_chunk, ch)
+
             # Create relationships
             for req in requirements:
                 if req.get('sprint_number'):
                     session.execute_write(self._merge_requirement_sprint, req['id'], req['sprint_number'])
-            
+
+            # Link sprints to documents
+            for doc in documents:
+                sprint_num = self._infer_sprint_number_from_path(doc.get('path'))
+                if sprint_num:
+                    session.execute_write(self._merge_sprint_contains_doc, sprint_num, doc['path'])
+
+            # Link documents to chunks and chunks to requirements they mention
+            for ch in chunks:
+                session.execute_write(self._merge_document_contains_chunk, ch['doc_path'], ch['id'])
+                for rid in ch.get('mentions', []) or []:
+                    session.execute_write(self._merge_chunk_mentions_requirement, ch['id'], rid)
+
             # Create cross-sprint relationships
             for ref in cross_references:
                 session.execute_write(self._merge_cross_reference, ref)
@@ -243,6 +261,74 @@ class EnhancedDevGraphIngester:
             print(f"Error parsing document {file_path}: {e}")
             return None
 
+    # -------------------- Chunk Parsing --------------------
+    def parse_chunks(self) -> List[Dict[str, object]]:
+        """Parse Markdown documents into Chunk nodes by headings.
+
+        Chunk identity: f"{path}#{slug}-{ordinal}" where slug is derived from heading text.
+        """
+        base = Path(self.repo_path) / "docs" / "sprints"
+        chunks: List[Dict[str, object]] = []
+        for item in base.iterdir():
+            if not item.is_dir():
+                continue
+            for file_path in item.rglob("*.md"):
+                try:
+                    text = file_path.read_text(encoding="utf-8")
+                except Exception:
+                    continue
+                chunks.extend(self._extract_chunks_from_text(str(file_path), text))
+        return chunks
+
+    @staticmethod
+    def _slugify(text: str) -> str:
+        t = re.sub(r"[^a-zA-Z0-9\s-]", "", text.strip().lower())
+        t = re.sub(r"\s+", "-", t)
+        t = re.sub(r"-+", "-", t)
+        return t or "section"
+
+    def _extract_chunks_from_text(self, path: str, text: str) -> List[Dict[str, object]]:
+        lines = text.splitlines()
+        chunks: List[Dict[str, object]] = []
+        current: Optional[Dict[str, object]] = None
+        ordinals = {2: 0, 3: 0, 1: 0}
+        buffer: List[str] = []
+
+        def flush():
+            nonlocal current, buffer
+            if current is not None:
+                content = "\n".join(buffer).strip()
+                # Mentions of requirements inside the chunk
+                mentions = list({m.group(0) for m in REQ_REF_PATTERN.finditer(content)})
+                current['content_preview'] = content[:400]
+                current['length'] = len(content)
+                current['mentions'] = mentions
+                chunks.append(current)
+            current = None
+            buffer = []
+
+        for line in lines:
+            m = re.match(r"^(#{1,3})\s+(.*)$", line)
+            if m:
+                # Start of a new chunk at H1/H2/H3, flush previous
+                flush()
+                level = len(m.group(1))
+                heading = m.group(2).strip()
+                ordinals[level] = ordinals.get(level, 0) + 1
+                slug = self._slugify(heading)
+                cid = f"{path}#{slug}-{ordinals[level]:02d}"
+                current = {
+                    'id': cid,
+                    'doc_path': path,
+                    'heading': heading,
+                    'level': level,
+                    'ordinal': ordinals[level],
+                }
+            else:
+                buffer.append(line)
+        flush()
+        return chunks
+
     def find_cross_references(self) -> List[Dict[str, str]]:
         """Find cross-references between requirements and sprints."""
         cross_refs = []
@@ -284,6 +370,7 @@ class EnhancedDevGraphIngester:
         tx.run("CREATE CONSTRAINT IF NOT EXISTS FOR (s:Sprint) REQUIRE s.number IS UNIQUE")
         tx.run("CREATE CONSTRAINT IF NOT EXISTS FOR (r:Requirement) REQUIRE r.id IS UNIQUE")
         tx.run("CREATE CONSTRAINT IF NOT EXISTS FOR (d:Document) REQUIRE d.path IS UNIQUE")
+        tx.run("CREATE CONSTRAINT IF NOT EXISTS FOR (c:Chunk) REQUIRE c.id IS UNIQUE")
 
     @staticmethod
     def _merge_sprint(tx, sprint: Dict[str, str]):
@@ -310,6 +397,15 @@ class EnhancedDevGraphIngester:
             "MERGE (d:Document {path: $path}) SET d += $props",
             path=doc["path"], 
             props={k: v for k, v in doc.items() if k != "path"}
+        )
+
+    @staticmethod
+    def _merge_chunk(tx, ch: Dict[str, object]):
+        """Merge chunk node."""
+        tx.run(
+            "MERGE (c:Chunk {id: $id}) SET c += $props",
+            id=ch['id'],
+            props={k: v for k, v in ch.items() if k != 'id'}
         )
 
     @staticmethod
@@ -346,13 +442,52 @@ class EnhancedDevGraphIngester:
                 doc_path=doc_path, req_id=ref
             )
 
+    @staticmethod
+    def _merge_sprint_contains_doc(tx, sprint_number: str, doc_path: str):
+        """Create CONTAINS_DOC: (Sprint)-[:CONTAINS_DOC]->(Document)."""
+        tx.run(
+            "MATCH (s:Sprint {number: $num}), (d:Document {path: $path}) "
+            "MERGE (s)-[:CONTAINS_DOC]->(d)",
+            num=sprint_number, path=doc_path
+        )
+
+    @staticmethod
+    def _merge_document_contains_chunk(tx, doc_path: str, chunk_id: str):
+        """Create CONTAINS_CHUNK: (Document)-[:CONTAINS_CHUNK]->(Chunk)."""
+        tx.run(
+            "MATCH (d:Document {path: $path}), (c:Chunk {id: $cid}) "
+            "MERGE (d)-[:CONTAINS_CHUNK]->(c)",
+            path=doc_path, cid=chunk_id
+        )
+
+    @staticmethod
+    def _merge_chunk_mentions_requirement(tx, chunk_id: str, req_id: str):
+        """Create MENTIONS: (Chunk)-[:MENTIONS]->(Requirement)."""
+        tx.run(
+            "MATCH (c:Chunk {id: $cid}), (r:Requirement {id: $rid}) "
+            "MERGE (c)-[:MENTIONS]->(r)",
+            cid=chunk_id, rid=req_id
+        )
+
+    @staticmethod
+    def _infer_sprint_number_from_path(path: Optional[str]) -> Optional[str]:
+        if not path:
+            return None
+        m = re.search(r"/sprint-(\d+)/", path.replace("\\", "/"))
+        if m:
+            return m.group(1)
+        m2 = re.search(r"/s-(\d+)/", path.replace("\\", "/"))
+        if m2:
+            return m2.group(1)
+        return None
+
 
 def main():
     """Main entry point."""
     uri = os.environ.get("NEO4J_URI", "bolt://localhost:7687")
     user = os.environ.get("NEO4J_USER", "neo4j")
     password = os.environ.get("NEO4J_PASSWORD", "password")
-    repo = Path(__file__).resolve().parents[1]
+    repo = os.environ.get("REPO_PATH", str(Path(__file__).resolve().parents[1]))
     
     ingester = EnhancedDevGraphIngester(str(repo), uri, user, password)
     ingester.ingest()
