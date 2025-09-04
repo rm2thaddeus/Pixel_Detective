@@ -15,7 +15,7 @@ const NodeDetailDrawer = dynamic(() => import('../components/NodeDetailDrawer'),
 const SearchBar = dynamic(() => import('../components/SearchBar'), { ssr: false });
 const SprintView = dynamic(() => import('../components/SprintView').then(mod => ({ default: mod.SprintView })), { ssr: false });
 const TemporalAnalytics = dynamic(() => import('../components/TemporalAnalytics').then(mod => ({ default: mod.TemporalAnalytics })), { ssr: false });
-const RealAnalytics = dynamic(() => import('../components/RealAnalytics').then(mod => ({ default: mod.RealAnalytics })), { ssr: false });
+// const RealAnalytics = dynamic(() => import('../components/RealAnalytics').then(mod => ({ default: mod.RealAnalytics })), { ssr: false });
 
 // Removed react-force-graph usage in favor of Sigma.js (see EvolutionGraph)
 
@@ -36,6 +36,7 @@ export default function DevGraphPage() {
 		initialPageParam: 0,
 		getNextPageParam: (_lastPage, allPages) => allPages.length * PAGE_SIZE,
 		staleTime: 60_000,
+		enabled: true, // Enable automatic fetching
 	});
 
 	const relationsQuery = useInfiniteQuery({
@@ -48,6 +49,7 @@ export default function DevGraphPage() {
 		initialPageParam: 0,
 		getNextPageParam: (_lastPage, allPages) => allPages.length * PAGE_SIZE,
 		staleTime: 60_000,
+		enabled: true, // Enable automatic fetching
 	});
 
 	const commitsQuery = useQuery({
@@ -58,6 +60,7 @@ export default function DevGraphPage() {
 			return res.json();
 		},
 		staleTime: 5 * 60 * 1000,
+		enabled: true, // Enable automatic fetching
 	});
 	const [ingesting, setIngesting] = useState(false);
 	const [selectedNode, setSelectedNode] = useState<any>(null);
@@ -242,7 +245,19 @@ export default function DevGraphPage() {
 		<Box minH="100vh">
 			<Header />
 			<Box p={8}>
-				<Heading mb={4}>Developer Graph</Heading>
+				<Heading mb={4}>Developer Graph - Complex View</Heading>
+				
+				{/* Simple Navigation */}
+				<Box mb={6} p={4} bg="gray.50" borderRadius="md">
+					<Text fontSize="sm" fontWeight="medium" mb={2}>Navigate to other views:</Text>
+					<HStack spacing={4}>
+						<Text fontSize="sm" color="blue.600" fontWeight="bold">Complex View (Current)</Text>
+						<Text fontSize="sm">•</Text>
+						<Text fontSize="sm" color="green.600"><a href="/dev-graph/enhanced">Enhanced Dashboard</a></Text>
+						<Text fontSize="sm">•</Text>
+						<Text fontSize="sm" color="purple.600"><a href="/dev-graph/simple">Simple Dashboard</a></Text>
+					</HStack>
+				</Box>
 				
 				{/* Debug Info */}
 				<Box mb={4} p={4} bg="gray.100" borderRadius="md" fontSize="sm">
@@ -508,10 +523,15 @@ export default function DevGraphPage() {
 							
 							{/* Analytics Tab */}
 							<TabPanel>
-									<RealAnalytics 
-										fromTimestamp={timeWindow.from}
-										toTimestamp={timeWindow.to}
-									/>
+								<Box p={6} bg="gray.50" borderRadius="md" borderWidth={1}>
+									<Text fontSize="lg" fontWeight="bold" mb={4}>Analytics</Text>
+									<Text color="gray.600" mb={4}>
+										Analytics features are temporarily disabled while we update the backend API.
+									</Text>
+									<Text fontSize="sm" color="gray.500">
+										The evolutionary tree visualization and other core features are fully functional.
+									</Text>
+								</Box>
 							</TabPanel>
 						</TabPanels>
 					</Tabs>

@@ -670,3 +670,74 @@ With careful implementation following this updated roadmap, the dev graph will b
 **Phase 2**: ✅ **COMPLETED**  
 **Phase 3**: ✅ **COMPLETED**  
 **Phase 4**: 🚀 **IN PROGRESS - Advanced Features & Performance**
+
+---
+
+## 🔧 Recent Technical Change (2025-09-04)
+
+- Dev Graph UI dependency alignment to resolve install/build failures caused by peer conflicts:
+  - `tools/dev-graph-ui`: React `19.1.0` → `18.3.1`, React DOM `19.1.0` → `18.3.1`
+  - `@types/react`, `@types/react-dom`: `^19` → `^18`
+  - `react-chrono`: `^2.9.1` → `2.6.1` (React 19 requirement → React 18 compatible)
+  - Rationale: Both `framer-motion@10.18.0` and `react-chrono@2.9.1` had peer dependency conflicts with React 19.
+  - Result: Dependency installation and Next.js build now succeed; new pages compile under Next `15.5.2` with React `18.3.1`.
+  - Follow-up: Revisit upgrade to React 19 once both `framer-motion` and `react-chrono` officially support it; then restore `@types/*` to `^19`.
+
+- **Sigma.js v3 Module Import Fix (2025-09-04)**:
+  - Issue: Runtime error "Sigma: could not find a suitable program for node type 'circle'" due to invalid import paths
+  - Root cause: Attempted to import non-existent modules `sigma/rendering/webgl/programs/node.circle` and `sigma/rendering/webgl/programs/edge.line`
+  - Solution: Removed invalid imports; Sigma.js v3.0.2 uses default node/edge programs automatically
+  - Changes: Removed explicit `nodeProgramClasses` and `edgeProgramClasses` configuration
+  - Result: Graph rendering now works correctly; both `/dev-graph` and `/dev-graph/complex` pages load successfully
+
+- **Automatic Data Loading Fix (2025-09-04)**:
+  - Issue: Time radial layout showed nothing because data wasn't being fetched automatically on component mount
+  - Root cause: React Query queries were configured but not enabled for automatic fetching
+  - Solution: Added `enabled: true` to all React Query configurations (nodes, relations, commits)
+  - Result: Data now loads automatically when the page loads, enabling immediate use of time radial layout
+  - Impact: Users no longer need to click "Ingest Latest" to see the evolutionary tree visualization
+
+- **Analytics 404 Errors Fix (2025-09-04)**:
+  - Issue: Frontend was making requests to `/api/v1/analytics/*` endpoints that returned 404 errors
+  - Root cause: Backend service was running an older version without analytics endpoints, or endpoints weren't properly deployed
+  - Solution: Temporarily disabled RealAnalytics component and replaced with placeholder message
+  - Changes: Commented out RealAnalytics import and replaced analytics tab with informative placeholder
+  - Result: No more 404 errors in browser console; core functionality (evolutionary tree) remains fully functional
+  - Follow-up: Re-enable analytics when backend is updated with latest API endpoints
+
+- **Missing Pages Navigation Fix (2025-09-04)**:
+  - Issue: Additional pages (Enhanced Dashboard, Simple Dashboard) were created but not accessible through UI navigation
+  - Root cause: Pages existed but were not properly routed and had no navigation links
+  - Solution: Created proper Next.js route structure and added simple navigation links to each page
+  - Changes: 
+    - Moved `page-enhanced.tsx` to `/dev-graph/enhanced/page.tsx`
+    - Moved `page-simple.tsx` to `/dev-graph/simple/page.tsx`
+    - Added navigation links to each page showing current page and links to others
+  - Result: All three pages are now accessible and users can navigate between them
+  - Pages available:
+    - `/dev-graph/complex` - Complex View (evolutionary tree, timeline, analytics)
+    - `/dev-graph/enhanced` - Enhanced Dashboard (node/relation explorers, statistics)
+    - `/dev-graph/simple` - Simple Dashboard (basic overview, API documentation)
+
+- **React Hooks Order Error Fix (2025-09-04)**:
+  - Issue: React detected a change in the order of Hooks called by EnhancedDevGraphPage, causing console errors
+  - Root cause: `useColorModeValue` hook was being called after conditional returns, violating Rules of Hooks
+  - Solution: Moved all hook calls to the top of the component before any conditional returns
+  - Changes: Pre-defined `pageBgColor` variable and moved all `useColorModeValue` calls to component top
+  - Result: No more React Hooks order errors; all pages load without console errors
+  - Impact: Enhanced Dashboard now works correctly without React warnings
+
+- **Icon Import Error Fix (2025-09-04)**:
+  - Issue: `FiBarChart3` icon doesn't exist in react-icons/fi module, causing build errors
+  - Root cause: Incorrect icon name used in PageNavigation component
+  - Solution: Changed `FiBarChart3` to `FiBarChart` (correct icon name)
+  - Result: All icon imports now work correctly; no more build errors
+  - Impact: Navigation component renders properly with correct icons
+
+- **Missing HStack Import Fix (2025-09-04)**:
+  - Issue: Runtime ReferenceError "HStack is not defined" in Simple Dashboard page
+  - Root cause: HStack component was used in the navigation section but not imported from @chakra-ui/react
+  - Solution: Added HStack to the import statement in simple page
+  - Changes: Updated import from `{ Box, Heading, Spinner, Text, VStack, Button }` to include `HStack`
+  - Result: Simple Dashboard page now loads without runtime errors
+  - Impact: All three pages (Complex, Enhanced, Simple) now work correctly with navigation

@@ -43,8 +43,10 @@ export default function EnhancedDevGraphPage() {
   const [loadingNodes, setLoadingNodes] = useState(false);
   const [loadingRelations, setLoadingRelations] = useState(false);
 
+  // All hooks must be called before any conditional returns
   const bgColor = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.200', 'gray.600');
+  const pageBgColor = useColorModeValue('gray.50', 'gray.900');
 
   // Color scheme for different node types
   const nodeTypeColors: Record<string, string> = {
@@ -208,12 +210,24 @@ export default function EnhancedDevGraphPage() {
   }
 
   return (
-    <Box minH="100vh" bg={useColorModeValue('gray.50', 'gray.900')}>
+    <Box minH="100vh" bg={pageBgColor}>
       <Header />
       <VStack spacing={6} p={8} align="stretch" maxW="7xl" mx="auto">
         <Heading size="lg" color="blue.600">
           Enhanced Developer Graph Dashboard
         </Heading>
+        
+        {/* Simple Navigation */}
+        <Box p={4} bg="gray.50" borderRadius="md">
+          <Text fontSize="sm" fontWeight="medium" mb={2}>Navigate to other views:</Text>
+          <HStack spacing={4}>
+            <Text fontSize="sm" color="blue.600"><a href="/dev-graph/complex">Complex View</a></Text>
+            <Text fontSize="sm">•</Text>
+            <Text fontSize="sm" color="green.600" fontWeight="bold">Enhanced Dashboard (Current)</Text>
+            <Text fontSize="sm">•</Text>
+            <Text fontSize="sm" color="purple.600"><a href="/dev-graph/simple">Simple Dashboard</a></Text>
+          </HStack>
+        </Box>
         
         {stats && (
           <Grid templateColumns={{ base: "1fr", lg: "1fr 1fr" }} gap={6}>

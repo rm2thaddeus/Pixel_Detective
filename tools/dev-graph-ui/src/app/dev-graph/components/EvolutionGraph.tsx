@@ -170,7 +170,9 @@ export function EvolutionGraph({
             
           const nodeAttrs = {
             label: String(n.id),
-            // Store original type in a custom property, not nodeType (which Sigma uses for rendering)
+            // Set the node type for Sigma.js rendering
+            type: 'circle',
+            // Store original type in a custom property
             originalType: inferredType,
             color: nodeColor,
             originalColor: nodeColor, // Store original color for focus mode restoration
@@ -203,7 +205,9 @@ export function EvolutionGraph({
           
         const edgeAttrs = {
           label: e.type,
-          // Store original type in a custom property, not type (which Sigma uses for rendering)
+          // Set the edge type for Sigma.js rendering
+          type: 'line',
+          // Store original type in a custom property
           originalType: e.type,
           color: edgeColor,
           originalColor: edgeColor, // Store original color for restoration
@@ -224,38 +228,75 @@ export function EvolutionGraph({
       
       // Layout selection
       if (layoutMode === 'time-radial' && g.order > 0) {
-        // Radius by timestamp (node.time or edge.timestamp), angle by community/type
+        // Evolutionary tree layout: first commit at center, subsequent commits spiral outward
         try {
-          // Compute timestamp range
-          let minT = Infinity, maxT = -Infinity;
+          // Collect all nodes with timestamps and sort by time
+          const nodesWithTime: Array<{node: string, attrs: any, timestamp: number}> = [];
           g.forEachNode((node: string, attrs: any) => {
             const t = Number(new Date(attrs.timestamp || attrs.created_at || attrs.time || 0));
-            if (isFinite(t)) { if (t < minT) minT = t; if (t > maxT) maxT = t; }
+            if (isFinite(t)) {
+              nodesWithTime.push({node, attrs, timestamp: t});
+            }
           });
-          if (!isFinite(minT) || !isFinite(maxT) || minT === maxT) { minT = Date.now() - 1; maxT = Date.now(); }
-          const rMin = 50, rMax = 1000;
-          // Angle seeds by type/community
-          const angleMap = new Map<string, number>();
-          let angleCursor = 0;
-          const step = (Math.PI * 2) / Math.max(1, g.order);
-          function angleFor(attrs: any) {
-            const key = String(attrs.community ?? attrs.originalType ?? attrs.type ?? 'X');
-            if (!angleMap.has(key)) { angleMap.set(key, angleCursor); angleCursor += step * 20; }
-            return angleMap.get(key)!;
+          
+          // Sort by timestamp (earliest first)
+          nodesWithTime.sort((a, b) => a.timestamp - b.timestamp);
+          
+          if (nodesWithTime.length === 0) return;
+          
+          // First commit (origin) at center
+          const origin = nodesWithTime[0];
+          g.setNodeAttribute(origin.node, 'x', 0);
+          g.setNodeAttribute(origin.node, 'y', 0);
+          
+          if (nodesWithTime.length === 1) return;
+          
+          // Calculate time range for distance scaling
+          const minTime = origin.timestamp;
+          const maxTime = nodesWithTime[nodesWithTime.length - 1].timestamp;
+          const timeRange = maxTime - minTime;
+          
+          // Spiral parameters
+          const baseRadius = 80; // Minimum distance from center
+          const spiralGrowth = 0.3; // How much the spiral grows per revolution
+          const angleStep = 0.5; // Angle increment per node
+          const timeScale = 200; // Distance scaling factor for time differences
+          
+          // Track angle for spiral
+          let currentAngle = 0;
+          
+          // Position remaining nodes in evolutionary spiral
+          for (let i = 1; i < nodesWithTime.length; i++) {
+            const {node, timestamp} = nodesWithTime[i];
+            
+            // Calculate distance from origin based on time difference
+            const timeDiff = timestamp - minTime;
+            const timeRadius = (timeDiff / timeRange) * timeScale;
+            
+            // Create spiral: radius increases with angle, plus time-based distance
+            const spiralRadius = baseRadius + (currentAngle / (Math.PI * 2)) * spiralGrowth * 100;
+            const totalRadius = Math.max(baseRadius, spiralRadius + timeRadius);
+            
+            // Calculate position
+            const x = Math.cos(currentAngle) * totalRadius;
+            const y = Math.sin(currentAngle) * totalRadius;
+            
+            // Set position
+            g.setNodeAttribute(node, 'x', x);
+            g.setNodeAttribute(node, 'y', y);
+            
+            // Increment angle for next node (creates spiral)
+            currentAngle += angleStep;
+            
+            // Add some variation to prevent perfect spiral
+            if (i % 10 === 0) {
+              currentAngle += (Math.random() - 0.5) * 0.5;
+            }
           }
-          g.forEachNode((node: string, attrs: any) => {
-            const t = Number(new Date(attrs.timestamp || attrs.created_at || attrs.time || 0));
-            const norm = Math.max(0, Math.min(1, (t - minT) / (maxT - minT)));
-            const radius = rMin + (rMax - rMin) * norm;
-            const baseAng = angleFor(attrs);
-            const jitter = (Math.random() - 0.5) * 0.15; // reduce perfect rings
-            const ang = baseAng + jitter;
-            const x = Math.cos(ang) * radius;
-            const y = Math.sin(ang) * radius;
-            if (isFinite(x) && isFinite(y)) { g.setNodeAttribute(node, 'x', x); g.setNodeAttribute(node, 'y', y); }
-          });
+          
+          if (DEBUG) console.log(`Evolutionary tree layout: ${nodesWithTime.length} nodes positioned in spiral`);
         } catch (err) {
-          if (DEBUG) console.warn('Time-radial layout failed, falling back to force:', err);
+          if (DEBUG) console.warn('Evolutionary tree layout failed, falling back to force:', err);
         }
       } else if (g.order > 0 && g.order <= LAYOUT_MAX_NODES) {
         try {
@@ -465,8 +506,8 @@ export function EvolutionGraph({
         // Performance optimizations
         hideEdgesOnMove: true, // Hide edges while moving for better performance
         hideLabelsOnMove: true, // Hide labels while moving for better performance
-        // Sigma v3 uses default rendering - no need to configure nodeProgramClasses or edgeProgramClasses
-        // All nodes will use the default circle program, all edges will use the default line program
+        // Sigma v3 uses default programs automatically
+        // No need to explicitly configure nodeProgramClasses or edgeProgramClasses
       });
 
       // Reducers: progressive labels/edges and focus mode dimming

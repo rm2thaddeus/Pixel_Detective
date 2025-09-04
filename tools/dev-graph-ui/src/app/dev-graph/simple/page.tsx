@@ -1,5 +1,5 @@
 'use client';
-import { Box, Heading, Spinner, Text, VStack, Button } from '@chakra-ui/react';
+import { Box, Heading, Spinner, Text, VStack, HStack, Button } from '@chakra-ui/react';
 import { useState, useEffect } from 'react';
 import { Header } from '@/components/Header';
 
@@ -53,8 +53,20 @@ export default function DevGraphPage() {
       <Header />
       <VStack spacing={6} p={8} align="stretch" maxW="4xl" mx="auto">
         <Heading size="lg" color="blue.600">
-          Developer Graph Dashboard
+          Developer Graph Dashboard - Simple View
         </Heading>
+        
+        {/* Simple Navigation */}
+        <Box p={4} bg="gray.50" borderRadius="md">
+          <Text fontSize="sm" fontWeight="medium" mb={2}>Navigate to other views:</Text>
+          <HStack spacing={4}>
+            <Text fontSize="sm" color="blue.600"><a href="/dev-graph/complex">Complex View</a></Text>
+            <Text fontSize="sm">•</Text>
+            <Text fontSize="sm" color="green.600"><a href="/dev-graph/enhanced">Enhanced Dashboard</a></Text>
+            <Text fontSize="sm">•</Text>
+            <Text fontSize="sm" color="purple.600" fontWeight="bold">Simple Dashboard (Current)</Text>
+          </HStack>
+        </Box>
         
         {stats && (
           <VStack spacing={4} align="stretch">
