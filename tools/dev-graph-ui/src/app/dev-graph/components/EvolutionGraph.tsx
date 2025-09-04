@@ -22,6 +22,9 @@ export function EvolutionGraph({
   physicsAttraction = 0.02,
   physicsRepulsion = 1200,
   physicsFriction = 0.85,
+  layoutMode = 'force',
+  edgeTypes = ['PART_OF','EVOLVES_FROM','REFERENCES','DEPENDS_ON'],
+  maxEdgesInView = 2000,
 }: {
   data: GraphData;
   height?: number;
@@ -39,6 +42,9 @@ export function EvolutionGraph({
   physicsAttraction?: number;
   physicsRepulsion?: number;
   physicsFriction?: number;
+  layoutMode?: 'force' | 'time-radial';
+  edgeTypes?: string[];
+  maxEdgesInView?: number;
 }) {
   const [mounted, setMounted] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -183,8 +189,9 @@ export function EvolutionGraph({
         }
       }
       
-      // Add edges
+      // Add edges (filter by selected types)
       for (const e of data.relations || []) {
+        if (Array.isArray(edgeTypes) && edgeTypes.length > 0 && !edgeTypes.includes(e.type)) continue;
         if (!g.hasNode(e.from) || !g.hasNode(e.to)) continue;
         
         // Create edge attributes, ensuring no conflicting properties
@@ -210,11 +217,47 @@ export function EvolutionGraph({
           )
         };
         
-        g.addEdge(e.from, e.to, edgeAttrs);
+        // Cap total edges progressively
+        if (typeof maxEdgesInView === 'number' && g.size >= maxEdgesInView) break;
+        try { g.addEdge(e.from, e.to, edgeAttrs); } catch {}
       }
       
-      // Apply force-directed layout only for moderately sized graphs
-      if (g.order > 0 && g.order <= LAYOUT_MAX_NODES) {
+      // Layout selection
+      if (layoutMode === 'time-radial' && g.order > 0) {
+        // Radius by timestamp (node.time or edge.timestamp), angle by community/type
+        try {
+          // Compute timestamp range
+          let minT = Infinity, maxT = -Infinity;
+          g.forEachNode((node: string, attrs: any) => {
+            const t = Number(new Date(attrs.timestamp || attrs.created_at || attrs.time || 0));
+            if (isFinite(t)) { if (t < minT) minT = t; if (t > maxT) maxT = t; }
+          });
+          if (!isFinite(minT) || !isFinite(maxT) || minT === maxT) { minT = Date.now() - 1; maxT = Date.now(); }
+          const rMin = 50, rMax = 1000;
+          // Angle seeds by type/community
+          const angleMap = new Map<string, number>();
+          let angleCursor = 0;
+          const step = (Math.PI * 2) / Math.max(1, g.order);
+          function angleFor(attrs: any) {
+            const key = String(attrs.community ?? attrs.originalType ?? attrs.type ?? 'X');
+            if (!angleMap.has(key)) { angleMap.set(key, angleCursor); angleCursor += step * 20; }
+            return angleMap.get(key)!;
+          }
+          g.forEachNode((node: string, attrs: any) => {
+            const t = Number(new Date(attrs.timestamp || attrs.created_at || attrs.time || 0));
+            const norm = Math.max(0, Math.min(1, (t - minT) / (maxT - minT)));
+            const radius = rMin + (rMax - rMin) * norm;
+            const baseAng = angleFor(attrs);
+            const jitter = (Math.random() - 0.5) * 0.15; // reduce perfect rings
+            const ang = baseAng + jitter;
+            const x = Math.cos(ang) * radius;
+            const y = Math.sin(ang) * radius;
+            if (isFinite(x) && isFinite(y)) { g.setNodeAttribute(node, 'x', x); g.setNodeAttribute(node, 'y', y); }
+          });
+        } catch (err) {
+          if (DEBUG) console.warn('Time-radial layout failed, falling back to force:', err);
+        }
+      } else if (g.order > 0 && g.order <= LAYOUT_MAX_NODES) {
         try {
           // Optimized force-directed layout with early termination
           const iterations = Math.min(80, Math.max(20, Math.floor(2000 / g.order)));
@@ -375,7 +418,7 @@ export function EvolutionGraph({
       if (DEBUG) console.error('Failed to create graph:', err);
       return null;
     }
-  }, [data, enableClustering, mounted, isLoading, error, libraries]);
+  }, [data, enableClustering, mounted, isLoading, error, libraries, layoutMode, edgeTypes, maxEdgesInView]);
 
   // Sigma initialization effect
   useEffect(() => {
@@ -466,8 +509,11 @@ export function EvolutionGraph({
         
         // Light edges mode
         if (lightEdges) {
-          res.color = '#aaaaaa';
-          res.size = Math.max(0.4, (attrs.size ?? 0.8) * 0.8);
+          // Zoom-aware opacity and thickness
+          const opacity = Math.max(0.25, Math.min(1, (zoom - 0.6)));
+          res.color = `rgba(170,170,170,${opacity.toFixed(2)})`;
+          const base = attrs.size ?? 0.8;
+          res.size = Math.max(0.3, base * (zoom < 1 ? 0.7 : zoom < 1.5 ? 0.9 : 1.1));
         } else {
           // Restore original edge color when not in light mode
           res.color = attrs.originalColor || attrs.color;

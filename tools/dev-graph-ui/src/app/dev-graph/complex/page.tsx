@@ -1,6 +1,7 @@
 'use client';
 import dynamic from 'next/dynamic';
 import { Box, Heading, Spinner, Alert, AlertIcon, Text, HStack, Switch, Slider, SliderFilledTrack, SliderThumb, SliderTrack, useDisclosure, Button, useToast, Tabs, TabList, TabPanels, Tab, TabPanel } from '@chakra-ui/react';
+import { Select } from '@chakra-ui/react';
 import { useMemo, useState, useEffect } from 'react';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { Header } from '@/components/Header';
@@ -68,6 +69,9 @@ export default function DevGraphPage() {
 	const [timeWindow, setTimeWindow] = useState<{ from?: string; to?: string }>({});
 	const [nodeTypeFilter, setNodeTypeFilter] = useState<string[]>([]);
 	const [performanceMode, setPerformanceMode] = useState(false);
+	const [layoutMode, setLayoutMode] = useState<'force' | 'time-radial'>('force');
+	const [edgeTypes, setEdgeTypes] = useState<string[]>(['PART_OF','EVOLVES_FROM','REFERENCES','DEPENDS_ON']);
+	const [maxEdgesInView, setMaxEdgesInView] = useState<number>(2000);
 	
 	// Use new windowed subgraph API for better performance
 	const windowedSubgraphQuery = useWindowedSubgraph({
@@ -298,6 +302,30 @@ export default function DevGraphPage() {
 						<Switch size="sm" isChecked={enablePhysics} onChange={(e) => setEnablePhysics(e.target.checked)} />
 					</HStack>
 					<HStack>
+						<Text fontSize="sm">Layout</Text>
+						<Select size="sm" value={layoutMode} onChange={(e) => setLayoutMode(e.target.value as any)}>
+							<option value="force">Force</option>
+							<option value="time-radial">Time-Radial</option>
+						</Select>
+					</HStack>
+					<HStack>
+						<Text fontSize="sm">Max edges</Text>
+						<Slider aria-label='max-edges' min={200} max={8000} step={200} value={maxEdgesInView} onChange={setMaxEdgesInView} width={200}>
+							<SliderTrack><SliderFilledTrack /></SliderTrack>
+							<SliderThumb />
+						</Slider>
+						<Text fontSize="sm" width={12}>{maxEdgesInView}</Text>
+					</HStack>
+					<HStack>
+						<Text fontSize="sm">Edges</Text>
+						{['PART_OF','EVOLVES_FROM','REFERENCES','DEPENDS_ON'].map(t => (
+							<HStack key={t}>
+								<Switch size="sm" isChecked={edgeTypes.includes(t)} onChange={(e) => setEdgeTypes(prev => e.target.checked ? [...prev, t] : prev.filter(x => x !== t))} />
+								<Text fontSize="xs">{t}</Text>
+							</HStack>
+						))}
+					</HStack>
+					<HStack>
 						<Text fontSize="sm">Performance mode</Text>
 						<Switch size="sm" isChecked={performanceMode} onChange={(e) => setPerformanceMode(e.target.checked)} />
 					</HStack>
@@ -444,12 +472,15 @@ export default function DevGraphPage() {
 												const relations = (pg.edges || []).slice(0, 300);
 												return (
                                             <EvolutionGraph 
-                                                data={{ nodes, relations }} 
-                                                height={220}
-                                                lightEdges
-                                                focusMode={false}
-                                                enablePhysics={enablePhysics}
-                                            />
+														data={{ nodes, relations }} 
+														height={220}
+														lightEdges
+														focusMode={false}
+														enablePhysics={enablePhysics}
+														layoutMode={layoutMode}
+														edgeTypes={edgeTypes}
+														maxEdgesInView={maxEdgesInView}
+													/>
 												);
 											})()}
 										</Box>
@@ -532,6 +563,9 @@ export default function DevGraphPage() {
 							} : undefined}
 							enableClustering={enableClustering}
 							enablePhysics={enablePhysics}
+							layoutMode={layoutMode}
+							edgeTypes={edgeTypes}
+							maxEdgesInView={maxEdgesInView}
 							showOnlyViewport={showViewportOnly}
 							lightEdges={lightEdges}
 							focusMode={focusMode}
