@@ -15,6 +15,13 @@ export function EvolutionGraph({
   enableClustering = false,
   showOnlyViewport = false,
   onViewportChange,
+  lightEdges = true,
+  labelZoomThreshold = 1.2,
+  focusMode = true,
+  enablePhysics = false,
+  physicsAttraction = 0.02,
+  physicsRepulsion = 1200,
+  physicsFriction = 0.85,
 }: {
   data: GraphData;
   height?: number;
@@ -25,10 +32,21 @@ export function EvolutionGraph({
   enableClustering?: boolean;
   showOnlyViewport?: boolean;
   onViewportChange?: (bounds: { x: number; y: number; width: number; height: number; zoom: number }) => void;
+  lightEdges?: boolean;
+  labelZoomThreshold?: number;
+  focusMode?: boolean;
+  enablePhysics?: boolean;
+  physicsAttraction?: number;
+  physicsRepulsion?: number;
+  physicsFriction?: number;
 }) {
   const [mounted, setMounted] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Debug logging toggle (set NEXT_PUBLIC_DEV_GRAPH_DEBUG=1 or true)
+  const DEBUG = (process?.env?.NEXT_PUBLIC_DEV_GRAPH_DEBUG === '1' || process?.env?.NEXT_PUBLIC_DEV_GRAPH_DEBUG === 'true');
+  // Apply client-side layout only up to this many nodes
+  const LAYOUT_MAX_NODES = 400;
   const [libraries, setLibraries] = useState<{
     Graph: any;
     Sigma: any;
@@ -37,6 +55,12 @@ export function EvolutionGraph({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const sigmaRef = useRef<any | null>(null);
   const hoveredNodeRef = useRef<string | null>(null);
+  const neighborSetRef = useRef<Set<string> | null>(null);
+  const zoomRef = useRef<number>(1);
+  const animRef = useRef<number | null>(null);
+  const draggingRef = useRef<Set<string>>(new Set());
+  // Allow physics on moderately large graphs (sampling keeps it performant)
+  const PHYSICS_NODE_THRESHOLD = 1200;
 
   useEffect(() => {
     setMounted(true);
@@ -70,7 +94,7 @@ export function EvolutionGraph({
         setIsLoading(false);
       } catch (err) {
         if (!isMounted) return;
-        console.error('Failed to load graph libraries:', err);
+        if (DEBUG) console.error('Failed to load graph libraries:', err);
         setError('Failed to load graph visualization libraries');
         setIsLoading(false);
       }
@@ -87,7 +111,7 @@ export function EvolutionGraph({
   const graph = useMemo(() => {
     if (!mounted || isLoading || error || !libraries) return null;
     
-    console.log('Creating graph with data:', { 
+    if (DEBUG) console.log('Creating graph with data:', { 
       nodesCount: data.nodes?.length || 0, 
       relationsCount: data.relations?.length || 0,
       sampleNode: data.nodes?.[0],
@@ -114,20 +138,36 @@ export function EvolutionGraph({
           const size = typeof n.size === 'number' && isFinite(n.size) && n.size > 0 ? n.size : 1;
           
           if (!isFinite(x) || !isFinite(y)) {
-            console.error(`Skipping node ${n.id} with invalid coordinates: x=${n.x}, y=${n.y}`);
+            if (DEBUG) console.error(`Skipping node ${n.id} with invalid coordinates: x=${n.x}, y=${n.y}`);
             continue;
           }
           
+          // Derive a stable type for coloring
+          const inferredType = (() => {
+            if (n.type) return n.type;
+            const labels = Array.isArray((n as any).labels) ? (n as any).labels as string[] : [];
+            if (labels.includes('File')) return 'File';
+            if (labels.includes('GitCommit') || labels.includes('Commit')) return 'GitCommit';
+            if (labels.includes('Requirement')) return 'Requirement';
+            if (labels.includes('Sprint')) return 'Sprint';
+            if (labels.includes('Document') || labels.includes('Doc')) return 'Document';
+            return 'Unknown';
+          })();
+
           // Create node attributes, ensuring no conflicting properties
+          // Base color by type (used temporarily; final color set after degree mapping)
+          const nodeColor =
+            inferredType === 'Requirement' ? '#2b8a3e' :
+            inferredType === 'File' ? '#1c7ed6' :
+            inferredType === 'Sprint' ? '#e67700' :
+            inferredType === 'GitCommit' ? '#9f7aea' : '#888';
+            
           const nodeAttrs = {
             label: String(n.id),
             // Store original type in a custom property, not nodeType (which Sigma uses for rendering)
-            originalType: n.type || 'Unknown',
-            color:
-              n.type === 'Requirement' ? '#2b8a3e' :
-              n.type === 'File' ? '#1c7ed6' :
-              n.type === 'Sprint' ? '#e67700' :
-              n.type === 'GitCommit' ? '#9f7aea' : '#888',
+            originalType: inferredType,
+            color: nodeColor,
+            originalColor: nodeColor, // Store original color for focus mode restoration
             x,
             y,
             size,
@@ -148,15 +188,19 @@ export function EvolutionGraph({
         if (!g.hasNode(e.from) || !g.hasNode(e.to)) continue;
         
         // Create edge attributes, ensuring no conflicting properties
+        const edgeColor = 
+          e.type === 'PART_OF' ? '#888' :
+          e.type === 'EVOLVES_FROM' ? '#2b8a3e' :
+          e.type === 'REFERENCES' ? '#1c7ed6' :
+          e.type === 'DEPENDS_ON' ? '#e67700' : '#999';
+          
         const edgeAttrs = {
           label: e.type,
           // Store original type in a custom property, not type (which Sigma uses for rendering)
           originalType: e.type,
-          color:
-            e.type === 'PART_OF' ? '#888' :
-            e.type === 'EVOLVES_FROM' ? '#2b8a3e' :
-            e.type === 'REFERENCES' ? '#1c7ed6' :
-            e.type === 'DEPENDS_ON' ? '#e67700' : '#999',
+          color: edgeColor,
+          originalColor: edgeColor, // Store original color for restoration
+          size: 0.8, // Default edge size
           timestamp: e.timestamp,
           // Include other properties but exclude problematic ones
           ...Object.fromEntries(
@@ -169,27 +213,35 @@ export function EvolutionGraph({
         g.addEdge(e.from, e.to, edgeAttrs);
       }
       
-      // Apply force-directed layout to improve node positioning
-      if (g.order > 0) {
+      // Apply force-directed layout only for moderately sized graphs
+      if (g.order > 0 && g.order <= LAYOUT_MAX_NODES) {
         try {
-          // Simple force-directed layout
-          const iterations = 100;
+          // Optimized force-directed layout with early termination
+          const iterations = Math.min(80, Math.max(20, Math.floor(2000 / g.order)));
           const k = Math.sqrt((1000 * 1000) / g.order);
+          const damping = 0.9;
+          let maxMovement = 0;
           
           for (let i = 0; i < iterations; i++) {
+            maxMovement = 0;
+            
             g.forEachNode((node: string) => {
               let fx = 0, fy = 0;
               
-              // Repulsion from other nodes
-              g.forEachNode((otherNode: string) => {
-                if (node === otherNode) return;
+              // Repulsion from other nodes (sampled for performance)
+              const nodes = g.nodes();
+              const sampleSize = Math.min(nodes.length, 50); // Sample up to 50 nodes for repulsion
+              for (let j = 0; j < sampleSize; j++) {
+                const otherNode = nodes[Math.floor(Math.random() * nodes.length)];
+                if (node === otherNode) continue;
+                
                 const dx = g.getNodeAttribute(node, 'x') - g.getNodeAttribute(otherNode, 'x');
                 const dy = g.getNodeAttribute(node, 'y') - g.getNodeAttribute(otherNode, 'y');
                 const distance = Math.sqrt(dx * dx + dy * dy) || 1;
                 const force = (k * k) / distance;
                 fx += (dx / distance) * force;
                 fy += (dy / distance) * force;
-              });
+              }
               
               // Attraction from connected nodes
               g.forEachNeighbor(node, (neighbor: string) => {
@@ -201,11 +253,15 @@ export function EvolutionGraph({
                 fy += (dy / distance) * force;
               });
               
-              // Update position with bounds checking
+              // Update position with bounds checking and damping
               const currentX = g.getNodeAttribute(node, 'x');
               const currentY = g.getNodeAttribute(node, 'y');
-              const newX = currentX + fx * 0.1;
-              const newY = currentY + fy * 0.1;
+              const newX = currentX + fx * 0.1 * damping;
+              const newY = currentY + fy * 0.1 * damping;
+              
+              // Track maximum movement for early termination
+              const movement = Math.sqrt((newX - currentX) ** 2 + (newY - currentY) ** 2);
+              maxMovement = Math.max(maxMovement, movement);
               
               // Ensure coordinates are valid numbers within reasonable bounds
               if (isFinite(newX) && isFinite(newY) && 
@@ -215,30 +271,88 @@ export function EvolutionGraph({
                 g.setNodeAttribute(node, 'y', newY);
               } else {
                 // Reset to original position if calculation went wrong
-                console.warn(`Invalid coordinates calculated for node ${node}, resetting to original position`);
+                if (DEBUG) console.warn(`Invalid coordinates calculated for node ${node}, resetting to original position`);
                 g.setNodeAttribute(node, 'x', currentX);
                 g.setNodeAttribute(node, 'y', currentY);
               }
             });
+            
+            // Early termination if layout has converged
+            if (maxMovement < 0.1) {
+              if (DEBUG) console.info(`Layout converged after ${i + 1} iterations`);
+              break;
+            }
           }
         } catch (err) {
-          console.warn('Layout algorithm failed:', err);
+          if (DEBUG) console.warn('Layout algorithm failed:', err);
         }
+      } else if (g.order > LAYOUT_MAX_NODES) {
+        // Too many nodes for client-side layout; rely on incoming coordinates
+        if (DEBUG) console.info(`Skipping layout for ${g.order} nodes (> ${LAYOUT_MAX_NODES})`);
       }
       
       // Optional Louvain clustering
-      if (enableClustering && g.order > 0 && libraries.louvain) {
+      if (enableClustering && g.order > 0 && g.order <= LAYOUT_MAX_NODES && libraries.louvain) {
         try {
           libraries.louvain.assign(g, { resolution: 1 });
-          g.forEachNode((node: string, attrs: any) => {
-            const community = attrs.community;
-            const colorPalette = ['#2b8a3e', '#1c7ed6', '#e67700', '#845ef7', '#099268', '#c92a2a'];
-            const color = colorPalette[Math.abs((community ?? 0) % colorPalette.length)];
-            g.setNodeAttribute(node, 'color', color);
-          });
+          // Keep community assignments available on nodes (coloring set below by degree)
         } catch (err) {
-          console.warn('Louvain clustering failed:', err);
+          if (DEBUG) console.warn('Louvain clustering failed:', err);
         }
+      }
+
+      // Helper: interpolate between hex colors using piecewise stops
+      function lerp(a: number, b: number, t: number) { return a + (b - a) * t; }
+      function hexToRgb(hex: string) {
+        const h = hex.replace('#', '');
+        const bigint = parseInt(h, 16);
+        return { r: (bigint >> 16) & 255, g: (bigint >> 8) & 255, b: bigint & 255 };
+      }
+      function rgbToHex(r: number, g: number, b: number) {
+        const toHex = (v: number) => v.toString(16).padStart(2, '0');
+        return `#${toHex(Math.max(0, Math.min(255, Math.round(r))))}${toHex(Math.max(0, Math.min(255, Math.round(g))))}${toHex(Math.max(0, Math.min(255, Math.round(b))))}`;
+      }
+      function interpolateStops(stops: string[], t: number) {
+        if (stops.length === 0) return '#888888';
+        if (stops.length === 1) return stops[0];
+        const clamped = Math.max(0, Math.min(1, t));
+        const pos = clamped * (stops.length - 1);
+        const i = Math.floor(pos);
+        const frac = pos - i;
+        const c1 = hexToRgb(stops[i]);
+        const c2 = hexToRgb(stops[Math.min(stops.length - 1, i + 1)]);
+        const r = lerp(c1.r, c2.r, frac);
+        const g2 = lerp(c1.g, c2.g, frac);
+        const b = lerp(c1.b, c2.b, frac);
+        return rgbToHex(r, g2, b);
+      }
+
+      // Compute degree-based sizing and coloring
+      try {
+        let minDeg = Infinity, maxDeg = -Infinity;
+        g.forEachNode((node: string) => {
+          const d = g.degree(node) ?? 0;
+          if (d < minDeg) minDeg = d;
+          if (d > maxDeg) maxDeg = d;
+        });
+        if (!isFinite(minDeg)) { minDeg = 0; maxDeg = 0; }
+
+        const minSize = 2;
+        const maxSize = 10;
+        const palette = ['#440154', '#3b528b', '#21918c', '#5ec962', '#fde725']; // Viridis stops
+
+        g.forEachNode((node: string, attrs: any) => {
+          const d = g.degree(node) ?? 0;
+          const t = maxDeg > 0 ? Math.log1p(d) / Math.log1p(maxDeg) : 0; // log scale for stability
+          const size = minSize + (maxSize - minSize) * t;
+          const color = interpolateStops(palette, t);
+          g.setNodeAttribute(node, 'size', size);
+          g.setNodeAttribute(node, 'degree', d);
+          g.setNodeAttribute(node, 'color', color);
+          g.setNodeAttribute(node, 'originalColor', color);
+        });
+      } catch (err) {
+        if (DEBUG) console.warn('Degree sizing/coloring failed:', err);
       }
       
       // Final check - ensure graph is valid for Sigma
@@ -247,7 +361,7 @@ export function EvolutionGraph({
         return null;
       }
       
-      console.log('Graph created successfully:', { 
+      if (DEBUG) console.log('Graph created successfully:', { 
         nodes: g.order, 
         edges: g.size,
         sampleNode: g.nodes().slice(0, 1).map(node => ({
@@ -258,7 +372,7 @@ export function EvolutionGraph({
       
       return g;
     } catch (err) {
-      console.error('Failed to create graph:', err);
+      if (DEBUG) console.error('Failed to create graph:', err);
       return null;
     }
   }, [data, enableClustering, mounted, isLoading, error, libraries]);
@@ -276,7 +390,7 @@ export function EvolutionGraph({
     try {
       const { Sigma } = libraries;
       
-      console.log('Initializing Sigma with graph:', { nodes: graph.order, edges: graph.size });
+      if (DEBUG) console.log('Initializing Sigma with graph:', { nodes: graph.order, edges: graph.size });
       
       // Final safety check for coordinates
       let invalidNodes: string[] = [];
@@ -284,45 +398,95 @@ export function EvolutionGraph({
         const attrs = graph.getNodeAttributes(node);
         if (typeof attrs.x !== 'number' || isNaN(attrs.x) || typeof attrs.y !== 'number' || isNaN(attrs.y)) {
           invalidNodes.push(node);
-          console.error(`Invalid coordinates for node ${node}:`, attrs);
+          if (DEBUG) console.error(`Invalid coordinates for node ${node}:`, attrs);
         }
       });
       
       if (invalidNodes.length > 0) {
-        console.error(`Found ${invalidNodes.length} nodes with invalid coordinates, aborting Sigma initialization`);
+        if (DEBUG) console.error(`Found ${invalidNodes.length} nodes with invalid coordinates, aborting Sigma initialization`);
         return;
       }
       
-      // Initialize Sigma with default configuration
+      // Initialize Sigma with optimized configuration for performance
       const sigma = new Sigma(graph, containerRef.current, {
         allowInvalidContainer: false,
         renderLabels: true,
-        labelDensity: 0.07,
-        labelGridCellSize: 100,
-        labelRenderedSizeThreshold: 14,
+        labelDensity: 0.05, // Reduced for better performance
+        labelGridCellSize: 80, // Smaller grid for better performance
+        labelRenderedSizeThreshold: 16, // Higher threshold to reduce label rendering
         enableEdgeHoverEvents: true,
         zIndex: true,
         // Enable dragging and other interactions
         enableNodeDrag: true,
         enableNodeHover: true,
+        // Performance optimizations
+        hideEdgesOnMove: true, // Hide edges while moving for better performance
+        hideLabelsOnMove: true, // Hide labels while moving for better performance
         // Sigma v3 uses default rendering - no need to configure nodeProgramClasses or edgeProgramClasses
         // All nodes will use the default circle program, all edges will use the default line program
       });
 
-      // Hover/selection reducers to reduce clutter
+      // Reducers: progressive labels/edges and focus mode dimming
       sigma.setSetting('nodeReducer', (n: string, attrs: any) => {
         const res: any = { ...attrs };
-        // Hide labels by default; show on hover
-        if (hoveredNodeRef.current === n) {
-          res.label = attrs.label || String(n);
+        const isHovered = hoveredNodeRef.current === n;
+        const zoom = zoomRef.current;
+        const showByZoom = zoom >= (labelZoomThreshold ?? 1.2);
+        
+        // Labels: show on hover or when sufficiently zoomed
+        res.label = (isHovered || showByZoom) ? (attrs.label || String(n)) : undefined;
+        
+        // Focus mode: dim non-neighbors when hovering a node
+        if (focusMode && hoveredNodeRef.current && neighborSetRef.current) {
+          if (!neighborSetRef.current.has(n) && hoveredNodeRef.current !== n) {
+            res.color = '#cccccc';
+            res.size = Math.max(0.5, (attrs.size || 1) * 0.7);
+          } else {
+            // Restore original color and size for focused nodes
+            res.color = attrs.originalColor || attrs.color;
+            res.size = attrs.size || 1;
+          }
         } else {
-          res.label = undefined;
+          // Ensure original colors are preserved when not in focus mode
+          res.color = attrs.originalColor || attrs.color;
         }
+        
         return res;
       });
-      
+
       sigma.setSetting('edgeReducer', (e: string, attrs: any) => {
         const res: any = { ...attrs };
+        const zoom = zoomRef.current;
+        
+        // Hide edges at very low zoom to reduce clutter
+        if (zoom < 0.7) {
+          res.hidden = true;
+          return res;
+        }
+        
+        // Light edges mode
+        if (lightEdges) {
+          res.color = '#aaaaaa';
+          res.size = Math.max(0.4, (attrs.size ?? 0.8) * 0.8);
+        } else {
+          // Restore original edge color when not in light mode
+          res.color = attrs.originalColor || attrs.color;
+          res.size = attrs.size || 0.8;
+        }
+        
+        // Focus mode: dim edges not connected to hovered node
+        if (focusMode && hoveredNodeRef.current) {
+          const [source, target] = sigma.getGraph().extremities(e);
+          if (source !== hoveredNodeRef.current && target !== hoveredNodeRef.current) {
+            res.color = '#dddddd';
+            res.size = Math.max(0.2, (res.size || 0.8) * 0.5);
+          } else {
+            // Restore original color for edges connected to focused node
+            res.color = lightEdges ? '#aaaaaa' : (attrs.originalColor || attrs.color);
+            res.size = lightEdges ? Math.max(0.4, (attrs.size ?? 0.8) * 0.8) : (attrs.size || 0.8);
+          }
+        }
+        
         return res;
       });
 
@@ -334,33 +498,55 @@ export function EvolutionGraph({
       
       sigma.on('enterNode', ({ node }: { node: string }) => {
         hoveredNodeRef.current = String(node);
+        // Build neighbor set for focus mode dimming
+        const neigh = new Set<string>();
+        sigma.getGraph().forEachNeighbor(node, (nn: string) => neigh.add(String(nn)));
+        neigh.add(String(node));
+        neighborSetRef.current = neigh;
         sigma.refresh();
       });
       
       sigma.on('leaveNode', () => {
         hoveredNodeRef.current = null;
+        neighborSetRef.current = null;
         sigma.refresh();
       });
 
       // Add drag events for better user feedback
       sigma.on('downNode', ({ node }: { node: string }) => {
         // Node is being dragged
-        console.log('Dragging node:', node);
+        if (DEBUG) console.log('Dragging node:', node);
+        draggingRef.current.add(String(node));
+        // Mark node fixed during drag
+        try { graph.setNodeAttribute(node, 'fixed', true); } catch {}
       });
 
       sigma.on('upNode', ({ node }: { node: string }) => {
         // Node drag ended
-        console.log('Finished dragging node:', node);
+        if (DEBUG) console.log('Finished dragging node:', node);
+        draggingRef.current.delete(String(node));
+        // Release node back to simulation
+        try { graph.setNodeAttribute(node, 'fixed', false); } catch {}
       });
+
+      // Track zoom level
+      const camera = sigma.getCamera();
+      const onCam = () => {
+        const { ratio } = camera.getState();
+        zoomRef.current = 1 / ratio;
+        sigma.refresh();
+      };
+      camera.on('updated', onCam);
 
       sigmaRef.current = sigma;
 
       return () => {
+        camera.off('updated', onCam);
         sigma.kill();
         sigmaRef.current = null;
       };
     } catch (err) {
-      console.error('Failed to initialize Sigma:', err);
+      if (DEBUG) console.error('Failed to initialize Sigma:', err);
     }
   }, [graph, onNodeClick, mounted, isLoading, error, libraries]);
 
@@ -369,6 +555,89 @@ export function EvolutionGraph({
     if (!sigmaRef.current) return;
     // Example: could adjust rendering based on currentTimestamp/timeRange
   }, [currentTimestamp, timeRange]);
+
+  // Simple physics simulation loop (attraction on edges + global repulsion)
+  useEffect(() => {
+    const sigma = sigmaRef.current;
+    if (!sigma || !graph || !enablePhysics) return;
+    if (graph.order > PHYSICS_NODE_THRESHOLD) return; // Skip very large graphs
+
+    let running = true;
+
+    const step = () => {
+      if (!running) return;
+      try {
+        // Precompute positions
+        const positions = new Map<string, { x: number; y: number }>();
+        graph.forEachNode((n: string, attrs: any) => {
+          positions.set(n, { x: attrs.x as number, y: attrs.y as number });
+        });
+
+        // Forces accumulator
+        const forces = new Map<string, { fx: number; fy: number }>();
+        graph.forEachNode((n: string) => forces.set(n, { fx: 0, fy: 0 }));
+
+        // Edge attraction (springs)
+        graph.forEachEdge((e: string, attr: any, src: string, tgt: string) => {
+          const ps = positions.get(src)!;
+          const pt = positions.get(tgt)!;
+          const dx = pt.x - ps.x;
+          const dy = pt.y - ps.y;
+          const dist = Math.max(0.01, Math.hypot(dx, dy));
+          const k = physicsAttraction; // spring constant
+          const f = k * (dist - 60); // rest length ~60
+          const fx = (dx / dist) * f;
+          const fy = (dy / dist) * f;
+          const fs = forces.get(src)!; fs.fx += fx; fs.fy += fy;
+          const ft = forces.get(tgt)!; ft.fx -= fx; ft.fy -= fy;
+        });
+
+        // Global repulsion (sampled to reduce cost)
+        const nodes = graph.nodes();
+        for (let i = 0; i < nodes.length; i++) {
+          const ni = nodes[i];
+          const pi = positions.get(ni)!;
+          for (let j = i + 1; j < nodes.length; j += 2) { // sample every other pair
+            const nj = nodes[j];
+            const pj = positions.get(nj)!;
+            const dx = pj.x - pi.x;
+            const dy = pj.y - pi.y;
+            const dist2 = dx * dx + dy * dy + 0.01;
+            const inv = 1 / dist2;
+            const rep = physicsRepulsion * inv;
+            const fx = dx * rep;
+            const fy = dy * rep;
+            const fi = forces.get(ni)!; fi.fx -= fx; fi.fy -= fy;
+            const fj = forces.get(nj)!; fj.fx += fx; fj.fy += fy;
+          }
+        }
+
+        // Integrate
+        graph.forEachNode((n: string, attrs: any) => {
+          if (attrs.fixed || draggingRef.current.has(String(n))) return;
+          const f = forces.get(n)!;
+          const nx = (attrs.x as number) + f.fx * (1 - (1 - physicsFriction));
+          const ny = (attrs.y as number) + f.fy * (1 - (1 - physicsFriction));
+          if (isFinite(nx) && isFinite(ny)) {
+            graph.setNodeAttribute(n, 'x', Math.max(-20000, Math.min(20000, nx)));
+            graph.setNodeAttribute(n, 'y', Math.max(-20000, Math.min(20000, ny)));
+          }
+        });
+
+        sigma.refresh();
+      } catch (e) {
+        if (DEBUG) console.warn('Physics step error', e);
+      }
+      animRef.current = requestAnimationFrame(step);
+    };
+
+    animRef.current = requestAnimationFrame(step);
+    return () => {
+      running = false;
+      if (animRef.current) cancelAnimationFrame(animRef.current);
+      animRef.current = null;
+    };
+  }, [enablePhysics, physicsAttraction, physicsRepulsion, physicsFriction, graph]);
 
   // Optional: viewport-only filtering (client-side)
   useEffect(() => {
@@ -425,7 +694,7 @@ export function EvolutionGraph({
     };
     
     camera.on('updated', handler);
-    handler();
+    // Don't call handler immediately to prevent initial trigger
     
     return () => camera.off('updated', handler);
   }, [onViewportChange]);
@@ -490,4 +759,3 @@ export function EvolutionGraph({
 }
 
 export default EvolutionGraph;
-

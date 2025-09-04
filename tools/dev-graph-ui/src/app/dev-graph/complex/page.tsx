@@ -1,15 +1,20 @@
 'use client';
 import dynamic from 'next/dynamic';
 import { Box, Heading, Spinner, Alert, AlertIcon, Text, HStack, Switch, Slider, SliderFilledTrack, SliderThumb, SliderTrack, useDisclosure, Button, useToast, Tabs, TabList, TabPanels, Tab, TabPanel } from '@chakra-ui/react';
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { Header } from '@/components/Header';
-import TimelineView from './components/TimelineView';
-import EvolutionGraph from './components/EvolutionGraph';
-import NodeDetailDrawer from './components/NodeDetailDrawer';
-import SearchBar from './components/SearchBar';
-import { SprintView, Sprint } from './components/SprintView';
-import { TemporalAnalytics } from './components/TemporalAnalytics';
+import { Sprint } from '../components/SprintView';
+import { useWindowedSubgraph, useCommitsBuckets } from '../hooks/useWindowedSubgraph';
+// Dynamic imports to avoid SSR issues
+const TimelineView = dynamic(() => import('../components/CanvasTimeline'), { ssr: false });
+const EnhancedTimelineView = dynamic(() => import('../components/EnhancedTimelineView').then(mod => ({ default: mod.EnhancedTimelineView })), { ssr: false });
+const EvolutionGraph = dynamic(() => import('../components/EvolutionGraph'), { ssr: false });
+const NodeDetailDrawer = dynamic(() => import('../components/NodeDetailDrawer'), { ssr: false });
+const SearchBar = dynamic(() => import('../components/SearchBar'), { ssr: false });
+const SprintView = dynamic(() => import('../components/SprintView').then(mod => ({ default: mod.SprintView })), { ssr: false });
+const TemporalAnalytics = dynamic(() => import('../components/TemporalAnalytics').then(mod => ({ default: mod.TemporalAnalytics })), { ssr: false });
+const RealAnalytics = dynamic(() => import('../components/RealAnalytics').then(mod => ({ default: mod.RealAnalytics })), { ssr: false });
 
 // Removed react-force-graph usage in favor of Sigma.js (see EvolutionGraph)
 
@@ -18,6 +23,8 @@ const DEV_GRAPH_API_URL = process.env.NEXT_PUBLIC_DEV_GRAPH_API_URL || 'http://l
 
 export default function DevGraphPage() {
 	const PAGE_SIZE = 200;
+	const [commitLimit, setCommitLimit] = useState(100);
+	
 	const nodesQuery = useInfiniteQuery({
 		queryKey: ['dev-graph', 'nodes', PAGE_SIZE],
 		queryFn: async ({ pageParam = 0 }) => {
@@ -43,7 +50,7 @@ export default function DevGraphPage() {
 	});
 
 	const commitsQuery = useQuery({
-		queryKey: ['dev-graph', 'commits'],
+		queryKey: ['dev-graph', 'commits', commitLimit],
 		queryFn: async () => {
 			const res = await fetch(`${DEV_GRAPH_API_URL}/api/v1/dev-graph/commits?limit=${commitLimit}`);
 			if (!res.ok) throw new Error('Failed to load commits');
@@ -51,13 +58,52 @@ export default function DevGraphPage() {
 		},
 		staleTime: 5 * 60 * 1000,
 	});
-
-	const [commitLimit, setCommitLimit] = useState(100);
 	const [ingesting, setIngesting] = useState(false);
 	const [selectedNode, setSelectedNode] = useState<any>(null);
 	const [selectedRange, setSelectedRange] = useState<{ start?: string; end?: string }>({});
 	const [subgraph, setSubgraph] = useState<{ nodes: any[]; links: any[] }>({ nodes: [], links: [] });
 	const [selectedSprint, setSelectedSprint] = useState<Sprint | undefined>();
+	
+	// Phase 4: Performance queries
+	const [timeWindow, setTimeWindow] = useState<{ from?: string; to?: string }>({});
+	const [nodeTypeFilter, setNodeTypeFilter] = useState<string[]>([]);
+	const [performanceMode, setPerformanceMode] = useState(false);
+	
+	// Use new windowed subgraph API for better performance
+	const windowedSubgraphQuery = useWindowedSubgraph({
+		fromTimestamp: timeWindow.from,
+		toTimestamp: timeWindow.to,
+		nodeTypes: nodeTypeFilter.length > 0 ? nodeTypeFilter : undefined,
+		limit: performanceMode ? 2000 : 1000 // Higher limit in performance mode
+	});
+	
+	// Use new commits buckets API for timeline density
+	const commitsBucketsQuery = useCommitsBuckets(
+		'day',
+		timeWindow.from,
+		timeWindow.to,
+		1000
+	);
+	
+	// Enhanced timeline handlers
+	const handleTimeRangeSelect = (fromTimestamp: string, toTimestamp: string) => {
+		setTimeWindow({ from: fromTimestamp, to: toTimestamp });
+		// Update the windowed subgraph query with new time range
+		windowedSubgraphQuery.refetch();
+	};
+	
+	const handleCommitSelect = (timestamp: string) => {
+		// Set a narrow time window around the selected commit
+		const date = new Date(timestamp);
+		const startDate = new Date(date.getTime() - 24 * 60 * 60 * 1000); // 1 day before
+		const endDate = new Date(date.getTime() + 24 * 60 * 60 * 1000); // 1 day after
+		
+		setTimeWindow({ 
+			from: startDate.toISOString(), 
+			to: endDate.toISOString() 
+		});
+		windowedSubgraphQuery.refetch();
+	};
 	
 	const drawer = useDisclosure();
 	const toast = useToast();
@@ -99,8 +145,24 @@ export default function DevGraphPage() {
 
 	const data = useMemo(
 		() => {
-			const rawNodes = selectedRange.start || selectedRange.end ? (subgraph.nodes ?? []) : ((nodesQuery.data?.pages || []).flat());
-			const rawRelations = selectedRange.start || selectedRange.end ? (subgraph.links ?? []) : ((relationsQuery.data?.pages || []).flat());
+			// Phase 4: Use windowed subgraph for better performance
+			let rawNodes: any[] = [];
+			let rawRelations: any[] = [];
+			
+			// Prioritize windowed subgraph data if available
+			if (windowedSubgraphQuery.data?.pages?.[0]) {
+				const windowedData = windowedSubgraphQuery.data.pages[0];
+				rawNodes = windowedData.nodes || [];
+				rawRelations = windowedData.edges || [];
+			} else if (selectedRange.start || selectedRange.end) {
+				// Fallback to legacy subgraph
+				rawNodes = subgraph.nodes ?? [];
+				rawRelations = subgraph.links ?? [];
+			} else {
+				// Fallback to full graph data
+				rawNodes = (nodesQuery.data?.pages || []).flat();
+				rawRelations = (relationsQuery.data?.pages || []).flat();
+			}
 			
 			// Add coordinates to nodes that don't have them
 			const nodesWithCoords = rawNodes.map((node: any, index: number) => {
@@ -133,31 +195,22 @@ export default function DevGraphPage() {
 				};
 			});
 			
-			console.log('Data preprocessing complete:', {
-				rawNodesCount: rawNodes.length,
-				processedNodesCount: nodesWithCoords.length,
-				sampleProcessedNode: nodesWithCoords[0],
-				sampleCoords: nodesWithCoords[0] ? {
-					x: nodesWithCoords[0].x,
-					y: nodesWithCoords[0].y,
-					xType: typeof nodesWithCoords[0].x,
-					yType: typeof nodesWithCoords[0].y,
-					xValid: isFinite(nodesWithCoords[0].x),
-					yValid: isFinite(nodesWithCoords[0].y)
-				} : null
-			});
+			// Data preprocessing complete
 			
 			return {
 				nodes: nodesWithCoords,
 				relations: rawRelations,
 			};
 		},
-		[nodesQuery.data, relationsQuery.data, selectedRange, subgraph]
+		[windowedSubgraphQuery.data, nodesQuery.data, relationsQuery.data, selectedRange, subgraph]
 	);
 
 	const [showEvolves, setShowEvolves] = useState(true);
 	const [showViewportOnly, setShowViewportOnly] = useState(false);
 	const [enableClustering, setEnableClustering] = useState(false);
+	const [lightEdges, setLightEdges] = useState(true);
+	const [focusMode, setFocusMode] = useState(true);
+	const [enablePhysics, setEnablePhysics] = useState(false);
 
 	const filteredData = useMemo(() => {
 		const baseNodes = data.nodes ?? [];
@@ -171,7 +224,7 @@ export default function DevGraphPage() {
 		};
 	}, [data, showEvolves]);
 
-	console.log('Graph data for rendering:', data);
+	// Graph data ready for rendering
 
 	// Data validation
 	const isValidData = (filteredData.nodes?.length ?? 0) > 0 && (((filteredData as any).relations)?.length ?? 0) > 0;
@@ -191,34 +244,66 @@ export default function DevGraphPage() {
 				<Box mb={4} p={4} bg="gray.100" borderRadius="md" fontSize="sm">
 					<Text fontWeight="bold">Debug Info:</Text>
 					<Text>Nodes loaded: {((nodesQuery.data?.pages as any[] | undefined) || []).reduce((acc: number, p: any[]) => acc + p.length, 0)}</Text>
-						<Text>Relations loaded: {((relationsQuery.data?.pages as any[] | undefined) || []).reduce((acc: number, p: any[]) => acc + p.length, 0)}</Text>
-						<Text>Commits loaded: {Array.isArray(commitsQuery.data) ? commitsQuery.data.length : 0}</Text>
-						<Text>Data valid: {isValidData ? 'Yes' : 'No'}</Text>
-						<Text>Relations valid: {hasValidRelations ? 'Yes' : 'No'}</Text>
-						{!hasValidRelations && (((data as any).relations)?.length ?? 0) > 0 && (
-							<Text color="red">
-								Invalid relations: {(data as any).relations.filter((link: any) => 
-									!link.from || !link.to || !link.type ||
-									!(data.nodes ?? []).some((node: any) => node.id === link.from) ||
-									!(data.nodes ?? []).some((node: any) => node.id === link.to)
-								).length} found
-							</Text>
-						)}
+					<Text>Relations loaded: {((relationsQuery.data?.pages as any[] | undefined) || []).reduce((acc: number, p: any[]) => acc + p.length, 0)}</Text>
+					<Text>Commits loaded: {Array.isArray(commitsQuery.data) ? commitsQuery.data.length : 0}</Text>
+					<Text>Data valid: {isValidData ? 'Yes' : 'No'}</Text>
+					<Text>Relations valid: {hasValidRelations ? 'Yes' : 'No'}</Text>
+					<Text>Performance mode: {performanceMode ? 'Enabled' : 'Disabled'}</Text>
+					<Text>Time window: {timeWindow.from ? new Date(timeWindow.from).toLocaleDateString() : 'None'} - {timeWindow.to ? new Date(timeWindow.to).toLocaleDateString() : 'None'}</Text>
+					{/* Phase 4: Performance metrics */}
+					{windowedSubgraphQuery.data?.pages?.[0]?.performance && (
+						<Text color="green.600">
+							Performance: {windowedSubgraphQuery.data.pages[0].performance.query_time_ms}ms 
+							({windowedSubgraphQuery.data.pages[0].pagination.returned_nodes} nodes, 
+							{windowedSubgraphQuery.data.pages[0].pagination.returned_edges} edges)
+						</Text>
+					)}
+					{commitsBucketsQuery.data?.performance && (
+						<Text color="blue.600">
+							Timeline: {commitsBucketsQuery.data.performance.query_time_ms}ms 
+							({commitsBucketsQuery.data.performance.total_buckets} buckets)
+						</Text>
+					)}
+					{!hasValidRelations && (((data as any).relations)?.length ?? 0) > 0 && (
+						<Text color="red">
+							Invalid relations: {(data as any).relations.filter((link: any) => 
+								!link.from || !link.to || !link.type ||
+								!(data.nodes ?? []).some((node: any) => node.id === link.from) ||
+								!(data.nodes ?? []).some((node: any) => node.id === link.to)
+							).length} found
+						</Text>
+					)}
 				</Box>
 
-				{/* Controls */}
-				<HStack mb={3}>
+				{/* Graph Controls */}
+				<HStack mb={4} spacing={6} wrap="wrap">
+					<HStack>
+						<Text fontSize="sm">Light edges</Text>
+						<Switch size="sm" isChecked={lightEdges} onChange={(e) => setLightEdges(e.target.checked)} />
+					</HStack>
+					<HStack>
+						<Text fontSize="sm">Focus mode</Text>
+						<Switch size="sm" isChecked={focusMode} onChange={(e) => setFocusMode(e.target.checked)} />
+					</HStack>
+					<HStack>
+						<Text fontSize="sm">Viewport-only</Text>
+						<Switch size="sm" isChecked={showViewportOnly} onChange={(e) => setShowViewportOnly(e.target.checked)} />
+					</HStack>
+					<HStack>
+						<Text fontSize="sm">Clustering</Text>
+						<Switch size="sm" isChecked={enableClustering} onChange={(e) => setEnableClustering(e.target.checked)} />
+					</HStack>
+					<HStack>
+						<Text fontSize="sm">Physics</Text>
+						<Switch size="sm" isChecked={enablePhysics} onChange={(e) => setEnablePhysics(e.target.checked)} />
+					</HStack>
+					<HStack>
+						<Text fontSize="sm">Performance mode</Text>
+						<Switch size="sm" isChecked={performanceMode} onChange={(e) => setPerformanceMode(e.target.checked)} />
+					</HStack>
 					<HStack>
 						<Switch isChecked={showEvolves} onChange={(e) => setShowEvolves(e.target.checked)} />
-						<Text>Show EVOLVES_FROM</Text>
-					</HStack>
-					<HStack pl={4}>
-						<Switch isChecked={showViewportOnly} onChange={(e) => setShowViewportOnly(e.target.checked)} />
-						<Text>Viewport-only</Text>
-					</HStack>
-					<HStack pl={4}>
-						<Switch isChecked={enableClustering} onChange={(e) => setEnableClustering(e.target.checked)} />
-						<Text>Cluster (Louvain)</Text>
+						<Text fontSize="sm">Show EVOLVES_FROM</Text>
 					</HStack>
 					<HStack flex={1} pl={6} pr={2}>
 						<Text fontSize="sm" color="gray.600">Commits:</Text>
@@ -271,7 +356,7 @@ export default function DevGraphPage() {
 							setSubgraph({ nodes, links: filteredLinks });
 							setSelectedRange({});
 							
-							console.log(`Search results: ${nodes.length} nodes found with filters:`, filters);
+							// Search results processed
 						} catch (e) {
 							console.error('Search failed:', e);
 						}
@@ -283,6 +368,7 @@ export default function DevGraphPage() {
 					<Tabs variant="enclosed" colorScheme="green">
 						<TabList>
 							<Tab>Timeline View</Tab>
+							<Tab>Enhanced Timeline</Tab>
 							<Tab>Sprint View</Tab>
 							<Tab>Analytics</Tab>
 						</TabList>
@@ -319,7 +405,7 @@ export default function DevGraphPage() {
 									}}
 									onTimeScrub={(timestamp) => {
 										// Time scrubber functionality: highlight nodes active at this timestamp
-										console.log('Time scrubbing to:', timestamp);
+										// Time scrubbing to timestamp
 										// TODO: Implement graph filtering based on timestamp
 										// This will be enhanced in the next iteration
 									}}
@@ -331,6 +417,44 @@ export default function DevGraphPage() {
 										<Button size="sm" onClick={() => { const next = (subgraph as any)._offset ? (subgraph as any)._offset + 800 : 800; (subgraph as any)._offset = next; fetchSubgraph(selectedRange.start, selectedRange.end, next, true).catch(console.error); }}>Load more in range</Button>
 									)}
 								</HStack>
+							</TabPanel>
+							
+							{/* Enhanced Timeline Tab */}
+							<TabPanel>
+								<EnhancedTimelineView
+									onTimeRangeSelect={handleTimeRangeSelect}
+									onCommitSelect={handleCommitSelect}
+									height={300}
+								/>
+								{/* Subgraph Preview */}
+								{windowedSubgraphQuery.data?.pages?.[0] && (
+									<Box mt={4} p={4} bg="gray.50" borderRadius="md" borderWidth={1}>
+										<Text fontSize="sm" fontWeight="bold" mb={2}>Subgraph Preview</Text>
+										<Text fontSize="xs" color="gray.600">
+											{windowedSubgraphQuery.data.pages[0].pagination.returned_nodes} nodes, 
+											{windowedSubgraphQuery.data.pages[0].pagination.returned_edges} edges
+											{windowedSubgraphQuery.data.pages[0].performance && (
+												<span> • {windowedSubgraphQuery.data.pages[0].performance.query_time_ms}ms</span>
+											)}
+										</Text>
+										<Box mt={3}>
+											{(() => {
+												const pg: any = windowedSubgraphQuery.data!.pages[0];
+												const nodes = (pg.nodes || []).slice(0, 200);
+												const relations = (pg.edges || []).slice(0, 300);
+												return (
+                                            <EvolutionGraph 
+                                                data={{ nodes, relations }} 
+                                                height={220}
+                                                lightEdges
+                                                focusMode={false}
+                                                enablePhysics={enablePhysics}
+                                            />
+												);
+											})()}
+										</Box>
+									</Box>
+								)}
 							</TabPanel>
 							
 							{/* Sprint Tab */}
@@ -353,18 +477,9 @@ export default function DevGraphPage() {
 							
 							{/* Analytics Tab */}
 							<TabPanel>
-									<TemporalAnalytics
-									events={(Array.isArray(commitsQuery.data) ? commitsQuery.data : [])
-										.filter((c: any) => c && c.hash && c.timestamp)
-										.map((c: any) => ({
-											id: c.hash,
-											timestamp: c.timestamp,
-											type: c.type || 'commit',
-											author: c.author_email || 'Unknown Author',
-											files_changed: c.files_changed || [],
-										}))}
-										nodes={((nodesQuery.data?.pages as any[] | undefined) || []).flat()}
-										relations={((relationsQuery.data?.pages as any[] | undefined) || []).flat()}
+									<RealAnalytics 
+										fromTimestamp={timeWindow.from}
+										toTimestamp={timeWindow.to}
 									/>
 							</TabPanel>
 						</TabPanels>
@@ -377,12 +492,20 @@ export default function DevGraphPage() {
 						</HStack>
 					)}
 				</Box>
-				<Box mb={3} fontSize="sm">
-					<Text><span style={{ color: '#888' }}>■</span> PART_OF</Text>
-					<Text><span style={{ color: '#2b8a3e' }}>■</span> EVOLVES_FROM</Text>
-					<Text><span style={{ color: '#1c7ed6' }}>■</span> REFERENCES</Text>
-					<Text><span style={{ color: '#e67700' }}>■</span> DEPENDS_ON</Text>
-				</Box>
+                <Box mb={3} fontSize="sm">
+                    <Text fontWeight="bold" mb={1}>Node Legend</Text>
+                    <Box display="flex" alignItems="center" gap={2} mb={2}>
+                        <Text fontSize="xs" color="gray.600">Degree</Text>
+                        <Box flex="1" height="8px" borderRadius="md" bgGradient="linear(to-r, #440154, #3b528b, #21918c, #5ec962, #fde725)" />
+                        <Text fontSize="xs" color="gray.600">Low</Text>
+                        <Text fontSize="xs" color="gray.600">High</Text>
+                    </Box>
+                    <Text fontSize="xs" color="gray.600" mb={2}>Node size: proportional to degree</Text>
+                    <Text><span style={{ color: '#888' }}>■</span> PART_OF</Text>
+                    <Text><span style={{ color: '#2b8a3e' }}>■</span> EVOLVES_FROM</Text>
+                    <Text><span style={{ color: '#1c7ed6' }}>■</span> REFERENCES</Text>
+                    <Text><span style={{ color: '#e67700' }}>■</span> DEPENDS_ON</Text>
+                </Box>
 
 				{(nodesQuery.isLoading || relationsQuery.isLoading) && (
 					<Box display="flex" alignItems="center" gap={2} mb={4}>
@@ -408,10 +531,14 @@ export default function DevGraphPage() {
 								end: commitsQuery.data?.find((c: any) => c.hash === selectedRange.end)?.timestamp || ''
 							} : undefined}
 							enableClustering={enableClustering}
+							enablePhysics={enablePhysics}
 							showOnlyViewport={showViewportOnly}
+							lightEdges={lightEdges}
+							focusMode={focusMode}
 							onViewportChange={({ zoom }) => {
 								// Simple heuristic: if zoomed in beyond threshold, load more pages
-								if (zoom > 1.5) {
+								// Only fetch if we haven't already fetched all pages
+								if (zoom > 1.5 && nodesQuery.hasNextPage && relationsQuery.hasNextPage) {
 									nodesQuery.fetchNextPage();
 									relationsQuery.fetchNextPage();
 								}

@@ -1,8 +1,9 @@
 'use client';
 
-import { Box, VStack, HStack, Text, Select, Badge, useColorModeValue, Divider, Progress, SimpleGrid, Button, Icon } from '@chakra-ui/react';
+import { Box, VStack, HStack, Text, Select, Badge, useColorModeValue, Divider, Progress, SimpleGrid, Button, Icon, UnorderedList, ListItem } from '@chakra-ui/react';
 import { useState, useEffect } from 'react';
 import { FiCalendar, FiGitCommit, FiFile, FiUsers } from 'react-icons/fi';
+import { useSprintSubgraph } from '../hooks/useWindowedSubgraph';
 
 export interface Sprint {
   number: string;
@@ -121,50 +122,33 @@ export function SprintView({ sprints, onSprintSelect, selectedSprint }: SprintVi
   return (
     <Box p={4} bg={bgColor} borderWidth={1} borderColor={borderColor} borderRadius="md">
       <VStack spacing={4} align="stretch">
-        {/* Header */}
+        {/* Minimalistic Header */}
         <HStack justify="space-between" align="center">
-          <HStack>
-            <Icon as={FiCalendar} />
-            <Text fontSize="lg" fontWeight="bold">Sprint Timeline</Text>
-          </HStack>
-          <Badge colorScheme="green" variant="subtle">
-            {sprints.length} Sprints
-          </Badge>
-        </HStack>
-
-        {/* Controls */}
-        <HStack spacing={4}>
-          <Box>
-            <Text fontSize="sm" mb={1}>Sort By</Text>
+          <Text fontSize="lg" fontWeight="bold">Sprint View</Text>
+          <HStack spacing={2}>
             <Select
               value={sortBy}
               onChange={(e) => handleSortChange(e.target.value)}
               size="sm"
+              w="120px"
             >
-              <option value="number">Sprint Number</option>
-              <option value="start_date">Start Date</option>
-              <option value="commits">Total Commits</option>
-              <option value="files">Files Changed</option>
+              <option value="number">Number</option>
+              <option value="start_date">Date</option>
+              <option value="commits">Commits</option>
+              <option value="files">Files</option>
             </Select>
-          </Box>
-          
-          <Box>
-            <Text fontSize="sm" mb={1}>Order</Text>
             <Button
               size="sm"
-              variant="outline"
+              variant="ghost"
               onClick={toggleSortOrder}
-              leftIcon={<Icon as={FiCalendar} />}
             >
-              {sortOrder === 'asc' ? 'Ascending' : 'Descending'}
+              {sortOrder === 'asc' ? '↑' : '↓'}
             </Button>
-          </Box>
+          </HStack>
         </HStack>
 
-        <Divider />
-
-        {/* Sprint List */}
-        <VStack spacing={3} align="stretch" maxH="600px" overflowY="auto">
+        {/* Compact Sprint List */}
+        <VStack spacing={2} align="stretch" maxH="400px" overflowY="auto">
           {filteredSprints.map((sprint) => {
             const status = getSprintStatus(sprint);
             const progress = getSprintProgress(sprint);
@@ -173,7 +157,7 @@ export function SprintView({ sprints, onSprintSelect, selectedSprint }: SprintVi
             return (
               <Box
                 key={sprint.number}
-                p={4}
+                p={3}
                 borderWidth={1}
                 borderColor={isSelected ? accentColor : borderColor}
                 borderRadius="md"
@@ -182,70 +166,47 @@ export function SprintView({ sprints, onSprintSelect, selectedSprint }: SprintVi
                 onClick={() => onSprintSelect(sprint)}
                 _hover={{
                   borderColor: accentColor,
-                  transform: 'translateY(-1px)',
-                  boxShadow: 'md',
+                  bg: `${accentColor}05`,
                 }}
                 transition="all 0.2s"
               >
-                <VStack spacing={3} align="stretch">
-                  {/* Sprint Header */}
-                  <HStack justify="space-between" align="center">
-                    <HStack>
-                      <Badge colorScheme={status.color} variant="solid">
-                        {status.status}
-                      </Badge>
-                      <Text fontWeight="bold">Sprint {sprint.number}</Text>
-                    </HStack>
+                <HStack justify="space-between" align="center">
+                  <HStack spacing={3}>
+                    <Badge colorScheme={status.color} variant="subtle" size="sm">
+                      {status.status}
+                    </Badge>
+                    <Text fontWeight="medium">Sprint {sprint.number}</Text>
                     <Text fontSize="sm" color="gray.500">
                       {formatDate(sprint.start_date)} - {formatDate(sprint.end_date)}
                     </Text>
                   </HStack>
-
-                  {/* Progress Bar */}
-                  <Box>
-                    <HStack justify="space-between" mb={1}>
-                      <Text fontSize="sm">Progress</Text>
-                      <Text fontSize="sm" fontWeight="medium">{progress}%</Text>
+                  
+                  <HStack spacing={4} fontSize="sm" color="gray.600">
+                    <HStack spacing={1}>
+                      <Icon as={FiGitCommit} boxSize={3} />
+                      <Text>{sprint.metrics.total_commits}</Text>
                     </HStack>
-                    <Progress
-                      value={progress}
-                      colorScheme={status.color}
-                      size="sm"
-                      borderRadius="full"
-                    />
-                  </Box>
-
-                  {/* Metrics */}
-                  <HStack spacing={6} justify="center">
-                    <VStack spacing={1}>
-                      <Icon as={FiGitCommit} />
-                      <Text fontSize="sm" fontWeight="medium">{sprint.metrics.total_commits}</Text>
-                      <Text fontSize="xs" color="gray.500">Commits</Text>
-                    </VStack>
-                    
-                    <VStack spacing={1}>
-                      <Icon as={FiFile} />
-                      <Text fontSize="sm" fontWeight="medium">{sprint.metrics.files_changed}</Text>
-                      <Text fontSize="xs" color="gray.500">Files</Text>
-                    </VStack>
-                    
-                    <VStack spacing={1}>
-                      <Icon as={FiUsers} />
-                      <Text fontSize="sm" fontWeight="medium">{sprint.metrics.authors}</Text>
-                      <Text fontSize="xs" color="gray.500">Authors</Text>
-                    </VStack>
+                    <HStack spacing={1}>
+                      <Icon as={FiFile} boxSize={3} />
+                      <Text>{sprint.metrics.files_changed}</Text>
+                    </HStack>
+                    <HStack spacing={1}>
+                      <Icon as={FiUsers} boxSize={3} />
+                      <Text>{sprint.metrics.authors}</Text>
+                    </HStack>
+                    <Text fontSize="xs" color="gray.500">{progress}%</Text>
                   </HStack>
-
-                  {/* Commit Range */}
-                  <Box>
-                    <Text fontSize="xs" color="gray.500" mb={1}>Commit Range</Text>
-                    <HStack spacing={2} fontSize="xs">
-                      <Text fontFamily="mono">{sprint.commit_range.start.substring(0, 8)}</Text>
-                      <Text>→</Text>
-                      <Text fontFamily="mono">{sprint.commit_range.end.substring(0, 8)}</Text>
-                    </HStack>
-                  </Box>
-                </VStack>
+                </HStack>
+                
+                {/* Compact Progress Bar */}
+                <Box mt={2}>
+                  <Progress
+                    value={progress}
+                    colorScheme={status.color}
+                    size="xs"
+                    borderRadius="full"
+                  />
+                </Box>
               </Box>
             );
           })}
@@ -256,9 +217,75 @@ export function SprintView({ sprints, onSprintSelect, selectedSprint }: SprintVi
             <Text color="gray.500">No sprints available</Text>
           </Box>
         )}
+
+        {/* Hierarchical Subgraph for selected sprint */}
+        {selectedSprint && (
+          <Box mt={4} p={3} borderWidth={1} borderColor={borderColor} borderRadius="md" bg={`${accentColor}05`}>
+            <Text fontSize="sm" fontWeight="bold" mb={2} color={accentColor}>
+              Sprint {selectedSprint.number} Hierarchy
+            </Text>
+            <SprintHierarchy sprintNumber={selectedSprint.number} />
+          </Box>
+        )}
       </VStack>
     </Box>
   );
 }
 
 export default SprintView;
+
+function SprintHierarchy({ sprintNumber }: { sprintNumber: string }) {
+  const { data, isLoading, error } = useSprintSubgraph(sprintNumber);
+  const borderColor = useColorModeValue('gray.200', 'gray.600');
+  const bg = useColorModeValue('gray.50', 'gray.700');
+
+  if (isLoading) return <Text fontSize="sm" color="gray.500">Loading hierarchy…</Text>;
+  if (error) return <Text fontSize="sm" color="red.500">Failed to load sprint hierarchy</Text>;
+
+  const nodes = (data?.nodes || []) as any[];
+  const edges = (data?.edges || []) as any[];
+  const byId = new Map(nodes.map(n => [n.id, n]));
+  const containsDoc = edges.filter(e => e.type === 'CONTAINS_DOC');
+  const containsChunk = edges.filter(e => e.type === 'CONTAINS_CHUNK');
+  const mentions = edges.filter(e => e.type === 'MENTIONS');
+
+  const docIds = containsDoc.map(e => e.to);
+  const docs = docIds.map(id => byId.get(id)).filter(Boolean);
+
+  return (
+    <Box bg={bg} p={3} borderRadius="md" borderWidth={1} borderColor={borderColor}>
+      {docs.length === 0 && <Text fontSize="sm" color="gray.500">No documents linked to this sprint.</Text>}
+      <UnorderedList>
+        {docs.map((doc: any) => {
+          const chunks = containsChunk.filter(e => e.from === (doc.id || doc.path)).map(e => byId.get(e.to)).filter(Boolean);
+          return (
+            <ListItem key={doc.id || doc.path}>
+              <Text fontWeight="medium">{doc.name || doc.path}</Text>
+              {chunks.length > 0 && (
+                <UnorderedList styleType="circle" ml={5}>
+                  {chunks.map((ch: any) => {
+                    const reqs = mentions.filter(e => e.from === ch.id).map(e => byId.get(e.to)).filter(Boolean);
+                    return (
+                      <ListItem key={ch.id}>
+                        <Text>{ch.heading || ch.id}</Text>
+                        {reqs.length > 0 && (
+                          <UnorderedList styleType="square" ml={5}>
+                            {reqs.map((r: any) => (
+                              <ListItem key={r.id}>
+                                <Text fontFamily="mono" fontSize="sm">{r.id}</Text>
+                              </ListItem>
+                            ))}
+                          </UnorderedList>
+                        )}
+                      </ListItem>
+                    );
+                  })}
+                </UnorderedList>
+              )}
+            </ListItem>
+          );
+        })}
+      </UnorderedList>
+    </Box>
+  );
+}

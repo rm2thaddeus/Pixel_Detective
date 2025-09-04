@@ -14,8 +14,25 @@ from neo4j import Driver
 def apply_schema(driver: Driver) -> None:
     """Create constraints and indexes required by the temporal graph."""
     with driver.session() as session:
+        # Core constraints
         session.run("CREATE CONSTRAINT IF NOT EXISTS FOR (c:GitCommit) REQUIRE c.hash IS UNIQUE")
         session.run("CREATE CONSTRAINT IF NOT EXISTS FOR (f:File) REQUIRE f.path IS UNIQUE")
+        session.run("CREATE CONSTRAINT IF NOT EXISTS FOR (r:Requirement) REQUIRE r.id IS UNIQUE")
+        session.run("CREATE CONSTRAINT IF NOT EXISTS FOR (ch:Chunk) REQUIRE ch.id IS UNIQUE")
+        
+        # Phase 4: Performance indexes for time-bounded queries
+        session.run("CREATE INDEX IF NOT EXISTS FOR (c:GitCommit) ON (c.timestamp)")
+        session.run("CREATE INDEX IF NOT EXISTS FOR (c:Commit) ON (c.timestamp)")
+        session.run("CREATE INDEX IF NOT EXISTS FOR (f:File) ON (f.path)")
+        session.run("CREATE INDEX IF NOT EXISTS FOR (r:Requirement) ON (r.id)")
+        session.run("CREATE INDEX IF NOT EXISTS FOR (ch:Chunk) ON (ch.id)")
+        
+        # Relationship indexes for temporal queries
+        session.run("CREATE INDEX IF NOT EXISTS FOR ()-[r:TOUCHED]-() ON (r.timestamp)")
+        session.run("CREATE INDEX IF NOT EXISTS FOR ()-[r:IMPLEMENTS]-() ON (r.timestamp)")
+        session.run("CREATE INDEX IF NOT EXISTS FOR ()-[r:EVOLVES_FROM]-() ON (r.timestamp)")
+        session.run("CREATE INDEX IF NOT EXISTS FOR ()-[r:REFACTORED_TO]-() ON (r.timestamp)")
+        session.run("CREATE INDEX IF NOT EXISTS FOR ()-[r:DEPRECATED_BY]-() ON (r.timestamp)")
 
 
 def merge_commit(tx, commit: Dict[str, object]):

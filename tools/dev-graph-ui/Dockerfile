@@ -1,9 +1,19 @@
-FROM nginx:alpine
+FROM node:18-alpine
 
-# Copy static assets
-COPY public /usr/share/nginx/html
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+WORKDIR /app
 
+# Copy package files
+COPY package*.json ./
+
+# Install dependencies
+RUN npm ci --legacy-peer-deps
+
+# Copy source code
+COPY . .
+
+# Expose port
 EXPOSE 3000
-CMD ["nginx", "-g", "daemon off;"]
+
+# Start the Next.js dev server
+CMD ["npm", "run", "dev"]
 

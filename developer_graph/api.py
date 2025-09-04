@@ -160,7 +160,8 @@ def get_relations(start_id: Optional[int] = None, rel_type: Optional[str] = None
         clauses.append("type(r)=$rt")
     if clauses:
         cypher += " WHERE " + " AND ".join(clauses)
-    cypher += " RETURN a, r, b, type(r) AS rt SKIP $offset LIMIT $limit"
+    # Also return relationship timestamp when present to aid timeline visualizations
+    cypher += " RETURN a, r, b, type(r) AS rt, r.timestamp AS ts SKIP $offset LIMIT $limit"
     records = run_query(cypher, sid=start_id, rt=rel_type, limit=limit, offset=offset)
     
     out = []
@@ -169,6 +170,7 @@ def get_relations(start_id: Optional[int] = None, rel_type: Optional[str] = None
         b_data = r["b"]
         r_data = r["r"]
         r_type_explicit = r.get("rt")
+        r_ts = r.get("ts")
         
         # Extract meaningful IDs
         a_id = extract_id_from_node_data(a_data)
@@ -209,11 +211,14 @@ def get_relations(start_id: Optional[int] = None, rel_type: Optional[str] = None
             else:
                 r_type = "RELATES_TO"
         
-        out.append({
+        rel_obj = {
             "from": a_id,
             "to": b_id,
             "type": r_type,
-        })
+        }
+        if r_ts is not None:
+            rel_obj["timestamp"] = r_ts
+        out.append(rel_obj)
     
     return out
 
@@ -398,6 +403,289 @@ def sprint_details(number: str):
     }
 
 
+@app.get("/api/v1/dev-graph/sprints/{number}/subgraph")
+def sprint_subgraph(number: str):
+    """Return a hierarchical subgraph for a sprint: Sprint->Docs->Chunks->Requirements.
+
+    This endpoint is independent of timestamps to ensure deterministic sprint structure.
+    """
+    cypher = (
+        "MATCH (s:Sprint {number: $num}) "
+        "OPTIONAL MATCH (s)-[:CONTAINS_DOC]->(d:Document) "
+        "OPTIONAL MATCH (d)-[:CONTAINS_CHUNK]->(c:Chunk) "
+        "OPTIONAL MATCH (c)-[:MENTIONS]->(r:Requirement) "
+        "RETURN s, collect(DISTINCT d) AS docs, collect(DISTINCT c) AS chunks, collect(DISTINCT r) AS reqs"
+    )
+    with _driver.session() as session:
+        rec = session.run(cypher, {"num": number}).single()
+        if not rec:
+            return {"nodes": [], "edges": []}
+        s = rec.get("s") or {}
+        docs = rec.get("docs") or []
+        chunks = rec.get("chunks") or []
+        reqs = rec.get("reqs") or []
+
+        def _id(n):
+            return extract_id_from_node_data(n)
+
+        nodes = []
+        seen = set()
+        def add_node(n):
+            nid = _id(n)
+            if nid in seen:
+                return
+            seen.add(nid)
+            if isinstance(n, dict):
+                nodes.append({"id": nid, **n})
+            else:
+                nodes.append({"id": nid, "raw": str(n)})
+
+        add_node(s)
+        for d in docs: add_node(d)
+        for c in chunks: add_node(c)
+        for r in reqs: add_node(r)
+
+        # Now get edges explicitly to preserve relations
+        edges = []
+        rels_cypher = (
+            "MATCH (s:Sprint {number: $num})-[:CONTAINS_DOC]->(d:Document) "
+            "RETURN 'CONTAINS_DOC' AS t, s AS a, d AS b "
+            "UNION ALL "
+            "MATCH (d:Document)<-[:CONTAINS_DOC]-(s:Sprint {number: $num}), (d)-[:CONTAINS_CHUNK]->(c:Chunk) "
+            "RETURN 'CONTAINS_CHUNK' AS t, d AS a, c AS b "
+            "UNION ALL "
+            "MATCH (d:Document)<-[:CONTAINS_DOC]-(s:Sprint {number: $num}), (d)-[:CONTAINS_CHUNK]->(c:Chunk)-[:MENTIONS]->(r:Requirement) "
+            "RETURN 'MENTIONS' AS t, c AS a, r AS b"
+        )
+        result = session.run(rels_cypher, {"num": number})
+        for r in result:
+            a = r.get("a")
+            b = r.get("b")
+            t = r.get("t")
+            edges.append({"from": _id(a), "to": _id(b), "type": str(t)})
+
+        return {"nodes": nodes, "edges": edges}
+
+
+# -------------------- Phase 4: Performance Primitives --------------------
+
+@app.get("/api/v1/dev-graph/graph/subgraph")
+def get_windowed_subgraph(
+    from_timestamp: Optional[str] = Query(None, description="Start timestamp (ISO format)"),
+    to_timestamp: Optional[str] = Query(None, description="End timestamp (ISO format)"),
+    types: Optional[str] = Query(None, description="Comma-separated node types to filter"),
+    limit: int = Query(1000, ge=1, le=5000, description="Maximum number of edges to return"),
+    cursor: Optional[str] = Query(None, description="Pagination cursor")
+):
+    """Get a time-bounded subgraph with pagination and type filtering.
+    
+    Returns nodes and edges within the time window, with performance metrics.
+    SLO: <300ms for 30-day subgraph on local data.
+    """
+    node_types = None
+    if types:
+        node_types = [t.strip() for t in types.split(",") if t.strip()]
+    
+    return _engine.get_windowed_subgraph(
+        from_timestamp=from_timestamp,
+        to_timestamp=to_timestamp,
+        node_types=node_types,
+        limit=limit,
+        cursor=cursor
+    )
+
+
+@app.get("/api/v1/dev-graph/commits/buckets")
+def get_commits_buckets(
+    granularity: str = Query("day", regex="^(day|week)$", description="Time granularity: 'day' or 'week'"),
+    from_timestamp: Optional[str] = Query(None, description="Start timestamp (ISO format)"),
+    to_timestamp: Optional[str] = Query(None, description="End timestamp (ISO format)"),
+    limit: int = Query(1000, ge=1, le=10000, description="Maximum number of buckets to return")
+):
+    """Get commit counts grouped by time buckets for timeline density and caching.
+    
+    Returns commit activity aggregated by day or week for timeline visualization.
+    """
+    return _engine.get_commits_buckets(
+        granularity=granularity,
+        from_timestamp=from_timestamp,
+        to_timestamp=to_timestamp,
+        limit=limit
+    )
+
+
+# -------------------- Analytics Endpoints --------------------
+
+@app.get("/api/v1/analytics/activity")
+def analytics_activity(
+    from_timestamp: Optional[str] = Query(None, description="Start timestamp (ISO format)"),
+    to_timestamp: Optional[str] = Query(None, description="End timestamp (ISO format)")
+):
+    """Return basic activity metrics for a time window.
+
+    - commit_count (by GitCommit.timestamp)
+    - file_changes (by TOUCHED.timestamp)
+    - unique_authors (by GitCommit.author)
+    """
+    with _driver.session() as session:
+        # Commits by time
+        where_c = []
+        params = {}
+        if from_timestamp:
+            where_c.append("c.timestamp >= $from_ts")
+            params["from_ts"] = from_timestamp
+        if to_timestamp:
+            where_c.append("c.timestamp <= $to_ts")
+            params["to_ts"] = to_timestamp
+        clause_c = f"WHERE {' AND '.join(where_c)}" if where_c else ""
+
+        commits_cypher = f"""
+            MATCH (c:GitCommit)
+            {clause_c}
+            RETURN count(c) AS commit_count, count(DISTINCT c.author) AS unique_authors
+        """
+        rec_c = session.run(commits_cypher, params).single()
+        commit_count = rec_c["commit_count"] if rec_c else 0
+        unique_authors = rec_c["unique_authors"] if rec_c else 0
+
+        # File changes by TOUCHED relationships
+        where_t = ["r.timestamp IS NOT NULL"]
+        if from_timestamp:
+            where_t.append("r.timestamp >= $from_ts")
+        if to_timestamp:
+            where_t.append("r.timestamp <= $to_ts")
+        clause_t = f"WHERE {' AND '.join(where_t)}"
+        touched_cypher = f"""
+            MATCH ()-[r:TOUCHED]->()
+            {clause_t}
+            RETURN count(r) AS file_changes
+        """
+        rec_t = session.run(touched_cypher, params).single()
+        file_changes = rec_t["file_changes"] if rec_t else 0
+
+        return {
+            "commit_count": commit_count,
+            "file_changes": file_changes,
+            "unique_authors": unique_authors,
+            "window": {"from": from_timestamp, "to": to_timestamp}
+        }
+
+
+@app.get("/api/v1/analytics/graph")
+def analytics_graph(
+    from_timestamp: Optional[str] = Query(None, description="Start timestamp (ISO format) for edge counts"),
+    to_timestamp: Optional[str] = Query(None, description="End timestamp (ISO format) for edge counts"),
+):
+    """Return graph metrics: node counts by label and edge counts by type.
+
+    Edge counts are optionally time-bounded by relationship.timestamp.
+    """
+    with _driver.session() as session:
+        # Node counts by type
+        nodes_cypher = (
+            "RETURN "+
+            "[(MATCH (n:Sprint) RETURN count(n))][0] AS sprints, "+
+            "[(MATCH (n:Document) RETURN count(n))][0] AS documents, "+
+            "[(MATCH (n:Chunk) RETURN count(n))][0] AS chunks, "+
+            "[(MATCH (n:Requirement) RETURN count(n))][0] AS requirements, "+
+            "[(MATCH (n:File) RETURN count(n))][0] AS files, "+
+            "[(MATCH (n:GitCommit) RETURN count(n))][0] AS commits"
+        )
+        rec_n = session.run(nodes_cypher).single()
+        nodes = {
+            "sprints": rec_n.get("sprints", 0) if rec_n else 0,
+            "documents": rec_n.get("documents", 0) if rec_n else 0,
+            "chunks": rec_n.get("chunks", 0) if rec_n else 0,
+            "requirements": rec_n.get("requirements", 0) if rec_n else 0,
+            "files": rec_n.get("files", 0) if rec_n else 0,
+            "commits": rec_n.get("commits", 0) if rec_n else 0,
+        }
+
+        # Edge counts by type with optional time window
+        where = ["r.timestamp IS NOT NULL"]
+        params = {}
+        if from_timestamp:
+            where.append("r.timestamp >= $from_ts")
+            params["from_ts"] = from_timestamp
+        if to_timestamp:
+            where.append("r.timestamp <= $to_ts")
+            params["to_ts"] = to_timestamp
+        clause = f"WHERE {' AND '.join(where)}"
+
+        def count_rel(rel_type: str) -> int:
+            q = f"MATCH ()-[r:{rel_type}]->() {clause} RETURN count(r) AS c"
+            rec = session.run(q, params).single()
+            return rec["c"] if rec else 0
+
+        edges = {
+            "TOUCHED": count_rel("TOUCHED"),
+            "IMPLEMENTS": count_rel("IMPLEMENTS"),
+            "EVOLVES_FROM": count_rel("EVOLVES_FROM"),
+            "REFACTORED_TO": count_rel("REFACTORED_TO"),
+            "DEPRECATED_BY": count_rel("DEPRECATED_BY"),
+            "MENTIONS": count_rel("MENTIONS"),
+            "CONTAINS_CHUNK": count_rel("CONTAINS_CHUNK"),
+            "CONTAINS_DOC": count_rel("CONTAINS_DOC"),
+        }
+
+        return {"nodes": nodes, "edges": edges, "window": {"from": from_timestamp, "to": to_timestamp}}
+
+
+@app.get("/api/v1/analytics/traceability")
+def analytics_traceability(
+    from_timestamp: Optional[str] = Query(None, description="Start timestamp (ISO format) for traceability window"),
+    to_timestamp: Optional[str] = Query(None, description="End timestamp (ISO format) for traceability window"),
+):
+    """Return traceability metrics for requirements.
+
+    - total_requirements
+    - implemented_requirements (has at least one IMPLEMENTS)
+    - unimplemented_requirements
+    - avg_files_per_requirement (average IMPLEMENTS targets per requirement)
+    Optionally confined to a time window based on IMPLEMENTS.timestamp.
+    """
+    with _driver.session() as session:
+        # Total requirements
+        total_rec = session.run("MATCH (r:Requirement) RETURN count(r) AS c").single()
+        total = total_rec["c"] if total_rec else 0
+
+        # Implemented requirements (optionally windowed)
+        where = []
+        params = {}
+        if from_timestamp:
+            where.append("rel.timestamp >= $from_ts")
+            params["from_ts"] = from_timestamp
+        if to_timestamp:
+            where.append("rel.timestamp <= $to_ts")
+            params["to_ts"] = to_timestamp
+        clause = ("WHERE " + " AND ".join(where)) if where else ""
+
+        impl_q = f"""
+            MATCH (r:Requirement)-[rel:IMPLEMENTS]->(:File)
+            {clause}
+            RETURN count(DISTINCT r) AS c
+        """
+        impl_rec = session.run(impl_q, params).single()
+        implemented = impl_rec["c"] if impl_rec else 0
+
+        # Average files per requirement (windowed on rel timestamp when provided)
+        avg_q = f"""
+            MATCH (r:Requirement)
+            OPTIONAL MATCH (r)-[rel:IMPLEMENTS]->(:File)
+            {clause}
+            WITH r, count(rel) AS file_links
+            RETURN coalesce(avg(file_links), 0) AS avg_files_per_requirement
+        """
+        avg_rec = session.run(avg_q, params).single()
+        avg_files = avg_rec["avg_files_per_requirement"] if avg_rec else 0
+
+        return {
+            "total_requirements": total,
+            "implemented_requirements": implemented,
+            "unimplemented_requirements": max(total - implemented, 0),
+            "avg_files_per_requirement": avg_files,
+            "window": {"from": from_timestamp, "to": to_timestamp}
+        }
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8080)
