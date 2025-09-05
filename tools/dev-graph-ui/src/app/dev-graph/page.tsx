@@ -6,8 +6,8 @@ export default function DevGraphPage() {
   const router = useRouter();
 
   useEffect(() => {
-    // Redirect to the beautiful complex dev-graph page
-    router.push('/dev-graph/complex');
+    // Redirect to the new welcome dashboard
+    router.push('/dev-graph/welcome');
   }, [router]);
 
   return null;

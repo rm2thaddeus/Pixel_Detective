@@ -25,6 +25,8 @@ export function EvolutionGraph({
   layoutMode = 'force',
   edgeTypes = ['PART_OF','EVOLVES_FROM','REFERENCES','DEPENDS_ON'],
   maxEdgesInView = 2000,
+  layoutSeed,
+  focusNodeId,
 }: {
   data: GraphData;
   height?: number;
@@ -45,6 +47,8 @@ export function EvolutionGraph({
   layoutMode?: 'force' | 'time-radial';
   edgeTypes?: string[];
   maxEdgesInView?: number;
+  layoutSeed?: number;
+  focusNodeId?: string;
 }) {
   const [mounted, setMounted] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -113,34 +117,66 @@ export function EvolutionGraph({
     };
   }, [mounted]);
 
+  // Deterministic RNG
+  const rng = useMemo(() => {
+    let s = typeof layoutSeed === 'number' ? layoutSeed : 42;
+    return () => {
+      // xorshift32
+      s ^= s << 13; s ^= s >>> 17; s ^= s << 5; 
+      return ((s >>> 0) / 0xffffffff);
+    };
+  }, [layoutSeed]);
+
+  // Coordinate cache for reuse across minor filter changes (by node id)
+  const coordCacheRef = useRef<Map<string, { x: number; y: number }>>(new Map());
+
   // Create graph data
   const graph = useMemo(() => {
     if (!mounted || isLoading || error || !libraries) return null;
     
-    if (DEBUG) console.log('Creating graph with data:', { 
-      nodesCount: data.nodes?.length || 0, 
-      relationsCount: data.relations?.length || 0,
-      sampleNode: data.nodes?.[0],
-      sampleNodeCoords: data.nodes?.[0] ? {
-        x: data.nodes[0].x,
-        y: data.nodes[0].y,
-        xType: typeof data.nodes[0].x,
-        yType: typeof data.nodes[0].y,
-        xValid: typeof data.nodes[0].x === 'number' && !isNaN(data.nodes[0].x),
-        yValid: typeof data.nodes[0].y === 'number' && !isNaN(data.nodes[0].y)
-      } : null
-    });
+          if (DEBUG) console.log('Creating graph with data:', { 
+        nodesCount: data.nodes?.length || 0, 
+        relationsCount: data.relations?.length || 0,
+        layoutMode,
+        sampleNode: data.nodes?.[0],
+        sampleNodeCoords: data.nodes?.[0] ? {
+          x: data.nodes[0].x,
+          y: data.nodes[0].y,
+          xType: typeof data.nodes[0].x,
+          yType: typeof data.nodes[0].y,
+          xValid: typeof data.nodes[0].x === 'number' && !isNaN(data.nodes[0].x),
+          yValid: typeof data.nodes[0].y === 'number' && !isNaN(data.nodes[0].y)
+        } : null
+      });
     
     try {
       const { Graph } = libraries;
       const g = new Graph();
       
-      // Add nodes (coordinates should already be provided in data)
+      // Add nodes (coordinates reused or derived deterministically)
       for (const n of data.nodes || []) {
         if (!g.hasNode(n.id)) {
-          // Validate coordinates before adding node
-          const x = typeof n.x === 'number' && isFinite(n.x) ? n.x : 0;
-          const y = typeof n.y === 'number' && isFinite(n.y) ? n.y : 0;
+          // Pull from cache first
+          let cached = coordCacheRef.current.get(String(n.id));
+          let x = typeof n.x === 'number' && isFinite(n.x) ? n.x : (cached?.x ?? NaN);
+          let y = typeof n.y === 'number' && isFinite(n.y) ? n.y : (cached?.y ?? NaN);
+          // If still missing, generate deterministic pseudo-random coordinates based on id and seed
+          if (!isFinite(x) || !isFinite(y)) {
+            // Hash id to a stable number, then mix with rng for seed determinism
+            const idStr = String(n.id);
+            let h = 2166136261;
+            for (let i = 0; i < idStr.length; i++) {
+              h ^= idStr.charCodeAt(i);
+              h += (h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24);
+            }
+            // Generate angle and radius deterministically
+            const angle = (h % 360) * (Math.PI / 180);
+            const radius = 200 + Math.floor(rng() * 300);
+            x = Math.cos(angle) * radius;
+            y = Math.sin(angle) * radius;
+          }
+          // Save to cache
+          coordCacheRef.current.set(String(n.id), { x, y });
           const size = typeof n.size === 'number' && isFinite(n.size) && n.size > 0 ? n.size : 1;
           
           if (!isFinite(x) || !isFinite(y)) {
@@ -228,6 +264,7 @@ export function EvolutionGraph({
       
       // Layout selection
       if (layoutMode === 'time-radial' && g.order > 0) {
+        if (DEBUG) console.log('Applying time-radial layout to graph with', g.order, 'nodes');
         // Evolutionary tree layout: first commit at center, subsequent commits spiral outward
         try {
           // Collect all nodes with timestamps and sort by time
@@ -242,59 +279,83 @@ export function EvolutionGraph({
           // Sort by timestamp (earliest first)
           nodesWithTime.sort((a, b) => a.timestamp - b.timestamp);
           
-          if (nodesWithTime.length === 0) return;
-          
-          // First commit (origin) at center
-          const origin = nodesWithTime[0];
-          g.setNodeAttribute(origin.node, 'x', 0);
-          g.setNodeAttribute(origin.node, 'y', 0);
-          
-          if (nodesWithTime.length === 1) return;
-          
-          // Calculate time range for distance scaling
-          const minTime = origin.timestamp;
-          const maxTime = nodesWithTime[nodesWithTime.length - 1].timestamp;
-          const timeRange = maxTime - minTime;
-          
-          // Spiral parameters
-          const baseRadius = 80; // Minimum distance from center
-          const spiralGrowth = 0.3; // How much the spiral grows per revolution
-          const angleStep = 0.5; // Angle increment per node
-          const timeScale = 200; // Distance scaling factor for time differences
-          
-          // Track angle for spiral
-          let currentAngle = 0;
-          
-          // Position remaining nodes in evolutionary spiral
-          for (let i = 1; i < nodesWithTime.length; i++) {
-            const {node, timestamp} = nodesWithTime[i];
+          if (nodesWithTime.length === 0) {
+            if (DEBUG) console.warn('No nodes with timestamps found for time-radial layout, falling back to force layout');
+            // Fall through to force layout
+          } else {
+            // First commit (origin) at center
+            const origin = nodesWithTime[0];
+            g.setNodeAttribute(origin.node, 'x', 0);
+            g.setNodeAttribute(origin.node, 'y', 0);
             
-            // Calculate distance from origin based on time difference
-            const timeDiff = timestamp - minTime;
-            const timeRadius = (timeDiff / timeRange) * timeScale;
+            if (nodesWithTime.length === 1) {
+              if (DEBUG) console.log('Only one node with timestamp, positioned at center');
+              // Continue processing other nodes
+            } else {
             
-            // Create spiral: radius increases with angle, plus time-based distance
-            const spiralRadius = baseRadius + (currentAngle / (Math.PI * 2)) * spiralGrowth * 100;
-            const totalRadius = Math.max(baseRadius, spiralRadius + timeRadius);
+            // Calculate time range for distance scaling
+            const minTime = origin.timestamp;
+            const maxTime = nodesWithTime[nodesWithTime.length - 1].timestamp;
+            const totalSpan = Math.max(1, maxTime - minTime);
             
-            // Calculate position
-            const x = Math.cos(currentAngle) * totalRadius;
-            const y = Math.sin(currentAngle) * totalRadius;
+            // Time binning for radial layers (e.g., 6 bins)
+            const BIN_COUNT = 6;
+            const binSize = Math.ceil(totalSpan / BIN_COUNT);
+            const binOf = (t: number) => Math.min(BIN_COUNT - 1, Math.floor((t - minTime) / binSize));
+
+            // Polar parameters
+            const baseRadius = 80;
+            const layerRadius = 120; // distance between rings
             
-            // Set position
-            g.setNodeAttribute(node, 'x', x);
-            g.setNodeAttribute(node, 'y', y);
-            
-            // Increment angle for next node (creates spiral)
-            currentAngle += angleStep;
-            
-            // Add some variation to prevent perfect spiral
-            if (i % 10 === 0) {
-              currentAngle += (Math.random() - 0.5) * 0.5;
+            // Angle assignment by stable hash to keep communities apart-ish
+            const angleForNode = (id: string) => {
+              let h = 0;
+              for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) | 0;
+              const u = ((h >>> 0) / 0xffffffff);
+              return u * 2 * Math.PI;
+            };
+
+            // Position nodes by time bin (radius) and stable angle (type/community hash)
+            for (let i = 0; i < nodesWithTime.length; i++) {
+              const { node, timestamp, attrs } = nodesWithTime[i];
+              const b = binOf(timestamp);
+              const r = baseRadius + b * layerRadius;
+              const a = angleForNode(String(node));
+              const jitter = (rng() - 0.5) * (layerRadius * 0.2);
+              const x = Math.cos(a) * r + jitter;
+              const y = Math.sin(a) * r + jitter;
+              g.setNodeAttribute(node, 'x', x);
+              g.setNodeAttribute(node, 'y', y);
             }
+            
+            }
+            
+            // Position non-timestamp nodes around the spiral (for both single and multiple timestamp nodes)
+            const nonTimestampNodes: string[] = [];
+            g.forEachNode((node: string, attrs: any) => {
+              const t = Number(new Date(attrs.timestamp || attrs.created_at || attrs.time || 0));
+              if (!isFinite(t)) {
+                nonTimestampNodes.push(node);
+              }
+            });
+            
+            // Position non-timestamp nodes in a ring around the spiral
+            if (nonTimestampNodes.length > 0) {
+              const ringRadius = baseRadius + BIN_COUNT * layerRadius + 80;
+              const angleStep = (2 * Math.PI) / nonTimestampNodes.length;
+              
+              nonTimestampNodes.forEach((node, index) => {
+                const angle = index * angleStep;
+                const x = Math.cos(angle) * ringRadius;
+                const y = Math.sin(angle) * ringRadius;
+                g.setNodeAttribute(node, 'x', x);
+                g.setNodeAttribute(node, 'y', y);
+              });
+            }
+            
+            if (DEBUG) console.log(`Evolutionary tree layout: ${nodesWithTime.length} timestamped nodes positioned in spiral, ${nonTimestampNodes.length} other nodes positioned in ring`);
+            // Don't return here - let the graph continue to be processed for rendering
           }
-          
-          if (DEBUG) console.log(`Evolutionary tree layout: ${nodesWithTime.length} nodes positioned in spiral`);
         } catch (err) {
           if (DEBUG) console.warn('Evolutionary tree layout failed, falling back to force:', err);
         }
@@ -316,7 +377,7 @@ export function EvolutionGraph({
               const nodes = g.nodes();
               const sampleSize = Math.min(nodes.length, 50); // Sample up to 50 nodes for repulsion
               for (let j = 0; j < sampleSize; j++) {
-                const otherNode = nodes[Math.floor(Math.random() * nodes.length)];
+                const otherNode = nodes[Math.floor(rng() * nodes.length)];
                 if (node === otherNode) continue;
                 
                 const dx = g.getNodeAttribute(node, 'x') - g.getNodeAttribute(otherNode, 'x');
@@ -448,6 +509,7 @@ export function EvolutionGraph({
       if (DEBUG) console.log('Graph created successfully:', { 
         nodes: g.order, 
         edges: g.size,
+        layoutMode,
         sampleNode: g.nodes().slice(0, 1).map(node => ({
           id: node,
           attrs: g.getNodeAttributes(node)
@@ -459,7 +521,7 @@ export function EvolutionGraph({
       if (DEBUG) console.error('Failed to create graph:', err);
       return null;
     }
-  }, [data, enableClustering, mounted, isLoading, error, libraries, layoutMode, edgeTypes, maxEdgesInView]);
+  }, [data, enableClustering, mounted, isLoading, error, libraries, layoutMode, edgeTypes, maxEdgesInView, rng]);
 
   // Sigma initialization effect
   useEffect(() => {
@@ -493,7 +555,7 @@ export function EvolutionGraph({
       
       // Initialize Sigma with optimized configuration for performance
       const sigma = new Sigma(graph, containerRef.current, {
-        allowInvalidContainer: false,
+        allowInvalidContainer: true, // Allow container without proper dimensions initially
         renderLabels: true,
         labelDensity: 0.05, // Reduced for better performance
         labelGridCellSize: 80, // Smaller grid for better performance
@@ -510,7 +572,7 @@ export function EvolutionGraph({
         // No need to explicitly configure nodeProgramClasses or edgeProgramClasses
       });
 
-      // Reducers: progressive labels/edges and focus mode dimming
+      // Reducers: progressive labels/edges and focus mode dimming, time range fading
       sigma.setSetting('nodeReducer', (n: string, attrs: any) => {
         const res: any = { ...attrs };
         const isHovered = hoveredNodeRef.current === n;
@@ -520,6 +582,17 @@ export function EvolutionGraph({
         // Labels: show on hover or when sufficiently zoomed
         res.label = (isHovered || showByZoom) ? (attrs.label || String(n)) : undefined;
         
+        // Time mode fade outside selected time range
+        if (layoutMode === 'time-radial' && timeRange && (attrs.timestamp || attrs.created_at)) {
+          const t = Number(new Date(attrs.timestamp || attrs.created_at));
+          const start = Number(new Date(timeRange.start));
+          const end = Number(new Date(timeRange.end));
+          if (isFinite(t) && isFinite(start) && isFinite(end) && (t < start || t > end)) {
+            res.color = '#dddddd';
+            res.size = Math.max(0.5, (attrs.size || 1) * 0.7);
+          }
+        }
+
         // Focus mode: dim non-neighbors when hovering a node
         if (focusMode && hoveredNodeRef.current && neighborSetRef.current) {
           if (!neighborSetRef.current.has(n) && hoveredNodeRef.current !== n) {
@@ -535,6 +608,20 @@ export function EvolutionGraph({
           res.color = attrs.originalColor || attrs.color;
         }
         
+        // If focusNodeId provided, softly emphasize its neighborhood
+        if (focusNodeId && sigma.getGraph) {
+          const gref = sigma.getGraph();
+          const isFocus = n === focusNodeId;
+          if (!isFocus) {
+            const neigh = new Set<string>();
+            try { gref.forEachNeighbor(focusNodeId, (m: string) => neigh.add(m)); } catch {}
+            if (!neigh.has(n)) {
+              res.color = '#d0d0d0';
+              res.size = Math.max(0.5, (attrs.size || 1) * 0.8);
+            }
+          }
+        }
+
         return res;
       });
 
@@ -548,13 +635,21 @@ export function EvolutionGraph({
           return res;
         }
         
-        // Light edges mode
+        // Light edges mode and density-aware throttling
         if (lightEdges) {
           // Zoom-aware opacity and thickness
           const opacity = Math.max(0.25, Math.min(1, (zoom - 0.6)));
           res.color = `rgba(170,170,170,${opacity.toFixed(2)})`;
           const base = attrs.size ?? 0.8;
           res.size = Math.max(0.3, base * (zoom < 1 ? 0.7 : zoom < 1.5 ? 0.9 : 1.1));
+          // Hide a portion of edges when graph is dense
+          try {
+            const gref = sigma.getGraph();
+            if (gref && gref.size > maxEdgesInView) {
+              // Probabilistically hide edges based on seed
+              if (rng() < 0.5) res.hidden = true;
+            }
+          } catch {}
         } else {
           // Restore original edge color when not in light mode
           res.color = attrs.originalColor || attrs.color;
@@ -627,15 +722,34 @@ export function EvolutionGraph({
 
       sigmaRef.current = sigma;
 
+      // Force resize after a short delay to ensure container is properly sized
+      setTimeout(() => {
+        if (sigma && containerRef.current) {
+          sigma.resize();
+        }
+      }, 100);
+
+      // Add ResizeObserver to handle dynamic container resizing
+      const resizeObserver = new ResizeObserver(() => {
+        if (sigma && containerRef.current) {
+          sigma.resize();
+        }
+      });
+      
+      if (containerRef.current) {
+        resizeObserver.observe(containerRef.current);
+      }
+
       return () => {
         camera.off('updated', onCam);
+        resizeObserver.disconnect();
         sigma.kill();
         sigmaRef.current = null;
       };
     } catch (err) {
       if (DEBUG) console.error('Failed to initialize Sigma:', err);
     }
-  }, [graph, onNodeClick, mounted, isLoading, error, libraries]);
+  }, [graph, onNodeClick, mounted, isLoading, error, libraries, focusNodeId, timeRange, layoutMode, lightEdges, maxEdgesInView, rng, labelZoomThreshold, focusMode]);
 
   // Time-aware styling hook (placeholder for future opacity modulation)
   useEffect(() => {
@@ -839,8 +953,17 @@ export function EvolutionGraph({
   }
 
   return (
-    <Box style={{ height, width }}>
-      <div ref={containerRef} style={{ height: '100%', width: '100%' }} />
+    <Box style={{ height, width, minHeight: height, minWidth: width }}>
+      <div 
+        ref={containerRef} 
+        style={{ 
+          height: '100%', 
+          width: '100%', 
+          minHeight: height, 
+          minWidth: width,
+          position: 'relative'
+        }} 
+      />
     </Box>
   );
 }

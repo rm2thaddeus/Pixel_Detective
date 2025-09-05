@@ -34,19 +34,36 @@ def apply_schema(driver: Driver) -> None:
         session.run("CREATE INDEX IF NOT EXISTS FOR ()-[r:REFACTORED_TO]-() ON (r.timestamp)")
         session.run("CREATE INDEX IF NOT EXISTS FOR ()-[r:DEPRECATED_BY]-() ON (r.timestamp)")
 
+        # Full-text indexes to accelerate search
+        # Neo4j 4.x/5.x syntax; create indexes per label for clarity
+        try:
+            session.run("CREATE FULLTEXT INDEX file_fulltext IF NOT EXISTS FOR (f:File) ON EACH [f.path]")
+        except Exception:
+            pass
+        try:
+            session.run("CREATE FULLTEXT INDEX requirement_fulltext IF NOT EXISTS FOR (r:Requirement) ON EACH [r.id, r.title]")
+        except Exception:
+            pass
+        try:
+            session.run("CREATE FULLTEXT INDEX commit_fulltext IF NOT EXISTS FOR (c:GitCommit) ON EACH [c.message, c.author]")
+        except Exception:
+            pass
+
 
 def merge_commit(tx, commit: Dict[str, object]):
     tx.run(
         """
         MERGE (c:GitCommit {hash: $hash})
-        ON CREATE SET c.message = $message, c.author = $author, c.timestamp = $timestamp, c.branch = $branch
-        ON MATCH SET c.message = coalesce(c.message, $message)
+        ON CREATE SET c.message = $message, c.author = $author, c.timestamp = $timestamp, c.branch = $branch, c.uid = $uid
+        ON MATCH SET c.message = coalesce(c.message, $message),
+                      c.uid = coalesce(c.uid, $uid)
         """,
         hash=commit["hash"],
         message=commit.get("message"),
         author=commit.get("author_email") or commit.get("author"),
         timestamp=commit.get("timestamp"),
         branch=commit.get("branch", "unknown"),
+        uid=str(commit["hash"]) if "hash" in commit else None,
     )
 
 
@@ -54,10 +71,12 @@ def merge_file(tx, file_info: Dict[str, object]):
     tx.run(
         """
         MERGE (f:File {path: $path})
-        ON CREATE SET f.language = $language
+        ON CREATE SET f.language = $language, f.uid = $uid
+        ON MATCH SET f.uid = coalesce(f.uid, $uid)
         """,
         path=file_info["path"],
         language=file_info.get("language"),
+        uid=str(file_info["path"]) if "path" in file_info else None,
     )
 
 
@@ -91,9 +110,11 @@ def merge_requirement(tx, requirement: Dict[str, object]):
                       r.author = $author,
                       r.date_created = $date_created,
                       r.goal_alignment = $goal_alignment,
-                      r.tags = $tags
+                      r.tags = $tags,
+                      r.uid = $uid
         ON MATCH SET r.title = coalesce($title, r.title),
-                     r.goal_alignment = coalesce($goal_alignment, r.goal_alignment)
+                     r.goal_alignment = coalesce($goal_alignment, r.goal_alignment),
+                     r.uid = coalesce(r.uid, $uid)
         """,
         id=requirement["id"],
         title=requirement.get("title"),
@@ -101,6 +122,7 @@ def merge_requirement(tx, requirement: Dict[str, object]):
         date_created=requirement.get("date_created"),
         goal_alignment=requirement.get("goal_alignment"),
         tags=requirement.get("tags"),
+        uid=str(requirement["id"]) if "id" in requirement else None,
     )
 
 

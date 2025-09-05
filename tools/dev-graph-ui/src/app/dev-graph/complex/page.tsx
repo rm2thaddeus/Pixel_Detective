@@ -1,5 +1,6 @@
 'use client';
 import dynamic from 'next/dynamic';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Box, Heading, Spinner, Alert, AlertIcon, Text, HStack, Switch, Slider, SliderFilledTrack, SliderThumb, SliderTrack, useDisclosure, Button, useToast, Tabs, TabList, TabPanels, Tab, TabPanel } from '@chakra-ui/react';
 import { Select } from '@chakra-ui/react';
 import { useMemo, useState, useEffect } from 'react';
@@ -25,6 +26,10 @@ const DEV_GRAPH_API_URL = process.env.NEXT_PUBLIC_DEV_GRAPH_API_URL || 'http://l
 export default function DevGraphPage() {
 	const PAGE_SIZE = 200;
 	const [commitLimit, setCommitLimit] = useState(100);
+	const router = useRouter();
+	const searchParams = useSearchParams();
+	const [layoutSeed, setLayoutSeed] = useState<number>(42);
+	const [focusNodeId, setFocusNodeId] = useState<string | undefined>(undefined);
 	
 	const nodesQuery = useInfiniteQuery({
 		queryKey: ['dev-graph', 'nodes', PAGE_SIZE],
@@ -91,6 +96,48 @@ export default function DevGraphPage() {
 		timeWindow.to,
 		1000
 	);
+
+	// Deep link: initialize state from URL on mount, then persist updates back
+	useEffect(() => {
+		// Initialize from URL
+		const mode = searchParams?.get('mode');
+		const seed = searchParams?.get('seed');
+		const from = searchParams?.get('from');
+		const to = searchParams?.get('to');
+		const focus = searchParams?.get('focus');
+
+		if (mode === 'time') setLayoutMode('time-radial');
+		if (mode === 'structure') setLayoutMode('force');
+		if (seed && !Number.isNaN(Number(seed))) setLayoutSeed(Number(seed));
+		if (from || to) setTimeWindow({ from: from || undefined, to: to || undefined });
+		if (focus) setFocusNodeId(focus);
+		// Persist last mode per user
+		try {
+			const savedMode = typeof window !== 'undefined' ? window.localStorage.getItem('devgraph:lastMode') : null;
+			if (!mode && savedMode) setLayoutMode(savedMode === 'time' ? 'time-radial' : 'force');
+			const savedSeed = typeof window !== 'undefined' ? window.localStorage.getItem('devgraph:layoutSeed') : null;
+			if (!seed && savedSeed) setLayoutSeed(Number(savedSeed));
+		} catch {}
+	// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, []);
+
+	// Persist to URL when key state changes
+	useEffect(() => {
+		const params = new URLSearchParams(searchParams?.toString());
+		params.set('mode', layoutMode === 'time-radial' ? 'time' : 'structure');
+		params.set('seed', String(layoutSeed));
+		if (timeWindow.from) params.set('from', timeWindow.from); else params.delete('from');
+		if (timeWindow.to) params.set('to', timeWindow.to); else params.delete('to');
+		if (focusNodeId) params.set('focus', focusNodeId); else params.delete('focus');
+		router.replace(`?${params.toString()}`);
+		// Save last mode/seed
+		try {
+			if (typeof window !== 'undefined') {
+				window.localStorage.setItem('devgraph:lastMode', layoutMode === 'time-radial' ? 'time' : 'structure');
+				window.localStorage.setItem('devgraph:layoutSeed', String(layoutSeed));
+			}
+		} catch {}
+	}, [layoutMode, layoutSeed, timeWindow.from, timeWindow.to, focusNodeId, router, searchParams]);
 	
 	// Enhanced timeline handlers
 	const handleTimeRangeSelect = (fromTimestamp: string, toTimestamp: string) => {
@@ -296,6 +343,21 @@ export default function DevGraphPage() {
 
 				{/* Graph Controls */}
 				<HStack mb={4} spacing={6} wrap="wrap">
+					{/* Mode Toggle */}
+					<HStack>
+						<Text fontSize="sm" fontWeight="semibold">Mode</Text>
+						<HStack spacing={1}>
+							<Button size="sm" variant={layoutMode === 'force' ? 'solid' : 'outline'} onClick={() => { setLayoutMode('force'); setFocusNodeId(undefined); }}>Structure</Button>
+							<Button size="sm" variant={layoutMode === 'time-radial' ? 'solid' : 'outline'} onClick={() => { setLayoutMode('time-radial'); }}>Time</Button>
+						</HStack>
+					</HStack>
+
+					{/* Layout seed */}
+					<HStack>
+						<Text fontSize="sm">Layout seed</Text>
+						<Button size="xs" onClick={() => setLayoutSeed((s) => (s + 1) % 100000)}>Reseed</Button>
+						<Text fontSize="xs" color="gray.600">{layoutSeed}</Text>
+					</HStack>
 					<HStack>
 						<Text fontSize="sm">Light edges</Text>
 						<Switch size="sm" isChecked={lightEdges} onChange={(e) => setLightEdges(e.target.checked)} />
@@ -316,13 +378,7 @@ export default function DevGraphPage() {
 						<Text fontSize="sm">Physics</Text>
 						<Switch size="sm" isChecked={enablePhysics} onChange={(e) => setEnablePhysics(e.target.checked)} />
 					</HStack>
-					<HStack>
-						<Text fontSize="sm">Layout</Text>
-						<Select size="sm" value={layoutMode} onChange={(e) => setLayoutMode(e.target.value as any)}>
-							<option value="force">Force</option>
-							<option value="time-radial">Time-Radial</option>
-						</Select>
-					</HStack>
+					{/* Layout select replaced by Mode toggle above to align with PRD */}
 					<HStack>
 						<Text fontSize="sm">Max edges</Text>
 						<Slider aria-label='max-edges' min={200} max={8000} step={200} value={maxEdgesInView} onChange={setMaxEdgesInView} width={200}>
@@ -575,12 +631,31 @@ export default function DevGraphPage() {
 					{isValidData && hasValidRelations && (
 						<EvolutionGraph 
 							data={filteredData}
-							onNodeClick={(n: any) => { setSelectedNode(n); drawer.onOpen(); }}
+							layoutSeed={layoutSeed}
+							focusNodeId={focusNodeId}
+							onNodeClick={(n: any) => {
+								setSelectedNode(n);
+								// Escape hatches per PRD
+								if (layoutMode === 'time-radial') {
+									setLayoutMode('force');
+									setFocusNodeId(String(n.id));
+								} else {
+									setLayoutMode('time-radial');
+									// If timestamp available, set narrow time window around it
+									const t = (n.timestamp || n.created_at || n.time) ? new Date(n.timestamp || n.created_at || n.time).getTime() : undefined;
+									if (t) {
+										const start = new Date(t - 24*60*60*1000).toISOString();
+										const end = new Date(t + 24*60*60*1000).toISOString();
+										setTimeWindow({ from: start, to: end });
+									}
+								}
+								drawer.onOpen();
+							}}
 							currentTimestamp={selectedRange.start ? commitsQuery.data?.find((c: any) => c.hash === selectedRange.start)?.timestamp : undefined}
-							timeRange={selectedRange.start && selectedRange.end ? {
+							timeRange={timeWindow.from && timeWindow.to ? { start: timeWindow.from, end: timeWindow.to } : (selectedRange.start && selectedRange.end ? {
 								start: commitsQuery.data?.find((c: any) => c.hash === selectedRange.start)?.timestamp || '',
 								end: commitsQuery.data?.find((c: any) => c.hash === selectedRange.end)?.timestamp || ''
-							} : undefined}
+							} : undefined)}
 							enableClustering={enableClustering}
 							enablePhysics={enablePhysics}
 							layoutMode={layoutMode}

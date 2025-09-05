@@ -47,6 +47,7 @@ export default function EnhancedDevGraphPage() {
   const bgColor = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.200', 'gray.600');
   const pageBgColor = useColorModeValue('gray.50', 'gray.900');
+  const cardBgColor = useColorModeValue('gray.50', 'gray.700');
 
   // Color scheme for different node types
   const nodeTypeColors: Record<string, string> = {
@@ -290,7 +291,7 @@ export default function EnhancedDevGraphPage() {
           <CardBody>
             <Grid templateColumns={{ base: "1fr", md: "repeat(2, 1fr)", lg: "repeat(3, 1fr)" }} gap={3}>
               {relationTypes.map((relationType) => (
-                <HStack key={relationType.type} justify="space-between" p={2} bg={useColorModeValue('gray.50', 'gray.700')} borderRadius="md">
+                <HStack key={relationType.type} justify="space-between" p={2} bg={cardBgColor} borderRadius="md">
                   <HStack>
                     <Box w={3} h={3} bg={`${relationType.color}.500`} borderRadius="full" />
                     <Text fontSize="sm">{relationType.type}</Text>
@@ -340,7 +341,7 @@ export default function EnhancedDevGraphPage() {
                   </Text>
                   <VStack align="stretch" spacing={2} maxH="400px" overflowY="auto">
                     {nodes.slice(0, 20).map((node) => (
-                      <Box key={node.id} p={3} bg={useColorModeValue('gray.50', 'gray.700')} borderRadius="md">
+                      <Box key={node.id} p={3} bg={cardBgColor} borderRadius="md">
                         <Text fontSize="sm" fontWeight="bold">{node.id}</Text>
                         {node.description && (
                           <Text fontSize="xs" color="gray.600" noOfLines={2}>
@@ -401,7 +402,7 @@ export default function EnhancedDevGraphPage() {
                   </Text>
                   <VStack align="stretch" spacing={2} maxH="400px" overflowY="auto">
                     {relations.slice(0, 20).map((relation, index) => (
-                      <HStack key={index} p={3} bg={useColorModeValue('gray.50', 'gray.700')} borderRadius="md">
+                      <HStack key={index} p={3} bg={cardBgColor} borderRadius="md">
                         <Text fontSize="sm" fontWeight="bold" color="blue.600">
                           {relation.from}
                         </Text>
@@ -434,7 +435,7 @@ export default function EnhancedDevGraphPage() {
             <CardBody>
               <VStack align="stretch" spacing={2}>
                 {stats.commits.slice(0, 5).map((commit: any, index: number) => (
-                  <Box key={commit.hash} p={3} bg={useColorModeValue('gray.50', 'gray.700')} borderRadius="md">
+                  <Box key={commit.hash} p={3} bg={cardBgColor} borderRadius="md">
                     <Text fontSize="sm" fontWeight="bold">{commit.message}</Text>
                     <Text fontSize="xs" color="gray.600">
                       {commit.author_name} • {new Date(commit.timestamp).toLocaleDateString()}

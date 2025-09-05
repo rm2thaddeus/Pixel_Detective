@@ -104,6 +104,18 @@ const VisualizationComponents = {
 };
 ```
 
+---
+
+## 🔀 Layout Modes Summary (Standalone PRD)
+
+We have separated layout concerns into two exploratory features, each optimized for its core question:
+
+- Structure Mode (Force‑Directed): Optimized for clusters, hubs, and neighborhood exploration with Sigma.js + Graphology (FA2 in worker), coordinate reuse, and progressive loading. Targets >45 FPS interaction and stable positions under minor filter changes.
+- Time Mode (Time‑Radial): Optimized for temporal storytelling with radial time bins, synchronized scrubber/playback, and edge throttling. Targets <100ms scrub update and higher task success on “when” questions.
+
+Details, goals, UX, technical approach, risks, and KPIs are defined in:
+`docs/sprints/sprint-11/DEV_GRAPH_LAYOUT_MODES_EXPLORATION_PRD.md`
+
 ### **Phase 2: Data Exploration Workflows**
 
 #### **2.1 Discovery Patterns**

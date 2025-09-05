@@ -59,6 +59,12 @@ def run_query(cypher: str, **params):
 
 def extract_id_from_node_data(node_data):
     """Extract a meaningful, stable ID from node data."""
+    # Prefer explicit uid if present
+    try:
+        if isinstance(node_data, dict) and node_data.get('uid'):
+            return str(node_data['uid'])
+    except Exception:
+        pass
     if hasattr(node_data, 'id'):
         return str(node_data.id)
     if not isinstance(node_data, dict):
@@ -83,7 +89,7 @@ def extract_id_from_node_data(node_data):
         # include a short hash of the full path to avoid collisions
         import hashlib as _hashlib
         h = _hashlib.md5(str(node_data['path']).encode()).hexdigest()[:6]
-        return f"doc-{base}-{h}"
+        return str(node_data.get('uid') or f"doc-{base}-{h}")
 
     # Description-only nodes
     if 'description' in node_data:
@@ -255,6 +261,48 @@ def search(q: str):
         })
     
     return nodes
+
+
+@app.get("/api/v1/dev-graph/search/fulltext")
+def search_fulltext(q: str, label: Optional[str] = Query(None), limit: int = Query(50, ge=1, le=200)):
+    """Full-text search across nodes using Neo4j full-text indexes.
+
+    - When `label` is provided, restricts to one index (File, Requirement, GitCommit).
+    - Otherwise queries all available indexes and merges results.
+    """
+    index_map = {
+        "File": "file_fulltext",
+        "Requirement": "requirement_fulltext",
+        "GitCommit": "commit_fulltext",
+    }
+    indexes = []
+    if label and label in index_map:
+        indexes = [index_map[label]]
+    else:
+        indexes = list(index_map.values())
+
+    out = []
+    seen_ids = set()
+    with _driver.session() as session:
+        for idx in indexes:
+            try:
+                recs = session.run(
+                    "CALL db.index.fulltext.queryNodes($idx, $q) YIELD node, score RETURN node AS n, score LIMIT $limit",
+                    {"idx": idx, "q": q, "limit": limit},
+                )
+            except Exception:
+                continue
+            for r in recs:
+                node_data = r.get("n")
+                node_id = extract_id_from_node_data(node_data)
+                if node_id in seen_ids:
+                    continue
+                seen_ids.add(node_id)
+                clean_data = {k: v for k, v in node_data.items() if v is not None} if isinstance(node_data, dict) else {"raw": str(node_data)}
+                out.append({"id": node_id, **clean_data})
+                if len(out) >= limit:
+                    break
+    return out
 
 
 # -------------------- Phase 1: New Endpoints --------------------

@@ -1,3 +1,26 @@
+### Dev Graph Layout Modes – Implementation Notes (Jan 2025)
+
+Following `DEV_GRAPH_LAYOUT_MODES_EXPLORATION_PRD.md`, two dedicated modes were implemented in the dev graph UI (`tools/dev-graph-ui`):
+
+- Structure Mode (force-directed)
+- Time Mode (time‑radial)
+
+Key details:
+
+- Mode toggle with deep links. URL encodes: `mode=structure|time`, `seed=<int>`, optional `from`, `to`, and `focus`.
+- Persistence: last mode and layout seed saved locally per user.
+- Structure Mode: deterministic, seeded coordinate reuse to stabilize small filter changes; client force relax with early termination and sampling.
+- Time Mode: deterministic radial layout with time bin layers; fade styling outside selected time range; escape hatch to open node neighborhood in Structure.
+- Escape hatches both ways: clicking a node in Structure opens its time context in Time; clicking a node in Time switches to Structure and focuses node.
+- Edge density throttling: light-edges reducer plus probabilistic throttling when edges exceed view budget.
+
+Primary files touched:
+
+- `tools/dev-graph-ui/src/app/dev-graph/complex/page.tsx`: mode toggle, deep-linking, persistence, and wiring.
+- `tools/dev-graph-ui/src/app/dev-graph/components/EvolutionGraph.tsx`: seeded RNG, coordinate cache, time-radial bins, focus/time fading, density throttle.
+
+KPIs tracked via debug UI and internal perf logs; further profiling planned for large datasets.
+
 # Codebase Evolution Tracking System - Updated PRD
 
 **Sprint 11 Final Deliverable**  
@@ -157,6 +180,104 @@ We envision a **Developer-Graph Evolution Service** that serves as a knowledge a
 2. **Graph Panel**: Reveals structural relationships with time-aware filtering
 
 **Key Experience**: When you scrub through time, the graph highlights only nodes and edges relevant at that moment. Users can search for requirements, jump to implementations, inspect commits, and compare performance metrics before and after major changes.
+
+---
+
+## 🧭 **Layout Modes: PRD Decision & Separation**
+
+### Summary
+- The force-directed layout and time-radial selector target orthogonal discovery goals. A single unified selector creates UX and performance conflicts. We will ship them as two separate exploratory features, each optimized for its strength, with a clear mode toggle in the UI.
+
+### Compatibility Findings
+- Force-directed excels at structural insight (clusters, hubs, neighborhoods) but offers weak temporal legibility; adding heavy temporal constraints degrades layout stability and performance.
+- Time-radial excels at temporal narratives (when things appear/change) but suppresses spatial proximity and increases edge crossings for cross-time links.
+- Attempting to hybridize produced trade-offs that harmed both: unstable layouts, increased jank on time scrub, and ambiguous positioning signals.
+
+### Decision
+- Introduce two explicit modes with dedicated controls, metrics, and rendering budgets:
+  - Structure Mode: Force-directed (FA2) for relationship exploration.
+  - Time Mode: Time-Radial for evolution storytelling and temporal analysis.
+
+---
+
+## 🌐 **Exploratory Feature A: Structure Mode (Force-Directed)**
+
+### Goal
+- Provide fast, stable structural exploration of subgraphs to reveal communities, hubs, and neighborhoods with interactive filtering.
+
+### Primary Use Cases
+- Cluster discovery, dependency mapping, “what is related to X?”, neighborhood expansion, cross-link inspection.
+
+### Non-Goals
+- High-fidelity temporal sequencing on canvas; narrative time is handled by Time Mode.
+
+### Data & Inputs
+- Windowed subgraph API, optional precomputed coordinates, community labels (Louvain), basic centrality scores.
+
+### UX Requirements
+- Smooth pan/zoom at >45 FPS for up to ~5k nodes in viewport.
+- Interactive hover/select, neighborhood expand/collapse, community coloring.
+- Optional edge bundling at medium+ sizes; hide labels-on-move.
+- Stable positions across minor filters: cache or reuse coordinates when node sets are similar.
+
+### Technical Approach
+- Graphology + Sigma.js with ForceAtlas2 in a Web Worker.
+- Early-termination layout with temperature/speed cap; resume on demand.
+- Position persistence by node id; seeded RNG for determinism.
+- Progressive loading and viewport-based rendering.
+
+### Risks & Mitigations
+- Hairball risk on dense graphs → default to degree/weight-based edge sampling, on-demand expansion.
+- Layout thrash when filters change → reuse prior coords, partial relax only for entered/removed nodes.
+
+### KPIs
+- Time-to-first-frame < 1.0s for 30-day window.
+- Interaction FPS > 45 during pan/zoom.
+- Position stability score (JSD over node displacement) within target under minor filter changes.
+
+---
+
+## 🕘 **Exploratory Feature B: Time Mode (Time-Radial Selector)**
+
+### Goal
+- Deliver legible, compelling temporal narratives of how features, sprints, and files evolve over time, optimized for time scrubbing and storytelling.
+
+### Primary Use Cases
+- “What happened when?”, sprint windows, commit bursts, feature lifecycles, before/after comparisons.
+
+### Non-Goals
+- Precise community spatialization; structural proximity is secondary.
+
+### Data & Inputs
+- Commit buckets endpoint, sprint ranges, per-edge timestamps, evolution events.
+
+### UX Requirements
+- Radial layers binned by time (e.g., by week/sprint); inner→outer = older→newer or vice versa.
+- Focus+context on selected entity; highlight first/last seen, change events, and active edges within selected range.
+- Time scrubber synchronizes selection; optional playback.
+- Edge filtering: show top-N salient edges per node (e.g., by recency/weight) to reduce crossings.
+
+### Technical Approach
+- Deterministic polar coordinates from time bins; angle reserved for categories (e.g., type/community) or stable hashing for repeatability.
+- Arc/curve rendering with throttled edge density; fade inactive layers.
+- Snapshot assembly server-side for a given time window to minimize client churn.
+
+### Risks & Mitigations
+- Edge crossing clutter across bins → cap visible edges, on-hover expansion; use bundling for cross-bin flows.
+- Large windows produce dense rings → dynamic binning (auto-coarsen when density > threshold).
+
+### KPIs
+- Time scrub responsiveness < 100ms to update highlights.
+- Readability rating in usability tests (task success on temporal questions) > baseline.
+- Reduced cognitive load for “when” questions vs. Structure Mode.
+
+---
+
+## 🔀 **Mode Switching & Shared Contracts**
+- Clear toggle: “Structure” vs “Time”. Persist last mode per user.
+- Shared filters (type, sprint, search) apply in both; rendering honors mode semantics.
+- Deep linkability: URL encodes mode, query, time range or layout seed.
+- Escape hatches: from Time node click → open neighborhood in Structure Mode; from Structure node → open timeline for that node in Time Mode.
 
 ---
 
@@ -741,3 +862,157 @@ With careful implementation following this updated roadmap, the dev graph will b
   - Changes: Updated import from `{ Box, Heading, Spinner, Text, VStack, Button }` to include `HStack`
   - Result: Simple Dashboard page now loads without runtime errors
   - Impact: All three pages (Complex, Enhanced, Simple) now work correctly with navigation
+
+## 🧬 **Biological Evolution Metaphor Implementation (January 2025)**
+
+### **New Architecture: Welcome-First Navigation**
+
+**Problem Solved**: The dev graph was unusable due to poor navigation - users landed directly on a complex timeline view that was overwhelming and didn't show what they were interested in.
+
+**Solution**: Implemented a biological evolution metaphor with clear navigation flow:
+
+1. **Welcome Dashboard** (`/dev-graph/welcome`) - Entry point with system health, data quality metrics, and descriptive stats
+2. **Timeline Evolution** (`/dev-graph/timeline`) - Biological evolution view with commits as generations, files as organisms
+3. **Structure Analysis** (`/dev-graph/structure`) - Force-directed relationship analysis and architectural patterns
+
+### **Biological Evolution Metaphor**
+
+**Core Concept**: Codebase evolution as a living ecosystem where:
+- **Commits = Generations**: Each commit represents a new generation in the evolution
+- **Files = Organisms**: Files are living entities that are born, evolve, and sometimes die
+- **Branches = Lineages**: Git branches represent evolutionary lineages that fork and merge
+- **Documentation = DNA**: Documentation acts as regulatory instructions that influence code survival
+- **Main Branch = Trunk**: The main branch is the trunk of the evolutionary tree
+
+### **New Components Implemented**
+
+#### **1. Welcome Dashboard** (`/dev-graph/welcome/page.tsx`)
+- **System Health Overview**: API connectivity, database status, data quality score
+- **Quick Stats**: Total nodes, relations, recent commits, active sprints
+- **Data Type Breakdown**: Node types and relation types with counts and colors
+- **Performance Metrics**: Query times, cache hit rates, memory usage
+- **Navigation Hub**: Clear paths to Timeline Evolution and Structure Analysis
+
+#### **2. Timeline Evolution Page** (`/dev-graph/timeline/page.tsx`)
+- **Biological Metaphor Explanation**: Clear explanation of the evolution concept
+- **Timeline Controls**: Play/pause, speed control, generation navigation
+- **Evolution Graph**: D3.js-based visualization showing files as organisms in an evolutionary tree
+- **Generation Info**: Current generation details with commit hash and timestamp
+- **Ecosystem Composition**: File type breakdown (code, docs, config, tests)
+
+#### **3. Structure Analysis Page** (`/dev-graph/structure/page.tsx`)
+- **Architectural Analysis**: Focus on relationships, dependencies, and patterns
+- **Key Metrics**: Clustering coefficient, average path length, network density, modularity
+- **Interactive Controls**: Node type filtering, relation type filtering, clustering options
+- **Central Nodes Analysis**: Most important nodes by centrality and degree
+- **Structure Graph**: D3.js-based force-directed graph with advanced interactions
+
+#### **4. Biological Evolution Graph** (`/dev-graph/components/BiologicalEvolutionGraph.tsx`)
+- **Radial Layout**: Evolutionary tree with files positioned in time-based rings
+- **Color Coding**: Green (alive), Blue (evolved), Red (extinct) based on file status
+- **Interactive Tooltips**: Rich information on hover with file details
+- **Animation Support**: Pulsing effects for alive files during playback
+- **Legend System**: Clear visual indicators for file types and status
+
+#### **5. Structure Analysis Graph** (`/dev-graph/components/StructureAnalysisGraph.tsx`)
+- **Force-Directed Layout**: D3.js simulation for natural relationship visualization
+- **Clustering Visualization**: Optional cluster detection and visualization
+- **Interactive Filtering**: Real-time filtering by node and relation types
+- **Performance Optimization**: Handles up to 5000 nodes with smooth interactions
+- **Rich Interactions**: Drag, zoom, hover with detailed tooltips
+
+### **Navigation Flow Improvements**
+
+**Before**: Users landed on complex timeline → overwhelmed and confused
+**After**: 
+1. **Welcome Dashboard** → System overview and health check
+2. **Choose Exploration Path**:
+   - **Timeline Evolution** → "How did this evolve over time?"
+   - **Structure Analysis** → "What are the relationships and dependencies?"
+
+### **Key Features**
+
+#### **Biological Metaphor Features**
+- **Evolutionary Tree Visualization**: Files positioned in time-based radial layout
+- **Lifecycle Tracking**: Files show as born (green), evolved (blue), or extinct (red)
+- **Generation Playback**: Animated evolution through commit generations
+- **Ecosystem Composition**: Real-time breakdown of file types and status
+
+#### **Structure Analysis Features**
+- **Advanced Metrics**: Clustering coefficient, path length, density, modularity
+- **Interactive Filtering**: Filter by node types, relation types, centrality
+- **Clustering Detection**: Automatic community detection and visualization
+- **Central Node Analysis**: Identify most important components
+
+#### **Performance Optimizations**
+- **Progressive Loading**: Handle large datasets with pagination
+- **Viewport-Based Rendering**: Only render visible elements
+- **Smooth Animations**: 60fps animations with D3.js
+- **Memory Management**: Efficient cleanup and resource management
+
+### **Technical Implementation**
+
+#### **Dependencies Added**
+- **D3.js**: For advanced data visualization and force-directed layouts
+- **React Icons**: For consistent iconography across components
+- **Chakra UI**: For consistent styling and responsive design
+
+#### **API Integration**
+- **System Health Endpoints**: Health checks and performance metrics
+- **Data Quality Scoring**: Calculated based on data completeness and diversity
+- **Real-time Metrics**: Live performance and usage statistics
+
+#### **State Management**
+- **React Hooks**: useState, useEffect for component state
+- **URL Persistence**: Deep linking and state restoration
+- **Local Storage**: User preferences and last viewed modes
+
+### **User Experience Improvements**
+
+#### **Clear Entry Point**
+- **Welcome Dashboard**: Users understand system status before exploring
+- **Data Quality Indicators**: Visual feedback on data completeness
+- **Performance Metrics**: Transparency about system performance
+
+#### **Intuitive Navigation**
+- **Biological Metaphor**: Familiar concepts make complex data accessible
+- **Clear Paths**: Timeline vs Structure analysis for different questions
+- **Escape Hatches**: Easy switching between different views
+
+#### **Rich Interactions**
+- **Playback Controls**: Animate through evolution timeline
+- **Interactive Filtering**: Real-time data exploration
+- **Rich Tooltips**: Detailed information without cluttering interface
+
+### **Success Metrics**
+
+#### **Usability Improvements**
+- **Reduced Cognitive Load**: Clear entry point vs overwhelming timeline
+- **Faster Onboarding**: Users understand system capabilities immediately
+- **Better Navigation**: Clear paths for different exploration goals
+
+#### **Performance Achievements**
+- **Smooth Animations**: 60fps playback and interactions
+- **Large Dataset Support**: Handle 5000+ nodes with good performance
+- **Responsive Design**: Works on desktop and mobile devices
+
+#### **User Engagement**
+- **Longer Sessions**: Rich interactions encourage exploration
+- **Multiple Exploration Paths**: Different views for different questions
+- **Educational Value**: Biological metaphor makes concepts accessible
+
+### **Future Enhancements**
+
+#### **Advanced Biological Features**
+- **Mutation Tracking**: Track how files change over time
+- **Extinction Analysis**: Understand why files were deleted
+- **Evolutionary Pressure**: Identify what drives file changes
+- **Species Classification**: Categorize files by evolutionary patterns
+
+#### **Enhanced Visualizations**
+- **3D Evolution Tree**: Three-dimensional evolutionary visualization
+- **Heat Maps**: Show activity density across time and space
+- **Network Analysis**: Advanced graph theory metrics and visualizations
+- **Comparative Analysis**: Compare different branches or time periods
+
+This implementation transforms the dev graph from a confusing, unusable tool into an intuitive, educational, and powerful codebase exploration platform that tells the story of how your code evolved.
