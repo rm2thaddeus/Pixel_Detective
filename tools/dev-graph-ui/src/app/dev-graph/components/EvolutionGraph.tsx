@@ -2,6 +2,7 @@
 
 import { Box } from '@chakra-ui/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { calculateLoD, filterNodesByLoD, filterEdgesByLoD, reduceLabelComplexity, calculateNodeSize, calculateEdgeWidth, calculateColorIntensity } from '../../../utils/lodReducers';
 
 export type GraphData = { nodes: any[]; relations: any[] };
 
@@ -69,6 +70,10 @@ export function EvolutionGraph({
   const zoomRef = useRef<number>(1);
   const animRef = useRef<number | null>(null);
   const draggingRef = useRef<Set<string>>(new Set());
+  
+  // LoD state
+  const [zoomLevel, setZoomLevel] = useState(1);
+  const [viewportBounds, setViewportBounds] = useState({ x: 0, y: 0, width, height });
   // Allow physics on moderately large graphs (sampling keeps it performant)
   const PHYSICS_NODE_THRESHOLD = 1200;
 
@@ -130,22 +135,62 @@ export function EvolutionGraph({
   // Coordinate cache for reuse across minor filter changes (by node id)
   const coordCacheRef = useRef<Map<string, { x: number; y: number }>>(new Map());
 
+  // Apply LoD filtering
+  const lodData = useMemo(() => {
+    if (!data.nodes || !data.relations) return data;
+    
+    const lodConfig = {
+      zoomLevel,
+      viewportWidth: viewportBounds.width,
+      viewportHeight: viewportBounds.height,
+      nodeCount: data.nodes.length,
+      edgeCount: data.relations.length,
+    };
+    
+    const lod = calculateLoD(lodConfig);
+    
+    // Filter nodes and edges based on LoD
+    const filteredNodes = filterNodesByLoD(data.nodes, lod);
+    const filteredEdges = filterEdgesByLoD(data.relations, lod);
+    
+    // Apply label complexity reduction
+    const processedNodes = filteredNodes.map(node => ({
+      ...node,
+      label: node.label ? reduceLabelComplexity([node.label], zoomLevel)[0] : node.label,
+      size: calculateNodeSize(node.size || 5, zoomLevel),
+    }));
+    
+    const processedEdges = filteredEdges.map(edge => ({
+      ...edge,
+      label: edge.label ? reduceLabelComplexity([edge.label], zoomLevel)[0] : edge.label,
+      width: calculateEdgeWidth(edge.width || 1, zoomLevel),
+    }));
+    
+    return {
+      nodes: processedNodes,
+      relations: processedEdges,
+      lod,
+    };
+  }, [data, zoomLevel, viewportBounds]);
+
   // Create graph data
   const graph = useMemo(() => {
     if (!mounted || isLoading || error || !libraries) return null;
     
+    const { nodes, relations } = lodData;
+    
           if (DEBUG) console.log('Creating graph with data:', { 
-        nodesCount: data.nodes?.length || 0, 
-        relationsCount: data.relations?.length || 0,
+        nodesCount: nodes?.length || 0, 
+        relationsCount: relations?.length || 0,
         layoutMode,
-        sampleNode: data.nodes?.[0],
-        sampleNodeCoords: data.nodes?.[0] ? {
-          x: data.nodes[0].x,
-          y: data.nodes[0].y,
-          xType: typeof data.nodes[0].x,
-          yType: typeof data.nodes[0].y,
-          xValid: typeof data.nodes[0].x === 'number' && !isNaN(data.nodes[0].x),
-          yValid: typeof data.nodes[0].y === 'number' && !isNaN(data.nodes[0].y)
+        sampleNode: nodes?.[0],
+        sampleNodeCoords: nodes?.[0] ? {
+          x: nodes[0].x,
+          y: nodes[0].y,
+          xType: typeof nodes[0].x,
+          yType: typeof nodes[0].y,
+          xValid: typeof nodes[0].x === 'number' && !isNaN(nodes[0].x),
+          yValid: typeof nodes[0].y === 'number' && !isNaN(nodes[0].y)
         } : null
       });
     
@@ -154,7 +199,7 @@ export function EvolutionGraph({
       const g = new Graph();
       
       // Add nodes (coordinates reused or derived deterministically)
-      for (const n of data.nodes || []) {
+      for (const n of nodes || []) {
         if (!g.hasNode(n.id)) {
           // Pull from cache first
           let cached = coordCacheRef.current.get(String(n.id));
@@ -228,7 +273,7 @@ export function EvolutionGraph({
       }
       
       // Add edges (filter by selected types)
-      for (const e of data.relations || []) {
+      for (const e of relations || []) {
         if (Array.isArray(edgeTypes) && edgeTypes.length > 0 && !edgeTypes.includes(e.type)) continue;
         if (!g.hasNode(e.from) || !g.hasNode(e.to)) continue;
         
@@ -570,6 +615,23 @@ export function EvolutionGraph({
         hideLabelsOnMove: true, // Hide labels while moving for better performance
         // Sigma v3 uses default programs automatically
         // No need to explicitly configure nodeProgramClasses or edgeProgramClasses
+      });
+
+      // Add zoom event handlers for LoD
+      sigma.on('camera.updated', () => {
+        const camera = sigma.getCamera();
+        const newZoomLevel = camera.ratio;
+        setZoomLevel(newZoomLevel);
+        zoomRef.current = newZoomLevel;
+        
+        // Update viewport bounds
+        const viewport = sigma.getBoundingBox();
+        setViewportBounds({
+          x: viewport.x[0],
+          y: viewport.y[0],
+          width: viewport.x[1] - viewport.x[0],
+          height: viewport.y[1] - viewport.y[0],
+        });
       });
 
       // Reducers: progressive labels/edges and focus mode dimming, time range fading

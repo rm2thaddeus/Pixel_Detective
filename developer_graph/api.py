@@ -15,6 +15,8 @@ from neo4j import GraphDatabase
 from .git_history_service import GitHistoryService
 from .temporal_engine import TemporalEngine
 from .sprint_mapping import SprintMapper
+from .enhanced_ingest import EnhancedDevGraphIngester
+from .enhanced_git_ingest import EnhancedGitIngester
 
 app = FastAPI(title="Developer Graph API", version="1.0.0")
 
@@ -65,22 +67,35 @@ def health_check():
         with _driver.session() as session:
             result = session.run("RETURN 1 as test")
             result.single()
-        
+        # Compose metrics
+        from datetime import datetime
+        metrics = _engine.get_metrics() if hasattr(_engine, "get_metrics") else {}
+        # Try to fetch approximate memory usage if psutil is present
+        mem_mb = 0.0
+        try:
+            import psutil, os as _os
+            mem_mb = psutil.Process(_os.getpid()).memory_info().rss / 1_000_000.0
+        except Exception:
+            mem_mb = 0.0
         return {
             "status": "healthy",
             "service": "dev-graph-api",
             "version": "1.0.0",
             "database": "connected",
-            "timestamp": "2025-01-05T09:00:00Z"
+            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "avg_query_time_ms": metrics.get("avg_query_time_ms", 0),
+            "cache_hit_rate": metrics.get("cache_hit_rate", 0),
+            "memory_usage_mb": round(mem_mb, 2),
         }
     except Exception as e:
+        from datetime import datetime
         return {
             "status": "unhealthy",
             "service": "dev-graph-api", 
             "version": "1.0.0",
             "database": "disconnected",
             "error": str(e),
-            "timestamp": "2025-01-05T09:00:00Z"
+            "timestamp": datetime.utcnow().isoformat() + "Z"
         }
 
 
@@ -460,6 +475,57 @@ def ingest_recent_commits(limit: int = Query(100, ge=1, le=5000)):
     except Exception as e:
         logging.exception("Ingest failed")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# -------------------- Ingestion Triggers (Enhanced) --------------------
+
+@app.post("/api/v1/dev-graph/ingest/docs")
+def ingest_docs():
+    """Run enhanced docs/sprints/chunks ingestion.
+
+    Populates Sprint, Document, Chunk nodes and edges:
+    - (Sprint)-[:CONTAINS_DOC]->(Document)
+    - (Document)-[:CONTAINS_CHUNK]->(Chunk)
+    - (Chunk)-[:MENTIONS]->(Requirement)
+    """
+    try:
+        ing = EnhancedDevGraphIngester(REPO_PATH, NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD)
+        ing.ingest()
+        return {"success": True}
+    except Exception as e:
+        logging.exception("Enhanced docs ingest failed")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/v1/dev-graph/ingest/git/enhanced")
+def ingest_git_enhanced():
+    """Run enhanced git-based ingestion to create planning-to-code links and chunk tracking."""
+    try:
+        ing = EnhancedGitIngester(REPO_PATH, NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD)
+        ing.ingest()
+        return {"success": True}
+    except Exception as e:
+        logging.exception("Enhanced git ingest failed")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# -------------------- Metrics --------------------
+
+@app.get("/api/v1/dev-graph/metrics")
+def get_metrics():
+    """Return basic API + engine metrics for telemetry."""
+    metrics = _engine.get_metrics() if hasattr(_engine, "get_metrics") else {}
+    # Add basic process memory if possible
+    mem_mb = 0.0
+    try:
+        import psutil, os as _os
+        mem_mb = psutil.Process(_os.getpid()).memory_info().rss / 1_000_000.0
+    except Exception:
+        mem_mb = 0.0
+    return {
+        **metrics,
+        "memory_usage_mb": round(mem_mb, 2),
+    }
 
 
 @app.get("/api/v1/dev-graph/sprint/map")

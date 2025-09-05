@@ -1,13 +1,13 @@
 'use client';
 import dynamic from 'next/dynamic';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Box, Heading, Spinner, Alert, AlertIcon, Text, HStack, Switch, Slider, SliderFilledTrack, SliderThumb, SliderTrack, useDisclosure, Button, useToast, Tabs, TabList, TabPanels, Tab, TabPanel } from '@chakra-ui/react';
+import { Box, Heading, Spinner, Alert, AlertIcon, Text, HStack, VStack, Switch, Slider, SliderFilledTrack, SliderThumb, SliderTrack, useDisclosure, Button, useToast, Tabs, TabList, TabPanels, Tab, TabPanel } from '@chakra-ui/react';
 import { Select } from '@chakra-ui/react';
 import { useMemo, useState, useEffect } from 'react';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { Header } from '@/components/Header';
 import { Sprint } from '../components/SprintView';
-import { useWindowedSubgraph, useCommitsBuckets } from '../hooks/useWindowedSubgraph';
+import { useWindowedSubgraph, useCommitsBuckets, useAnalytics, useTelemetry, useFullTextSearch } from '../hooks/useWindowedSubgraph';
 // Dynamic imports to avoid SSR issues
 const TimelineView = dynamic(() => import('../components/CanvasTimeline'), { ssr: false });
 const EnhancedTimelineView = dynamic(() => import('../components/EnhancedTimelineView').then(mod => ({ default: mod.EnhancedTimelineView })), { ssr: false });
@@ -16,6 +16,7 @@ const NodeDetailDrawer = dynamic(() => import('../components/NodeDetailDrawer'),
 const SearchBar = dynamic(() => import('../components/SearchBar'), { ssr: false });
 const SprintView = dynamic(() => import('../components/SprintView').then(mod => ({ default: mod.SprintView })), { ssr: false });
 const TemporalAnalytics = dynamic(() => import('../components/TemporalAnalytics').then(mod => ({ default: mod.TemporalAnalytics })), { ssr: false });
+const TelemetryDisplay = dynamic(() => import('../components/TelemetryDisplay').then(mod => ({ default: mod.TelemetryDisplay })), { ssr: false });
 // const RealAnalytics = dynamic(() => import('../components/RealAnalytics').then(mod => ({ default: mod.RealAnalytics })), { ssr: false });
 
 // Removed react-force-graph usage in favor of Sigma.js (see EvolutionGraph)
@@ -24,49 +25,33 @@ const TemporalAnalytics = dynamic(() => import('../components/TemporalAnalytics'
 const DEV_GRAPH_API_URL = process.env.NEXT_PUBLIC_DEV_GRAPH_API_URL || 'http://localhost:8080';
 
 export default function DevGraphPage() {
-	const PAGE_SIZE = 200;
+	const PAGE_SIZE = 250; // Increased for better performance
 	const [commitLimit, setCommitLimit] = useState(100);
 	const router = useRouter();
 	const searchParams = useSearchParams();
 	const [layoutSeed, setLayoutSeed] = useState<number>(42);
 	const [focusNodeId, setFocusNodeId] = useState<string | undefined>(undefined);
 	
-	const nodesQuery = useInfiniteQuery({
-		queryKey: ['dev-graph', 'nodes', PAGE_SIZE],
-		queryFn: async ({ pageParam = 0 }) => {
-			const res = await fetch(`${DEV_GRAPH_API_URL}/api/v1/dev-graph/nodes?limit=${PAGE_SIZE}&offset=${pageParam}`);
-			if (!res.ok) throw new Error('Failed to load nodes');
-			return res.json();
-		},
-		initialPageParam: 0,
-		getNextPageParam: (_lastPage, allPages) => allPages.length * PAGE_SIZE,
-		staleTime: 60_000,
-		enabled: true, // Enable automatic fetching
+	// Phase 4: Use windowed subgraph as primary data source
+	const windowedSubgraphQuery = useWindowedSubgraph({
+		fromTimestamp: timeWindow.from,
+		toTimestamp: timeWindow.to,
+		nodeTypes: nodeTypeFilter.length > 0 ? nodeTypeFilter : undefined,
+		limit: PAGE_SIZE,
+		includeCounts: false // Skip counts for better performance
 	});
+	
+	// Use new commits buckets API for timeline density
+	const commitsBucketsQuery = useCommitsBuckets(
+		'day',
+		timeWindow.from,
+		timeWindow.to,
+		1000
+	);
 
-	const relationsQuery = useInfiniteQuery({
-		queryKey: ['dev-graph', 'relations', PAGE_SIZE],
-		queryFn: async ({ pageParam = 0 }) => {
-			const res = await fetch(`${DEV_GRAPH_API_URL}/api/v1/dev-graph/relations?limit=${PAGE_SIZE}&offset=${pageParam}`);
-			if (!res.ok) throw new Error('Failed to load relations');
-			return res.json();
-		},
-		initialPageParam: 0,
-		getNextPageParam: (_lastPage, allPages) => allPages.length * PAGE_SIZE,
-		staleTime: 60_000,
-		enabled: true, // Enable automatic fetching
-	});
-
-	const commitsQuery = useQuery({
-		queryKey: ['dev-graph', 'commits', commitLimit],
-		queryFn: async () => {
-			const res = await fetch(`${DEV_GRAPH_API_URL}/api/v1/dev-graph/commits?limit=${commitLimit}`);
-			if (!res.ok) throw new Error('Failed to load commits');
-			return res.json();
-		},
-		staleTime: 5 * 60 * 1000,
-		enabled: true, // Enable automatic fetching
-	});
+	// Analytics and telemetry
+	const analyticsQuery = useAnalytics(timeWindow.from, timeWindow.to);
+	const telemetryQuery = useTelemetry();
 	const [ingesting, setIngesting] = useState(false);
 	const [selectedNode, setSelectedNode] = useState<any>(null);
 	const [selectedRange, setSelectedRange] = useState<{ start?: string; end?: string }>({});
@@ -81,21 +66,9 @@ export default function DevGraphPage() {
 	const [edgeTypes, setEdgeTypes] = useState<string[]>(['PART_OF','EVOLVES_FROM','REFERENCES','DEPENDS_ON']);
 	const [maxEdgesInView, setMaxEdgesInView] = useState<number>(2000);
 	
-	// Use new windowed subgraph API for better performance
-	const windowedSubgraphQuery = useWindowedSubgraph({
-		fromTimestamp: timeWindow.from,
-		toTimestamp: timeWindow.to,
-		nodeTypes: nodeTypeFilter.length > 0 ? nodeTypeFilter : undefined,
-		limit: performanceMode ? 2000 : 1000 // Higher limit in performance mode
-	});
-	
-	// Use new commits buckets API for timeline density
-	const commitsBucketsQuery = useCommitsBuckets(
-		'day',
-		timeWindow.from,
-		timeWindow.to,
-		1000
-	);
+	// Phase 4: Progressive hydration state
+	const [isHydrating, setIsHydrating] = useState(false);
+	const [hydrationProgress, setHydrationProgress] = useState(0);
 
 	// Deep link: initialize state from URL on mount, then persist updates back
 	useEffect(() => {
@@ -197,6 +170,69 @@ export default function DevGraphPage() {
 		});
 	};
 
+	// Progressive hydration effect
+	useEffect(() => {
+		if (!windowedSubgraphQuery.data?.pages) return;
+		
+		setIsHydrating(true);
+		setHydrationProgress(0);
+		
+		// Process data in batches using requestIdleCallback
+		const processBatches = () => {
+			const allPages = windowedSubgraphQuery.data?.pages || [];
+			let allNodes: any[] = [];
+			let allEdges: any[] = [];
+			
+			// Flatten all pages
+			allPages.forEach(page => {
+				allNodes = [...allNodes, ...(page.nodes || [])];
+				allEdges = [...allEdges, ...(page.edges || [])];
+			});
+			
+			const batchSize = 200;
+			let processed = 0;
+			
+			const processBatch = () => {
+				const start = processed;
+				const end = Math.min(processed + batchSize, allNodes.length);
+				const batch = allNodes.slice(start, end);
+				
+				// Process batch (add coordinates, validate, etc.)
+				batch.forEach((node: any, index: number) => {
+					// Add deterministic coordinates if missing
+					if (typeof node.x !== 'number' || isNaN(node.x) || typeof node.y !== 'number' || isNaN(node.y)) {
+						const hash = node.id.split('').reduce((a: number, b: string) => {
+							a = ((a << 5) - a) + b.charCodeAt(0);
+							return a & a;
+						}, 0);
+						node.x = Math.abs(hash % 1000);
+						node.y = Math.abs((hash >> 8) % 1000);
+					}
+				});
+				
+				processed = end;
+				const progress = Math.min(100, (processed / allNodes.length) * 100);
+				setHydrationProgress(progress);
+				
+				if (processed < allNodes.length) {
+					// Use requestIdleCallback for non-blocking processing
+					if (window.requestIdleCallback) {
+						window.requestIdleCallback(processBatch, { timeout: 100 });
+					} else {
+						setTimeout(processBatch, 0);
+					}
+				} else {
+					setIsHydrating(false);
+					setHydrationProgress(100);
+				}
+			};
+			
+			processBatch();
+		};
+		
+		processBatches();
+	}, [windowedSubgraphQuery.data]);
+
 	const data = useMemo(
 		() => {
 			// Phase 4: Use windowed subgraph for better performance
@@ -205,17 +241,15 @@ export default function DevGraphPage() {
 			
 			// Prioritize windowed subgraph data if available
 			if (windowedSubgraphQuery.data?.pages?.[0]) {
-				const windowedData = windowedSubgraphQuery.data.pages[0];
-				rawNodes = windowedData.nodes || [];
-				rawRelations = windowedData.edges || [];
+				// Flatten all pages for progressive loading
+				windowedSubgraphQuery.data.pages.forEach(page => {
+					rawNodes = [...rawNodes, ...(page.nodes || [])];
+					rawRelations = [...rawRelations, ...(page.edges || [])];
+				});
 			} else if (selectedRange.start || selectedRange.end) {
 				// Fallback to legacy subgraph
 				rawNodes = subgraph.nodes ?? [];
 				rawRelations = subgraph.links ?? [];
-			} else {
-				// Fallback to full graph data
-				rawNodes = (nodesQuery.data?.pages || []).flat();
-				rawRelations = (relationsQuery.data?.pages || []).flat();
 			}
 			
 			// Add coordinates to nodes that don't have them
@@ -309,25 +343,38 @@ export default function DevGraphPage() {
 				{/* Debug Info */}
 				<Box mb={4} p={4} bg="gray.100" borderRadius="md" fontSize="sm">
 					<Text fontWeight="bold">Debug Info:</Text>
-					<Text>Nodes loaded: {((nodesQuery.data?.pages as any[] | undefined) || []).reduce((acc: number, p: any[]) => acc + p.length, 0)}</Text>
-					<Text>Relations loaded: {((relationsQuery.data?.pages as any[] | undefined) || []).reduce((acc: number, p: any[]) => acc + p.length, 0)}</Text>
-					<Text>Commits loaded: {Array.isArray(commitsQuery.data) ? commitsQuery.data.length : 0}</Text>
+					<Text>Nodes loaded: {windowedSubgraphQuery.data?.pages?.reduce((acc: number, p: any) => acc + (p.nodes?.length || 0), 0) || 0}</Text>
+					<Text>Edges loaded: {windowedSubgraphQuery.data?.pages?.reduce((acc: number, p: any) => acc + (p.edges?.length || 0), 0) || 0}</Text>
+					<Text>Commits buckets: {commitsBucketsQuery.data?.buckets?.length || 0}</Text>
 					<Text>Data valid: {isValidData ? 'Yes' : 'No'}</Text>
 					<Text>Relations valid: {hasValidRelations ? 'Yes' : 'No'}</Text>
 					<Text>Performance mode: {performanceMode ? 'Enabled' : 'Disabled'}</Text>
 					<Text>Time window: {timeWindow.from ? new Date(timeWindow.from).toLocaleDateString() : 'None'} - {timeWindow.to ? new Date(timeWindow.to).toLocaleDateString() : 'None'}</Text>
+					{isHydrating && (
+						<Text color="blue.600">
+							Hydrating: {Math.round(hydrationProgress)}% complete
+						</Text>
+					)}
 					{/* Phase 4: Performance metrics */}
 					{windowedSubgraphQuery.data?.pages?.[0]?.performance && (
 						<Text color="green.600">
-							Performance: {windowedSubgraphQuery.data.pages[0].performance.query_time_ms}ms 
+							Subgraph: {windowedSubgraphQuery.data.pages[0].performance.query_time_ms}ms 
 							({windowedSubgraphQuery.data.pages[0].pagination.returned_nodes} nodes, 
 							{windowedSubgraphQuery.data.pages[0].pagination.returned_edges} edges)
+							{windowedSubgraphQuery.data.pages[0].performance.cache_hit && ' (cached)'}
 						</Text>
 					)}
 					{commitsBucketsQuery.data?.performance && (
 						<Text color="blue.600">
 							Timeline: {commitsBucketsQuery.data.performance.query_time_ms}ms 
 							({commitsBucketsQuery.data.performance.total_buckets} buckets)
+						</Text>
+					)}
+					{telemetryQuery.data && (
+						<Text color="purple.600">
+							Telemetry: {telemetryQuery.data.avg_query_time_ms}ms avg, 
+							{Math.round(telemetryQuery.data.cache_hit_rate * 100)}% cache hit, 
+							{telemetryQuery.data.memory_usage_mb}MB memory
 						</Text>
 					)}
 					{!hasValidRelations && (((data as any).relations)?.length ?? 0) > 0 && (
@@ -419,9 +466,10 @@ export default function DevGraphPage() {
 							setIngesting(true);
 							await fetch(`${DEV_GRAPH_API_URL}/api/v1/dev-graph/ingest/recent?limit=100`, { method: 'POST' });
 							await Promise.all([
-								nodesQuery.refetch(),
-								relationsQuery.refetch(),
-								commitsQuery.refetch(),
+								windowedSubgraphQuery.refetch(),
+								commitsBucketsQuery.refetch(),
+								analyticsQuery.refetch(),
+								telemetryQuery.refetch(),
 							]);
 						} catch (e) {
 							console.error('Ingest failed', e);
@@ -579,15 +627,21 @@ export default function DevGraphPage() {
 							
 							{/* Analytics Tab */}
 							<TabPanel>
-								<Box p={6} bg="gray.50" borderRadius="md" borderWidth={1}>
-									<Text fontSize="lg" fontWeight="bold" mb={4}>Analytics</Text>
-									<Text color="gray.600" mb={4}>
-										Analytics features are temporarily disabled while we update the backend API.
-									</Text>
-									<Text fontSize="sm" color="gray.500">
-										The evolutionary tree visualization and other core features are fully functional.
-									</Text>
-								</Box>
+								<VStack spacing={4} align="stretch">
+									{/* System Status */}
+									<TelemetryDisplay />
+									
+									{/* Analytics Placeholder */}
+									<Box p={6} bg="gray.50" borderRadius="md" borderWidth={1}>
+										<Text fontSize="lg" fontWeight="bold" mb={4}>Analytics</Text>
+										<Text color="gray.600" mb={4}>
+											Analytics features are temporarily disabled while we update the backend API.
+										</Text>
+										<Text fontSize="sm" color="gray.500">
+											The evolutionary tree visualization and other core features are fully functional.
+										</Text>
+									</Box>
+								</VStack>
 							</TabPanel>
 						</TabPanels>
 					</Tabs>
@@ -614,17 +668,22 @@ export default function DevGraphPage() {
                     <Text><span style={{ color: '#e67700' }}>■</span> DEPENDS_ON</Text>
                 </Box>
 
-				{(nodesQuery.isLoading || relationsQuery.isLoading) && (
+				{(windowedSubgraphQuery.isLoading || commitsBucketsQuery.isLoading) && (
 					<Box display="flex" alignItems="center" gap={2} mb={4}>
 						<Spinner size="sm" />
-						Loading graph...
+						Loading graph data...
+						{isHydrating && (
+							<Text fontSize="sm" color="blue.600">
+								({Math.round(hydrationProgress)}% hydrated)
+							</Text>
+						)}
 					</Box>
 				)}
 				
-				{(nodesQuery.error || relationsQuery.error) && (
+				{(windowedSubgraphQuery.error || commitsBucketsQuery.error) && (
 					<Alert status="error" mb={4}>
 						<AlertIcon />
-						{(nodesQuery.error as Error)?.message || (relationsQuery.error as Error)?.message || 'Failed to load graph'}
+						{(windowedSubgraphQuery.error as Error)?.message || (commitsBucketsQuery.error as Error)?.message || 'Failed to load graph data'}
 					</Alert>
 				)}
 				

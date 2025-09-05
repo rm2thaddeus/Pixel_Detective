@@ -112,9 +112,16 @@ Known Gaps / Next Steps
 - Expand full‑text to Documents/Chunks if needed for content search.
 - Consider projections via GDS for community detection precomputation (cached attributes on nodes for layout seeding).
 
+Frontend Contract Summary
+- Primary graph endpoint: `/api/v1/dev-graph/graph/subgraph` with cursor pagination (move to keyset cursor `{last_ts, last_commit}` for scale).
+- Timeline density: `/api/v1/dev-graph/commits/buckets` (day/week) feeding canvas timeline and range selection.
+- Evolution detail: `/api/v1/dev-graph/evolution/file` and `/api/v1/dev-graph/evolution/requirement/{id}`.
+- Sprint hierarchy: `/api/v1/dev-graph/sprints/{number}/subgraph`.
+- Search: `/api/v1/dev-graph/search/fulltext`.
+- Health/metrics: `/api/v1/dev-graph/health` (extend with perf/telemetry) or `/metrics`.
+
 Appendix: File Map
 - API: `developer_graph/api.py`
 - Temporal Engine: `developer_graph/temporal_engine.py`
 - Schema Helpers: `developer_graph/schema/temporal_schema.py`
 - Git Integration: `developer_graph/git_history_service.py`
-

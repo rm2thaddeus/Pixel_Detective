@@ -32,6 +32,14 @@ class TemporalEngine:
         # TTL cache for subgraph queries
         self._cache = {}
         self._cache_ttl = 60  # 60 seconds TTL
+        # Telemetry: cache and perf
+        self._cache_hits = 0
+        self._cache_misses = 0
+        try:
+            from collections import deque  # noqa: F401
+            self._q_times_ms = deque(maxlen=100)
+        except Exception:
+            self._q_times_ms = []  # type: ignore[assignment]
 
     def apply_schema(self) -> None:
         apply_schema(self.driver)
@@ -53,6 +61,10 @@ class TemporalEngine:
         if cache_key in self._cache:
             cached_data, expires_at = self._cache[cache_key]
             if time.time() < expires_at:
+                try:
+                    self._cache_hits += 1
+                except Exception:
+                    pass
                 return cached_data
             else:
                 del self._cache[cache_key]
@@ -507,6 +519,10 @@ class TemporalEngine:
         cached_result = self._get_cached_result(cache_key)
         if cached_result:
             return cached_result
+        try:
+            self._cache_misses += 1
+        except Exception:
+            pass
         
         # Build WHERE clause for time bounds
         where_clauses = ["r.timestamp IS NOT NULL"]
@@ -543,23 +559,42 @@ class TemporalEngine:
                 total_nodes = count_result["node_count"] if count_result else 0
                 total_edges = count_result["edge_count"] if count_result else 0
             
-            # Get paginated results
-            offset = 0
+            # Keyset pagination support: parse cursor as "<ts>|<rid>" or fallback to numeric offset
+            keyset = None
+            is_legacy_offset = False
             if cursor:
                 try:
-                    offset = int(cursor)
-                except ValueError:
-                    offset = 0
-            
-            params["offset"] = offset
-            
-            # Main query with pagination
-            main_cypher = f"""
-                MATCH (a)-[r]->(b) {where_clause}
-                RETURN DISTINCT a, labels(a) AS a_labels, b, labels(b) AS b_labels, r, type(r) AS rel_type, r.timestamp AS ts
-                ORDER BY ts DESC
-                SKIP $offset LIMIT $limit
-            """
+                    if '|' in cursor:
+                        c_ts, c_rid_str = cursor.split('|', 1)
+                        if c_ts:
+                            keyset = (c_ts, int(c_rid_str))
+                    else:
+                        _ = int(cursor)
+                        is_legacy_offset = True
+                except Exception:
+                    is_legacy_offset = False
+
+            if is_legacy_offset:
+                try:
+                    params["offset"] = int(cursor) if cursor else 0
+                except Exception:
+                    params["offset"] = 0
+
+            extra_clause = ""
+            if keyset is not None:
+                params["c_ts"] = keyset[0]
+                params["c_rid"] = keyset[1]
+                extra_clause = " AND (r.timestamp < $c_ts OR (r.timestamp = $c_ts AND id(r) < $c_rid))"
+
+            # Main query with pagination/keyset ordering
+            main_cypher = (
+                f"MATCH (a)-[r]->(b) {where_clause}"
+                + (extra_clause if keyset is not None else "")
+                + " RETURN DISTINCT a, labels(a) AS a_labels, b, labels(b) AS b_labels, r, type(r) AS rel_type, r.timestamp AS ts, id(r) AS rid"
+                + " ORDER BY ts DESC, rid DESC"
+                + (" SKIP $offset" if is_legacy_offset else "")
+                + " LIMIT $limit"
+            )
             
             result = session.run(main_cypher, params)
             
@@ -650,19 +685,18 @@ class TemporalEngine:
                     "to": b_id,
                     "type": rel_type,
                     "timestamp": ts,
+                    "rid": rec.get("rid"),
                     "properties": {k: v for k, v in r.items() if v is not None} if isinstance(r, dict) else {}
                 })
             
             # Calculate next cursor
             next_cursor = None
             if len(edges) == limit:
-                # If we don't have total_edges, we can't determine if there are more
-                # In this case, we'll be conservative and assume there might be more
-                if total_edges is not None and (offset + limit) < total_edges:
-                    next_cursor = str(offset + limit)
-                elif total_edges is None:
-                    # When counts are disabled, assume there might be more if we got a full page
-                    next_cursor = str(offset + limit)
+                last = edges[-1] if edges else None
+                if last and last.get("timestamp") is not None and last.get("rid") is not None:
+                    next_cursor = f"{last['timestamp']}|{last['rid']}"
+                elif is_legacy_offset:
+                    next_cursor = str(params.get("offset", 0) + limit)
             
             query_time = time.time() - start_time
             
@@ -673,7 +707,7 @@ class TemporalEngine:
                     "returned_nodes": len(nodes_seen),
                     "returned_edges": len(edges),
                     "limit": limit,
-                    "offset": offset,
+                    "offset": (params.get("offset", 0) if is_legacy_offset else 0),
                     "next_cursor": next_cursor,
                     "has_more": next_cursor is not None
                 },
@@ -692,6 +726,18 @@ class TemporalEngine:
                 result["pagination"]["total_nodes"] = total_nodes
                 result["pagination"]["total_edges"] = total_edges
             
+            # Record perf sample
+            try:
+                val = round(query_time * 1000, 2)
+                if hasattr(self, "_q_times_ms") and self._q_times_ms is not None:
+                    try:
+                        self._q_times_ms.append(val)  # type: ignore[attr-defined]
+                    except Exception:
+                        # list fallback
+                        self._q_times_ms.append(val)  # type: ignore[operator]
+            except Exception:
+                pass
+
             # Cache the result
             self._cache_result(cache_key, result)
             
@@ -765,4 +811,26 @@ class TemporalEngine:
                     "total_buckets": len(buckets)
                 }
             }
+
+    # -------------------- Metrics --------------------
+    def get_metrics(self) -> Dict[str, object]:
+        """Return simple engine metrics for telemetry."""
+        hits = getattr(self, "_cache_hits", 0)
+        misses = getattr(self, "_cache_misses", 0)
+        denom = hits + misses
+        hit_rate = (hits / denom) if denom else 0.0
+        # average of subgraph query times
+        avg_ms = 0.0
+        try:
+            samples = list(self._q_times_ms) if hasattr(self, "_q_times_ms") else []
+            if samples:
+                avg_ms = sum(samples) / len(samples)
+        except Exception:
+            avg_ms = 0.0
+        return {
+            "avg_query_time_ms": round(avg_ms, 2),
+            "cache_hit_rate": round(hit_rate, 4),
+            "cache_size": len(self._cache or {}),
+            "query_samples": (len(self._q_times_ms) if hasattr(self, "_q_times_ms") else 0),
+        }
 
