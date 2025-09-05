@@ -16,7 +16,7 @@ from .git_history_service import GitHistoryService
 from .temporal_engine import TemporalEngine
 from .sprint_mapping import SprintMapper
 
-app = FastAPI(title="Developer Graph API")
+app = FastAPI(title="Developer Graph API", version="1.0.0")
 
 # Add CORS middleware to allow frontend access
 _default_origins = [
@@ -42,13 +42,125 @@ NEO4J_USER = os.environ.get("NEO4J_USER", "neo4j")
 # Disable authentication for open source Neo4j - set password to None
 NEO4J_PASSWORD = os.environ.get("NEO4J_PASSWORD", None)  # No auth needed for open source
 
-_driver = GraphDatabase.driver(NEO4J_URI, auth=(NEO4J_USER, NEO4J_PASSWORD))
+_driver = GraphDatabase.driver(
+    NEO4J_URI, 
+    auth=(NEO4J_USER, NEO4J_PASSWORD),
+    max_connection_lifetime=30 * 60,  # 30 minutes
+    max_connection_pool_size=50,
+    connection_acquisition_timeout=2  # 2 seconds
+)
 
 # Initialize Git history service
 REPO_PATH = os.environ.get("REPO_PATH", os.getcwd())
 _git = GitHistoryService(REPO_PATH)
 _engine = TemporalEngine(_driver, _git)
 _sprint = SprintMapper(REPO_PATH)
+
+
+@app.get("/api/v1/dev-graph/health")
+def health_check():
+    """Health check endpoint to verify API and database connectivity."""
+    try:
+        # Test Neo4j connection
+        with _driver.session() as session:
+            result = session.run("RETURN 1 as test")
+            result.single()
+        
+        return {
+            "status": "healthy",
+            "service": "dev-graph-api",
+            "version": "1.0.0",
+            "database": "connected",
+            "timestamp": "2025-01-05T09:00:00Z"
+        }
+    except Exception as e:
+        return {
+            "status": "unhealthy",
+            "service": "dev-graph-api", 
+            "version": "1.0.0",
+            "database": "disconnected",
+            "error": str(e),
+            "timestamp": "2025-01-05T09:00:00Z"
+        }
+
+
+@app.get("/api/v1/dev-graph/stats")
+def get_stats():
+    """Get basic statistics about the developer graph."""
+    try:
+        with _driver.session() as session:
+            # Get basic counts first
+            total_nodes = session.run("MATCH (n) RETURN count(n) as total").single()["total"]
+            total_rels = session.run("MATCH ()-[r]->() RETURN count(r) as total").single()["total"]
+            recent_commits = session.run("""
+                MATCH (c:GitCommit)
+                WHERE c.timestamp >= datetime() - duration('P7D')
+                RETURN count(c) as total
+            """).single()["total"]
+            
+            # Get node type counts
+            node_stats = session.run("""
+                MATCH (n)
+                UNWIND labels(n) as label
+                RETURN label as type, count(*) as count
+                ORDER BY count DESC
+            """).data()
+            
+            # Get relationship type counts
+            rel_stats = session.run("""
+                MATCH ()-[r]->()
+                RETURN type(r) as type, count(*) as count
+                ORDER BY count DESC
+            """).data()
+            
+            # Process node types from the query results
+            node_type_counts = {}
+            for stat in node_stats:
+                if stat and stat.get("type") and stat.get("count"):
+                    node_type_counts[stat["type"]] = stat["count"]
+            
+            # Process relationship types from the query results
+            rel_type_counts = {}
+            for stat in rel_stats:
+                if stat and stat.get("type") and stat.get("count"):
+                    rel_type_counts[stat["type"]] = stat["count"]
+            
+            # Transform node stats to match frontend expectations
+            node_types = []
+            colors = ['blue', 'green', 'purple', 'orange', 'red', 'teal', 'pink', 'yellow']
+            sorted_node_types = sorted(node_type_counts.items(), key=lambda x: x[1], reverse=True)
+            for i, (node_type, count) in enumerate(sorted_node_types):
+                node_types.append({
+                    'type': node_type,
+                    'count': count,
+                    'color': colors[i % len(colors)]
+                })
+            
+            # Transform relationship stats to match frontend expectations
+            relationship_types = []
+            sorted_rel_types = sorted(rel_type_counts.items(), key=lambda x: x[1], reverse=True)
+            for i, (rel_type, count) in enumerate(sorted_rel_types):
+                relationship_types.append({
+                    'type': rel_type,
+                    'count': count,
+                    'color': colors[i % len(colors)]
+                })
+            
+            return {
+                "summary": {
+                    "total_nodes": total_nodes,
+                    "total_relationships": total_rels,
+                    "recent_commits_7d": recent_commits
+                },
+                "node_types": node_types,
+                "relationship_types": relationship_types,
+                "timestamp": "2025-01-05T09:00:00Z"
+            }
+    except Exception as e:
+        return {
+            "error": f"Failed to retrieve stats: {str(e)}",
+            "timestamp": "2025-01-05T09:00:00Z"
+        }
 
 
 def run_query(cypher: str, **params):
@@ -310,7 +422,11 @@ def search_fulltext(q: str, label: Optional[str] = Query(None), limit: int = Que
 @app.get("/api/v1/dev-graph/commits")
 def list_commits(limit: int = Query(100, le=1000), path: Optional[str] = None):
     """List recent commits, optionally filtered to a path (follows renames)."""
-    return _git.get_commits(limit=limit, path=path)
+    commits = _git.get_commits(limit=limit, path=path)
+    return {
+        "value": commits,
+        "Count": len(commits)
+    }
 
 
 @app.get("/api/v1/dev-graph/commit/{commit_hash}")
@@ -523,7 +639,8 @@ def get_windowed_subgraph(
     to_timestamp: Optional[str] = Query(None, description="End timestamp (ISO format)"),
     types: Optional[str] = Query(None, description="Comma-separated node types to filter"),
     limit: int = Query(1000, ge=1, le=5000, description="Maximum number of edges to return"),
-    cursor: Optional[str] = Query(None, description="Pagination cursor")
+    cursor: Optional[str] = Query(None, description="Pagination cursor"),
+    include_counts: bool = Query(True, description="Include total node/edge counts in response")
 ):
     """Get a time-bounded subgraph with pagination and type filtering.
     
@@ -539,8 +656,39 @@ def get_windowed_subgraph(
         to_timestamp=to_timestamp,
         node_types=node_types,
         limit=limit,
-        cursor=cursor
+        cursor=cursor,
+        include_counts=include_counts
     )
+
+
+@app.post("/api/v1/dev-graph/ingest/parallel")
+def ingest_commits_parallel(
+    limit: int = Query(100, ge=1, le=1000, description="Number of commits to ingest"),
+    max_workers: int = Query(4, ge=1, le=8, description="Maximum number of parallel workers"),
+    batch_size: int = Query(50, ge=10, le=200, description="Batch size for database writes")
+):
+    """Ingest commits using parallel processing and batched writes for better performance."""
+    try:
+        ingested_count = _engine.ingest_recent_commits_parallel(
+            limit=limit,
+            max_workers=max_workers,
+            batch_size=batch_size
+        )
+        return {
+            "success": True,
+            "ingested_commits": ingested_count,
+            "performance": {
+                "max_workers": max_workers,
+                "batch_size": batch_size,
+                "total_limit": limit
+            }
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "ingested_commits": 0
+        }
 
 
 @app.get("/api/v1/dev-graph/commits/buckets")

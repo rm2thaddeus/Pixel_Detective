@@ -42,12 +42,21 @@ export default function WelcomeDashboard() {
         setLoading(true);
         setError(null);
 
-        // Fetch comprehensive system health data
+        // Fetch comprehensive system health data with performance optimizations
+        const fetchWithTimeout = (url: string, timeout = 5000) => {
+          return Promise.race([
+            fetch(url),
+            new Promise((_, reject) => 
+              setTimeout(() => reject(new Error('Request timeout')), timeout)
+            )
+          ]).catch(() => null);
+        };
+
         const [healthRes, statsRes, commitsRes, sprintsRes] = await Promise.all([
-          fetch(`${DEV_GRAPH_API_URL}/api/v1/dev-graph/health`).catch(() => null),
-          fetch(`${DEV_GRAPH_API_URL}/api/v1/dev-graph/stats`).catch(() => null),
-          fetch(`${DEV_GRAPH_API_URL}/api/v1/dev-graph/commits?limit=10`).catch(() => null),
-          fetch(`${DEV_GRAPH_API_URL}/api/v1/dev-graph/sprints`).catch(() => null)
+          fetchWithTimeout(`${DEV_GRAPH_API_URL}/api/v1/dev-graph/health`),
+          fetchWithTimeout(`${DEV_GRAPH_API_URL}/api/v1/dev-graph/stats`),
+          fetchWithTimeout(`${DEV_GRAPH_API_URL}/api/v1/dev-graph/commits?limit=5`), // Reduced limit for faster loading
+          fetchWithTimeout(`${DEV_GRAPH_API_URL}/api/v1/dev-graph/sprints`)
         ]);
 
         const [healthData, statsData, commitsData, sprintsData] = await Promise.all([
@@ -275,8 +284,8 @@ export default function WelcomeDashboard() {
             </CardHeader>
             <CardBody>
               <VStack align="stretch" spacing={3}>
-                {health?.node_types?.slice(0, 6).map((nodeType) => (
-                  <HStack key={nodeType.type} justify="space-between">
+                {health?.node_types?.slice(0, 6).map((nodeType, index) => (
+                  <HStack key={`node-${nodeType.type}-${index}`} justify="space-between">
                     <HStack>
                       <Box w={3} h={3} bg={`${nodeType.color}.500`} borderRadius="full" />
                       <Text fontSize="sm">{nodeType.type}</Text>
@@ -299,8 +308,8 @@ export default function WelcomeDashboard() {
             </CardHeader>
             <CardBody>
               <VStack align="stretch" spacing={3}>
-                {health?.relation_types?.slice(0, 6).map((relationType) => (
-                  <HStack key={relationType.type} justify="space-between">
+                {health?.relation_types?.slice(0, 6).map((relationType, index) => (
+                  <HStack key={`relation-${relationType.type}-${index}`} justify="space-between">
                     <HStack>
                       <Box w={3} h={3} bg={`${relationType.color}.500`} borderRadius="full" />
                       <Text fontSize="sm">{relationType.type}</Text>

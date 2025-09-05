@@ -50,6 +50,62 @@ In Progress (Phase 4):
 - Schema: `developer_graph/schema/temporal_schema.py`
   - Constraints and indexes for nodes; timestamp indexes for relationship types.
 
+## Separation of Concerns (Backend vs Frontend)
+
+- Backend (FastAPI + Neo4j): authoritative data and query contracts
+  - Ingestion
+    - Git temporal ingest via `TemporalEngine` (Commits, Files, TOUCHED/IMPLEMENTS, rename detection).
+    - Docs/Sprints/Chunks ingest available via scripts (`developer_graph/enhanced_ingest.py`, `developer_graph/enhanced_git_ingest.py`).
+    - Add API triggers to run enhanced ingests from UI (POST endpoints), so Sprints/Docs/Chunks are populated without manual scripts.
+  - Preferred query endpoints
+    - `GET /api/v1/dev-graph/graph/subgraph?from_timestamp&to_timestamp&types&limit&cursor&include_counts`
+    - `GET /api/v1/dev-graph/commits/buckets?granularity=day|week&from_timestamp&to_timestamp&limit`
+    - `GET /api/v1/dev-graph/evolution/file|requirement`
+    - `GET /api/v1/dev-graph/sprints`, `GET /api/v1/dev-graph/sprints/{number}/subgraph`
+    - `GET /api/v1/dev-graph/search/fulltext?q=&label=`
+  - Performance & pagination
+    - Move to keyset pagination for subgraph (cursor = `{last_ts, last_commit}`) to avoid deep `SKIP`.
+    - Keep relationship `timestamp` indexes and label-constrained patterns.
+    - TTL cache (~60s) for hot windowed subgraphs.
+  - Telemetry & health
+    - Extend `/health` or add `/metrics` to expose `{avg_query_time_ms, cache_hit_rate, memory_usage_mb}` for the UI.
+  - Optional
+    - Persist server-computed coordinates (`x/y`) to stabilize layouts across sessions.
+
+- Frontend (Next.js UI): rendering, interaction, progressive usage of backend
+  - Data usage
+    - Default to `/graph/subgraph` + pagination; use commit buckets for timeline density.
+    - Avoid legacy `/nodes` and `/relations` at large scale except for debug.
+  - Rendering
+    - Sigma.js + Graphology with level-of-detail reducers: hide labels/edges at low zoom; show on hover/zoom-in.
+    - Progressive hydration, batch insertions; worker-based clustering/layout for large graphs.
+    - Two modes per PRD: Structure (force-directed) and Time (time‑radial) with deterministic coordinates.
+  - Views
+    - Timeline: canvas + bucketed density; range selection updates subgraph.
+    - Sprint Tree: hierarchical Sprint→Docs→Chunks→Requirements via sprint subgraph endpoint.
+    - Analytics: wire real `/analytics/*` endpoints; remove mock data.
+
+## Backend Additions Proposed (Phase 4)
+
+- API triggers for enhanced ingests
+  - `POST /api/v1/dev-graph/ingest/docs` → run `enhanced_ingest.py`
+  - `POST /api/v1/dev-graph/ingest/git/enhanced` → run `enhanced_git_ingest.py`
+- Keyset pagination for `/graph/subgraph`
+  - Cursor carries `{last_ts, last_commit[, rel_type]}`; order by `(r.timestamp DESC, r.commit)`.
+- Telemetry endpoint
+  - `GET /api/v1/dev-graph/metrics` → `{avg_query_time_ms, cache_hit_rate, memory_usage_mb}`.
+- Optional
+  - Temporal snapshot: `GET /api/v1/dev-graph/temporal/state?timestamp=...`
+  - Complexity metrics: `GET /api/v1/dev-graph/metrics/complexity?from&to`
+  - Node evolution detail: `GET /api/v1/dev-graph/nodes/{id}/evolution`
+
+## Frontend Additions Proposed (Phase 4)
+
+- Prefer `/graph/subgraph` everywhere; stream pages and merge progressively.
+- Wire Timeline to commit buckets and add range→subgraph preview.
+- Sprint Tree view consumes `sprints/{number}/subgraph` and caches layouts.
+- Use workers for Louvain and FA2 when N exceeds thresholds; keep LoD reducers enabled.
+
 ---
 
 ## Data Model (Snapshot)

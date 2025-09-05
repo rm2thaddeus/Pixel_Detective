@@ -29,9 +29,39 @@ class TemporalEngine:
     def __init__(self, driver: Driver, git: GitHistoryService):
         self.driver = driver
         self.git = git
+        # TTL cache for subgraph queries
+        self._cache = {}
+        self._cache_ttl = 60  # 60 seconds TTL
 
     def apply_schema(self) -> None:
         apply_schema(self.driver)
+
+    def _get_cache_key(self, from_timestamp, to_timestamp, node_types, limit, cursor, include_counts):
+        """Generate cache key for subgraph query."""
+        return (
+            from_timestamp or "",
+            to_timestamp or "",
+            tuple(sorted(node_types or [])),
+            limit,
+            cursor or "",
+            include_counts
+        )
+
+    def _get_cached_result(self, cache_key):
+        """Get cached result if not expired."""
+        import time
+        if cache_key in self._cache:
+            cached_data, expires_at = self._cache[cache_key]
+            if time.time() < expires_at:
+                return cached_data
+            else:
+                del self._cache[cache_key]
+        return None
+
+    def _cache_result(self, cache_key, result):
+        """Cache result with TTL."""
+        import time
+        self._cache[cache_key] = (result, time.time() + self._cache_ttl)
 
     def ingest_recent_commits(self, limit: int = 100) -> int:
         commits = self.git.get_commits(limit=limit)
@@ -151,6 +181,194 @@ class TemporalEngine:
                         pass
                 session.write_transaction(_tx)
                 ingested += 1
+        return ingested
+
+    def ingest_recent_commits_parallel(self, limit: int = 100, max_workers: int = 4, batch_size: int = 50) -> int:
+        """Parallel version of ingest_recent_commits with batched writes for better performance."""
+        import concurrent.futures
+        from collections import defaultdict
+        import threading
+        
+        commits = self.git.get_commits(limit=limit)
+        ingested = 0
+        
+        # Thread-safe collections for batching
+        operations_lock = threading.Lock()
+        operations_batch = []
+        
+        def extract_commit_data(commit):
+            """Extract all data from a single commit (CPU-bound work)."""
+            c = commit
+            operations = []
+            
+            # Commit data
+            operations.append(('merge_commit', {
+                "hash": c["hash"],
+                "message": c.get("message"),
+                "author": c.get("author_email"),
+                "timestamp": c.get("timestamp"),
+                "branch": "unknown",
+            }))
+            
+            # File operations
+            for f in c.get("files_changed", []) or []:
+                operations.append(('merge_file', {"path": f}))
+                operations.append(('relate_commit_touched_file', {
+                    "commit_hash": c["hash"],
+                    "file_path": f,
+                    "change_type": "M",
+                    "timestamp": c.get("timestamp", ""),
+                }))
+            
+            # Requirement extraction
+            message: str = c.get("message", "") or ""
+            req_ids = set(re.findall(r"\b(?:FR|NFR)-\d+\b", message))
+            for req_id in req_ids:
+                operations.append(('merge_requirement', {
+                    "id": req_id,
+                    "title": message.split("\n", 1)[0][:120],
+                    "author": c.get("author_email"),
+                    "date_created": c.get("timestamp"),
+                    "goal_alignment": None,
+                    "tags": None,
+                }))
+                for f in c.get("files_changed", []) or []:
+                    operations.append(('relate_implements', {
+                        "requirement_id": req_id,
+                        "file_path": f,
+                        "commit_hash": c["hash"],
+                        "timestamp": c.get("timestamp", ""),
+                    }))
+            
+            # Pattern matching for requirement evolution
+            try:
+                msg_lower = (message or "").lower()
+                pat_forward = re.compile(r"\b((?:nfr|fr)-\d+)\b\s*(replaces|supersedes|evolves from|in favor of)\s*\b((?:nfr|fr)-\d+)\b", re.IGNORECASE)
+                pat_deprec = re.compile(r"deprecat(?:e|ed)\s+((?:nfr|fr)-\d+)\b.*?(?:in favor of|->|to)\s+((?:nfr|fr)-\d+)", re.IGNORECASE)
+                
+                for m in pat_forward.finditer(message or ""):
+                    new_id = m.group(1).upper()
+                    old_id = m.group(3).upper()
+                    operations.append(('merge_requirement', {
+                        "id": new_id,
+                        "title": message.split("\n", 1)[0][:120],
+                        "author": c.get("author_email"),
+                        "date_created": c.get("timestamp"),
+                        "goal_alignment": None,
+                        "tags": None,
+                    }))
+                    operations.append(('merge_requirement', {"id": old_id}))
+                    operations.append(('relate_evolves_from_requirement', {
+                        "new_req_id": new_id,
+                        "old_req_id": old_id,
+                        "commit_hash": c["hash"],
+                        "diff_summary": None,
+                        "timestamp": c.get("timestamp", ""),
+                    }))
+                
+                for m in pat_deprec.finditer(msg_lower):
+                    old_id = m.group(1).upper()
+                    new_id = m.group(2).upper()
+                    operations.append(('merge_requirement', {"id": new_id}))
+                    operations.append(('merge_requirement', {"id": old_id}))
+                    operations.append(('relate_deprecated_by', {
+                        "node_label": "Requirement",
+                        "node_key": "id",
+                        "node_value": old_id,
+                        "replacement_label": "Requirement",
+                        "replacement_key": "id",
+                        "replacement_value": new_id,
+                        "commit_hash": c["hash"],
+                        "reason": "commit_message",
+                        "timestamp": c.get("timestamp", ""),
+                    }))
+            except Exception:
+                pass
+            
+            # File refactor detection
+            try:
+                commit_obj = self.git.repo.commit(c["hash"])
+                parents = list(commit_obj.parents)
+                if parents:
+                    diff_index = parents[0].diff(commit_obj, rename_find=True)
+                    for d in diff_index:
+                        if getattr(d, "change_type", None) == 'R':
+                            old_path = getattr(d, "a_path", None)
+                            new_path = getattr(d, "b_path", None)
+                            if old_path and new_path and old_path != new_path:
+                                operations.append(('merge_file', {"path": old_path}))
+                                operations.append(('merge_file', {"path": new_path}))
+                                operations.append(('relate_refactored_file', {
+                                    "old_path": old_path,
+                                    "new_path": new_path,
+                                    "commit_hash": c["hash"],
+                                    "refactor_type": "rename",
+                                    "timestamp": c.get("timestamp", ""),
+                                }))
+            except Exception:
+                pass
+            
+            return operations
+        
+        def write_batch(operations_batch):
+            """Write a batch of operations to Neo4j."""
+            if not operations_batch:
+                return
+            
+            with self.driver.session() as session:
+                def _tx(tx):
+                    for op_type, params in operations_batch:
+                        if op_type == 'merge_commit':
+                            merge_commit(tx, params)
+                        elif op_type == 'merge_file':
+                            merge_file(tx, params)
+                        elif op_type == 'relate_commit_touched_file':
+                            relate_commit_touched_file(tx, **params)
+                        elif op_type == 'merge_requirement':
+                            merge_requirement(tx, params)
+                        elif op_type == 'relate_implements':
+                            relate_implements(tx, **params)
+                        elif op_type == 'relate_evolves_from_requirement':
+                            relate_evolves_from_requirement(tx, **params)
+                        elif op_type == 'relate_deprecated_by':
+                            relate_deprecated_by(tx, **params)
+                        elif op_type == 'relate_refactored_file':
+                            relate_refactored_file(tx, **params)
+                
+                session.write_transaction(_tx)
+        
+        # Use ThreadPoolExecutor for parallel extraction
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+            # Submit all commit processing tasks
+            future_to_commit = {
+                executor.submit(extract_commit_data, commit): commit 
+                for commit in commits
+            }
+            
+            # Process completed extractions and batch writes
+            for future in concurrent.futures.as_completed(future_to_commit):
+                try:
+                    operations = future.result()
+                    
+                    with operations_lock:
+                        operations_batch.extend(operations)
+                        
+                        # Write batch when it reaches the batch size
+                        if len(operations_batch) >= batch_size:
+                            write_batch(operations_batch)
+                            operations_batch.clear()
+                            ingested += 1
+                            
+                except Exception as e:
+                    print(f"Error processing commit: {e}")
+                    continue
+        
+        # Write any remaining operations
+        with operations_lock:
+            if operations_batch:
+                write_batch(operations_batch)
+                ingested += 1
+        
         return ingested
 
 
@@ -274,7 +492,8 @@ class TemporalEngine:
         to_timestamp: Optional[str] = None,
         node_types: Optional[List[str]] = None,
         limit: int = 1000,
-        cursor: Optional[str] = None
+        cursor: Optional[str] = None,
+        include_counts: bool = True
     ) -> Dict[str, object]:
         """Get a time-bounded subgraph with pagination and type filtering.
         
@@ -282,6 +501,12 @@ class TemporalEngine:
         """
         import time
         start_time = time.time()
+        
+        # Check cache first
+        cache_key = self._get_cache_key(from_timestamp, to_timestamp, node_types, limit, cursor, include_counts)
+        cached_result = self._get_cached_result(cache_key)
+        if cached_result:
+            return cached_result
         
         # Build WHERE clause for time bounds
         where_clauses = ["r.timestamp IS NOT NULL"]
@@ -303,16 +528,20 @@ class TemporalEngine:
         
         where_clause = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
         
-        # Get total counts first
-        count_cypher = f"""
-            MATCH (a)-[r]->(b) {where_clause}
-            RETURN count(DISTINCT a) + count(DISTINCT b) AS node_count, count(r) AS edge_count
-        """
+        # Get total counts first (only if include_counts is True)
+        total_nodes = None
+        total_edges = None
+        if include_counts:
+            count_cypher = f"""
+                MATCH (a)-[r]->(b) {where_clause}
+                RETURN count(DISTINCT a) + count(DISTINCT b) AS node_count, count(r) AS edge_count
+            """
         
         with self.driver.session() as session:
-            count_result = session.run(count_cypher, params).single()
-            total_nodes = count_result["node_count"] if count_result else 0
-            total_edges = count_result["edge_count"] if count_result else 0
+            if include_counts:
+                count_result = session.run(count_cypher, params).single()
+                total_nodes = count_result["node_count"] if count_result else 0
+                total_edges = count_result["edge_count"] if count_result else 0
             
             # Get paginated results
             offset = 0
@@ -426,17 +655,21 @@ class TemporalEngine:
             
             # Calculate next cursor
             next_cursor = None
-            if len(edges) == limit and (offset + limit) < total_edges:
-                next_cursor = str(offset + limit)
+            if len(edges) == limit:
+                # If we don't have total_edges, we can't determine if there are more
+                # In this case, we'll be conservative and assume there might be more
+                if total_edges is not None and (offset + limit) < total_edges:
+                    next_cursor = str(offset + limit)
+                elif total_edges is None:
+                    # When counts are disabled, assume there might be more if we got a full page
+                    next_cursor = str(offset + limit)
             
             query_time = time.time() - start_time
             
-            return {
+            result = {
                 "nodes": list(nodes_seen.values()),
                 "edges": edges,
                 "pagination": {
-                    "total_nodes": total_nodes,
-                    "total_edges": total_edges,
                     "returned_nodes": len(nodes_seen),
                     "returned_edges": len(edges),
                     "limit": limit,
@@ -453,6 +686,16 @@ class TemporalEngine:
                     }
                 }
             }
+            
+            # Add counts only if include_counts is True
+            if include_counts:
+                result["pagination"]["total_nodes"] = total_nodes
+                result["pagination"]["total_edges"] = total_edges
+            
+            # Cache the result
+            self._cache_result(cache_key, result)
+            
+            return result
 
     def get_commits_buckets(
         self, 

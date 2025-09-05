@@ -17,6 +17,19 @@ Status Update (implemented):
 
 After comprehensive analysis of the current dev-graph-ui implementation, **critical performance bottlenecks** have been identified that require immediate attention. The application is currently experiencing severe performance issues that make it nearly unusable in production. This addendum provides detailed findings, root cause analysis, and a comprehensive refactoring plan for Phase 4.
 
+### Backend vs Frontend Work Breakdown
+
+- Backend (API + Neo4j)
+  - Adopt keyset pagination for `/graph/subgraph` (cursor `{last_ts, last_commit}`) to avoid deep `SKIP`.
+  - Expose ingestion triggers for docs/git enhanced ingest as POST endpoints.
+  - Add telemetry (`/metrics` or extend `/health`) returning `{avg_query_time_ms, cache_hit_rate, memory_usage_mb}`.
+  - Optional: temporal snapshot, complexity metrics, node evolution detail endpoints.
+
+- Frontend (Next.js UI)
+  - Default to `/graph/subgraph` + pagination; rely on commit buckets for timeline density.
+  - Progressive hydration, LoD reducers for labels/edges; worker-based clustering/layout when N is large.
+  - Wire Sprint Tree to `sprints/{number}/subgraph`; wire Analytics to `/analytics/*`.
+
 ### Key Findings
 - ⚠️ **CRITICAL**: Graph rendering performance issues with coordinate calculation warnings
 - ⚠️ **CRITICAL**: Timeline View renders endless commit lists instead of lightweight visualization

@@ -369,64 +369,71 @@ class EnhancedGitIngester:
             if file_change.change_type in ['M', 'A'] and Path(file_change.path).suffix.lower() in DOC_EXTENSIONS:
                 # For documentation files, try to track chunk-level changes
                 try:
-                    # Get file content at this commit
-                    blob = commit_analysis.commit.tree / file_change.path
-                    if blob:
-                        content = blob.data_stream.read().decode('utf-8', errors='ignore')
+                    # Check if file exists in this commit's tree
+                    try:
+                        blob = commit_analysis.commit.tree / file_change.path
+                        if blob and blob.type == 'blob':
+                            content = blob.data_stream.read().decode('utf-8', errors='ignore')
+                        else:
+                            # File doesn't exist or is not a blob, skip
+                            continue
+                    except (KeyError, AttributeError):
+                        # File path doesn't exist in this commit, skip
+                        continue
 
-                        # Extract structured chunks with consistent IDs
-                        for ch in self._extract_chunks_from_text(str(file_change.path), content):
-                            chunk_id = ch['id']
-                            # Merge chunk and update provenance
-                            tx.run("""
-                                MERGE (ch:Chunk {id: $chunk_id})
-                                SET ch.doc_path = $doc_path,
-                                    ch.heading = coalesce(ch.heading, $heading),
-                                    ch.level = coalesce(ch.level, $level),
-                                    ch.ordinal = coalesce(ch.ordinal, $ordinal),
-                                    ch.last_modified_commit = $commit_hash,
-                                    ch.last_modified_timestamp = $timestamp
-                            """,
-                            chunk_id=chunk_id,
-                            doc_path=str(file_change.path),
-                            heading=ch.get('heading'),
-                            level=ch.get('level'),
-                            ordinal=ch.get('ordinal'),
-                            commit_hash=commit_analysis.commit.hexsha,
-                            timestamp=commit_analysis.commit.committed_datetime.isoformat())
+                    # Extract structured chunks with consistent IDs
+                    for ch in self._extract_chunks_from_text(str(file_change.path), content):
+                        chunk_id = ch['id']
+                        # Merge chunk and update provenance
+                        tx.run("""
+                            MERGE (ch:Chunk {id: $chunk_id})
+                            SET ch.doc_path = $doc_path,
+                                ch.heading = coalesce(ch.heading, $heading),
+                                ch.level = coalesce(ch.level, $level),
+                                ch.ordinal = coalesce(ch.ordinal, $ordinal),
+                                ch.last_modified_commit = $commit_hash,
+                                ch.last_modified_timestamp = $timestamp
+                        """,
+                        chunk_id=chunk_id,
+                        doc_path=str(file_change.path),
+                        heading=ch.get('heading'),
+                        level=ch.get('level'),
+                        ordinal=ch.get('ordinal'),
+                        commit_hash=commit_analysis.commit.hexsha,
+                        timestamp=commit_analysis.commit.committed_datetime.isoformat())
 
-                            # Link chunk to file
-                            tx.run("""
-                                MATCH (f:File {path: $file_path})
-                                MATCH (ch:Chunk {id: $chunk_id})
-                                MERGE (f)-[:CONTAINS_CHUNK]->(ch)
-                            """,
-                            file_path=file_change.path,
-                            chunk_id=chunk_id)
+                        # Link chunk to file
+                        tx.run("""
+                            MATCH (f:File {path: $file_path})
+                            MATCH (ch:Chunk {id: $chunk_id})
+                            MERGE (f)-[:CONTAINS_CHUNK]->(ch)
+                        """,
+                        file_path=file_change.path,
+                        chunk_id=chunk_id)
 
-                            # Link commit to chunk with provenance
-                            tx.run("""
-                                MATCH (c:Commit {hash: $commit_hash})
-                                MATCH (ch:Chunk {id: $chunk_id})
-                                MERGE (c)-[m:MODIFIED]->(ch)
-                                ON CREATE SET m.timestamp = $timestamp, m.file_path = $file_path
-                                ON MATCH SET m.timestamp = coalesce(m.timestamp, $timestamp)
-                            """,
-                            commit_hash=commit_analysis.commit.hexsha,
-                            chunk_id=chunk_id,
-                            timestamp=commit_analysis.commit.committed_datetime.isoformat(),
-                            file_path=file_change.path)
+                        # Link commit to chunk with provenance
+                        tx.run("""
+                            MATCH (c:Commit {hash: $commit_hash})
+                            MATCH (ch:Chunk {id: $chunk_id})
+                            MERGE (c)-[m:MODIFIED]->(ch)
+                            ON CREATE SET m.timestamp = $timestamp, m.file_path = $file_path
+                            ON MATCH SET m.timestamp = coalesce(m.timestamp, $timestamp)
+                        """,
+                        commit_hash=commit_analysis.commit.hexsha,
+                        chunk_id=chunk_id,
+                        timestamp=commit_analysis.commit.committed_datetime.isoformat(),
+                        file_path=file_change.path)
 
-                            # Extract and link requirements mentioned inside chunk content
-                            if ch.get('content'):
-                                for req_id in REQ_PATTERN.findall(ch['content']):
-                                    tx.run("""
-                                        MATCH (r:Requirement {id: $req_id})
-                                        MATCH (ch:Chunk {id: $chunk_id})
-                                        MERGE (r)-[:MENTIONS]->(ch)
-                                    """,
-                                    req_id=req_id,
-                                    chunk_id=chunk_id)
+                        # Extract and link requirements mentioned inside chunk content
+                        if ch.get('content'):
+                            for req_id in REQ_PATTERN.findall(ch['content']):
+                                tx.run("""
+                                    MATCH (r:Requirement {id: $req_id})
+                                    MATCH (ch:Chunk {id: $chunk_id})
+                                    MERGE (r)-[:MENTIONS]->(ch)
+                                """,
+                                req_id=req_id,
+                                chunk_id=chunk_id)
                                     
                 except Exception as e:
                     print(f"Error processing chunks for {file_change.path}: {e}")

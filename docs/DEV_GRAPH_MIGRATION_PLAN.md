@@ -38,6 +38,26 @@ Update (2025‑09‑02): Doc‑first graph coverage expanded
 
 ---
 
+## Separation of Concerns (Backend vs Frontend)
+
+- Backend (API + Neo4j)
+  - Owns ingestion, schema, and query performance.
+  - Short‑term tasks:
+    - Add POST triggers for enhanced doc/git ingestion.
+    - Switch `/graph/subgraph` to keyset pagination (cursor `{last_ts, last_commit}`).
+    - Expose telemetry endpoint or extend `/health` with `{avg_query_time_ms, cache_hit_rate}`.
+  - Contracts used by UI: `/graph/subgraph`, `/commits/buckets`, `/evolution/*`, `/sprints/*/subgraph`, `/search/fulltext`.
+
+- Frontend (Next.js UI)
+  - Owns progressive fetch, rendering, interaction, and workers.
+  - Short‑term tasks:
+    - Prefer `/graph/subgraph` across views; avoid `/nodes|/relations` for large graphs.
+    - Progressive hydration with pagination; keep LoD reducers enabled.
+    - Hook Timeline to commit buckets; Sprint Tree to `sprints/{number}/subgraph`.
+    - Gate clustering/layout behind workers when N is large.
+
+---
+
 ## ✅ Phase 1: Immediate Standalone Deployment (COMPLETED)
 
 ### Step 1.1: Test Current Docker Setup
@@ -215,7 +235,7 @@ This phase implements four major UX and data improvements, plus two platform cap
   - Edge reducer: default thickness 0.4–0.8px, reduced opacity, optional weight scaling toggle.
   - Focus mode: dim non-neighbors on hover/select; keyboard shortcut to expand 1-hop.
 - Data/API Work:
-  - `GET /graph/subgraph?from&to&types&limit&cursor` windowed subgraph endpoint with counts.
+  - `GET /graph/subgraph?from&to&types&limit&cursor` windowed subgraph endpoint with counts (switch to keyset pagination; cursor carries `{last_ts, last_commit}`).
   - `GET /commits/buckets?granularity=day|week` for timeline density and caching.
   - Optional Redis/LRU for subgraph/query results (TTL 5–15 min).
 - Neo4j/Queries:

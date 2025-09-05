@@ -65,10 +65,14 @@ Last Updated: January 2025
 - Deep links encode mode, query, time range, and layout seed.
 - Escape hatches: node in Time → open neighborhood in Structure; node in Structure → open timeline in Time.
 
+### Backend Contracts (Separation)
+- Primary data source for both modes is `/api/v1/dev-graph/graph/subgraph` with keyset pagination (cursor `{last_ts, last_commit}`).
+- Time mode additionally pairs with `/api/v1/dev-graph/commits/buckets` for density and uses the time window to constrain subgraph.
+- Structure mode can optionally use server-provided `x/y` when available; otherwise apply FA2 in a worker.
+
 ---
 
 ## Validation Plan
 - A/B task study: structural vs. temporal tasks per mode; measure time‑to‑answer and error rate.
 - Performance profiling under target datasets; record FPS, scrub latency, jank frames.
 - Qual interviews to assess mental model clarity of each mode.
-

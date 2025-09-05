@@ -116,6 +116,14 @@ We have separated layout concerns into two exploratory features, each optimized 
 Details, goals, UX, technical approach, risks, and KPIs are defined in:
 `docs/sprints/sprint-11/DEV_GRAPH_LAYOUT_MODES_EXPLORATION_PRD.md`
 
+### Backend Contract (What the UI depends on)
+- Graph data: `/api/v1/dev-graph/graph/subgraph` with keyset pagination (cursor `{last_ts, last_commit}`) and optional counts.
+- Timeline density: `/api/v1/dev-graph/commits/buckets` (day/week) to drive canvas timeline and range selection.
+- Evolution: `/api/v1/dev-graph/evolution/file|requirement` for detail drawers.
+- Sprint tree: `/api/v1/dev-graph/sprints/{number}/subgraph` for hierarchical Sprint→Docs→Chunks→Requirements.
+- Search: `/api/v1/dev-graph/search/fulltext?q=&label=` for fast discovery.
+- Telemetry: `/api/v1/dev-graph/health` or `/metrics` to surface health/perf in the UI.
+
 ### **Phase 2: Data Exploration Workflows**
 
 #### **2.1 Discovery Patterns**
