@@ -1,40 +1,36 @@
 'use client';
 import { Box, Heading, Spinner, Text, VStack, HStack, Button } from '@chakra-ui/react';
-import { useState, useEffect } from 'react';
 import { Header } from '@/components/Header';
+import { useAnalytics, useWindowedSubgraph } from '../hooks/useWindowedSubgraph';
+import { useQuery } from '@tanstack/react-query';
 
 // Developer Graph API base URL (configurable via env)
 const DEV_GRAPH_API_URL = process.env.NEXT_PUBLIC_DEV_GRAPH_API_URL || 'http://localhost:8080';
 
 export default function DevGraphPage() {
-  const [stats, setStats] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  // Use new hooks for data fetching
+  const { data: analyticsData, isLoading: analyticsLoading, error: analyticsError } = useAnalytics();
+  const { data: subgraphData, isLoading: subgraphLoading, error: subgraphError } = useWindowedSubgraph({ limit: 10 });
+  
+  const { data: commitsData, isLoading: commitsLoading } = useQuery({
+    queryKey: ['commits', 'recent'],
+    queryFn: async () => {
+      const res = await fetch(`${DEV_GRAPH_API_URL}/api/v1/dev-graph/commits?limit=5`);
+      if (!res.ok) throw new Error('Failed to fetch commits');
+      return res.json();
+    },
+    staleTime: 60_000,
+  });
 
-  useEffect(() => {
-    const fetchStats = async () => {
-      try {
-        const [nodesRes, relationsRes, commitsRes] = await Promise.all([
-          fetch(`${DEV_GRAPH_API_URL}/api/v1/dev-graph/nodes/count`),
-          fetch(`${DEV_GRAPH_API_URL}/api/v1/dev-graph/relations/count`),
-          fetch(`${DEV_GRAPH_API_URL}/api/v1/dev-graph/commits?limit=5`)
-        ]);
+  const loading = analyticsLoading || subgraphLoading || commitsLoading;
+  const error = analyticsError || subgraphError;
 
-        const [nodes, relations, commits] = await Promise.all([
-          nodesRes.json(),
-          relationsRes.json(),
-          commitsRes.json()
-        ]);
-
-        setStats({ nodes, relations, commits });
-      } catch (error) {
-        console.error('Failed to fetch stats:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchStats();
-  }, []);
+  // Process data into stats format
+  const stats = analyticsData && subgraphData ? {
+    nodes: { total: subgraphData.pagination?.total_nodes || 0 },
+    relations: { total: subgraphData.pagination?.total_edges || 0 },
+    commits: commitsData || []
+  } : null;
 
   if (loading) {
     return (

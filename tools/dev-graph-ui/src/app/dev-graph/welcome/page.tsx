@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react';
 import { Header } from '@/components/Header';
 import { Link as ChakraLink } from '@chakra-ui/react';
 import { FaCode, FaGitAlt, FaFileAlt, FaProjectDiagram, FaClock, FaUsers, FaChartLine, FaExclamationTriangle, FaCheckCircle, FaTimesCircle } from 'react-icons/fa';
+import { useAnalytics, useTelemetry, useWindowedSubgraph } from '../hooks/useWindowedSubgraph';
+import { useQuery } from '@tanstack/react-query';
 
 // Developer Graph API base URL
 const DEV_GRAPH_API_URL = process.env.NEXT_PUBLIC_DEV_GRAPH_API_URL || 'http://localhost:8080';
@@ -27,106 +29,123 @@ interface SystemHealth {
 }
 
 export default function WelcomeDashboard() {
-  const [health, setHealth] = useState<SystemHealth | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
   const bgColor = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.200', 'gray.600');
   const pageBgColor = useColorModeValue('gray.50', 'gray.900');
   const cardBgColor = useColorModeValue('gray.50', 'gray.700');
 
-  useEffect(() => {
-    const fetchSystemHealth = async () => {
-      try {
-        setLoading(true);
-        setError(null);
+  // Use new hooks for data fetching
+  const { data: analyticsData, isLoading: analyticsLoading, error: analyticsError } = useAnalytics();
+  const { data: telemetryData, isLoading: telemetryLoading, error: telemetryError } = useTelemetry();
+  const { data: subgraphData, isLoading: subgraphLoading, error: subgraphError } = useWindowedSubgraph({ limit: 10 });
+  
+  // Fetch additional data using React Query
+  const { data: commitsData, isLoading: commitsLoading } = useQuery({
+    queryKey: ['commits', 'recent'],
+    queryFn: async () => {
+      const res = await fetch(`${DEV_GRAPH_API_URL}/api/v1/dev-graph/commits?limit=5`);
+      if (!res.ok) throw new Error('Failed to fetch commits');
+      return res.json();
+    },
+    staleTime: 60_000,
+  });
 
-        // Fetch comprehensive system health data with performance optimizations
-        const fetchWithTimeout = (url: string, timeout = 5000) => {
-          return Promise.race([
-            fetch(url),
-            new Promise((_, reject) => 
-              setTimeout(() => reject(new Error('Request timeout')), timeout)
-            )
-          ]).catch(() => null);
-        };
+  const { data: sprintsData, isLoading: sprintsLoading } = useQuery({
+    queryKey: ['sprints'],
+    queryFn: async () => {
+      const res = await fetch(`${DEV_GRAPH_API_URL}/api/v1/dev-graph/sprints`);
+      if (!res.ok) throw new Error('Failed to fetch sprints');
+      return res.json();
+    },
+    staleTime: 60_000,
+  });
 
-        const [healthRes, statsRes, commitsRes, sprintsRes] = await Promise.all([
-          fetchWithTimeout(`${DEV_GRAPH_API_URL}/api/v1/dev-graph/health`),
-          fetchWithTimeout(`${DEV_GRAPH_API_URL}/api/v1/dev-graph/stats`),
-          fetchWithTimeout(`${DEV_GRAPH_API_URL}/api/v1/dev-graph/commits?limit=5`), // Reduced limit for faster loading
-          fetchWithTimeout(`${DEV_GRAPH_API_URL}/api/v1/dev-graph/sprints`)
-        ]);
+  // Calculate loading and error states
+  const loading = analyticsLoading || telemetryLoading || subgraphLoading || commitsLoading || sprintsLoading;
+  const error = analyticsError || telemetryError || subgraphError;
 
-        const [healthData, statsData, commitsData, sprintsData] = await Promise.all([
-          healthRes?.json().catch(() => null),
-          statsRes?.json().catch(() => null),
-          commitsRes?.json().catch(() => null),
-          sprintsRes?.json().catch(() => null)
-        ]);
-
-        // Calculate data quality score based on various factors
-        const dataQualityScore = calculateDataQualityScore(statsData, commitsData);
-        
-        // Determine system health
-        const apiConnected = healthRes?.ok || statsRes?.ok || false;
-        const databaseConnected = statsData?.total_nodes > 0;
-
-        const systemHealth: SystemHealth = {
-          api_connected: apiConnected,
-          database_connected: databaseConnected,
-          last_ingestion: healthData?.last_ingestion || commitsData?.[0]?.timestamp || null,
-          data_quality_score: dataQualityScore,
-          total_nodes: statsData?.total_nodes || 0,
-          total_relations: statsData?.total_relations || 0,
-          recent_commits: commitsData?.length || 0,
-          active_sprints: sprintsData?.filter((s: any) => s.status === 'active')?.length || 0,
-          node_types: statsData?.node_types || [],
-          relation_types: statsData?.relation_types || [],
-          performance_metrics: {
-            avg_query_time_ms: healthData?.avg_query_time_ms || 0,
-            cache_hit_rate: healthData?.cache_hit_rate || 0,
-            memory_usage_mb: healthData?.memory_usage_mb || 0
-          }
-        };
-
-        setHealth(systemHealth);
-      } catch (err) {
-        console.error('Failed to fetch system health:', err);
-        setError('Failed to load system health data');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchSystemHealth();
-  }, []);
-
-  const calculateDataQualityScore = (stats: any, commits: any) => {
+  // Helper function to calculate data quality score
+  const calculateDataQualityScore = (analytics: any, commits: any) => {
     let score = 0;
     
     // Base score for having data
-    if (stats?.total_nodes > 0) score += 20;
-    if (stats?.total_relations > 0) score += 20;
+    if (analytics?.activity?.peak_activity?.count > 0) score += 20;
+    if (analytics?.activity?.files_changed_per_day > 0) score += 20;
+    if (analytics?.activity?.authors_per_day > 0) score += 10;
     
-    // Recent activity bonus
-    if (commits?.length > 0) score += 15;
+    // Bonus for recent activity
+    if (Array.isArray(commits) && commits.length > 0) {
+      score += 20;
+      // Check for recent commits (last 7 days)
+      const recentCommits = commits.filter((c: any) => {
+        const commitDate = new Date(c.timestamp);
+        const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+        return commitDate > weekAgo;
+      });
+      if (recentCommits.length > 0) score += 10;
+    }
     
-    // Data diversity bonus
-    if (stats?.node_types?.length > 3) score += 15;
-    if (stats?.relation_types?.length > 3) score += 15;
+    // Bonus for data diversity
+    if (analytics?.activity?.authors_per_day > 1) score += 10;
+    if (analytics?.activity?.files_changed_per_day > 100) score += 10;
     
-    // Data completeness bonus
-    const hasRequirements = stats?.node_types?.some((nt: any) => nt.type === 'Requirement');
-    const hasFiles = stats?.node_types?.some((nt: any) => nt.type === 'File');
-    const hasCommits = stats?.node_types?.some((nt: any) => nt.type === 'GitCommit');
-    
-    if (hasRequirements) score += 5;
-    if (hasFiles) score += 5;
-    if (hasCommits) score += 5;
+    // Bonus for graph complexity
+    if (analytics?.graph?.total_nodes > 1000) score += 10;
+    if (analytics?.graph?.total_edges > 10000) score += 10;
     
     return Math.min(100, score);
+  };
+
+  // Process data into SystemHealth format
+  const health: SystemHealth | null = analyticsData && telemetryData ? {
+    api_connected: true, // If we got data, API is connected
+    database_connected: true, // If we got data, database is connected
+    last_ingestion: new Date().toISOString(),
+    data_quality_score: calculateDataQualityScore(analyticsData, commitsData),
+    total_nodes: analyticsData.graph.total_nodes || 0,
+    total_relations: analyticsData.graph.total_edges || 0,
+    recent_commits: analyticsData.activity.peak_activity.count || 0,
+    active_sprints: Array.isArray(sprintsData) ? sprintsData.length : 0,
+    node_types: Object.entries(analyticsData.graph.node_types || {}).map(([type, count]) => ({
+      type,
+      count: count as number,
+      color: getNodeTypeColor(type)
+    })),
+    relation_types: Object.entries(analyticsData.graph.edge_types || {}).map(([type, count]) => ({
+      type,
+      count: count as number,
+      color: getRelationTypeColor(type)
+    })),
+    performance_metrics: {
+      avg_query_time_ms: telemetryData.avg_query_time_ms || 0,
+      cache_hit_rate: telemetryData.cache_hit_rate || 0,
+      memory_usage_mb: telemetryData.memory_usage_mb || 0
+    }
+  } : null;
+
+  // Helper functions for node and relation type colors
+  const getNodeTypeColor = (type: string) => {
+    const colors = {
+      'commits': '#3182ce',
+      'files': '#38a169',
+      'requirements': '#d69e2e',
+      'sprints': '#805ad5',
+      'documents': '#e53e3e',
+      'chunks': '#dd6b20'
+    };
+    return colors[type as keyof typeof colors] || '#718096';
+  };
+
+  const getRelationTypeColor = (type: string) => {
+    const colors = {
+      'TOUCHED': '#3182ce',
+      'IMPLEMENTS': '#38a169',
+      'EVOLVES_FROM': '#d69e2e',
+      'REFACTORED_TO': '#805ad5',
+      'DEPRECATED_BY': '#e53e3e',
+      'MENTIONS': '#dd6b20'
+    };
+    return colors[type as keyof typeof colors] || '#718096';
   };
 
   const getHealthStatus = (score: number) => {
@@ -155,7 +174,10 @@ export default function WelcomeDashboard() {
         <VStack spacing={4} p={8} align="center" justify="center" minH="60vh">
           <Alert status="error" maxW="md">
             <AlertIcon />
-            {error}
+            <VStack align="start" spacing={2}>
+              <Text fontWeight="bold">Failed to load dashboard data</Text>
+              <Text fontSize="sm">{error instanceof Error ? error.message : 'Unknown error'}</Text>
+            </VStack>
           </Alert>
         </VStack>
       </Box>

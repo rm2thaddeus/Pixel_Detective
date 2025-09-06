@@ -2,6 +2,8 @@
 import { Box, Heading, Spinner, Text, VStack, HStack, Button, Select, Badge, Grid, GridItem, Card, CardBody, CardHeader, Divider, useColorModeValue } from '@chakra-ui/react';
 import { useState, useEffect } from 'react';
 import { Header } from '@/components/Header';
+import { useAnalytics, useWindowedSubgraph } from '../hooks/useWindowedSubgraph';
+import { useQuery } from '@tanstack/react-query';
 
 // Developer Graph API base URL
 const DEV_GRAPH_API_URL = process.env.NEXT_PUBLIC_DEV_GRAPH_API_URL || 'http://localhost:8080';
@@ -32,16 +34,31 @@ interface Relation {
 }
 
 export default function EnhancedDevGraphPage() {
-  const [stats, setStats] = useState<any>(null);
-  const [nodeTypes, setNodeTypes] = useState<NodeType[]>([]);
-  const [relationTypes, setRelationTypes] = useState<RelationType[]>([]);
   const [selectedNodeType, setSelectedNodeType] = useState<string>('');
   const [selectedRelationType, setSelectedRelationType] = useState<string>('');
-  const [nodes, setNodes] = useState<Node[]>([]);
-  const [relations, setRelations] = useState<Relation[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadingNodes, setLoadingNodes] = useState(false);
-  const [loadingRelations, setLoadingRelations] = useState(false);
+  
+  // Use new hooks for data fetching
+  const { data: analyticsData, isLoading: analyticsLoading, error: analyticsError } = useAnalytics();
+  const { data: subgraphData, isLoading: subgraphLoading, error: subgraphError } = useWindowedSubgraph({ 
+    limit: 100,
+    nodeTypes: selectedNodeType ? [selectedNodeType] : undefined
+  });
+  
+  const { data: relationsData, isLoading: relationsLoading } = useQuery({
+    queryKey: ['relations', selectedRelationType],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (selectedRelationType) params.set('rel_type', selectedRelationType);
+      params.set('limit', '100');
+      const res = await fetch(`${DEV_GRAPH_API_URL}/api/v1/dev-graph/relations?${params}`);
+      if (!res.ok) throw new Error('Failed to fetch relations');
+      return res.json();
+    },
+    staleTime: 60_000,
+  });
+
+  const loading = analyticsLoading || subgraphLoading || relationsLoading;
+  const error = analyticsError || subgraphError;
 
   // All hooks must be called before any conditional returns
   const bgColor = useColorModeValue('white', 'gray.800');

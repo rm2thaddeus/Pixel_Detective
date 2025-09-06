@@ -518,6 +518,10 @@ class TemporalEngine:
         cache_key = self._get_cache_key(from_timestamp, to_timestamp, node_types, limit, cursor, include_counts)
         cached_result = self._get_cached_result(cache_key)
         if cached_result:
+            try:
+                self._cache_hits += 1
+            except Exception:
+                pass
             return cached_result
         try:
             self._cache_misses += 1
@@ -584,13 +588,13 @@ class TemporalEngine:
             if keyset is not None:
                 params["c_ts"] = keyset[0]
                 params["c_rid"] = keyset[1]
-                extra_clause = " AND (r.timestamp < $c_ts OR (r.timestamp = $c_ts AND id(r) < $c_rid))"
+                extra_clause = " AND (r.timestamp < $c_ts OR (r.timestamp = $c_ts AND elementId(r) < $c_rid))"
 
             # Main query with pagination/keyset ordering
             main_cypher = (
                 f"MATCH (a)-[r]->(b) {where_clause}"
                 + (extra_clause if keyset is not None else "")
-                + " RETURN DISTINCT a, labels(a) AS a_labels, b, labels(b) AS b_labels, r, type(r) AS rel_type, r.timestamp AS ts, id(r) AS rid"
+                + " RETURN DISTINCT a, labels(a) AS a_labels, b, labels(b) AS b_labels, r, type(r) AS rel_type, r.timestamp AS ts, elementId(r) AS rid"
                 + " ORDER BY ts DESC, rid DESC"
                 + (" SKIP $offset" if is_legacy_offset else "")
                 + " LIMIT $limit"
@@ -738,6 +742,9 @@ class TemporalEngine:
             except Exception:
                 pass
 
+            # Add cache hit status
+            result["performance"]["cache_hit"] = False
+
             # Cache the result
             self._cache_result(cache_key, result)
             
@@ -793,13 +800,15 @@ class TemporalEngine:
             result = session.run(cypher, params)
             buckets = []
             
-            for rec in result:
-                buckets.append({
-                    "bucket": rec["bucket"],
-                    "commit_count": rec["commit_count"],
-                    "file_changes": rec["file_changes"],
-                    "granularity": granularity
-                })
+            for record in result:
+                bucket_date = record["bucket"]
+                if bucket_date:
+                    buckets.append({
+                        "bucket": bucket_date.isoformat(),
+                        "commit_count": record["commit_count"] or 0,
+                        "file_changes": record["file_changes"] or 0,
+                        "granularity": granularity
+                    })
             
             query_time = time.time() - start_time
             
@@ -807,7 +816,6 @@ class TemporalEngine:
                 "buckets": buckets,
                 "performance": {
                     "query_time_ms": round(query_time * 1000, 2),
-                    "granularity": granularity,
                     "total_buckets": len(buckets)
                 }
             }
@@ -833,4 +841,30 @@ class TemporalEngine:
             "cache_size": len(self._cache or {}),
             "query_samples": (len(self._q_times_ms) if hasattr(self, "_q_times_ms") else 0),
         }
+
+    def _cache_result(self, cache_key, result):
+        """Cache a result with TTL."""
+        try:
+            import time
+            self._cache[cache_key] = {
+                "result": result,
+                "timestamp": time.time()
+            }
+        except Exception:
+            pass
+
+    def _get_cached_result(self, cache_key):
+        """Get cached result if not expired."""
+        try:
+            import time
+            if cache_key in self._cache:
+                cached = self._cache[cache_key]
+                if time.time() - cached["timestamp"] < self._cache_ttl:
+                    return cached["result"]
+                else:
+                    # Remove expired entry
+                    del self._cache[cache_key]
+        except Exception:
+            pass
+        return None
 
