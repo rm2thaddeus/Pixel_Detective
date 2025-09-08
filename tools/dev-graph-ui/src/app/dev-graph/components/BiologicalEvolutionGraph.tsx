@@ -1,5 +1,5 @@
 'use client';
-import { Box, Text, VStack, HStack, Button } from '@chakra-ui/react';
+import { Box, Text, VStack, HStack, Button, Heading } from '@chakra-ui/react';
 import { useEffect, useRef, useState } from 'react';
 import * as d3 from 'd3';
 
@@ -64,7 +64,8 @@ export default function BiologicalEvolutionGraph({
   currentIndex = 0,
   totalSnapshots = 1
 }: BiologicalEvolutionGraphProps) {
-  const svgRef = useRef<SVGSVGElement>(null);
+  const timelineSvgRef = useRef<SVGSVGElement>(null);
+  const dendrogramSvgRef = useRef<SVGSVGElement>(null);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -72,28 +73,13 @@ export default function BiologicalEvolutionGraph({
   }, []);
 
   useEffect(() => {
-    if (!mounted || !svgRef.current || !snapshot) return;
+    if (!mounted || !timelineSvgRef.current || !dendrogramSvgRef.current || !snapshot) return;
 
-    const svg = d3.select(svgRef.current);
-    svg.selectAll("*").remove();
-
-    // Set up dimensions
-    const margin = { top: 40, right: 40, bottom: 40, left: 40 };
-    const innerWidth = width - margin.left - margin.right;
-    const innerHeight = height - margin.top - margin.bottom;
-
-    // Create main group with zoom
-    const g = svg
-      .attr("width", width)
-      .attr("height", height)
-      .call(d3.zoom<SVGSVGElement, unknown>()
-        .scaleExtent([0.1, 3])
-        .on("zoom", (event) => {
-          g.attr("transform", event.transform);
-        })
-      )
-      .append("g")
-      .attr("transform", `translate(${margin.left},${margin.top})`);
+    const timelineSvg = d3.select(timelineSvgRef.current);
+    const dendrogramSvg = d3.select(dendrogramSvgRef.current);
+    
+    timelineSvg.selectAll("*").remove();
+    dendrogramSvg.selectAll("*").remove();
 
     // Enhanced color schemes for biological evolution
     const fileTypeColors: Record<string, string> = {
@@ -117,106 +103,118 @@ export default function BiologicalEvolutionGraph({
       'death': '#ef4444'      // Red for deletion
     };
 
-    // Create evolutionary backbone (tree of life structure)
-    const backboneX = innerWidth / 2;
-    const backboneY = 50;
-    const branchLength = 150;
+    // Timeline dimensions (top panel)
+    const timelineHeight = 120;
+    const timelineWidth = width;
     
-    // Create commit tree backbone - show progression of commits over time
-    const commitTreeGroup = g.append("g")
-      .attr("class", "commit-tree")
-      .attr("transform", `translate(50, 50)`);
+    // Dendrogram dimensions (bottom panel) - MASSIVE SPACE for downward growth
+    const dendrogramHeight = height - 140; // Give maximum space to dendrograms (760px for 900px total)
+    const dendrogramWidth = width;
 
-    // Draw the main timeline backbone (horizontal for temporal progression)
-    const timelineLength = innerWidth - 100;
-    const commitSpacing = Math.min(timelineLength / Math.max(totalSnapshots, 1), 150);
     
-    // Main timeline trunk
-    commitTreeGroup.append("line")
+    // === TIMELINE PANEL (Top) ===
+    const timelineGroup = timelineSvg.append("g")
+      .attr("class", "timeline-panel")
+      .attr("transform", "translate(20, 20)");
+
+    // Calculate timeline layout
+    const availableTimelineWidth = timelineWidth - 40;
+    const commitSpacing = Math.min(availableTimelineWidth / Math.max(totalSnapshots, 1), 80);
+    
+    // Timeline backbone
+    timelineGroup.append("line")
       .attr("x1", 0)
-      .attr("y1", 50)
+      .attr("y1", 40)
       .attr("x2", commitSpacing * (currentIndex + 1))
-      .attr("y2", 50)
+      .attr("y2", 40)
       .attr("stroke", "#8b5cf6")
-      .attr("stroke-width", 4)
-      .attr("opacity", 0.8)
+      .attr("stroke-width", 3)
+      .attr("opacity", 0.6)
       .attr("stroke-linecap", "round");
 
-    // Draw all commit nodes up to current point (showing evolution history)
+    // Commit nodes in timeline
     for (let i = 0; i <= currentIndex; i++) {
       const commitX = i * commitSpacing;
-      const commitY = 50;
       const isCurrentCommit = i === currentIndex;
       
-      const commitNodeGroup = commitTreeGroup.append("g")
-        .attr("class", `commit-node-${i}`)
-        .attr("transform", `translate(${commitX}, ${commitY})`);
+      const commitNode = timelineGroup.append("g")
+        .attr("transform", `translate(${commitX}, 40)`);
 
-      // Commit node circle
-      const commitCircle = commitNodeGroup.append("circle")
-        .attr("r", isCurrentCommit ? 25 : 18)
-        .attr("fill", isCurrentCommit ? "#8b5cf6" : "#6366f1")
-        .attr("stroke", "#fff")
-        .attr("stroke-width", 3)
+      // Commit circle
+      const circle = commitNode.append("circle")
+        .attr("r", isCurrentCommit ? 18 : 12)
+        .attr("fill", isCurrentCommit ? "#8b5cf6" : "#a78bfa")
+        .attr("stroke", "white")
+        .attr("stroke-width", 2)
         .attr("opacity", isCurrentCommit ? 1 : 0.7);
 
-      // Add pulsing animation for current commit
+      // Pulsing animation for current commit
       if (isCurrentCommit && enableAnimation && isPlaying) {
-        commitCircle
+        circle
           .transition()
-          .duration(1000)
-          .attr("r", 30)
+          .duration(1500)
+          .attr("r", 22)
           .transition()
-          .duration(1000)
-          .attr("r", 25)
+          .duration(1500)
+          .attr("r", 18)
           .on("end", function repeat() {
             if (isPlaying) {
               d3.select(this)
                 .transition()
-                .duration(1000)
-                .attr("r", 30)
+                .duration(1500)
+                .attr("r", 22)
                 .transition()
-                .duration(1000)
-                .attr("r", 25)
+                .duration(1500)
+                .attr("r", 18)
                 .on("end", repeat);
             }
           });
       }
 
-      // Commit hash
-      commitNodeGroup.append("text")
+      // Commit label
+      commitNode.append("text")
         .attr("text-anchor", "middle")
         .attr("dy", "0.35em")
-        .attr("font-size", isCurrentCommit ? "11px" : "9px")
+        .attr("font-size", isCurrentCommit ? "9px" : "7px")
         .attr("fill", "white")
         .attr("font-weight", "bold")
-        .text(snapshot.commit_hash.substring(0, isCurrentCommit ? 7 : 5));
+        .text(snapshot.commit_hash.substring(0, isCurrentCommit ? 6 : 4));
 
-      // Commit metadata (only for current commit to avoid clutter)
-      if (isCurrentCommit && showLabels) {
-        commitNodeGroup.append("text")
-          .attr("x", 0)
-          .attr("y", -35)
-          .attr("font-size", "12px")
-          .attr("fill", "#8b5cf6")
-          .attr("font-weight", "bold")
+      // Generation number below
+      if (showLabels) {
+        commitNode.append("text")
           .attr("text-anchor", "middle")
-          .text(`Generation ${currentIndex + 1}`);
-
-        commitNodeGroup.append("text")
-          .attr("x", 0)
-          .attr("y", 45)
+          .attr("y", 30)
           .attr("font-size", "10px")
-          .attr("fill", "#666")
-          .attr("text-anchor", "middle")
-          .text(snapshot.commit.message.substring(0, 20) + "...");
+          .attr("fill", "#6b7280")
+          .text(`G${i + 1}`);
       }
     }
 
+    // === DENDROGRAM PANEL (Bottom) ===
+    const dendrogramGroup = dendrogramSvg.append("g")
+      .attr("class", "dendrogram-panel")
+      .attr("transform", "translate(30, 30)");
+
+    // Calculate dendrogram layout - use FULL available space
+    const availableDendrogramWidth = dendrogramWidth - 60;
+    const availableDendrogramHeight = dendrogramHeight - 60;
+    
+    console.log('Dendrogram panel dimensions:', {
+      dendrogramWidth,
+      dendrogramHeight,
+      availableDendrogramWidth,
+      availableDendrogramHeight
+    });
+    
     // Create dendrograms for ALL commits up to current point (layered approach)
+    const commitWidth = availableDendrogramWidth / Math.max(currentIndex + 1, 1);
+    const minCommitWidth = 120; // Minimum width per commit to ensure visibility
+    
     for (let commitIdx = 0; commitIdx <= currentIndex; commitIdx++) {
-      const commitX = 50 + (commitIdx * commitSpacing);
-      const commitY = 150; // Base Y position for dendrograms
+      const actualCommitWidth = Math.max(commitWidth, minCommitWidth);
+      const commitX = commitIdx * actualCommitWidth + actualCommitWidth / 2;
+      const commitY = 50; // Position commits at top, let dendrograms grow downward
       const isCurrentCommit = commitIdx === currentIndex;
       
       // Get files for this specific commit (simulated - in real app this would come from commit data)
@@ -258,76 +256,128 @@ export default function BiologicalEvolutionGraph({
       const filesByType = d3.group(commitFiles, d => d.type as 'code' | 'doc' | 'config' | 'test');
       const typeOrder: ('code' | 'doc' | 'config' | 'test')[] = ['code', 'doc', 'config', 'test'];
       
-      // Create dendrogram branches for this commit
-      const dendrogramRadius = isCurrentCommit ? 120 : 80; // Current commit has larger dendrograms
-      const opacity = isCurrentCommit ? 1.0 : 0.4; // Previous commits are more transparent
-      const branchAngles = typeOrder.map((_, i) => (i / typeOrder.length) * 2 * Math.PI - Math.PI/2);
+      // Create dendrogram branches for this commit - CONSTRAINED TO CANVAS
+      const maxDendrogramRadius = Math.min(
+        Math.max(commitWidth, minCommitWidth) * 0.3, // Smaller horizontal spread
+        (availableDendrogramHeight - 100) * 0.6,     // Use 60% of available height
+        dendrogramWidth * 0.15  // Constrain to 15% of canvas width
+      );
+      const dendrogramRadius = isCurrentCommit ? maxDendrogramRadius : maxDendrogramRadius * 0.8;
+      const opacity = isCurrentCommit ? 1.0 : 0.4;
+      
+      // TIGHTER ANGLE SPREAD - keep within canvas bounds
+      const branchAngles = typeOrder.map((_, i) => {
+        // Start from 60° and spread to 120° (tighter downward arc)
+        const startAngle = Math.PI * 0.33; // 60°
+        const endAngle = Math.PI * 0.67;   // 120°
+        return startAngle + (i / Math.max(typeOrder.length - 1, 1)) * (endAngle - startAngle);
+      });
+      
+      console.log(`Commit ${commitIdx} dendrogram:`, {
+        commitX,
+        commitY,
+        dendrogramRadius,
+        maxDendrogramRadius,
+        isCurrentCommit
+      });
+      
+      // Create commit group in dendrogram panel
+      const commitDendrogramGroup = dendrogramGroup.append("g")
+        .attr("class", `commit-dendrogram-${commitIdx}`)
+        .attr("transform", `translate(${commitX}, ${commitY})`);
+      
+      // Central commit node in dendrogram - LARGER
+      commitDendrogramGroup.append("circle")
+        .attr("r", isCurrentCommit ? 12 : 8)
+        .attr("fill", isCurrentCommit ? "#8b5cf6" : "#a78bfa")
+        .attr("stroke", "white")
+        .attr("stroke-width", 2)
+        .attr("opacity", opacity);
 
-      // Create dendrogram branches for this commit
+      // Create dendrogram branches for this commit - MUCH LARGER
       typeOrder.forEach((type, typeIndex) => {
         const typeFiles = filesByType.get(type) || [];
         if (typeFiles.length === 0) return;
 
         const branchAngle = branchAngles[typeIndex];
-        const branchLength = Math.min(dendrogramRadius, 80 + typeFiles.length * 8);
+        const branchLength = Math.min(dendrogramRadius, 80 + typeFiles.length * 8); // Constrained branch length
         
         // Primary branch from commit to file type cluster
-        const branchEndX = commitX + Math.cos(branchAngle) * branchLength;
-        const branchEndY = commitY + Math.sin(branchAngle) * branchLength;
+        const branchEndX = Math.cos(branchAngle) * branchLength;
+        const branchEndY = Math.sin(branchAngle) * branchLength;
 
-        // Main dendrogram branch
-        const dendrogramBranch = g.append("line")
-          .attr("x1", commitX)
-          .attr("y1", commitY)
+        console.log(`Branch ${type} for commit ${commitIdx}:`, {
+          branchAngle,
+          branchLength,
+          branchEndX,
+          branchEndY,
+          fileCount: typeFiles.length
+        });
+
+        // Main dendrogram branch - THICKER
+        const dendrogramBranch = commitDendrogramGroup.append("line")
+          .attr("x1", 0)
+          .attr("y1", 0)
           .attr("x2", branchEndX)
           .attr("y2", branchEndY)
           .attr("stroke", fileTypeColors[type] || fileTypeColors['code'])
-          .attr("stroke-width", Math.max(1, Math.min(4, typeFiles.length)))
-          .attr("opacity", opacity * 0.8)
+          .attr("stroke-width", Math.max(2, Math.min(6, typeFiles.length + 2))) // THICKER branches
+          .attr("opacity", opacity * 0.9)
           .attr("stroke-linecap", "round")
           .attr("class", `commit-${commitIdx}-branch-${type}`);
 
         // Animate branch growth only for current commit
         if (enableAnimation && isCurrentCommit) {
           dendrogramBranch
-            .attr("x2", commitX)
-            .attr("y2", commitY)
+            .attr("x2", 0)
+            .attr("y2", 0)
             .transition()
             .duration(800)
             .attr("x2", branchEndX)
             .attr("y2", branchEndY);
         }
 
-        // Type label at branch end (only for current commit to avoid clutter)
-        if (showLabels && isCurrentCommit) {
-          g.append("text")
+        // Type label at branch end - LARGER and more visible
+        if (showLabels && typeFiles.length > 0) {
+          // Label background for better visibility
+          commitDendrogramGroup.append("circle")
+            .attr("cx", branchEndX)
+            .attr("cy", branchEndY)
+            .attr("r", 12)
+            .attr("fill", "white")
+            .attr("stroke", fileTypeColors[type] || fileTypeColors['code'])
+            .attr("stroke-width", 2)
+            .attr("opacity", opacity * 0.9);
+          
+          commitDendrogramGroup.append("text")
             .attr("x", branchEndX)
-            .attr("y", branchEndY - 8)
+            .attr("y", branchEndY)
             .attr("font-size", "10px")
             .attr("font-weight", "bold")
             .attr("fill", fileTypeColors[type] || fileTypeColors['code'])
             .attr("text-anchor", "middle")
+            .attr("dy", "0.35em")
             .attr("opacity", opacity)
-            .text(type.toUpperCase());
+            .text(type.charAt(0).toUpperCase());
         }
 
-        // Create file nodes along sub-branches from the main branch
+        // Create file nodes along sub-branches from the main branch - SPREAD DOWNWARD
         typeFiles.forEach((file, fileIndex) => {
-          const subBranchAngle = branchAngle + (fileIndex - typeFiles.length/2) * 0.4; // Spread files around main branch
-          const subBranchLength = 25 + (fileIndex % 3) * 10; // Varied lengths
+          const subBranchAngle = branchAngle + (fileIndex - typeFiles.length/2) * 0.3; // Spread files around main branch
+          const subBranchLength = 20 + (fileIndex % 3) * 10; // Constrained sub-branches
           
           const fileX = branchEndX + Math.cos(subBranchAngle) * subBranchLength;
           const fileY = branchEndY + Math.sin(subBranchAngle) * subBranchLength;
 
-          // Sub-branch to file
-          const subBranch = g.append("line")
+          // Sub-branch to file - THICKER
+          const subBranch = commitDendrogramGroup.append("line")
             .attr("x1", branchEndX)
             .attr("y1", branchEndY)
             .attr("x2", fileX)
             .attr("y2", fileY)
             .attr("stroke", fileTypeColors[type] || fileTypeColors['code'])
-            .attr("stroke-width", isCurrentCommit ? 2 : 1)
-            .attr("opacity", opacity * 0.6)
+            .attr("stroke-width", isCurrentCommit ? 2.5 : 1.5) // THICKER sub-branches
+            .attr("opacity", opacity * 0.7)
             .attr("class", `commit-${commitIdx}-file-branch`);
 
           // Animate sub-branch growth only for current commit
@@ -336,21 +386,21 @@ export default function BiologicalEvolutionGraph({
               .attr("x2", branchEndX)
               .attr("y2", branchEndY)
               .transition()
-              .delay(300 + fileIndex * 50)
+              .delay(300 + fileIndex * 40)
               .duration(400)
               .attr("x2", fileX)
               .attr("y2", fileY);
           }
 
-          // File node
-          const fileGroup = g.append("g")
+          // File node - MUCH LARGER
+          const fileGroup = commitDendrogramGroup.append("g")
             .attr("class", `file-node commit-${commitIdx}`)
             .attr("transform", `translate(${fileX}, ${fileY})`);
 
-          // Calculate file size based on modifications and importance
-          const baseSize = isCurrentCommit ? 7 : 5;
+          // Calculate file size - LARGER but constrained
+          const baseSize = isCurrentCommit ? 8 : 6;
           const growthFactor = 1 + (file.modifications || file.commit_count) / maxModifications;
-          const fileSize = Math.min(isCurrentCommit ? 15 : 10, Math.max(4, baseSize * Math.sqrt(growthFactor)));
+          const fileSize = Math.min(isCurrentCommit ? 15 : 12, Math.max(6, baseSize * Math.sqrt(growthFactor)));
 
           // Determine file evolution state and color
           let fileColor = fileTypeColors[type] || fileTypeColors['code'];
@@ -367,14 +417,31 @@ export default function BiologicalEvolutionGraph({
             fileColor = evolutionColors['birth'];
           }
 
-          // File circle
+          console.log(`File ${file.path}:`, {
+            fileX,
+            fileY,
+            fileSize,
+            fileColor,
+            evolutionState
+          });
+
+          // File circle - MUCH LARGER and more prominent
           const fileCircle = fileGroup.append("circle")
             .attr("r", fileSize)
             .attr("fill", fileColor)
-            .attr("stroke", "#fff")
-            .attr("stroke-width", isCurrentCommit ? 2 : 1)
-            .attr("opacity", (file.status === 'deleted' ? 0.3 : 0.7) * opacity)
+            .attr("stroke", "white")
+            .attr("stroke-width", isCurrentCommit ? 3 : 2)
+            .attr("opacity", (file.status === 'deleted' ? 0.6 : 0.95) * opacity)
             .attr("class", `file-circle-${evolutionState}`);
+          
+          // Add subtle shadow effect for depth
+          fileGroup.append("circle")
+            .attr("r", fileSize + 2)
+            .attr("fill", "none")
+            .attr("stroke", fileColor)
+            .attr("stroke-width", 0.5)
+            .attr("opacity", opacity * 0.3)
+            .attr("stroke-dasharray", "2,2");
 
           // Animate file appearance only for current commit
           if (enableAnimation && isCurrentCommit) {
@@ -382,10 +449,10 @@ export default function BiologicalEvolutionGraph({
               .attr("r", 0)
               .attr("opacity", 0)
               .transition()
-              .delay(600 + fileIndex * 80)
-              .duration(600)
+              .delay(500 + fileIndex * 60)
+              .duration(500)
               .attr("r", fileSize)
-              .attr("opacity", (file.status === 'deleted' ? 0.3 : 0.7) * opacity)
+              .attr("opacity", (file.status === 'deleted' ? 0.5 : 0.9) * opacity)
               .ease(d3.easeBounce);
           }
 
@@ -394,271 +461,254 @@ export default function BiologicalEvolutionGraph({
             if (evolutionState === 'growth') {
               fileCircle
                 .transition()
-                .duration(800)
-                .attr("r", fileSize * 1.2)
+                .duration(600)
+                .attr("r", fileSize * 1.3)
                 .transition()
-                .duration(800)
+                .duration(600)
                 .attr("r", fileSize);
             } else if (evolutionState === 'death') {
-              // Death explosion
-              for (let i = 0; i < 4; i++) {
-                const angle = (i / 4) * 2 * Math.PI;
+              // Death explosion - smaller for compact layout
+              for (let i = 0; i < 3; i++) {
+                const angle = (i / 3) * 2 * Math.PI;
                 const particle = fileGroup.append("circle")
                   .attr("r", 1)
                   .attr("fill", evolutionColors['death'])
                   .attr("opacity", 0.8 * opacity)
                   .transition()
-                  .duration(800)
-                  .attr("cx", Math.cos(angle) * 20)
-                  .attr("cy", Math.sin(angle) * 20)
+                  .duration(600)
+                  .attr("cx", Math.cos(angle) * 12)
+                  .attr("cy", Math.sin(angle) * 12)
                   .attr("opacity", 0)
                   .attr("r", 0);
               }
             }
           }
 
-          // File label (only for current commit and important files)
-          if (showLabels && isCurrentCommit && fileIndex < 3) {
+          // File label - LARGER and more visible
+          if (showLabels && fileIndex < 5 && fileSize > 8) {
             const fileName = file.path.split('/').pop() || file.path;
+            
+            // Background for label readability - LARGER
+            fileGroup.append("rect")
+              .attr("x", -25)
+              .attr("y", fileSize + 8)
+              .attr("width", 50)
+              .attr("height", 14)
+              .attr("fill", "white")
+              .attr("stroke", fileColor)
+              .attr("stroke-width", 1)
+              .attr("rx", 3)
+              .attr("opacity", opacity * 0.95);
+            
             fileGroup.append("text")
               .attr("x", 0)
-              .attr("y", fileSize + 10)
-              .attr("font-size", "7px")
-              .attr("fill", "#333")
+              .attr("y", fileSize + 16)
+              .attr("font-size", "9px")
+              .attr("fill", fileColor)
               .attr("text-anchor", "middle")
-              .attr("opacity", opacity)
-              .text(fileName.length > 6 ? fileName.substring(0, 6) + "..." : fileName);
-          }
-
-          // Modification indicator (only for current commit)
-          if (file.modifications > 0 && isCurrentCommit) {
-            fileGroup.append("circle")
-              .attr("cx", fileSize * 0.6)
-              .attr("cy", -fileSize * 0.6)
-              .attr("r", 3)
-              .attr("fill", evolutionColors['mutation'])
-              .attr("stroke", "#fff")
-              .attr("stroke-width", 1)
-              .attr("opacity", opacity);
-
-            fileGroup.append("text")
-              .attr("x", fileSize * 0.6)
-              .attr("y", -fileSize * 0.6)
-              .attr("text-anchor", "middle")
-              .attr("dy", "0.3em")
-              .attr("font-size", "5px")
-              .attr("fill", "#fff")
               .attr("font-weight", "bold")
               .attr("opacity", opacity)
-              .text(file.modifications > 9 ? "9+" : file.modifications.toString());
+              .text(fileName.length > 8 ? fileName.substring(0, 8) : fileName);
+          }
+
+          // Modification indicator - LARGER and more prominent
+          if (file.modifications > 0 && fileSize > 8) {
+            fileGroup.append("circle")
+              .attr("cx", fileSize * 0.7)
+              .attr("cy", -fileSize * 0.7)
+              .attr("r", 6)
+              .attr("fill", evolutionColors['mutation'])
+              .attr("stroke", "white")
+              .attr("stroke-width", 1.5)
+              .attr("opacity", opacity);
+
+            if (file.modifications <= 9) {
+              fileGroup.append("text")
+                .attr("x", fileSize * 0.7)
+                .attr("y", -fileSize * 0.7)
+                .attr("text-anchor", "middle")
+                .attr("dy", "0.35em")
+                .attr("font-size", "8px")
+                .attr("fill", "white")
+                .attr("font-weight", "bold")
+                .attr("opacity", opacity)
+                .text(file.modifications.toString());
+            }
           }
         });
       });
     } // End of commit loop
 
-    // Add evolutionary timeline
-    const timelineGroup = g.append("g")
-      .attr("class", "evolution-timeline")
-      .attr("transform", `translate(0, ${innerHeight - 40})`);
 
-    // Timeline background
-    timelineGroup.append("rect")
-      .attr("x", 0)
-      .attr("y", -10)
-      .attr("width", innerWidth)
-      .attr("height", 20)
-      .attr("fill", "#f8fafc")
-      .attr("stroke", "#e2e8f0")
-      .attr("stroke-width", 1)
-      .attr("rx", 10);
-
-    // Progress indicator
-    if (totalSnapshots > 1) {
-      const progressWidth = (innerWidth * (currentIndex + 1)) / totalSnapshots;
-      timelineGroup.append("rect")
-        .attr("x", 0)
-        .attr("y", -10)
-        .attr("width", progressWidth)
-        .attr("height", 20)
+    // Add generation label in dendrogram panel (bottom right)
+    if (currentIndex >= 0) {
+      dendrogramGroup.append("text")
+        .attr("x", availableDendrogramWidth - 10)
+        .attr("y", availableDendrogramHeight - 10)
+        .attr("font-size", "11px")
+        .attr("font-weight", "bold")
         .attr("fill", "#8b5cf6")
-        .attr("opacity", 0.3)
-        .attr("rx", 10);
+        .attr("text-anchor", "end")
+        .attr("opacity", 0.7)
+        .text(`Generation ${currentIndex + 1}`);
     }
-
-    // Evolutionary moment marker
-    timelineGroup.append("text")
-      .attr("x", innerWidth / 2)
-      .attr("y", 25)
-      .attr("font-size", "11px")
-      .attr("fill", "#666")
-      .attr("text-anchor", "middle")
-      .text(`Evolution Point: ${new Date(snapshot.timestamp).toLocaleDateString()} • Generation ${currentIndex + 1}/${totalSnapshots}`);
-
-    // Add ecosystem statistics
-    const ecosystemGroup = g.append("g")
-      .attr("class", "ecosystem-stats")
-      .attr("transform", `translate(${innerWidth - 220}, 20)`);
-
-    // Background panel (larger to accommodate more stats)
-    ecosystemGroup.append("rect")
-      .attr("x", -10)
-      .attr("y", -10)
-      .attr("width", 200)
-      .attr("height", 130)
-      .attr("fill", "#f8fafc")
-      .attr("stroke", "#e2e8f0")
-      .attr("stroke-width", 1)
-      .attr("rx", 8)
-      .attr("opacity", 0.95);
-
-    // Title
-    ecosystemGroup.append("text")
-      .attr("font-size", "12px")
-      .attr("font-weight", "bold")
-      .attr("fill", "#2d3748")
-      .text("🧬 Ecosystem Status");
-
-    const stats = [
-      { label: "🌳 Tree Generations", value: currentIndex + 1, color: "#8b5cf6" },
-      { label: "📁 Total Branches", value: (currentIndex + 1) * 4, color: "#3b82f6" },
-      { label: "🌱 Active Files", value: snapshot.files.filter(f => f.status === 'modified').length, color: "#10b981" },
-      { label: "💀 Extinct Files", value: snapshot.files.filter(f => f.status === 'deleted').length, color: "#ef4444" },
-      { label: "👨‍🔬 Contributors", value: snapshot.active_developers.length, color: "#6366f1" }
-    ];
-
-    stats.forEach((stat, index) => {
-      const statGroup = ecosystemGroup.append("g")
-        .attr("transform", `translate(0, ${(index + 1) * 18})`);
-
-      statGroup.append("text")
-        .attr("font-size", "10px")
-        .attr("fill", stat.color)
-        .attr("font-weight", "500")
-        .text(`${stat.label}: ${stat.value}`);
-    });
-    
-    // Add commit tree explanation
-    ecosystemGroup.append("text")
-      .attr("x", 0)
-      .attr("y", 120)
-      .attr("font-size", "8px")
-      .attr("fill", "#9ca3af")
-      .attr("font-style", "italic")
-      .text("Layered dendrograms show evolution over time");
 
   }, [mounted, snapshot, height, width, showLabels, enableAnimation, previousSnapshot, isPlaying, currentIndex, totalSnapshots]);
 
   if (!mounted) {
     return (
-      <VStack spacing={4}>
-      <Box 
-        height={height} 
-        width={width} 
-        borderWidth="1px" 
-        borderRadius="md" 
-        display="flex" 
-        alignItems="center" 
-        justifyContent="center"
-          bg="linear-gradient(135deg, #667eea 0%, #764ba2 100%)"
-          color="white"
-      >
+      <VStack spacing={6} align="stretch" bg="white" borderRadius="lg" p={6} boxShadow="sm">
+        <Box 
+          height={height} 
+          width={width} 
+          borderWidth="1px" 
+          borderRadius="md" 
+          display="flex" 
+          alignItems="center" 
+          justifyContent="center"
+          bg="gray.50"
+        >
           <VStack spacing={3}>
-            <Text fontSize="lg">🧬 Initializing Evolution...</Text>
-            <Text fontSize="sm" opacity={0.8}>Preparing biological visualization</Text>
+            <Text fontSize="lg" color="purple.600">🧬 Initializing Evolution Tree...</Text>
+            <Text fontSize="sm" color="gray.600">Preparing temporal visualization</Text>
           </VStack>
-      </Box>
+        </Box>
       </VStack>
     );
   }
 
   return (
-    <VStack spacing={4} align="stretch">
-      {/* Evolution Header */}
-      <Box>
-        <Text fontSize="lg" fontWeight="bold" color="#8b5cf6" mb={2}>
-          🧬 Codebase Evolution Timeline
-        </Text>
-        <Text fontSize="sm" color="gray.600" mb={2}>
-          Watch your codebase evolve through a temporal commit tree. Each commit node grows dendrograms 
-          showing the files that were changed, creating a living history of your project's evolution.
-        </Text>
-        <Text fontSize="xs" color="gray.500" fontStyle="italic" mb={4}>
-          🌳 Each generation adds a new commit node to the tree, with file dendrograms showing what changed.
-        </Text>
-      </Box>
-
-      {/* Playback Controls */}
-      {(onPlayPause || onNext || onPrevious) && (
-        <HStack spacing={4} justify="center" py={2}>
-          {onPrevious && (
-            <Button 
-              onClick={onPrevious} 
-              size="sm" 
-              variant="outline"
-              isDisabled={currentIndex === 0}
-            >
-              ⏮️ Previous Generation
-            </Button>
-          )}
-          {onPlayPause && (
-            <Button 
-              onClick={onPlayPause} 
-              colorScheme="purple" 
-              size="sm"
-            >
-              {isPlaying ? '⏸️ Pause Evolution' : '▶️ Play Evolution'}
-            </Button>
-          )}
-          {onNext && (
-            <Button 
-              onClick={onNext} 
-              size="sm" 
-              variant="outline"
-              isDisabled={currentIndex === totalSnapshots - 1}
-            >
-              Next Generation ⏭️
-            </Button>
-          )}
-        </HStack>
-      )}
-
-      {/* Evolution Visualization */}
-      <Box 
-        style={{ height, width, minHeight: height, minWidth: width }}
-        border="1px solid"
-        borderColor="gray.200"
-        borderRadius="md"
-        overflow="hidden"
-        bg="linear-gradient(135deg, #667eea 0%, #764ba2 100%)"
-        position="relative"
-      >
-      <svg 
-        ref={svgRef} 
-        style={{ 
-          height: '100%', 
-          width: '100%', 
-          minHeight: height, 
-            minWidth: width,
-            background: 'radial-gradient(ellipse at center, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.05) 100%)'
-          }} 
-        />
+    <VStack spacing={6} align="stretch" bg="white" borderRadius="lg" p={6} boxShadow="sm">
+      {/* Header with Controls */}
+      <HStack justify="space-between" align="center">
+        <VStack align="start" spacing={1}>
+          <Heading size="md" color="purple.600">
+            🧬 Codebase Evolution Tree
+          </Heading>
+          <Text fontSize="sm" color="gray.600">
+            Temporal commit tree with file dendrograms showing project evolution
+          </Text>
+        </VStack>
         
-        {/* Evolution Status Overlay */}
-        <Box
-          position="absolute"
-          top={2}
-          left={2}
-          bg="rgba(255,255,255,0.9)"
-          px={3}
-          py={1}
+        {/* Playback Controls */}
+        {(onPlayPause || onNext || onPrevious) && (
+          <HStack spacing={2}>
+            {onPrevious && (
+              <Button 
+                onClick={onPrevious} 
+                size="sm" 
+                variant="outline"
+                isDisabled={currentIndex === 0}
+                leftIcon={<Text>⏮️</Text>}
+              >
+                Previous
+              </Button>
+            )}
+            {onPlayPause && (
+              <Button 
+                onClick={onPlayPause} 
+                colorScheme="purple" 
+                size="sm"
+                leftIcon={<Text>{isPlaying ? '⏸️' : '▶️'}</Text>}
+              >
+                {isPlaying ? 'Pause' : 'Play'}
+              </Button>
+            )}
+            {onNext && (
+              <Button 
+                onClick={onNext} 
+                size="sm" 
+                variant="outline"
+                isDisabled={currentIndex === totalSnapshots - 1}
+                rightIcon={<Text>⏭️</Text>}
+              >
+                Next
+              </Button>
+            )}
+          </HStack>
+        )}
+      </HStack>
+
+      {/* Progress and Stats */}
+      <HStack justify="space-between" align="center" py={2} px={4} bg="gray.50" borderRadius="md">
+        <HStack spacing={6}>
+          <Text fontSize="sm" fontWeight="semibold">
+            Generation {currentIndex + 1} of {totalSnapshots}
+          </Text>
+          <Text fontSize="sm" color="gray.600">
+            🌳 {currentIndex + 1} Generations • 📁 {(currentIndex + 1) * 4} Branches
+          </Text>
+        </HStack>
+        <HStack spacing={4}>
+          <Text fontSize="xs" color="green.600">🌱 Active: {snapshot.files.filter(f => f.status === 'modified').length}</Text>
+          <Text fontSize="xs" color="red.600">💀 Deleted: {snapshot.files.filter(f => f.status === 'deleted').length}</Text>
+        </HStack>
+      </HStack>
+
+      {/* Two-Panel Layout */}
+      <VStack spacing={4} align="stretch">
+        {/* Top Panel: Commit Timeline */}
+        <Box 
+          height="120px"
+          bg="white"
+          border="1px solid"
+          borderColor="gray.200"
           borderRadius="md"
-          fontSize="xs"
-          fontWeight="bold"
-          color="purple.600"
+          overflow="hidden"
+          position="relative"
         >
-          {isPlaying ? '🔄 Evolution in Progress...' : '⏸️ Evolution Paused'}
+          <Text 
+            position="absolute" 
+            top={2} 
+            left={3} 
+            fontSize="xs" 
+            fontWeight="semibold" 
+            color="gray.600"
+            zIndex={10}
+          >
+            Commit Timeline
+          </Text>
+          <svg 
+            ref={timelineSvgRef} 
+            style={{ 
+              width: '100%', 
+              height: '100%',
+              background: 'linear-gradient(90deg, #f8fafc 0%, #e2e8f0 100%)'
+            }}
+          />
         </Box>
-    </Box>
+
+        {/* Bottom Panel: Dendrograms - MASSIVE SPACE */}
+        <Box 
+          height={`${height - 140}px`}
+          bg="white"
+          border="1px solid"
+          borderColor="gray.200"
+          borderRadius="md"
+          overflow="hidden"
+          position="relative"
+        >
+          <Text 
+            position="absolute" 
+            top={2} 
+            left={3} 
+            fontSize="xs" 
+            fontWeight="semibold" 
+            color="gray.600"
+            zIndex={10}
+          >
+            File Dendrograms • Generation {currentIndex + 1}
+          </Text>
+          <svg 
+            ref={dendrogramSvgRef}
+            style={{ 
+              width: '100%', 
+              height: '100%',
+              background: 'radial-gradient(ellipse at center, #fafafa 0%, #f5f5f5 100%)'
+            }}
+          />
+        </Box>
+      </VStack>
     </VStack>
   );
 }

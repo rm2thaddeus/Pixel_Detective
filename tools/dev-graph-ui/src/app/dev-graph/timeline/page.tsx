@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { Box, Heading, Text, VStack, HStack, Button, Spinner, Alert, AlertIcon, Tabs, TabList, TabPanels, Tab, TabPanel, Switch, FormLabel } from '@chakra-ui/react';
 import TemporalEvolutionGraph from '../components/TemporalEvolutionGraph';
 import BiologicalEvolutionGraph from '../components/BiologicalEvolutionGraph';
+import SimplePhysicsSimulation from '../components/SimplePhysicsSimulation';
 
 const DEV_GRAPH_API_URL = process.env.NEXT_PUBLIC_DEV_GRAPH_API_URL || 'http://localhost:8080';
 
@@ -48,6 +49,7 @@ export default function TimelinePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [useBiologicalView, setUseBiologicalView] = useState(true);
+  const [viewMode, setViewMode] = useState<'biological' | 'technical' | 'physics'>('physics');
   const [evolutionSnapshots, setEvolutionSnapshots] = useState<any[]>([]);
 
   useEffect(() => {
@@ -337,10 +339,11 @@ export default function TimelinePage() {
         </HStack>
 
         {/* Evolution Visualization */}
-        <Tabs variant="enclosed" colorScheme="purple">
+        <Tabs variant="enclosed" colorScheme="purple" index={viewMode === 'biological' ? 0 : viewMode === 'technical' ? 1 : 2} onChange={(index) => setViewMode(index === 0 ? 'biological' : index === 1 ? 'technical' : 'physics')}>
           <TabList>
             <Tab>Evolution View</Tab>
             <Tab>Technical Details</Tab>
+            <Tab>Physics Simulation</Tab>
           </TabList>
           <TabPanels>
             <TabPanel>
@@ -348,7 +351,7 @@ export default function TimelinePage() {
                 <BiologicalEvolutionGraph
                   snapshot={evolutionSnapshots[currentTimeIndex]}
                   previousSnapshot={currentTimeIndex > 0 ? evolutionSnapshots[currentTimeIndex - 1] : undefined}
-                  height={700}
+                  height={900}
                   width={1200}
                   showLabels={true}
                   enableAnimation={true}
@@ -380,6 +383,30 @@ export default function TimelinePage() {
                 onTimeChange={handleTimeChange}
                 width={1200}
                 height={600}
+              />
+            </TabPanel>
+            <TabPanel>
+              <SimplePhysicsSimulation
+                commits={commits.map(commit => ({
+                  id: commit.hash,
+                  message: commit.message,
+                  timestamp: commit.timestamp,
+                  files: commit.files.map(file => ({
+                    id: file.path,
+                    path: file.path,
+                    type: file.type === 'document' ? 'doc' : file.type === 'config' ? 'config' : file.type === 'other' ? 'test' : 'code',
+                    status: file.action === 'created' ? 'new' : file.action === 'deleted' ? 'deleted' : 'modified',
+                    modifications: 1,
+                    commit_count: 1,
+                    created_at: commit.timestamp,
+                    last_modified: commit.timestamp
+                  }))
+                }))}
+                currentIndex={currentTimeIndex}
+                height={700}
+                width={1200}
+                isPlaying={isPlaying}
+                onTimeChange={setCurrentTimeIndex}
               />
             </TabPanel>
           </TabPanels>
