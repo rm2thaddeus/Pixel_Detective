@@ -239,18 +239,22 @@ export default function DevGraphPage() {
 			let rawNodes: any[] = [];
 			let rawRelations: any[] = [];
 			
-			// Prioritize windowed subgraph data if available
-			if (windowedSubgraphQuery.data?.pages?.[0]) {
-				// Flatten all pages for progressive loading
-				windowedSubgraphQuery.data.pages.forEach(page => {
-					rawNodes = [...rawNodes, ...(page.nodes || [])];
-					rawRelations = [...rawRelations, ...(page.edges || [])];
-				});
-			} else if (selectedRange.start || selectedRange.end) {
-				// Fallback to legacy subgraph
-				rawNodes = subgraph.nodes ?? [];
-				rawRelations = subgraph.links ?? [];
-			}
+		// Prioritize windowed subgraph data if available
+		if (windowedSubgraphQuery.data?.pages?.[0]) {
+			// Flatten all pages for progressive loading
+			windowedSubgraphQuery.data.pages.forEach(page => {
+				rawNodes = [...rawNodes, ...(page.nodes || [])];
+				rawRelations = [...rawRelations, ...(page.edges || [])];
+			});
+		} else if (windowedSubgraphQuery.data && 'nodes' in windowedSubgraphQuery.data) {
+			// Handle direct response from API (not paginated)
+			rawNodes = (windowedSubgraphQuery.data as any).nodes || [];
+			rawRelations = (windowedSubgraphQuery.data as any).edges || [];
+		} else if (selectedRange.start || selectedRange.end) {
+			// Fallback to legacy subgraph
+			rawNodes = subgraph.nodes ?? [];
+			rawRelations = subgraph.links ?? [];
+		}
 			
 			// Add coordinates to nodes that don't have them
 			const nodesWithCoords = rawNodes.map((node: any, index: number) => {
@@ -315,8 +319,8 @@ export default function DevGraphPage() {
 	// Graph data ready for rendering
 
 	// Data validation
-	const isValidData = (filteredData.nodes?.length ?? 0) > 0 && (((filteredData as any).relations)?.length ?? 0) > 0;
-	const hasValidRelations = (((filteredData as any).relations) ?? []).every((link: any) => 
+	const isValidData = (filteredData.nodes?.length ?? 0) > 0 && (filteredData.relations?.length ?? 0) > 0;
+	const hasValidRelations = (filteredData.relations ?? []).every((link: any) => 
 		link.from && link.to && link.type && 
 		(filteredData.nodes ?? []).some((node: any) => node.id === link.from) &&
 		(filteredData.nodes ?? []).some((node: any) => node.id === link.to)
@@ -377,9 +381,9 @@ export default function DevGraphPage() {
 							{telemetryQuery.data.memory_usage_mb}MB memory
 						</Text>
 					)}
-					{!hasValidRelations && (((data as any).relations)?.length ?? 0) > 0 && (
+					{!hasValidRelations && (data.relations?.length ?? 0) > 0 && (
 						<Text color="red">
-							Invalid relations: {(data as any).relations.filter((link: any) => 
+							Invalid relations: {data.relations.filter((link: any) => 
 								!link.from || !link.to || !link.type ||
 								!(data.nodes ?? []).some((node: any) => node.id === link.from) ||
 								!(data.nodes ?? []).some((node: any) => node.id === link.to)
@@ -524,7 +528,12 @@ export default function DevGraphPage() {
 							{/* Timeline Tab */}
 							<TabPanel>
 								<TimelineView
-									events={[]} // TODO: Implement commits timeline
+									events={commitsBucketsQuery.data?.pages?.[0]?.buckets?.map((bucket: any) => ({
+										id: bucket.timestamp,
+										title: `${bucket.count} commits`,
+										date: bucket.timestamp,
+										description: `${bucket.count} commits on ${new Date(bucket.timestamp).toLocaleDateString()}`
+									})) || []}
 									onSelect={(ev) => {
 										// Toggle range selection: first click sets start, second sets end and fetches subgraph
 										if (!selectedRange.start || (selectedRange.start && selectedRange.end)) {

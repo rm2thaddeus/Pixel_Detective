@@ -7,6 +7,7 @@ import logging
 import time
 import queue
 import threading
+import os
 from typing import List, Dict, Any, Optional, Tuple
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
@@ -106,26 +107,33 @@ class ParallelIngestionPipeline:
         try:
             # Use git log with name-status for efficient parsing
             cmd = [
-                "git", "log", 
+                "git", "--no-pager", "log",  # Disable pager correctly
                 "--name-status",
                 f"--pretty=format:%H\t%an\t%ae\t%aI\t%s",
                 f"-n{limit}"
             ]
+            
+            logger.info(f"Running git log command: {' '.join(cmd)}")
             
             result = subprocess.run(
                 cmd, 
                 cwd=self.repo_path,
                 capture_output=True, 
                 text=True, 
-                timeout=30
+                timeout=60,  # Increased timeout
+                env={**os.environ, 'GIT_PAGER': 'cat'}  # Disable pager
             )
             
             if result.returncode != 0:
-                logger.error(f"Git log failed: {result.stderr}")
+                logger.error(f"Git log failed with return code {result.returncode}: {result.stderr}")
                 return []
             
+            logger.info(f"Git log output length: {len(result.stdout)} characters")
             return self._parse_git_log_output(result.stdout)
             
+        except subprocess.TimeoutExpired:
+            logger.error(f"Git log command timed out after 60 seconds")
+            return []
         except Exception as e:
             logger.error(f"Error extracting commits: {e}")
             return []
@@ -133,40 +141,49 @@ class ParallelIngestionPipeline:
     def _parse_git_log_output(self, output: str) -> List[Dict[str, Any]]:
         """Parse git log output into commit objects."""
         commits = []
-        lines = [line.strip() for line in output.split('\n') if line.strip()]
+        # Split by double newlines to separate commits, then process each commit
+        commit_blocks = output.split('\n\n')
         
-        i = 0
-        while i < len(lines):
-            # Parse commit header
-            if '\t' in lines[i] and len(lines[i].split('\t')) >= 5:
-                parts = lines[i].split('\t', 4)
-                commit_hash, author, email, timestamp, message = parts
+        for block in commit_blocks:
+            if not block.strip():
+                continue
                 
-                # Collect file changes
-                files = []
-                i += 1
-                while i < len(lines) and lines[i] and '\t' in lines[i]:
-                    # Parse file change line (status\tpath)
-                    file_parts = lines[i].split('\t', 1)
-                    if len(file_parts) == 2:
-                        change_type, file_path = file_parts
-                        files.append({
-                            "path": file_path,
-                            "change_type": self._normalize_change_type(change_type)
-                        })
-                    i += 1
+            lines = [line.strip() for line in block.split('\n') if line.strip()]
+            if not lines:
+                continue
                 
-                commits.append({
-                    "hash": commit_hash,
-                    "message": message,
-                    "author": author,
-                    "email": email,
-                    "timestamp": timestamp,
-                    "files": files
-                })
-            else:
-                i += 1
+            # First line should be the commit header
+            header_line = lines[0]
+            if header_line.count('\t') == 4:
+                parts = header_line.split('\t', 4)
+                if len(parts) == 5:
+                    commit_hash, author, email, timestamp, message = parts
+                    
+                    # Collect file changes from remaining lines
+                    files = []
+                    for line in lines[1:]:
+                        if line.count('\t') == 1:
+                            file_parts = line.split('\t', 1)
+                            if len(file_parts) == 2:
+                                change_type, file_path = file_parts
+                                files.append({
+                                    "path": file_path,
+                                    "change_type": self._normalize_change_type(change_type)
+                                })
+                    
+                    commits.append({
+                        "hash": commit_hash,
+                        "message": message,
+                        "author": author,
+                        "email": email,
+                        "timestamp": timestamp,
+                        "files": files
+                    })
         
+        logger.info(f"Parsed {len(commits)} commits from git log output")
+        if len(commits) == 0:
+            logger.warning(f"No commits parsed from {len(commit_blocks)} commit blocks")
+            logger.debug(f"First commit block: {commit_blocks[0][:200]}...")
         return commits
     
     def _normalize_change_type(self, status: str) -> str:

@@ -117,7 +117,7 @@ export function useWindowedSubgraph(params: WindowedSubgraphParams = {}) {
     },
     initialPageParam: null as string | null,
     getNextPageParam: (lastPage) => {
-      if (lastPage.pagination.next_cursor) {
+      if (lastPage.pagination?.next_cursor) {
         return JSON.stringify(lastPage.pagination.next_cursor);
       }
       return undefined;

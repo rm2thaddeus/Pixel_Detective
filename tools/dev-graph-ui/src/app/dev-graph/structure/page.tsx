@@ -62,29 +62,31 @@ export default function StructureAnalysisPage() {
         setError(null);
 
         // Fetch comprehensive structure analysis with graceful error handling
-        const [statsRes, nodesRes, relationsRes] = await Promise.all([
+        const [statsRes, subgraphRes] = await Promise.all([
           fetch(`${DEV_GRAPH_API_URL}/api/v1/dev-graph/stats`).catch(() => null),
-          fetch(`${DEV_GRAPH_API_URL}/api/v1/dev-graph/nodes?limit=1000`).catch(() => null),
-          fetch(`${DEV_GRAPH_API_URL}/api/v1/dev-graph/relations?limit=1000`).catch(() => null)
+          fetch(`${DEV_GRAPH_API_URL}/api/v1/dev-graph/graph/subgraph?limit=1000&include_counts=true`).catch(() => null)
         ]);
 
-        const [stats, nodes, relations] = await Promise.all([
+        const [stats, subgraph] = await Promise.all([
           statsRes?.json().catch(() => null),
-          nodesRes?.json().catch(() => null),
-          relationsRes?.json().catch(() => null)
+          subgraphRes?.json().catch(() => null)
         ]);
 
-        // Calculate structure metrics with fallback data
+        // Use real graph data from subgraph API
+        const nodes = subgraph?.nodes || [];
+        const edges = subgraph?.edges || [];
+
+        // Calculate structure metrics with real data
         const structureMetrics: StructureMetrics = {
-          total_nodes: stats?.total_nodes || 0,
-          total_relations: stats?.total_relations || 0,
+          total_nodes: stats?.summary?.total_nodes || nodes.length,
+          total_relations: stats?.summary?.total_relations || edges.length,
           node_types: stats?.node_types || [],
-          relation_types: stats?.relation_types || [],
-          clustering_coefficient: calculateClusteringCoefficient(nodes || [], relations || []),
-          average_path_length: calculateAveragePathLength(nodes || [], relations || []),
-          density: calculateDensity(nodes || [], relations || []),
-          modularity: calculateModularity(nodes || [], relations || []),
-          central_nodes: calculateCentralNodes(nodes || [], relations || [])
+          relation_types: stats?.relationship_types || [],
+          clustering_coefficient: calculateClusteringCoefficient(nodes, edges),
+          average_path_length: calculateAveragePathLength(nodes, edges),
+          density: calculateDensity(nodes, edges),
+          modularity: calculateModularity(nodes, edges),
+          central_nodes: calculateCentralNodes(nodes, edges)
         };
 
         setMetrics(structureMetrics);
@@ -148,7 +150,7 @@ export default function StructureAnalysisPage() {
     return nodes
       .map(node => ({
         id: node.id,
-        type: node.type || 'Unknown',
+        type: node.labels || 'Unknown',
         centrality: nodeDegrees.get(node.id) || 0,
         degree: nodeDegrees.get(node.id) || 0
       }))
@@ -217,6 +219,8 @@ export default function StructureAnalysisPage() {
           <Text fontSize="sm" color="gray.600" mb={3}>
             Analyze your codebase structure, dependencies, and architectural patterns. 
             Discover clusters, identify critical components, and understand system complexity.
+            <br />
+            <strong>Tip:</strong> Use mouse wheel to zoom, drag to pan, and drag nodes to reposition them.
           </Text>
           {error && (
             <Alert status="warning" size="sm" mt={3}>
@@ -365,6 +369,16 @@ export default function StructureAnalysisPage() {
               </HStack>
 
               <HStack spacing={2}>
+                <Button 
+                  size="sm" 
+                  variant="outline" 
+                  onClick={() => {
+                    setSelectedNodeType('');
+                    setSelectedRelationType('');
+                  }}
+                >
+                  Reset Filters
+                </Button>
                 <Button size="sm" variant="outline" leftIcon={<FaDownload />}>
                   Export
                 </Button>
@@ -387,6 +401,7 @@ export default function StructureAnalysisPage() {
               showClusters={showClusters}
               showLabels={showLabels}
               maxNodes={maxNodes}
+              useRealData={true}
             />
           ) : (
             <VStack align="center" justify="center" h="full">

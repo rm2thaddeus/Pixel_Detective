@@ -43,6 +43,7 @@ interface StructureAnalysisGraphProps {
   showClusters?: boolean;
   showLabels?: boolean;
   maxNodes?: number;
+  useRealData?: boolean;
 }
 
 export default function StructureAnalysisGraph({
@@ -53,14 +54,35 @@ export default function StructureAnalysisGraph({
   selectedRelationType = '',
   showClusters = true,
   showLabels = false,
-  maxNodes = 1000
+  maxNodes = 1000,
+  useRealData = false
 }: StructureAnalysisGraphProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [mounted, setMounted] = useState(false);
+  const [realData, setRealData] = useState<{nodes: any[], edges: any[]} | null>(null);
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Fetch real data when useRealData is true
+  useEffect(() => {
+    if (useRealData && mounted) {
+      const fetchRealData = async () => {
+        try {
+          const response = await fetch(`${process.env.NEXT_PUBLIC_DEV_GRAPH_API_URL || 'http://localhost:8080'}/api/v1/dev-graph/graph/subgraph?limit=${maxNodes}&include_counts=true`);
+          const data = await response.json();
+          setRealData({
+            nodes: data.nodes || [],
+            edges: data.edges || []
+          });
+        } catch (error) {
+          console.error('Failed to fetch real graph data:', error);
+        }
+      };
+      fetchRealData();
+    }
+  }, [useRealData, mounted, maxNodes]);
 
   useEffect(() => {
     if (!mounted || !svgRef.current || !metrics) return;
@@ -73,32 +95,106 @@ export default function StructureAnalysisGraph({
     const innerWidth = width - margin.left - margin.right;
     const innerHeight = height - margin.top - margin.bottom;
 
-    // Create main group
+    // Create main group with zoom behavior
     const g = svg
       .attr("width", width)
       .attr("height", height)
+      .call(d3.zoom<SVGSVGElement, unknown>()
+        .scaleExtent([0.1, 4])
+        .on("zoom", (event) => {
+          g.attr("transform", event.transform);
+        })
+      )
       .append("g")
       .attr("transform", `translate(${margin.left},${margin.top})`);
 
-    // Generate synthetic data based on metrics
-    const nodes = generateSyntheticNodes(metrics, maxNodes);
-    const links = generateSyntheticLinks(nodes, metrics);
+    // Use real data if available, otherwise generate synthetic data
+    let nodes, links;
+    if (useRealData && realData) {
+      nodes = realData.nodes.map(node => ({
+        id: node.id,
+        type: node.labels,
+        degree: 0, // Will be calculated below
+        centrality: 0, // Will be calculated below
+        isCentral: false, // Will be calculated below
+        x: node.x || Math.random() * innerWidth,
+        y: node.y || Math.random() * innerHeight
+      }));
+      
+      links = realData.edges.map(edge => ({
+        source: edge.from,
+        target: edge.to,
+        type: edge.type
+      }));
+      
+      // Calculate degrees and centrality for real data
+      const nodeDegrees = new Map<string, number>();
+      links.forEach(link => {
+        nodeDegrees.set(link.source, (nodeDegrees.get(link.source) || 0) + 1);
+        nodeDegrees.set(link.target, (nodeDegrees.get(link.target) || 0) + 1);
+      });
+      
+      nodes.forEach(node => {
+        node.degree = nodeDegrees.get(node.id) || 0;
+        node.centrality = node.degree / Math.max(1, nodes.length - 1);
+        node.isCentral = node.degree > 5; // Consider nodes with degree > 5 as central
+      });
+    } else {
+      // Generate synthetic data based on metrics
+      nodes = generateSyntheticNodes(metrics, maxNodes);
+      links = generateSyntheticLinks(nodes, metrics);
+    }
 
     // Filter data based on selections
     const filteredNodes = selectedNodeType 
       ? nodes.filter(d => d.type === selectedNodeType)
       : nodes;
     
-    const filteredLinks = selectedRelationType
-      ? links.filter(d => d.type === selectedRelationType)
-      : links;
+    // Filter links to only include those connecting to filtered nodes
+    const filteredNodeIds = new Set(filteredNodes.map(n => n.id));
+    let filteredLinks = links.filter(link => 
+      filteredNodeIds.has(link.source) && filteredNodeIds.has(link.target)
+    );
+    
+    // Further filter by relation type if selected
+    if (selectedRelationType) {
+      filteredLinks = filteredLinks.filter(d => d.type === selectedRelationType);
+    }
+
+    // Debug logging
+    console.log('Filtering debug:', {
+      totalNodes: nodes.length,
+      filteredNodes: filteredNodes.length,
+      totalLinks: links.length,
+      filteredLinks: filteredLinks.length,
+      selectedNodeType,
+      selectedRelationType,
+      nodeTypes: [...new Set(nodes.map(n => n.type))],
+      relationTypes: [...new Set(links.map(l => l.type))]
+    });
+
+    // If no nodes after filtering, show a message
+    if (filteredNodes.length === 0) {
+      g.append("text")
+        .attr("x", innerWidth / 2)
+        .attr("y", innerHeight / 2)
+        .attr("text-anchor", "middle")
+        .attr("font-size", "16px")
+        .attr("fill", "#666")
+        .text("No nodes match the current filter criteria");
+      return;
+    }
 
     // Create force simulation
     const simulation = d3.forceSimulation(filteredNodes)
-      .force("link", d3.forceLink(filteredLinks).id((d: any) => d.id).distance(50))
       .force("charge", d3.forceManyBody().strength(-300))
       .force("center", d3.forceCenter(innerWidth / 2, innerHeight / 2))
       .force("collision", d3.forceCollide().radius(20));
+
+    // Only add link force if there are valid links
+    if (filteredLinks.length > 0) {
+      simulation.force("link", d3.forceLink(filteredLinks).id((d: any) => d.id).distance(50));
+    }
 
     // Color scales
     const nodeColorScale = d3.scaleOrdinal()
@@ -125,10 +221,11 @@ export default function StructureAnalysisGraph({
       .selectAll("circle")
       .data(filteredNodes)
       .enter().append("circle")
-      .attr("r", (d: any) => Math.max(3, Math.min(15, d.degree / 2)))
-      .attr("fill", (d: any) => nodeColorScale(d.type))
+      .attr("r", (d: any) => Math.max(5, Math.min(20, (d.degree || 1) * 2 + 5)))
+      .attr("fill", (d: any) => nodeColorScale(d.type) || "#999")
       .attr("stroke", (d: any) => d.isCentral ? "#ff6b6b" : "#fff")
       .attr("stroke-width", (d: any) => d.isCentral ? 3 : 1)
+      .attr("opacity", 0.8)
       .call(d3.drag()
         .on("start", dragstarted)
         .on("drag", dragged)
@@ -154,8 +251,11 @@ export default function StructureAnalysisGraph({
         // Highlight connected nodes
         const connectedNodes = new Set();
         filteredLinks.forEach((link: any) => {
-          if (link.source.id === d.id) connectedNodes.add(link.target.id);
-          if (link.target.id === d.id) connectedNodes.add(link.source.id);
+          const sourceId = typeof link.source === 'string' ? link.source : link.source?.id;
+          const targetId = typeof link.target === 'string' ? link.target : link.target?.id;
+          
+          if (sourceId === d.id) connectedNodes.add(targetId);
+          if (targetId === d.id) connectedNodes.add(sourceId);
         });
 
         node
@@ -163,8 +263,11 @@ export default function StructureAnalysisGraph({
             n.id === d.id || connectedNodes.has(n.id) ? 1 : 0.3);
 
         link
-          .attr("opacity", (l: any) => 
-            l.source.id === d.id || l.target.id === d.id ? 1 : 0.1);
+          .attr("opacity", (l: any) => {
+            const sourceId = typeof l.source === 'string' ? l.source : l.source?.id;
+            const targetId = typeof l.target === 'string' ? l.target : l.target?.id;
+            return sourceId === d.id || targetId === d.id ? 1 : 0.1;
+          });
 
         // Show tooltip
         const tooltip = g.append("g")
@@ -226,6 +329,9 @@ export default function StructureAnalysisGraph({
       }
     });
 
+    // Start the simulation
+    simulation.alpha(1).restart();
+
     // Drag functions
     function dragstarted(event: any, d: any) {
       if (!event.active) simulation.alphaTarget(0.3).restart();
@@ -243,6 +349,32 @@ export default function StructureAnalysisGraph({
       d.fx = null;
       d.fy = null;
     }
+
+    // Add status indicator
+    const statusGroup = g.append("g")
+      .attr("class", "status")
+      .attr("transform", `translate(20, 20)`);
+
+    statusGroup.append("rect")
+      .attr("width", 200)
+      .attr("height", 40)
+      .attr("fill", "rgba(255,255,255,0.9)")
+      .attr("stroke", "#ddd")
+      .attr("rx", 4);
+
+    statusGroup.append("text")
+      .attr("x", 10)
+      .attr("y", 20)
+      .attr("font-size", "12px")
+      .attr("fill", "#333")
+      .text(`Nodes: ${filteredNodes.length} | Links: ${filteredLinks.length}`);
+
+    statusGroup.append("text")
+      .attr("x", 10)
+      .attr("y", 35)
+      .attr("font-size", "10px")
+      .attr("fill", "#666")
+      .text(`Type: ${selectedNodeType || 'All'} | Relation: ${selectedRelationType || 'All'}`);
 
     // Add legend
     const legend = g.append("g")
@@ -267,40 +399,42 @@ export default function StructureAnalysisGraph({
     });
 
     // Add clustering visualization if enabled
-    if (showClusters) {
+    if (showClusters && filteredNodes.length > 0) {
       // Simple clustering visualization - draw circles around dense areas
       const clusters = identifyClusters(filteredNodes, filteredLinks);
       
       clusters.forEach((cluster, index) => {
-        const clusterGroup = g.append("g")
-          .attr("class", "cluster")
-          .attr("opacity", 0.3);
+        if (cluster.length > 1) { // Only show clusters with more than 1 node
+          const clusterGroup = g.append("g")
+            .attr("class", "cluster")
+            .attr("opacity", 0.3);
 
-        const centerX = d3.mean(cluster, (d: any) => d.x) || 0;
-        const centerY = d3.mean(cluster, (d: any) => d.y) || 0;
-        const radius = Math.max(50, d3.max(cluster, (d: any) => 
-          Math.sqrt((d.x - centerX) ** 2 + (d.y - centerY) ** 2)) || 50);
+          const centerX = d3.mean(cluster, (d: any) => d.x) || 0;
+          const centerY = d3.mean(cluster, (d: any) => d.y) || 0;
+          const radius = Math.max(50, d3.max(cluster, (d: any) => 
+            Math.sqrt((d.x - centerX) ** 2 + (d.y - centerY) ** 2)) || 50);
 
-        clusterGroup.append("circle")
-          .attr("cx", centerX)
-          .attr("cy", centerY)
-          .attr("r", radius)
-          .attr("fill", "none")
-          .attr("stroke", `hsl(${index * 60}, 70%, 50%)`)
-          .attr("stroke-width", 2)
-          .attr("stroke-dasharray", "5,5");
+          clusterGroup.append("circle")
+            .attr("cx", centerX)
+            .attr("cy", centerY)
+            .attr("r", radius)
+            .attr("fill", "none")
+            .attr("stroke", `hsl(${index * 60}, 70%, 50%)`)
+            .attr("stroke-width", 2)
+            .attr("stroke-dasharray", "5,5");
 
-        clusterGroup.append("text")
-          .attr("x", centerX)
-          .attr("y", centerY - radius - 10)
-          .attr("text-anchor", "middle")
-          .attr("font-size", "12px")
-          .attr("fill", `hsl(${index * 60}, 70%, 50%)`)
-          .text(`Cluster ${index + 1}`);
+          clusterGroup.append("text")
+            .attr("x", centerX)
+            .attr("y", centerY - radius - 10)
+            .attr("text-anchor", "middle")
+            .attr("font-size", "12px")
+            .attr("fill", `hsl(${index * 60}, 70%, 50%)`)
+            .text(`Cluster ${index + 1}`);
+        }
       });
     }
 
-  }, [mounted, metrics, height, width, selectedNodeType, selectedRelationType, showClusters, showLabels, maxNodes]);
+  }, [mounted, metrics, height, width, selectedNodeType, selectedRelationType, showClusters, showLabels, maxNodes, useRealData, realData]);
 
   // Generate synthetic nodes based on metrics
   const generateSyntheticNodes = (metrics: StructureMetrics, maxNodes: number) => {
@@ -361,11 +495,15 @@ export default function StructureAnalysisGraph({
       
       // Find connected nodes
       links.forEach(link => {
-        if (link.source === nodeId && !visited.has(link.target)) {
-          dfs(link.target, cluster);
+        // Handle both string IDs and object references
+        const sourceId = typeof link.source === 'string' ? link.source : link.source?.id;
+        const targetId = typeof link.target === 'string' ? link.target : link.target?.id;
+        
+        if (sourceId === nodeId && targetId && !visited.has(targetId)) {
+          dfs(targetId, cluster);
         }
-        if (link.target === nodeId && !visited.has(link.source)) {
-          dfs(link.source, cluster);
+        if (targetId === nodeId && sourceId && !visited.has(sourceId)) {
+          dfs(sourceId, cluster);
         }
       });
     };
@@ -374,7 +512,7 @@ export default function StructureAnalysisGraph({
       if (!visited.has(node.id)) {
         const cluster = [];
         dfs(node.id, cluster);
-        if (cluster.length > 2) { // Only show clusters with more than 2 nodes
+        if (cluster.length > 1) { // Only show clusters with more than 1 node
           clusters.push(cluster);
         }
       }
@@ -383,7 +521,7 @@ export default function StructureAnalysisGraph({
     return clusters;
   };
 
-  if (!mounted) {
+  if (!mounted || (useRealData && !realData)) {
     return (
       <Box 
         height={height} 
@@ -394,7 +532,7 @@ export default function StructureAnalysisGraph({
         alignItems="center" 
         justifyContent="center"
       >
-        Loading structure visualization...
+        {useRealData ? 'Loading real graph data...' : 'Loading structure visualization...'}
       </Box>
     );
   }

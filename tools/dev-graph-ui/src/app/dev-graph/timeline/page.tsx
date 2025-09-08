@@ -1,58 +1,54 @@
 'use client';
-import { Box, Heading, Text, VStack, HStack, Button, Spinner, Alert, AlertIcon, useColorModeValue, Badge, Icon, Flex, Divider, Grid, GridItem } from '@chakra-ui/react';
-import { useState, useEffect, useMemo } from 'react';
-import { Header } from '@/components/Header';
-import { Link as ChakraLink } from '@chakra-ui/react';
-import { FaArrowLeft, FaPlay, FaPause, FaStepForward, FaStepBackward, FaTree, FaLeaf, FaSeedling, FaTrash } from 'react-icons/fa';
-import dynamic from 'next/dynamic';
 
-// Dynamic import to avoid SSR issues
-const BiologicalEvolutionGraph = dynamic(() => import('../components/BiologicalEvolutionGraph'), { ssr: false });
+import React, { useState, useEffect } from 'react';
+import { Box, Heading, Text, VStack, HStack, Button, Spinner, Alert, AlertIcon, Tabs, TabList, TabPanels, Tab, TabPanel, Switch, FormLabel } from '@chakra-ui/react';
+import TemporalEvolutionGraph from '../components/TemporalEvolutionGraph';
+import BiologicalEvolutionGraph from '../components/BiologicalEvolutionGraph';
 
-// Developer Graph API base URL
 const DEV_GRAPH_API_URL = process.env.NEXT_PUBLIC_DEV_GRAPH_API_URL || 'http://localhost:8080';
 
 interface Commit {
   hash: string;
-  message: string;
   timestamp: string;
-  author_name: string;
-  author_email: string;
-  files_changed: string[];
+  message: string;
+  author: string;
+  files: FileChange[];
 }
 
-interface FileNode {
-  id: string;
+interface FileChange {
   path: string;
-  type: 'code' | 'doc' | 'config' | 'test';
+  action: 'created' | 'modified' | 'deleted';
+  size: number;
+  type: 'code' | 'document' | 'config' | 'other';
+}
+
+interface FileLifecycle {
+  path: string;
   created_at: string;
   deleted_at?: string;
-  last_modified: string;
-  size: number;
-  commit_count: number;
-  status: 'alive' | 'deleted' | 'modified';
+  modifications: number;
+  current_size: number;
+  type: 'code' | 'document' | 'config' | 'other';
+  evolution_history: FileEvolution[];
 }
 
-interface EvolutionSnapshot {
-  timestamp: string;
+interface FileEvolution {
   commit_hash: string;
-  files: FileNode[];
-  branches: string[];
-  active_developers: string[];
+  timestamp: string;
+  action: 'created' | 'modified' | 'deleted';
+  size: number;
+  color: string;
 }
 
-export default function TimelineEvolutionPage() {
+export default function TimelinePage() {
   const [commits, setCommits] = useState<Commit[]>([]);
-  const [evolutionSnapshots, setEvolutionSnapshots] = useState<EvolutionSnapshot[]>([]);
+  const [fileLifecycles, setFileLifecycles] = useState<FileLifecycle[]>([]);
   const [currentTimeIndex, setCurrentTimeIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [playbackSpeed, setPlaybackSpeed] = useState(1);
-
-  const bgColor = useColorModeValue('white', 'gray.800');
-  const borderColor = useColorModeValue('gray.200', 'gray.600');
-  const pageBgColor = useColorModeValue('gray.50', 'gray.900');
+  const [useBiologicalView, setUseBiologicalView] = useState(true);
+  const [evolutionSnapshots, setEvolutionSnapshots] = useState<any[]>([]);
 
   useEffect(() => {
     const fetchEvolutionData = async () => {
@@ -60,77 +56,40 @@ export default function TimelineEvolutionPage() {
         setLoading(true);
         setError(null);
 
-        // Fetch commits and create evolution snapshots with graceful error handling
-        const commitsRes = await fetch(`${DEV_GRAPH_API_URL}/api/v1/dev-graph/commits?limit=100`).catch(() => null);
+        const response = await fetch(`${DEV_GRAPH_API_URL}/api/v1/dev-graph/evolution/timeline?limit=50`);
         
-        if (!commitsRes || !commitsRes.ok) {
-          // Create demo data when API is not available
-          const demoCommits: Commit[] = [
-            {
-              hash: 'demo-001',
-              message: 'Initial commit - project setup',
-              timestamp: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
-              author_name: 'Developer',
-              author_email: 'dev@example.com',
-              files_changed: ['README.md', 'package.json', 'src/index.js']
-            },
-            {
-              hash: 'demo-002',
-              message: 'Add core functionality',
-              timestamp: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
-              author_name: 'Developer',
-              author_email: 'dev@example.com',
-              files_changed: ['src/core.js', 'src/utils.js', 'tests/core.test.js']
-            },
-            {
-              hash: 'demo-003',
-              message: 'Implement features',
-              timestamp: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
-              author_name: 'Developer',
-              author_email: 'dev@example.com',
-              files_changed: ['src/features.js', 'docs/features.md', 'config/settings.json']
-            }
-          ];
-          setCommits(demoCommits);
-          setError('API not available - showing demo data');
-        } else {
-          const commitsData: Commit[] = await commitsRes.json();
-          setCommits(commitsData);
+        if (!response.ok) {
+          throw new Error('Failed to fetch evolution timeline data');
         }
 
-        // Create evolution snapshots from current commits
-        const currentCommits = commits.length > 0 ? commits : [
-          {
-            hash: 'demo-001',
-            message: 'Initial commit - project setup',
-            timestamp: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
-            author_name: 'Developer',
-            author_email: 'dev@example.com',
-            files_changed: ['README.md', 'package.json', 'src/index.js']
-          }
-        ];
-
-        const snapshots: EvolutionSnapshot[] = currentCommits.map((commit, index) => ({
-          timestamp: commit.timestamp,
-          commit_hash: commit.hash,
-          files: commit.files_changed.map((filePath, fileIndex) => ({
-            id: `${commit.hash}-${fileIndex}`,
-            path: filePath,
-            type: getFileType(filePath),
-            created_at: commit.timestamp,
-            last_modified: commit.timestamp,
-            size: Math.random() * 1000 + 100, // Mock size
-            commit_count: Math.floor(Math.random() * 10) + 1,
-            status: 'alive' as const
-          })),
-          branches: ['main', 'develop'], // Mock branches
-          active_developers: [commit.author_name]
-        }));
-
+        const data = await response.json();
+        
+        console.log('TimelinePage: Fetched data', {
+          commits: data.commits?.length || 0,
+          fileLifecycles: data.file_lifecycles?.length || 0,
+          sampleCommit: data.commits?.[0],
+          sampleFileLifecycle: data.file_lifecycles?.[0]
+        });
+        
+        setCommits(data.commits || []);
+        setFileLifecycles(data.file_lifecycles || []);
+        setCurrentTimeIndex(0); // Start from the first commit
+        
+        // Generate evolution snapshots for biological view
+        const snapshots = generateEvolutionSnapshots(data.commits || [], data.file_lifecycles || []);
         setEvolutionSnapshots(snapshots);
-      } catch (err) {
-        console.error('Failed to fetch evolution data:', err);
-        setError('Failed to load evolution data');
+      } catch (err: any) {
+        console.error("Error fetching evolution data:", err);
+        setError(err.message || "Failed to load data");
+        // Fallback to demo data if API fails
+        const demoCommits = generateDemoCommits();
+        const demoLifecycles = generateDemoFileLifecycles();
+        setCommits(demoCommits);
+        setFileLifecycles(demoLifecycles);
+        
+        // Generate demo evolution snapshots
+        const demoSnapshots = generateEvolutionSnapshots(demoCommits, demoLifecycles);
+        setEvolutionSnapshots(demoSnapshots);
       } finally {
         setLoading(false);
       }
@@ -139,41 +98,170 @@ export default function TimelineEvolutionPage() {
     fetchEvolutionData();
   }, []);
 
-  const getFileType = (path: string): 'code' | 'doc' | 'config' | 'test' => {
-    if (path.includes('.md') || path.includes('docs/')) return 'doc';
-    if (path.includes('test/') || path.includes('.test.') || path.includes('.spec.')) return 'test';
-    if (path.includes('config') || path.includes('.json') || path.includes('.yaml')) return 'config';
-    return 'code';
+  const generateEvolutionSnapshots = (commits: Commit[], lifecycles: FileLifecycle[]): any[] => {
+    return commits.map((commit, index) => {
+      // Get files visible at this commit
+      const visibleFiles = lifecycles.filter(file => {
+        const createdBefore = new Date(file.created_at) <= new Date(commit.timestamp);
+        const notDeletedYet = !file.deleted_at || new Date(file.deleted_at) > new Date(commit.timestamp);
+        return createdBefore && notDeletedYet;
+      }).map(file => {
+        // Determine file status at this commit
+        let status = 'alive';
+        const fileInCommit = commit.files.find(f => f.path === file.path);
+        if (fileInCommit) {
+          if (fileInCommit.action === 'deleted') status = 'deleted';
+          else if (fileInCommit.action === 'modified') status = 'modified';
+        }
+        
+        return {
+          id: file.path,
+          path: file.path,
+          type: file.type,
+          created_at: file.created_at,
+          deleted_at: file.deleted_at,
+          last_modified: commit.timestamp,
+          size: fileInCommit?.size || file.current_size,
+          commit_count: file.modifications,
+          status,
+          modifications: file.modifications
+        };
+      });
+
+      return {
+        timestamp: commit.timestamp,
+        commit_hash: commit.hash,
+        files: visibleFiles,
+        branches: ['main'], // Simplified for demo
+        active_developers: [commit.author],
+        commit: {
+          hash: commit.hash,
+          message: commit.message,
+          timestamp: commit.timestamp,
+          author_name: commit.author,
+          files_changed: commit.files.map(f => f.path),
+          x: 0,
+          y: 0
+        }
+      };
+    });
   };
 
-  // Playback controls
+  const generateDemoCommits = (): Commit[] => [
+    { 
+      hash: 'abc123', 
+      timestamp: '2025-01-01T10:00:00Z', 
+      message: 'Initial commit',
+      author: 'Developer',
+      files: [
+        { path: 'src/main.py', action: 'created', size: 1024, type: 'code' },
+        { path: 'README.md', action: 'created', size: 512, type: 'document' }
+      ]
+    },
+    { 
+      hash: 'def456', 
+      timestamp: '2025-01-02T10:00:00Z', 
+      message: 'Add features',
+      author: 'Developer',
+      files: [
+        { path: 'src/main.py', action: 'modified', size: 1536, type: 'code' },
+        { path: 'src/utils.py', action: 'created', size: 768, type: 'code' }
+      ]
+    },
+    { 
+      hash: 'ghi789', 
+      timestamp: '2025-01-03T10:00:00Z', 
+      message: 'Fix bugs',
+      author: 'Developer',
+      files: [
+        { path: 'src/main.py', action: 'modified', size: 1280, type: 'code' },
+        { path: 'README.md', action: 'deleted', size: 0, type: 'document' }
+      ]
+    }
+  ];
+
+  const generateDemoFileLifecycles = (): FileLifecycle[] => [
+    {
+      path: 'src/main.py',
+      created_at: '2025-01-01T10:00:00Z',
+      modifications: 2,
+      current_size: 1280,
+      type: 'code',
+      evolution_history: [
+        { commit_hash: 'abc123', timestamp: '2025-01-01T10:00:00Z', action: 'created', size: 1024, color: '#3b82f6' },
+        { commit_hash: 'def456', timestamp: '2025-01-02T10:00:00Z', action: 'modified', size: 1536, color: '#10b981' },
+        { commit_hash: 'ghi789', timestamp: '2025-01-03T10:00:00Z', action: 'modified', size: 1280, color: '#10b981' }
+      ]
+    },
+    {
+      path: 'src/utils.py',
+      created_at: '2025-01-02T10:00:00Z',
+      modifications: 0,
+      current_size: 768,
+      type: 'code',
+      evolution_history: [
+        { commit_hash: 'def456', timestamp: '2025-01-02T10:00:00Z', action: 'created', size: 768, color: '#3b82f6' }
+      ]
+    },
+    {
+      path: 'README.md',
+      created_at: '2025-01-01T10:00:00Z',
+      deleted_at: '2025-01-03T10:00:00Z',
+      modifications: 0,
+      current_size: 0,
+      type: 'document',
+      evolution_history: [
+        { commit_hash: 'abc123', timestamp: '2025-01-01T10:00:00Z', action: 'created', size: 512, color: '#3b82f6' },
+        { commit_hash: 'ghi789', timestamp: '2025-01-03T10:00:00Z', action: 'deleted', size: 0, color: '#ef4444' }
+      ]
+    }
+  ];
+
+  const handlePlayPause = () => {
+    setIsPlaying(!isPlaying);
+  };
+
+  const handleTimeChange = (index: number) => {
+    setCurrentTimeIndex(index);
+  };
+
+  const handleNext = () => {
+    if (currentTimeIndex < commits.length - 1) {
+      setCurrentTimeIndex(currentTimeIndex + 1);
+    }
+  };
+
+  const handlePrevious = () => {
+    if (currentTimeIndex > 0) {
+      setCurrentTimeIndex(currentTimeIndex - 1);
+    }
+  };
+
+  // Enhanced autoplay effect with variable speed
   useEffect(() => {
-    if (!isPlaying) return;
-
-    const interval = setInterval(() => {
-      setCurrentTimeIndex(prev => {
-        const next = prev + 1;
-        if (next >= evolutionSnapshots.length) {
-          setIsPlaying(false);
-          return prev;
-        }
-        return next;
-      });
-    }, 1000 / playbackSpeed);
-
+    let interval: NodeJS.Timeout;
+    if (isPlaying && commits.length > 0) {
+      const speed = useBiologicalView ? 2000 : 1000; // Slower for biological view to appreciate evolution
+      interval = setInterval(() => {
+        setCurrentTimeIndex(prev => {
+          const next = prev + 1;
+          if (next >= commits.length) {
+            setIsPlaying(false);
+            return prev;
+          }
+          return next;
+        });
+      }, speed);
+    }
     return () => clearInterval(interval);
-  }, [isPlaying, playbackSpeed, evolutionSnapshots.length]);
-
-  const currentSnapshot = evolutionSnapshots[currentTimeIndex];
-  const progress = evolutionSnapshots.length > 0 ? (currentTimeIndex / (evolutionSnapshots.length - 1)) * 100 : 0;
+  }, [isPlaying, commits.length, useBiologicalView]);
 
   if (loading) {
     return (
-      <Box minH="100vh" bg={pageBgColor}>
-        <Header />
-        <VStack spacing={4} p={8} align="center" justify="center" minH="60vh">
-          <Spinner size="xl" color="blue.500" />
-          <Text>Loading Evolution Timeline...</Text>
+      <Box p={8}>
+        <VStack spacing={4}>
+          <Spinner size="xl" />
+          <Text>Loading evolution data...</Text>
         </VStack>
       </Box>
     );
@@ -181,222 +269,121 @@ export default function TimelineEvolutionPage() {
 
   if (error) {
     return (
-      <Box minH="100vh" bg={pageBgColor}>
-        <Header />
-        <VStack spacing={4} p={8} align="center" justify="center" minH="60vh">
-          <Alert status="error" maxW="md">
-            <AlertIcon />
-            {error}
-          </Alert>
-        </VStack>
+      <Box p={8}>
+        <Alert status="error">
+          <AlertIcon />
+          {error}
+        </Alert>
       </Box>
     );
   }
 
   return (
-    <Box minH="100vh" bg={pageBgColor}>
-      <Header />
-      <VStack spacing={6} p={8} align="stretch" maxW="7xl" mx="auto">
-        {/* Header */}
-        <Flex justify="space-between" align="center">
-          <HStack>
-            <Button as={ChakraLink} href="/dev-graph/welcome" variant="ghost" size="sm">
-              <Icon as={FaArrowLeft} mr={2} />
-              Back to Dashboard
-            </Button>
-            <Divider orientation="vertical" height="20px" />
-            <Heading size="lg" color="blue.600">
-              Timeline Evolution
-            </Heading>
-          </HStack>
-          <HStack spacing={2}>
-            <Button as={ChakraLink} href="/dev-graph/structure" variant="outline" size="sm">
-              Switch to Structure View
-            </Button>
-          </HStack>
-        </Flex>
-
-        {/* Biological Metaphor Explanation */}
-        <Box p={4} bg={bgColor} borderRadius="md" borderColor={borderColor}>
-          <HStack mb={3}>
-            <Icon as={FaTree} color="green.500" />
-            <Heading size="md">Biological Evolution Metaphor</Heading>
-          </HStack>
-          <Text fontSize="sm" color="gray.600" mb={3}>
-            Your codebase evolves like a living ecosystem. Each commit represents a generation, 
-            files are organisms that live and die, and branches are evolutionary lineages.
+    <Box p={8}>
+      <VStack spacing={6} align="stretch">
+        <Box>
+          <Heading size="lg" mb={2}>Timeline Evolution</Heading>
+          <Text color="gray.600">
+            Watch your codebase evolve like a living organism. Each commit represents a generation, 
+            files are organisms that grow, change, and die over time.
           </Text>
-          {error && (
-            <Alert status="warning" size="sm" mb={3}>
-              <AlertIcon />
-              <Text fontSize="xs">
-                {error} - Some features may be limited without API connection.
-              </Text>
-            </Alert>
-          )}
-          <HStack spacing={6} wrap="wrap">
-            <HStack>
-              <Icon as={FaSeedling} color="green.500" />
-              <Text fontSize="xs"><strong>Green:</strong> New files (born)</Text>
-            </HStack>
-            <HStack>
-              <Icon as={FaLeaf} color="blue.500" />
-              <Text fontSize="xs"><strong>Blue:</strong> Modified files (evolved)</Text>
-            </HStack>
-            <HStack>
-              <Icon as={FaTrash} color="red.500" />
-              <Text fontSize="xs"><strong>Red:</strong> Deleted files (extinct)</Text>
-            </HStack>
-          </HStack>
         </Box>
 
-        {/* Timeline Controls */}
-        <Box p={4} bg={bgColor} borderRadius="md" borderColor={borderColor}>
-          <VStack spacing={4}>
-            <HStack spacing={4} w="full">
-              <Button
-                size="sm"
-                onClick={() => setCurrentTimeIndex(Math.max(0, currentTimeIndex - 1))}
-                isDisabled={currentTimeIndex === 0}
-              >
-                <Icon as={FaStepBackward} />
-              </Button>
-              
-              <Button
-                size="sm"
-                colorScheme={isPlaying ? "red" : "green"}
-                onClick={() => setIsPlaying(!isPlaying)}
-              >
-                <Icon as={isPlaying ? FaPause : FaPlay} />
-                {isPlaying ? 'Pause' : 'Play'}
-              </Button>
-              
-              <Button
-                size="sm"
-                onClick={() => setCurrentTimeIndex(Math.min(evolutionSnapshots.length - 1, currentTimeIndex + 1))}
-                isDisabled={currentTimeIndex >= evolutionSnapshots.length - 1}
-              >
-                <Icon as={FaStepForward} />
-              </Button>
+        {/* Playback Controls */}
+        <HStack spacing={4} justify="center">
+          <Button onClick={handlePrevious} isDisabled={currentTimeIndex === 0}>
+            Previous
+          </Button>
+          <Button onClick={handlePlayPause} colorScheme="blue">
+            {isPlaying ? 'Pause' : 'Play'}
+          </Button>
+          <Button onClick={handleNext} isDisabled={currentTimeIndex === commits.length - 1}>
+            Next
+          </Button>
+        </HStack>
 
-              <Divider orientation="vertical" height="20px" />
+        {/* Current Commit Info */}
+        {commits[currentTimeIndex] && (
+          <Box p={4} bg="gray.50" borderRadius="md">
+            <Text fontWeight="bold">
+              Commit {currentTimeIndex + 1} of {commits.length}: {commits[currentTimeIndex].hash.substring(0, 8)}
+            </Text>
+            <Text fontSize="sm" color="gray.600">
+              {commits[currentTimeIndex].message}
+            </Text>
+            <Text fontSize="xs" color="gray.500">
+              {new Date(commits[currentTimeIndex].timestamp).toLocaleString()}
+            </Text>
+            <Text fontSize="xs" color="gray.500">
+              Files: {commits[currentTimeIndex].files.length} | Author: {commits[currentTimeIndex].author}
+            </Text>
+          </Box>
+        )}
 
-              <Text fontSize="sm" color="gray.600">
-                Speed:
-              </Text>
-              <HStack spacing={1}>
-                {[0.5, 1, 2, 4].map(speed => (
-                  <Button
-                    key={speed}
-                    size="xs"
-                    variant={playbackSpeed === speed ? "solid" : "outline"}
-                    onClick={() => setPlaybackSpeed(speed)}
-                  >
-                    {speed}x
-                  </Button>
-                ))}
-              </HStack>
-            </HStack>
+        {/* View Toggle */}
+        <HStack spacing={4} justify="center" py={4}>
+          <FormLabel htmlFor="view-toggle" mb={0}>
+            Visualization Mode:
+          </FormLabel>
+          <Switch
+            id="view-toggle"
+            isChecked={useBiologicalView}
+            onChange={(e) => setUseBiologicalView(e.target.checked)}
+            colorScheme="purple"
+          />
+          <Text fontSize="sm" color={useBiologicalView ? 'purple.600' : 'gray.600'}>
+            {useBiologicalView ? '🧬 Biological Evolution' : '📊 Technical Timeline'}
+          </Text>
+        </HStack>
 
-            {/* Progress Bar */}
-            <Box w="full">
-              <HStack justify="space-between" mb={1}>
-                <Text fontSize="xs" color="gray.600">
-                  Generation {currentTimeIndex + 1} of {evolutionSnapshots.length}
-                </Text>
-                <Text fontSize="xs" color="gray.600">
-                  {progress.toFixed(1)}%
-                </Text>
-              </HStack>
-              <Box
-                w="full"
-                h="8px"
-                bg="gray.200"
-                borderRadius="md"
-                overflow="hidden"
-              >
-                <Box
-                  h="100%"
-                  bg="linear-gradient(to right, #48bb78, #38a169)"
-                  width={`${progress}%`}
-                  transition="width 0.3s ease"
+        {/* Evolution Visualization */}
+        <Tabs variant="enclosed" colorScheme="purple">
+          <TabList>
+            <Tab>Evolution View</Tab>
+            <Tab>Technical Details</Tab>
+          </TabList>
+          <TabPanels>
+            <TabPanel>
+              {useBiologicalView && evolutionSnapshots.length > 0 ? (
+                <BiologicalEvolutionGraph
+                  snapshot={evolutionSnapshots[currentTimeIndex]}
+                  previousSnapshot={currentTimeIndex > 0 ? evolutionSnapshots[currentTimeIndex - 1] : undefined}
+                  height={700}
+                  width={1200}
+                  showLabels={true}
+                  enableAnimation={true}
+                  isPlaying={isPlaying}
+                  currentIndex={currentTimeIndex}
+                  totalSnapshots={evolutionSnapshots.length}
+                  onPlayPause={handlePlayPause}
+                  onNext={handleNext}
+                  onPrevious={handlePrevious}
                 />
-              </Box>
-            </Box>
-          </VStack>
-        </Box>
-
-        {/* Current Generation Info */}
-        {currentSnapshot && (
-          <Box p={4} bg={bgColor} borderRadius="md" borderColor={borderColor}>
-            <HStack justify="space-between" mb={3}>
-              <Heading size="md">Generation {currentTimeIndex + 1}</Heading>
-              <Badge colorScheme="blue">
-                {new Date(currentSnapshot.timestamp).toLocaleDateString()}
-              </Badge>
-            </HStack>
-            
-            <Grid templateColumns={{ base: "1fr", md: "repeat(3, 1fr)" }} gap={4}>
-              <Box>
-                <Text fontSize="sm" fontWeight="bold" color="gray.600">Commit</Text>
-                <Text fontSize="sm" fontFamily="mono" color="blue.600">
-                  {currentSnapshot.commit_hash.substring(0, 8)}...
-                </Text>
-              </Box>
-              
-              <Box>
-                <Text fontSize="sm" fontWeight="bold" color="gray.600">Files in Generation</Text>
-                <Text fontSize="sm" color="green.600">
-                  {currentSnapshot.files.length} organisms
-                </Text>
-              </Box>
-              
-              <Box>
-                <Text fontSize="sm" fontWeight="bold" color="gray.600">Active Branches</Text>
-                <Text fontSize="sm" color="purple.600">
-                  {currentSnapshot.branches.length} lineages
-                </Text>
-              </Box>
-            </Grid>
-          </Box>
-        )}
-
-        {/* Evolution Graph */}
-        <Box h="600px" bg={bgColor} borderRadius="md" borderColor={borderColor} p={4}>
-          {currentSnapshot ? (
-            <BiologicalEvolutionGraph
-              snapshot={currentSnapshot}
-              height={560}
-              showLabels={true}
-              enableAnimation={isPlaying}
-            />
-          ) : (
-            <VStack align="center" justify="center" h="full">
-              <Spinner size="lg" color="blue.500" />
-              <Text>Loading evolution snapshot...</Text>
-            </VStack>
-          )}
-        </Box>
-
-        {/* File Type Breakdown */}
-        {currentSnapshot && (
-          <Box p={4} bg={bgColor} borderRadius="md" borderColor={borderColor}>
-            <Heading size="md" mb={3}>Ecosystem Composition</Heading>
-            <HStack spacing={6} wrap="wrap">
-              {['code', 'doc', 'config', 'test'].map(type => {
-                const count = currentSnapshot.files.filter(f => f.type === type).length;
-                const color = type === 'code' ? 'blue' : type === 'doc' ? 'green' : type === 'config' ? 'orange' : 'purple';
-                return (
-                  <HStack key={type}>
-                    <Box w={3} h={3} bg={`${color}.500`} borderRadius="full" />
-                    <Text fontSize="sm" textTransform="capitalize">{type}</Text>
-                    <Badge colorScheme={color}>{count}</Badge>
-                  </HStack>
-                );
-              })}
-            </HStack>
-          </Box>
-        )}
+              ) : (
+                <TemporalEvolutionGraph
+                  commits={commits}
+                  fileLifecycles={fileLifecycles}
+                  currentTimeIndex={currentTimeIndex}
+                  isPlaying={isPlaying}
+                  onTimeChange={handleTimeChange}
+                  width={1200}
+                  height={600}
+                />
+              )}
+            </TabPanel>
+            <TabPanel>
+              <TemporalEvolutionGraph
+                commits={commits}
+                fileLifecycles={fileLifecycles}
+                currentTimeIndex={currentTimeIndex}
+                isPlaying={isPlaying}
+                onTimeChange={handleTimeChange}
+                width={1200}
+                height={600}
+              />
+            </TabPanel>
+          </TabPanels>
+        </Tabs>
       </VStack>
     </Box>
   );

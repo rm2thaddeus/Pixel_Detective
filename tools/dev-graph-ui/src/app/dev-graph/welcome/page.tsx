@@ -84,7 +84,11 @@ export default function WelcomeDashboard() {
       'EVOLVES_FROM': '#d69e2e',
       'REFACTORED_TO': '#805ad5',
       'DEPRECATED_BY': '#e53e3e',
-      'MENTIONS': '#dd6b20'
+      'MENTIONS': '#dd6b20',
+      'CONTAINS_CHUNK': '#2d3748',
+      'CONTAINS_DOC': '#4a5568',
+      'REFERENCES': '#2b6cb0',
+      'PART_OF': '#744210'
     };
     return colors[type as keyof typeof colors] || '#718096';
   };
@@ -136,11 +140,13 @@ export default function WelcomeDashboard() {
       count: count as number,
       color: getNodeTypeColor(type)
     })),
-    relation_types: Object.entries(analyticsData.graph.edge_types || {}).map(([type, count]) => ({
-      type,
-      count: count as number,
-      color: getRelationTypeColor(type)
-    })),
+    relation_types: Object.entries(analyticsData.graph.edge_types || {})
+      .map(([type, count]) => ({
+        type,
+        count: count as number,
+        color: getRelationTypeColor(type)
+      }))
+      .sort((a, b) => b.count - a.count), // Sort by count descending
     performance_metrics: {
       avg_query_time_ms: telemetryData.avg_query_time_ms || 0,
       cache_hit_rate: telemetryData.cache_hit_rate || 0,

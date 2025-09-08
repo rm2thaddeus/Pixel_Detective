@@ -478,6 +478,129 @@ def list_commits(limit: int = Query(100, le=1000), path: Optional[str] = None):
     }
 
 
+@app.get("/api/v1/dev-graph/evolution/timeline")
+def get_evolution_timeline(limit: int = Query(50, ge=1, le=200)):
+    """Get temporal evolution data for biological metaphor visualization.
+    
+    Returns commits with file changes and file lifecycle data for true temporal evolution.
+    This is the correct API for the timeline view that shows files as organisms.
+    """
+    try:
+        with _driver.session() as session:
+            # Get commits with file changes
+            commits_query = """
+                MATCH (c:GitCommit)
+                OPTIONAL MATCH (c)-[r:TOUCHED]->(f:File)
+                WITH c, collect({
+                    path: f.path,
+                    action: CASE 
+                        WHEN r.action = 'A' THEN 'created'
+                        WHEN r.action = 'M' THEN 'modified' 
+                        WHEN r.action = 'D' THEN 'deleted'
+                        ELSE 'modified'
+                    END,
+                    size: f.size,
+                    type: CASE
+                        WHEN f.path CONTAINS '.py' OR f.path CONTAINS '.js' OR f.path CONTAINS '.ts' THEN 'code'
+                        WHEN f.path CONTAINS '.md' OR f.path CONTAINS '.txt' THEN 'document'
+                        WHEN f.path CONTAINS '.json' OR f.path CONTAINS '.yaml' OR f.path CONTAINS '.yml' THEN 'config'
+                        ELSE 'other'
+                    END
+                }) as files
+                RETURN c.hash as hash, c.timestamp as timestamp, c.message as message, c.author as author, files
+                ORDER BY c.timestamp ASC
+                LIMIT $limit
+            """
+            
+            commits_result = session.run(commits_query, limit=limit)
+            commits = []
+            
+            for record in commits_result:
+                commit_data = {
+                    "hash": record["hash"],
+                    "timestamp": record["timestamp"],
+                    "message": record["message"],
+                    "author": record["author"],
+                    "files": [f for f in record["files"] if f["path"]]  # Filter out null paths
+                }
+                commits.append(commit_data)
+            
+            # Get file lifecycle data
+            lifecycle_query = """
+                MATCH (f:File)
+                OPTIONAL MATCH (c:GitCommit)-[r:TOUCHED]->(f)
+                WITH f, collect({
+                    commit_hash: c.hash,
+                    timestamp: c.timestamp,
+                    action: CASE 
+                        WHEN r.action = 'A' THEN 'created'
+                        WHEN r.action = 'M' THEN 'modified'
+                        WHEN r.action = 'D' THEN 'deleted'
+                        ELSE 'modified'
+                    END,
+                    size: f.size
+                }) as evolution_history
+                WHERE size(evolution_history) > 0
+                WITH f, evolution_history
+                ORDER BY f.path
+                RETURN f.path as path,
+                       head([ev IN evolution_history | ev.timestamp]) as created_at,
+                       head([ev IN evolution_history WHERE ev.action = 'deleted' | ev.timestamp]) as deleted_at,
+                       size([ev IN evolution_history WHERE ev.action = 'modified' | ev]) as modifications,
+                       f.size as current_size,
+                       CASE
+                           WHEN f.path CONTAINS '.py' OR f.path CONTAINS '.js' OR f.path CONTAINS '.ts' THEN 'code'
+                           WHEN f.path CONTAINS '.md' OR f.path CONTAINS '.txt' THEN 'document'
+                           WHEN f.path CONTAINS '.json' OR f.path CONTAINS '.yaml' OR f.path CONTAINS '.yml' THEN 'config'
+                           ELSE 'other'
+                       END as type,
+                       evolution_history
+                LIMIT 1000
+            """
+            
+            lifecycle_result = session.run(lifecycle_query)
+            file_lifecycles = []
+            
+            for record in lifecycle_result:
+                # Process evolution history
+                evolution_history = []
+                for ev in record["evolution_history"]:
+                    if ev and ev.get("timestamp"):  # Only require timestamp, commit_hash can be None
+                        evolution_history.append({
+                            "commit_hash": ev.get("commit_hash") or "unknown",
+                            "timestamp": ev["timestamp"],
+                            "action": ev.get("action") or "modified",
+                            "size": ev.get("size") or 0,
+                            "color": "#3b82f6" if ev.get("action") == "created" else 
+                                   "#10b981" if ev.get("action") == "modified" else "#ef4444"
+                        })
+                
+                # Sort evolution history by timestamp
+                evolution_history.sort(key=lambda x: x["timestamp"])
+                
+                lifecycle_data = {
+                    "path": record["path"],
+                    "created_at": record["created_at"],
+                    "deleted_at": record["deleted_at"],
+                    "modifications": record["modifications"] or 0,
+                    "current_size": record["current_size"] or 0,
+                    "type": record["type"],
+                    "evolution_history": evolution_history
+                }
+                file_lifecycles.append(lifecycle_data)
+            
+            return {
+                "commits": commits,
+                "file_lifecycles": file_lifecycles,
+                "total_commits": len(commits),
+                "total_files": len(file_lifecycles)
+            }
+            
+    except Exception as e:
+        logger.error(f"Failed to get evolution timeline: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/api/v1/dev-graph/commit/{commit_hash}")
 def commit_details(commit_hash: str):
     details = _git.get_commit(commit_hash)
@@ -707,6 +830,106 @@ def ingest_git_batched(
         logging.exception("Batched git ingest failed")
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.post("/api/v1/dev-graph/ingest/temporal-semantic")
+def ingest_temporal_semantic(
+    commit_limit: int = Query(100, ge=1, le=1000, description="Number of commits to ingest"),
+    derive_relationships: bool = Query(True, description="Derive semantic relationships during ingestion")
+):
+    """Temporal semantic ingestion that processes commits, files, chunks, and relationships together.
+    
+    This is the correct approach according to the PRD - everything is processed as commits are ingested,
+    creating a unified temporal semantic graph with proper relationships.
+    """
+    try:
+        logger.info(f"Starting temporal semantic ingestion: commits={commit_limit}, derive_relationships={derive_relationships}")
+        start_time = time.time()
+        
+        # Apply schema first
+        _engine.apply_schema()
+        
+        # Reset the graph to start fresh
+        with _driver.session() as session:
+            logger.info("Clearing existing graph data for fresh temporal semantic ingestion...")
+            session.run("MATCH (n) DETACH DELETE n")
+        
+        # Use the parallel pipeline but with unified processing
+        logger.info("Running unified temporal semantic processing...")
+        
+        # Step 1: Process commits and create files, documents, chunks, and relationships together
+        commit_results = _parallel_pipeline.ingest_commits_parallel(limit=commit_limit)
+        logger.info(f"Processed {commit_results['commits_ingested']} commits")
+        
+        # Step 2: Process documents and create chunks with semantic relationships
+        from .enhanced_ingest import EnhancedDevGraphIngester
+        doc_ingester = EnhancedDevGraphIngester(REPO_PATH, NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD)
+        doc_ingester.ingest()
+        logger.info("Processed documents and created chunks")
+        
+        # Step 3: Map sprints to commits
+        try:
+            mapped = _sprint.map_all_sprints()
+            logger.info(f"Mapped sprints: {mapped}")
+        except Exception as e:
+            logger.warning(f"Sprint mapping failed: {e}")
+        
+        # Step 4: Derive semantic relationships if requested
+        if derive_relationships:
+            logger.info("Deriving semantic relationships...")
+            try:
+                derived = _deriver.derive_all()
+                logger.info(f"Derived relationships: {derived}")
+            except Exception as e:
+                logger.warning(f"Relationship derivation failed: {e}")
+        
+        # Get final statistics
+        with _driver.session() as session:
+            # Get node counts
+            node_counts = session.run("""
+                MATCH (n)
+                UNWIND labels(n) as label
+                RETURN label as type, count(*) as count
+                ORDER BY count DESC
+            """).data()
+            
+            # Get relationship counts
+            rel_counts = session.run("""
+                MATCH ()-[r]->()
+                RETURN type(r) as type, count(*) as count
+                ORDER BY count DESC
+            """).data()
+        
+        total_duration = time.time() - start_time
+        
+        # Format results
+        node_stats = {item["type"]: item["count"] for item in node_counts}
+        rel_stats = {item["type"]: item["count"] for item in rel_counts}
+        
+        logger.info(f"Temporal semantic ingestion completed in {total_duration:.2f}s")
+        logger.info(f"Node types: {node_stats}")
+        logger.info(f"Relationship types: {rel_stats}")
+        
+        return {
+            "success": True,
+            "results": {
+                "commits_ingested": node_stats.get("GitCommit", 0),
+                "files_processed": node_stats.get("File", 0),
+                "chunks_created": node_stats.get("Chunk", 0),
+                "documents_created": node_stats.get("Document", 0),
+                "requirements_created": node_stats.get("Requirement", 0),
+                "sprints_created": node_stats.get("Sprint", 0),
+                "relationships_derived": sum(rel_stats.values()),
+                "total_duration": total_duration
+            },
+            "node_types": node_stats,
+            "relationship_types": rel_stats,
+            "message": f"Temporal semantic ingestion completed: {node_stats.get('GitCommit', 0)} commits, {node_stats.get('Chunk', 0)} chunks, {sum(rel_stats.values())} relationships"
+        }
+        
+    except Exception as e:
+        logger.error(f"Temporal semantic ingestion failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.post("/api/v1/dev-graph/ingest/parallel")
 def ingest_parallel(
     commit_limit: int = Query(100, ge=1, le=1000, description="Number of commits to ingest"),
@@ -716,7 +939,7 @@ def ingest_parallel(
     include_chunks: bool = Query(True, description="Include chunk ingestion"),
     derive_relationships: bool = Query(False, description="Derive relationships after ingestion")
 ):
-    """Optimized parallel ingestion using worker pipeline."""
+    """Legacy parallel ingestion using separate phases (DEPRECATED - use temporal-semantic instead)."""
     try:
         logger.info(f"Starting parallel ingestion: commits={commit_limit}, docs={doc_limit}, code={code_limit}")
         start_time = time.time()
@@ -1352,6 +1575,8 @@ def analytics_graph(
             "MENTIONS": count_rel_struct("MENTIONS"),
             "CONTAINS_CHUNK": count_rel_struct("CONTAINS_CHUNK"),
             "CONTAINS_DOC": count_rel_struct("CONTAINS_DOC"),
+            "REFERENCES": count_rel_struct("REFERENCES"),
+            "PART_OF": count_rel_struct("PART_OF"),
         }
 
         return {"nodes": nodes, "edges": edges, "window": {"from": from_timestamp, "to": to_timestamp}}
