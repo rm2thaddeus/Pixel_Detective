@@ -24,7 +24,7 @@ export function EvolutionGraph({
   physicsRepulsion = 1200,
   physicsFriction = 0.85,
   layoutMode = 'force',
-  edgeTypes = ['PART_OF','EVOLVES_FROM','REFERENCES','DEPENDS_ON'],
+  edgeTypes = ['TOUCHED','PART_OF','EVOLVES_FROM','REFERENCES','DEPENDS_ON','MENTIONS','CONTAINS_CHUNK','CONTAINS_DOC'],
   maxEdgesInView = 2000,
   layoutSeed,
   focusNodeId,
@@ -279,10 +279,14 @@ export function EvolutionGraph({
         
         // Create edge attributes, ensuring no conflicting properties
         const edgeColor = 
+          e.type === 'TOUCHED' ? '#ff6b6b' :
           e.type === 'PART_OF' ? '#888' :
           e.type === 'EVOLVES_FROM' ? '#2b8a3e' :
           e.type === 'REFERENCES' ? '#1c7ed6' :
-          e.type === 'DEPENDS_ON' ? '#e67700' : '#999';
+          e.type === 'DEPENDS_ON' ? '#e67700' :
+          e.type === 'MENTIONS' ? '#9c88ff' :
+          e.type === 'CONTAINS_CHUNK' ? '#51cf66' :
+          e.type === 'CONTAINS_DOC' ? '#ffd43b' : '#999';
           
         const edgeAttrs = {
           label: e.type,

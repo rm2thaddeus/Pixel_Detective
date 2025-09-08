@@ -64,6 +64,31 @@ export default function WelcomeDashboard() {
   const loading = analyticsLoading || telemetryLoading || subgraphLoading || commitsLoading || sprintsLoading;
   const error = analyticsError || telemetryError || subgraphError;
 
+  // Helper functions for node and relation type colors
+  const getNodeTypeColor = (type: string) => {
+    const colors = {
+      'commits': '#3182ce',
+      'files': '#38a169',
+      'requirements': '#d69e2e',
+      'sprints': '#805ad5',
+      'documents': '#e53e3e',
+      'chunks': '#dd6b20'
+    };
+    return colors[type as keyof typeof colors] || '#718096';
+  };
+
+  const getRelationTypeColor = (type: string) => {
+    const colors = {
+      'TOUCHED': '#3182ce',
+      'IMPLEMENTS': '#38a169',
+      'EVOLVES_FROM': '#d69e2e',
+      'REFACTORED_TO': '#805ad5',
+      'DEPRECATED_BY': '#e53e3e',
+      'MENTIONS': '#dd6b20'
+    };
+    return colors[type as keyof typeof colors] || '#718096';
+  };
+
   // Helper function to calculate data quality score
   const calculateDataQualityScore = (analytics: any, commits: any) => {
     let score = 0;
@@ -122,31 +147,6 @@ export default function WelcomeDashboard() {
       memory_usage_mb: telemetryData.memory_usage_mb || 0
     }
   } : null;
-
-  // Helper functions for node and relation type colors
-  const getNodeTypeColor = (type: string) => {
-    const colors = {
-      'commits': '#3182ce',
-      'files': '#38a169',
-      'requirements': '#d69e2e',
-      'sprints': '#805ad5',
-      'documents': '#e53e3e',
-      'chunks': '#dd6b20'
-    };
-    return colors[type as keyof typeof colors] || '#718096';
-  };
-
-  const getRelationTypeColor = (type: string) => {
-    const colors = {
-      'TOUCHED': '#3182ce',
-      'IMPLEMENTS': '#38a169',
-      'EVOLVES_FROM': '#d69e2e',
-      'REFACTORED_TO': '#805ad5',
-      'DEPRECATED_BY': '#e53e3e',
-      'MENTIONS': '#dd6b20'
-    };
-    return colors[type as keyof typeof colors] || '#718096';
-  };
 
   const getHealthStatus = (score: number) => {
     if (score >= 80) return { status: 'excellent', color: 'green', icon: FaCheckCircle };

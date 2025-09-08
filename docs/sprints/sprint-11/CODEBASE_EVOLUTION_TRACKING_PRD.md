@@ -1142,3 +1142,18 @@ With careful implementation following this updated roadmap, the dev graph will b
 - **Comparative Analysis**: Compare different branches or time periods
 
 This implementation transforms the dev graph from a confusing, unusable tool into an intuitive, educational, and powerful codebase exploration platform that tells the story of how your code evolved.
+
+## 🔧 Recent Backend Changes (2025-09-06)
+
+- Added bootstrap ingestion endpoint `POST /api/v1/dev-graph/ingest/bootstrap` to run schema setup, docs ingest, temporal commit ingest, sprint mapping, and relationship derivation in one call. Returns per-stage progress and totals.
+- Refactored `POST /api/v1/dev-graph/ingest/git/enhanced` to reuse the temporal engine for `GitCommit`/`TOUCHED` ingestion, then run docs ingest (best-effort), sprint mapping, and derivations, ensuring unified temporal schema.
+
+## 🎯 Database Rebuild & Schema Unification Complete (2025-09-06)
+
+- **Critical Fix**: Resolved f-string formatting issues in `api.py` and `temporal_engine.py` that were causing server crashes during relationship derivation.
+- **Full Database Rebuild**: Performed complete database reset and rebuild using unified temporal schema (`GitCommit`/`TOUCHED` only).
+- **Schema Consistency**: Eliminated legacy `Commit`/`TOUCHES` nodes and relationships that were causing frontend data inconsistencies.
+- **Validation Suite**: All data quality checks now pass - temporal consistency, schema completeness, relationship integrity.
+- **Performance**: Analytics and commit buckets endpoints working efficiently with clean unified data.
+- **Frontend Ready**: Database now provides consistent, high-quality data that the frontend can fully utilize for timeline views, windowed subgraphs, and sprint hierarchies.
+- Integrated `RelationshipDeriver` for evidence-based derivations; also exposed via `POST /api/v1/dev-graph/ingest/derive-relationships`.

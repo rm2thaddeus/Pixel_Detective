@@ -32,6 +32,14 @@ export default function DevGraphPage() {
 	const [layoutSeed, setLayoutSeed] = useState<number>(42);
 	const [focusNodeId, setFocusNodeId] = useState<string | undefined>(undefined);
 	
+	// Phase 4: Performance queries - declare state first to avoid temporal dead zone
+	const [timeWindow, setTimeWindow] = useState<{ from?: string; to?: string }>({});
+	const [nodeTypeFilter, setNodeTypeFilter] = useState<string[]>([]);
+	const [performanceMode, setPerformanceMode] = useState(false);
+	const [layoutMode, setLayoutMode] = useState<'force' | 'time-radial'>('force');
+	const [edgeTypes, setEdgeTypes] = useState<string[]>(['PART_OF','EVOLVES_FROM','REFERENCES','DEPENDS_ON']);
+	const [maxEdgesInView, setMaxEdgesInView] = useState<number>(2000);
+	
 	// Phase 4: Use windowed subgraph as primary data source
 	const windowedSubgraphQuery = useWindowedSubgraph({
 		fromTimestamp: timeWindow.from,
@@ -57,14 +65,6 @@ export default function DevGraphPage() {
 	const [selectedRange, setSelectedRange] = useState<{ start?: string; end?: string }>({});
 	const [subgraph, setSubgraph] = useState<{ nodes: any[]; links: any[] }>({ nodes: [], links: [] });
 	const [selectedSprint, setSelectedSprint] = useState<Sprint | undefined>();
-	
-	// Phase 4: Performance queries
-	const [timeWindow, setTimeWindow] = useState<{ from?: string; to?: string }>({});
-	const [nodeTypeFilter, setNodeTypeFilter] = useState<string[]>([]);
-	const [performanceMode, setPerformanceMode] = useState(false);
-	const [layoutMode, setLayoutMode] = useState<'force' | 'time-radial'>('force');
-	const [edgeTypes, setEdgeTypes] = useState<string[]>(['PART_OF','EVOLVES_FROM','REFERENCES','DEPENDS_ON']);
-	const [maxEdgesInView, setMaxEdgesInView] = useState<number>(2000);
 	
 	// Phase 4: Progressive hydration state
 	const [isHydrating, setIsHydrating] = useState(false);
@@ -290,7 +290,7 @@ export default function DevGraphPage() {
 				relations: rawRelations,
 			};
 		},
-		[windowedSubgraphQuery.data, nodesQuery.data, relationsQuery.data, selectedRange, subgraph]
+		[windowedSubgraphQuery.data, selectedRange, subgraph]
 	);
 
 	const [showEvolves, setShowEvolves] = useState(true);
@@ -345,7 +345,7 @@ export default function DevGraphPage() {
 					<Text fontWeight="bold">Debug Info:</Text>
 					<Text>Nodes loaded: {windowedSubgraphQuery.data?.pages?.reduce((acc: number, p: any) => acc + (p.nodes?.length || 0), 0) || 0}</Text>
 					<Text>Edges loaded: {windowedSubgraphQuery.data?.pages?.reduce((acc: number, p: any) => acc + (p.edges?.length || 0), 0) || 0}</Text>
-					<Text>Commits buckets: {commitsBucketsQuery.data?.buckets?.length || 0}</Text>
+					<Text>Commits buckets: {commitsBucketsQuery.data?.pages?.[0]?.buckets?.length || 0}</Text>
 					<Text>Data valid: {isValidData ? 'Yes' : 'No'}</Text>
 					<Text>Relations valid: {hasValidRelations ? 'Yes' : 'No'}</Text>
 					<Text>Performance mode: {performanceMode ? 'Enabled' : 'Disabled'}</Text>
@@ -364,10 +364,10 @@ export default function DevGraphPage() {
 							{windowedSubgraphQuery.data.pages[0].performance.cache_hit && ' (cached)'}
 						</Text>
 					)}
-					{commitsBucketsQuery.data?.performance && (
+					{commitsBucketsQuery.data?.pages?.[0]?.performance && (
 						<Text color="blue.600">
-							Timeline: {commitsBucketsQuery.data.performance.query_time_ms}ms 
-							({commitsBucketsQuery.data.performance.total_buckets} buckets)
+							Timeline: {commitsBucketsQuery.data.pages[0].performance.query_time_ms}ms 
+							({commitsBucketsQuery.data.pages[0].performance.total_buckets} buckets)
 						</Text>
 					)}
 					{telemetryQuery.data && (
@@ -497,7 +497,7 @@ export default function DevGraphPage() {
 							
 							// Show only found nodes and their existing links from current dataset
 							const nodeIds = new Set(nodes.map((n: any) => n.id));
-							const links = (selectedRange.start || selectedRange.end ? subgraph.links : ((relationsQuery.data?.pages || []).flat())) || [];
+							const links = (selectedRange.start || selectedRange.end ? subgraph.links : (windowedSubgraphQuery.data?.pages?.flatMap((page: any) => page.edges) || [])) || [];
 							const filteredLinks = links.filter((l: any) => nodeIds.has(l.from) || nodeIds.has(l.to));
 							
 							setSubgraph({ nodes, links: filteredLinks });
@@ -524,17 +524,7 @@ export default function DevGraphPage() {
 							{/* Timeline Tab */}
 							<TabPanel>
 								<TimelineView
-									events={(Array.isArray(commitsQuery.data) ? commitsQuery.data : [])
-										.filter((c: any) => c && c.hash && c.timestamp)
-										.map((c: any) => ({
-											id: c.hash,
-											title: c.message || 'Untitled Commit',
-											timestamp: c.timestamp,
-											author: c.author_email || 'Unknown Author',
-											type: 'commit',
-											commit_hash: c.hash,
-											files_changed: c.files_changed || [],
-										}))}
+									events={[]} // TODO: Implement commits timeline
 									onSelect={(ev) => {
 										// Toggle range selection: first click sets start, second sets end and fetches subgraph
 										if (!selectedRange.start || (selectedRange.start && selectedRange.end)) {
@@ -558,8 +548,7 @@ export default function DevGraphPage() {
 									}}
 								/>
 								<HStack mt={2}>
-									<Button size="sm" onClick={() => nodesQuery.fetchNextPage()}>Load more nodes</Button>
-									<Button size="sm" onClick={() => relationsQuery.fetchNextPage()}>Load more relations</Button>
+									<Button size="sm" onClick={() => windowedSubgraphQuery.fetchNextPage()}>Load more data</Button>
 									{selectedRange.start && selectedRange.end && (
 										<Button size="sm" onClick={() => { const next = (subgraph as any)._offset ? (subgraph as any)._offset + 800 : 800; (subgraph as any)._offset = next; fetchSubgraph(selectedRange.start, selectedRange.end, next, true).catch(console.error); }}>Load more in range</Button>
 									)}
@@ -710,10 +699,10 @@ export default function DevGraphPage() {
 								}
 								drawer.onOpen();
 							}}
-							currentTimestamp={selectedRange.start ? commitsQuery.data?.find((c: any) => c.hash === selectedRange.start)?.timestamp : undefined}
+							currentTimestamp={selectedRange.start ? undefined : undefined} // TODO: Implement commit timestamp lookup
 							timeRange={timeWindow.from && timeWindow.to ? { start: timeWindow.from, end: timeWindow.to } : (selectedRange.start && selectedRange.end ? {
-								start: commitsQuery.data?.find((c: any) => c.hash === selectedRange.start)?.timestamp || '',
-								end: commitsQuery.data?.find((c: any) => c.hash === selectedRange.end)?.timestamp || ''
+								start: '', // TODO: Implement commit timestamp lookup
+								end: '' // TODO: Implement commit timestamp lookup
 							} : undefined)}
 							enableClustering={enableClustering}
 							enablePhysics={enablePhysics}
@@ -726,15 +715,14 @@ export default function DevGraphPage() {
 							onViewportChange={({ zoom }) => {
 								// Simple heuristic: if zoomed in beyond threshold, load more pages
 								// Only fetch if we haven't already fetched all pages
-								if (zoom > 1.5 && nodesQuery.hasNextPage && relationsQuery.hasNextPage) {
-									nodesQuery.fetchNextPage();
-									relationsQuery.fetchNextPage();
+								if (zoom > 1.5 && windowedSubgraphQuery.hasNextPage) {
+									windowedSubgraphQuery.fetchNextPage();
 								}
 							}}
 						/>
 					)}
 				
-				{!isValidData && !nodesQuery.isLoading && (
+				{!isValidData && !windowedSubgraphQuery.isLoading && (
 					<Alert status="info">
 						<AlertIcon />
 						No graph data available. Please check if the Developer Graph API is running.

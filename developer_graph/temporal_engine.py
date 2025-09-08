@@ -40,6 +40,11 @@ class TemporalEngine:
             self._q_times_ms = deque(maxlen=100)
         except Exception:
             self._q_times_ms = []  # type: ignore[assignment]
+        # Store last query summaries for diagnostics
+        self._last_query_metrics = {
+            "windowed_subgraph": {},
+            "commit_buckets": {},
+        }
 
     def apply_schema(self) -> None:
         apply_schema(self.driver)
@@ -194,6 +199,151 @@ class TemporalEngine:
                 session.write_transaction(_tx)
                 ingested += 1
         return ingested
+
+    def ingest_recent_commits_batched(self, limit: int = 100, batch_size: int = 50) -> int:
+        """Optimized: Ingest commits using batched UNWIND operations."""
+        commits = self.git.get_commits_batched(limit=limit)
+        ingested = 0
+        
+        # Process in batches
+        for i in range(0, len(commits), batch_size):
+            batch = commits[i:i + batch_size]
+            ingested += self._ingest_commit_batch(batch)
+        
+        return ingested
+
+    def _ingest_commit_batch(self, commits: List[Dict]) -> int:
+        """Ingest a batch of commits using UNWIND operations."""
+        with self.driver.session() as session:
+            # Prepare commit data for UNWIND
+            commit_data = []
+            file_data = []
+            requirement_data = []
+            implements_data = []
+            
+            for commit in commits:
+                commit_hash = commit["hash"]
+                timestamp = commit.get("timestamp")
+                message = commit.get("message", "")
+                
+                # Add commit data
+                commit_data.append({
+                    "hash": commit_hash,
+                    "message": message,
+                    "author": commit.get("author_email", ""),
+                    "timestamp": timestamp,
+                    "branch": "unknown"
+                })
+                
+                # Add file data for this commit
+                for file_info in commit.get("files_changed", []):
+                    if isinstance(file_info, dict):
+                        file_path = file_info.get("path", "")
+                        change_type = file_info.get("change_type", "M")
+                    else:
+                        file_path = str(file_info)
+                        change_type = "M"
+                    
+                    if file_path:
+                        file_data.append({
+                            "commit_hash": commit_hash,
+                            "file_path": file_path,
+                            "change_type": change_type,
+                            "timestamp": timestamp
+                        })
+                
+                # Extract requirement references from commit message
+                req_ids = set(re.findall(r"\b(?:FR|NFR)-\d+\b", message))
+                for req_id in req_ids:
+                    requirement_data.append({
+                        "id": req_id,
+                        "title": message.split("\n", 1)[0][:120],
+                        "author": commit.get("author_email", ""),
+                        "date_created": timestamp,
+                        "goal_alignment": None,
+                        "tags": None
+                    })
+                    
+                    # Add implements relationships for all files in this commit
+                    for file_info in commit.get("files_changed", []):
+                        if isinstance(file_info, dict):
+                            file_path = file_info.get("path", "")
+                        else:
+                            file_path = str(file_info)
+                        
+                        if file_path:
+                            implements_data.append({
+                                "requirement_id": req_id,
+                                "file_path": file_path,
+                                "commit_hash": commit_hash,
+                                "timestamp": timestamp
+                            })
+            
+            # Execute batched operations
+            def _tx(tx):
+                # Batch create commits
+                if commit_data:
+                    tx.run("""
+                        UNWIND $commits as c
+                        MERGE (gc:GitCommit {hash: c.hash})
+                        ON CREATE SET gc.message = c.message,
+                                      gc.author = c.author,
+                                      gc.timestamp = datetime(c.timestamp),
+                                      gc.branch = c.branch,
+                                      gc.uid = c.hash
+                        ON MATCH SET gc.message = coalesce(c.message, gc.message),
+                                     gc.author = coalesce(c.author, gc.author),
+                                     gc.timestamp = coalesce(datetime(c.timestamp), gc.timestamp),
+                                     gc.branch = coalesce(c.branch, gc.branch)
+                    """, commits=commit_data)
+                
+                # Batch create files and relationships
+                if file_data:
+                    tx.run("""
+                        UNWIND $files as f
+                        MERGE (fl:File {path: f.file_path})
+                        ON CREATE SET fl.uid = f.file_path
+                        MERGE (gc:GitCommit {hash: f.commit_hash})
+                        MERGE (gc)-[r:TOUCHED]->(fl)
+                        ON CREATE SET r.change_type = f.change_type,
+                                      r.timestamp = datetime(f.timestamp)
+                        ON MATCH SET r.change_type = coalesce(f.change_type, r.change_type),
+                                     r.timestamp = coalesce(datetime(f.timestamp), r.timestamp)
+                    """, files=file_data)
+                
+                # Batch create requirements
+                if requirement_data:
+                    tx.run("""
+                        UNWIND $requirements as r
+                        MERGE (req:Requirement {id: r.id})
+                        ON CREATE SET req.title = r.title,
+                                      req.author = r.author,
+                                      req.date_created = datetime(r.date_created),
+                                      req.goal_alignment = r.goal_alignment,
+                                      req.tags = r.tags,
+                                      req.uid = r.id
+                        ON MATCH SET req.title = coalesce(r.title, req.title),
+                                     req.author = coalesce(r.author, req.author),
+                                     req.date_created = coalesce(datetime(r.date_created), req.date_created)
+                    """, requirements=requirement_data)
+                
+                # Batch create implements relationships
+                if implements_data:
+                    tx.run("""
+                        UNWIND $implements as i
+                        MATCH (req:Requirement {id: i.requirement_id})
+                        MATCH (fl:File {path: i.file_path})
+                        MERGE (req)-[r:IMPLEMENTS]->(fl)
+                        ON CREATE SET r.commit_hash = i.commit_hash,
+                                      r.timestamp = datetime(i.timestamp),
+                                      r.sources = ['commit_message'],
+                                      r.confidence = 0.7
+                        ON MATCH SET r.commit_hash = coalesce(i.commit_hash, r.commit_hash),
+                                     r.timestamp = coalesce(datetime(i.timestamp), r.timestamp)
+                    """, implements=implements_data)
+            
+            session.execute_write(_tx)
+            return len(commits)
 
     def ingest_recent_commits_parallel(self, limit: int = 100, max_workers: int = 4, batch_size: int = 50) -> int:
         """Parallel version of ingest_recent_commits with batched writes for better performance."""
@@ -413,7 +563,7 @@ class TemporalEngine:
 
         cypher = (
             "MATCH (a)-[r]->(b) "
-            f"WHERE {' AND '.join(where_clauses)} "
+            "WHERE " + " AND ".join(where_clauses) + " "
             "RETURN a, TYPE(r) AS type, r.timestamp AS ts, b "
             "ORDER BY ts DESC "
             "SKIP $offset LIMIT $limit"
@@ -542,26 +692,37 @@ class TemporalEngine:
         # Add node type filtering if specified
         node_type_filter = ""
         if node_types:
-            type_conditions = [f"'{t}' IN labels(a)" for t in node_types]
-            type_conditions.extend([f"'{t}' IN labels(b)" for t in node_types])
-            where_clauses.append(f"({' OR '.join(type_conditions)})")
+            type_conditions = ["'" + t + "' IN labels(a)" for t in node_types]
+            type_conditions.extend(["'" + t + "' IN labels(b)" for t in node_types])
+            where_clauses.append("(" + " OR ".join(type_conditions) + ")")
         
-        where_clause = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
+        where_clause = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
         
         # Get total counts first (only if include_counts is True)
         total_nodes = None
         total_edges = None
         if include_counts:
-            count_cypher = f"""
-                MATCH (a)-[r]->(b) {where_clause}
+            count_cypher = """
+                MATCH (a)-[r]->(b) """ + where_clause + """
                 RETURN count(DISTINCT a) + count(DISTINCT b) AS node_count, count(r) AS edge_count
             """
         
         with self.driver.session() as session:
             if include_counts:
-                count_result = session.run(count_cypher, params).single()
-                total_nodes = count_result["node_count"] if count_result else 0
-                total_edges = count_result["edge_count"] if count_result else 0
+                count_result_cursor = session.run(count_cypher, params)
+                # consume to collect timings/summary
+                try:
+                    summary = count_result_cursor.consume()
+                    self._last_query_metrics["windowed_subgraph"]["count_ms"] = getattr(summary, "result_available_after", 0)
+                except Exception:
+                    self._last_query_metrics["windowed_subgraph"]["count_ms"] = 0
+                count_record = None
+                try:
+                    count_record = count_result_cursor.single()
+                except Exception:
+                    count_record = None
+                total_nodes = count_record["node_count"] if count_record else 0
+                total_edges = count_record["edge_count"] if count_record else 0
             
             # Keyset pagination support: parse cursor as "<ts>|<rid>" or fallback to numeric offset
             keyset = None
@@ -592,7 +753,7 @@ class TemporalEngine:
 
             # Main query with pagination/keyset ordering
             main_cypher = (
-                f"MATCH (a)-[r]->(b) {where_clause}"
+                "MATCH (a)-[r]->(b) " + where_clause
                 + (extra_clause if keyset is not None else "")
                 + " RETURN DISTINCT a, labels(a) AS a_labels, b, labels(b) AS b_labels, r, type(r) AS rel_type, r.timestamp AS ts, elementId(r) AS rid"
                 + " ORDER BY ts DESC, rid DESC"
@@ -600,13 +761,13 @@ class TemporalEngine:
                 + " LIMIT $limit"
             )
             
-            result = session.run(main_cypher, params)
+            result_cursor = session.run(main_cypher, params)
             
             # Process results
             nodes_seen = {}
             edges = []
             
-            for rec in result:
+            for rec in result_cursor:
                 a = rec.get("a", {})
                 b = rec.get("b", {})
                 a_labels = rec.get("a_labels") or []
@@ -623,7 +784,7 @@ class TemporalEngine:
                         if "hash" in node_data:
                             return str(node_data["hash"])
                         if "number" in node_data:
-                            return f"sprint-{node_data['number']}"
+                            return "sprint-" + str(node_data['number'])
                         if "path" in node_data:
                             return node_data["path"]
                     return str(abs(hash(str(node_data))))[:10]
@@ -698,10 +859,17 @@ class TemporalEngine:
             if len(edges) == limit:
                 last = edges[-1] if edges else None
                 if last and last.get("timestamp") is not None and last.get("rid") is not None:
-                    next_cursor = f"{last['timestamp']}|{last['rid']}"
+                    next_cursor = str(last['timestamp']) + "|" + str(last['rid'])
                 elif is_legacy_offset:
                     next_cursor = str(params.get("offset", 0) + limit)
             
+            # capture summary timings if available
+            try:
+                summary = result_cursor.consume()
+                plan_time = getattr(summary, "result_available_after", 0)
+                self._last_query_metrics["windowed_subgraph"]["query_ms_driver"] = plan_time
+            except Exception:
+                pass
             query_time = time.time() - start_time
             
             result = {
@@ -785,12 +953,12 @@ class TemporalEngine:
             where_clauses.append("r.timestamp <= $to_ts")
             params["to_ts"] = to_timestamp
         
-        where_clause = f"WHERE {' AND '.join(where_clauses)}"
+        where_clause = "WHERE " + " AND ".join(where_clauses)
         
-        cypher = f"""
+        cypher = """
             MATCH (c:GitCommit)-[r:TOUCHED]->()
-            {where_clause}
-            WITH {time_format} AS bucket, count(DISTINCT c) AS commit_count, count(r) AS file_changes
+            """ + where_clause + """
+            WITH """ + time_format + """ AS bucket, count(DISTINCT c) AS commit_count, count(r) AS file_changes
             RETURN bucket, commit_count, file_changes
             ORDER BY bucket DESC
             LIMIT $limit
@@ -810,6 +978,12 @@ class TemporalEngine:
                         "granularity": granularity
                     })
             
+            # Capture driver timings if possible
+            try:
+                summary = result.consume()
+                self._last_query_metrics["commit_buckets"]["query_ms_driver"] = getattr(summary, "result_available_after", 0)
+            except Exception:
+                pass
             query_time = time.time() - start_time
             
             return {
@@ -840,6 +1014,7 @@ class TemporalEngine:
             "cache_hit_rate": round(hit_rate, 4),
             "cache_size": len(self._cache or {}),
             "query_samples": (len(self._q_times_ms) if hasattr(self, "_q_times_ms") else 0),
+            "last_query_metrics": self._last_query_metrics,
         }
 
     def _cache_result(self, cache_key, result):

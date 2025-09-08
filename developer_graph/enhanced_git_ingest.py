@@ -105,7 +105,7 @@ class EnhancedGitIngester:
         # Link sprints to commits based on planning windows
         self._link_sprints_to_commits()
 
-        # Optional roll-up: create sprint-level TOUCHES to files (counts)
+        # Optional roll-up: create sprint-level TOUCHED to files (counts)
         if os.environ.get("ENABLE_SPRINT_FILE_ROLLUP", "1") not in {"0", "false", "no"}:
             self._rollup_sprint_file_touches()
 
@@ -128,7 +128,7 @@ class EnhancedGitIngester:
     @staticmethod
     def _create_constraints(tx):
         """Create uniqueness constraints for nodes used by this ingester."""
-        tx.run("CREATE CONSTRAINT IF NOT EXISTS FOR (c:Commit) REQUIRE c.hash IS UNIQUE")
+        tx.run("CREATE CONSTRAINT IF NOT EXISTS FOR (c:GitCommit) REQUIRE c.hash IS UNIQUE")
         tx.run("CREATE CONSTRAINT IF NOT EXISTS FOR (f:File) REQUIRE f.path IS UNIQUE")
 
     def _run_basic_ingest(self):
@@ -249,19 +249,18 @@ class EnhancedGitIngester:
         """Create Touches relationships between commits and files."""
         commit_hash = commit_analysis.commit.hexsha
         
-        # Create or update commit node
+        # Create or update commit node (unified schema: GitCommit)
         tx.run("""
-            MERGE (c:Commit {hash: $hash})
+            MERGE (c:GitCommit {hash: $hash})
             SET c.message = $message,
-                c.author_name = $author_name,
-                c.author_email = $author_email,
+                c.author = $author_email,
                 c.timestamp = $timestamp,
                 c.code_files_count = $code_files_count,
-                c.doc_files_count = $doc_files_count
-        """, 
+                c.doc_files_count = $doc_files_count,
+                c.uid = coalesce(c.uid, $hash)
+        """,
         hash=commit_hash,
         message=commit_analysis.commit.message,
-        author_name=commit_analysis.commit.author.name,
         author_email=commit_analysis.commit.author.email,
         timestamp=commit_analysis.commit.committed_datetime.isoformat(),
         code_files_count=len(commit_analysis.code_files),
@@ -281,20 +280,22 @@ class EnhancedGitIngester:
             is_doc=Path(file_change.path).suffix.lower() in DOC_EXTENSIONS,
             extension=Path(file_change.path).suffix.lower())
 
-            # Create Touches relationship (merge by type only, then set properties)
+            # Create TOUCHED relationship with timestamp (temporal schema)
             tx.run("""
-                MATCH (c:Commit {hash: $commit_hash})
+                MATCH (c:GitCommit {hash: $commit_hash})
                 MATCH (f:File {path: $file_path})
-                MERGE (c)-[r:TOUCHES]->(f)
+                MERGE (c)-[r:TOUCHED]->(f)
                 SET r.change_type = $change_type,
                     r.additions = $additions,
-                    r.deletions = $deletions
+                    r.deletions = $deletions,
+                    r.timestamp = $timestamp
             """,
             commit_hash=commit_hash,
             file_path=file_change.path,
             change_type=file_change.change_type,
             additions=file_change.additions,
-            deletions=file_change.deletions)
+            deletions=file_change.deletions,
+            timestamp=commit_analysis.commit.committed_datetime.isoformat())
 
             # If file was renamed, record refactor edge between files
             if file_change.change_type == 'R' and file_change.old_path and file_change.path:
@@ -314,7 +315,7 @@ class EnhancedGitIngester:
         all_reqs = set(commit_analysis.requirements_mentioned or set()).union(commit_analysis.message_requirements or set())
         for rid in all_reqs:
             tx.run("""
-                MATCH (c:Commit {hash: $hash})
+                MATCH (c:GitCommit {hash: $hash})
                 MATCH (r:Requirement {id: $rid})
                 MERGE (c)-[rel:IMPLEMENTS]->(r)
                 ON CREATE SET rel.timestamp = $ts
@@ -356,7 +357,7 @@ class EnhancedGitIngester:
                 tx.run("""
                     MATCH (s:Sprint {number: $sprint_num})
                     MATCH (f:File {path: $file_path})
-                    MERGE (s)-[t:TOUCHES {via_commit: $commit_hash, timestamp: $timestamp}]->(f)
+                    MERGE (s)-[t:TOUCHED {via_commit: $commit_hash, timestamp: $timestamp}]->(f)
                 """,
                 sprint_num=sprint_num,
                 file_path=code_file,
@@ -413,7 +414,7 @@ class EnhancedGitIngester:
 
                         # Link commit to chunk with provenance
                         tx.run("""
-                            MATCH (c:Commit {hash: $commit_hash})
+                            MATCH (c:GitCommit {hash: $commit_hash})
                             MATCH (ch:Chunk {id: $chunk_id})
                             MERGE (c)-[m:MODIFIED]->(ch)
                             ON CREATE SET m.timestamp = $timestamp, m.file_path = $file_path
@@ -520,7 +521,7 @@ class EnhancedGitIngester:
                     """
                     MATCH (s:Sprint {number: $num})
                     WITH s
-                    MATCH (c:Commit)
+                    MATCH (c:GitCommit)
                     WHERE datetime(c.timestamp) >= datetime($start + 'T00:00:00')
                       AND datetime(c.timestamp) <= datetime($end + 'T23:59:59')
                     MERGE (s)-[:INCLUDES]->(c)
@@ -537,9 +538,9 @@ class EnhancedGitIngester:
                 session.run(
                     """
                     MATCH (s:Sprint {number: $num})
-                    MATCH (s)-[:INCLUDES]->(c:Commit)-[:TOUCHES]->(f:File)
+                    MATCH (s)-[:INCLUDES]->(c:GitCommit)-[:TOUCHED]->(f:File)
                     WITH s,f, min(c.timestamp) AS first_ts, max(c.timestamp) AS last_ts, count(*) AS cnt
-                    MERGE (s)-[r:TOUCHES]->(f)
+                    MERGE (s)-[r:TOUCHED]->(f)
                     SET r.scope = 'sprint', r.first_ts = first_ts, r.last_ts = last_ts, r.count = cnt
                     """,
                     num=num, start=start_iso, end=end_iso
@@ -597,11 +598,11 @@ class EnhancedGitIngester:
                 if (file_name in sprint_name or 
                     any(part in sprint_name for part in file_path.split('/') if len(part) > 3)):
                     
-                    # Create Touches relationship
+                    # Create TOUCHED relationship (structural mention signal)
                     tx.run("""
                         MATCH (s:Sprint {number: $sprint_num})
                         MATCH (f:File {path: $file_path})
-                        MERGE (s)-[t:TOUCHES {type: 'mentions'}]->(f)
+                        MERGE (s)-[t:TOUCHED {type: 'mentions'}]->(f)
                     """, sprint_num=sprint_num, file_path=file_path)
                     touches_count += 1
         
