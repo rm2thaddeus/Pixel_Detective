@@ -53,45 +53,46 @@ class EnhancedDevGraphIngester:
             # Create constraints
             session.execute_write(self._create_constraints)
 
-            # Create nodes
-            for sprint in sprints:
-                session.execute_write(self._merge_sprint, sprint)
+            # BATCH OPERATIONS - Phase 0 Performance Fix
+            print("Creating nodes in batches...")
+            session.execute_write(self._batch_create_sprints, sprints)
+            session.execute_write(self._batch_create_requirements, requirements)
+            session.execute_write(self._batch_create_documents, documents)
+            session.execute_write(self._batch_create_chunks, chunks)
 
-            for req in requirements:
-                session.execute_write(self._merge_requirement, req)
+            # BATCH RELATIONSHIPS - Phase 0 Performance Fix
+            print("Creating relationships in batches...")
+            
+            # Prepare relationship data
+            req_sprint_rels = [{'req_id': req['id'], 'sprint_num': req['sprint_number']} 
+                             for req in requirements if req.get('sprint_number')]
+            
+            sprint_doc_rels = [{'sprint_num': self._infer_sprint_number_from_path(doc.get('path')), 'doc_path': doc['path']} 
+                             for doc in documents if self._infer_sprint_number_from_path(doc.get('path'))]
+            
+            doc_chunk_rels = [{'doc_path': ch['doc_path'], 'chunk_id': ch['id']} for ch in chunks]
+            
+            chunk_req_rels = [{'chunk_id': ch['id'], 'req_id': rid} 
+                            for ch in chunks for rid in ch.get('mentions', []) or []]
+            
+            doc_ref_rels = [{'doc_path': doc['path'], 'ref': ref} 
+                          for doc in documents for ref in doc.get('references', [])]
 
-            for doc in documents:
-                session.execute_write(self._merge_document, doc)
-
-            for ch in chunks:
-                session.execute_write(self._merge_chunk, ch)
-
-            # Create relationships
-            for req in requirements:
-                if req.get('sprint_number'):
-                    session.execute_write(self._merge_requirement_sprint, req['id'], req['sprint_number'])
-
-            # Link sprints to documents
-            for doc in documents:
-                sprint_num = self._infer_sprint_number_from_path(doc.get('path'))
-                if sprint_num:
-                    session.execute_write(self._merge_sprint_contains_doc, sprint_num, doc['path'])
-
-            # Link documents to chunks and chunks to requirements they mention
-            for ch in chunks:
-                session.execute_write(self._merge_document_contains_chunk, ch['doc_path'], ch['id'])
-                for rid in ch.get('mentions', []) or []:
-                    session.execute_write(self._merge_chunk_mentions_requirement, ch['id'], rid)
-
-            # Create cross-sprint relationships
+            # Execute batch relationship creation
+            if req_sprint_rels:
+                session.execute_write(self._batch_create_requirement_sprint_rels, req_sprint_rels)
+            if sprint_doc_rels:
+                session.execute_write(self._batch_create_sprint_doc_rels, sprint_doc_rels)
+            if doc_chunk_rels:
+                session.execute_write(self._batch_create_doc_chunk_rels, doc_chunk_rels)
+            if chunk_req_rels:
+                session.execute_write(self._batch_create_chunk_req_rels, chunk_req_rels)
+            if doc_ref_rels:
+                session.execute_write(self._batch_create_doc_ref_rels, doc_ref_rels)
+            
+            # Create cross-sprint relationships (keep individual for now due to complexity)
             for ref in cross_references:
                 session.execute_write(self._merge_cross_reference, ref)
-            
-            # Create document relationships
-            for doc in documents:
-                if doc.get('references'):
-                    for ref in doc['references']:
-                        session.execute_write(self._merge_document_reference, doc['path'], ref)
             
             print("Enhanced ingestion completed!")
 
@@ -480,6 +481,138 @@ class EnhancedDevGraphIngester:
         if m2:
             return m2.group(1)
         return None
+
+    # BATCH OPERATIONS - Phase 0 Performance Fix
+    @staticmethod
+    def _batch_create_sprints(tx, sprints: List[Dict[str, str]]):
+        """Batch create sprint nodes using UNWIND."""
+        if not sprints:
+            return
+        tx.run("""
+            UNWIND $sprints AS sprint
+            MERGE (s:Sprint {number: sprint.number})
+            SET s.name = sprint.name, 
+                s.start_date = sprint.start_date, 
+                s.end_date = sprint.end_date,
+                s.uid = sprint.number
+        """, sprints=sprints)
+
+    @staticmethod
+    def _batch_create_requirements(tx, requirements: List[Dict[str, str]]):
+        """Batch create requirement nodes using UNWIND."""
+        if not requirements:
+            return
+        tx.run("""
+            UNWIND $requirements AS req
+            MERGE (r:Requirement {id: req.id})
+            SET r.title = req.title,
+                r.description = req.description,
+                r.author = req.author,
+                r.date_created = req.date_created,
+                r.tags = req.tags,
+                r.sprint_number = req.sprint_number,
+                r.uid = req.id
+        """, requirements=requirements)
+
+    @staticmethod
+    def _batch_create_documents(tx, documents: List[Dict[str, str]]):
+        """Batch create document nodes using UNWIND."""
+        if not documents:
+            return
+        tx.run("""
+            UNWIND $documents AS doc
+            MERGE (d:Document {path: doc.path})
+            SET d.name = doc.name,
+                d.content_preview = doc.content_preview,
+                d.references = doc.references,
+                d.uid = doc.path
+        """, documents=documents)
+
+    @staticmethod
+    def _batch_create_chunks(tx, chunks: List[Dict[str, str]]):
+        """Batch create chunk nodes using UNWIND."""
+        if not chunks:
+            return
+        tx.run("""
+            UNWIND $chunks AS chunk
+            MERGE (c:Chunk {id: chunk.id})
+            SET c.doc_path = chunk.doc_path,
+                c.heading = chunk.heading,
+                c.level = chunk.level,
+                c.ordinal = chunk.ordinal,
+                c.content_preview = chunk.content_preview,
+                c.length = chunk.length,
+                c.mentions = chunk.mentions,
+                c.uid = chunk.id
+        """, chunks=chunks)
+
+    @staticmethod
+    def _batch_create_requirement_sprint_rels(tx, relationships: List[Dict[str, str]]):
+        """Batch create PART_OF relationships between requirements and sprints."""
+        if not relationships:
+            return
+        tx.run("""
+            UNWIND $relationships AS rel
+            MATCH (r:Requirement {id: rel.req_id}), (s:Sprint {number: rel.sprint_num})
+            MERGE (r)-[:PART_OF]->(s)
+        """, relationships=relationships)
+
+    @staticmethod
+    def _batch_create_sprint_doc_rels(tx, relationships: List[Dict[str, str]]):
+        """Batch create CONTAINS_DOC relationships between sprints and documents."""
+        if not relationships:
+            return
+        tx.run("""
+            UNWIND $relationships AS rel
+            MATCH (s:Sprint {number: rel.sprint_num}), (d:Document {path: rel.doc_path})
+            MERGE (s)-[:CONTAINS_DOC]->(d)
+        """, relationships=relationships)
+
+    @staticmethod
+    def _batch_create_doc_chunk_rels(tx, relationships: List[Dict[str, str]]):
+        """Batch create CONTAINS_CHUNK relationships between documents and chunks."""
+        if not relationships:
+            return
+        tx.run("""
+            UNWIND $relationships AS rel
+            MATCH (d:Document {path: rel.doc_path}), (c:Chunk {id: rel.chunk_id})
+            MERGE (d)-[:CONTAINS_CHUNK]->(c)
+        """, relationships=relationships)
+
+    @staticmethod
+    def _batch_create_chunk_req_rels(tx, relationships: List[Dict[str, str]]):
+        """Batch create MENTIONS relationships between chunks and requirements."""
+        if not relationships:
+            return
+        tx.run("""
+            UNWIND $relationships AS rel
+            MATCH (c:Chunk {id: rel.chunk_id}), (r:Requirement {id: rel.req_id})
+            MERGE (c)-[:MENTIONS]->(r)
+        """, relationships=relationships)
+
+    @staticmethod
+    def _batch_create_doc_ref_rels(tx, relationships: List[Dict[str, str]]):
+        """Batch create REFERENCES relationships between documents and other entities."""
+        if not relationships:
+            return
+        tx.run("""
+            UNWIND $relationships AS rel
+            MATCH (d:Document {path: rel.doc_path})
+            WITH d, rel
+            WHERE rel.ref STARTS WITH 'sprint-'
+            MATCH (s:Sprint {number: rel.ref})
+            MERGE (d)-[:REFERENCES]->(s)
+        """, relationships=relationships)
+        
+        # Handle requirement references
+        tx.run("""
+            UNWIND $relationships AS rel
+            MATCH (d:Document {path: rel.doc_path})
+            WITH d, rel
+            WHERE rel.ref STARTS WITH 'FR-' OR rel.ref STARTS WITH 'NFR-'
+            MATCH (r:Requirement {id: rel.ref})
+            MERGE (d)-[:REFERENCES]->(r)
+        """, relationships=relationships)
 
 
 def main():

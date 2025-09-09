@@ -5,8 +5,9 @@ Phase 2: Ingests documents and code files, creating chunks for semantic linking.
 
 import os
 import glob
+import fnmatch
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Generator
 from neo4j import Driver
 
 from .chunkers import ChunkIngester, MarkdownChunker, CodeChunker
@@ -20,22 +21,9 @@ class ChunkIngestionService:
         self.repo_path = repo_path
         self.ingester = ChunkIngester(driver, repo_path)
         
-        # Configuration
-        self.doc_patterns = [
-            'docs/**/*.md',
-            'docs/**/*.rst',
-            '*.md',
-            'README.md',
-            'CHANGELOG.md',
-            'CONTRIBUTING.md'
-        ]
-        self.code_patterns = [
-            '**/*.py',
-            '**/*.ts',
-            '**/*.tsx',
-            '**/*.js',
-            '**/*.jsx'
-        ]
+        # Configuration - Phase 0: Use extensions instead of glob patterns
+        self.doc_extensions = ['.md', '.rst']
+        self.code_extensions = ['.py', '.ts', '.tsx', '.js', '.jsx']
         self.exclude_patterns = [
             '**/node_modules/**',
             '**/__pycache__/**',
@@ -48,28 +36,32 @@ class ChunkIngestionService:
         ]
     
     def discover_documents(self) -> List[str]:
-        """Discover markdown documents in the repository."""
-        documents = []
-        
-        for pattern in self.doc_patterns:
-            matches = glob.glob(os.path.join(self.repo_path, pattern), recursive=True)
-            for match in matches:
-                if self._should_include_file(match):
-                    documents.append(match)
-        
-        return sorted(list(set(documents)))
+        """Discover markdown documents in the repository using streaming approach."""
+        documents = list(self._stream_file_discovery(self.doc_extensions))
+        return sorted(documents)
     
     def discover_code_files(self) -> List[str]:
-        """Discover code files in the repository."""
-        code_files = []
+        """Discover code files in the repository using streaming approach."""
+        code_files = list(self._stream_file_discovery(self.code_extensions))
+        return sorted(code_files)
+    
+    def _stream_file_discovery(self, extensions: List[str]) -> Generator[str, None, None]:
+        """Stream file discovery to reduce memory footprint for large repositories.
         
-        for pattern in self.code_patterns:
-            matches = glob.glob(os.path.join(self.repo_path, pattern), recursive=True)
-            for match in matches:
-                if self._should_include_file(match):
-                    code_files.append(match)
-        
-        return sorted(list(set(code_files)))
+        Phase 0 Performance Fix: Replace multiple recursive glob passes with 
+        streaming os.walk approach.
+        """
+        for root, dirs, files in os.walk(self.repo_path):
+            # Filter directories to exclude based on patterns
+            dirs[:] = [d for d in dirs if not self._should_exclude_directory(d)]
+            
+            for file in files:
+                file_path = os.path.join(root, file)
+                
+                # Check if file has matching extension
+                if any(file.endswith(ext) for ext in extensions):
+                    if self._should_include_file(file_path):
+                        yield file_path
     
     def _should_include_file(self, file_path: str) -> bool:
         """Check if file should be included based on exclude patterns."""
@@ -88,9 +80,21 @@ class ChunkIngestionService:
         
         return True
     
+    def _should_exclude_directory(self, dir_name: str) -> bool:
+        """Check if directory should be excluded based on exclude patterns."""
+        for exclude_pattern in self.exclude_patterns:
+            # Convert glob pattern to simple directory name check
+            if '*' in exclude_pattern:
+                pattern_parts = exclude_pattern.split('/')
+                for part in pattern_parts:
+                    if part and '*' in part and fnmatch.fnmatch(dir_name, part):
+                        return True
+            elif dir_name in exclude_pattern:
+                return True
+        return False
+    
     def _matches_pattern(self, path: str, pattern: str) -> bool:
         """Simple pattern matching for exclude patterns."""
-        import fnmatch
         return fnmatch.fnmatch(path, pattern)
     
     def ingest_all_chunks(self, 

@@ -141,7 +141,110 @@ The existing ingesters already implement several relationship derivation pattern
 - **Caching**: Temporal engine includes query result caching
 - **Incremental Updates**: Git history service supports incremental commit analysis
 
-## Consolidated Refactor Tasks - Lean Implementation
+## Consolidated Refactor Tasks - Lean Implementation + Pipeline Optimization
+
+### Phase 0: Pipeline Performance Fixes (Priority: CRITICAL) - 12 hours
+
+#### Task 0.1: Fix Per-Node Transaction Overhead
+**Files**: `developer_graph/enhanced_ingest.py`
+**Effort**: 4 hours
+**Dependencies**: None
+
+**Problem**: EnhancedDevGraphIngester writes each sprint, requirement, document, chunk, and relationship with its own transaction, producing high round-trip overhead.
+
+**Solution**: Implement batch UNWIND writes for all node types.
+
+**Code Changes**:
+```python
+# BEFORE: Per-node transactions
+for sprint in sprints:
+    session.run("MERGE (s:Sprint {number: $number}) SET s.name = $name", ...)
+
+# AFTER: Batch UNWIND writes
+def batch_create_sprints(tx, sprints_data):
+    tx.run("""
+        UNWIND $sprints AS sprint
+        MERGE (s:Sprint {number: sprint.number})
+        SET s.name = sprint.name, s.start_date = sprint.start_date, s.end_date = sprint.end_date
+    """, sprints=sprints_data)
+```
+
+#### Task 0.2: Add Directory Hierarchy Schema
+**Files**: `developer_graph/schema/temporal_schema.py`
+**Effort**: 3 hours
+**Dependencies**: None
+
+**Problem**: Schema only constrains top-level entities without modeling directories, limiting visualization capability.
+
+**Solution**: Add Directory nodes with CONTAINS relationships.
+
+**Schema Changes**:
+```cypher
+// Add Directory constraints and indexes
+CREATE CONSTRAINT IF NOT EXISTS FOR (d:Directory) REQUIRE d.path IS UNIQUE
+CREATE INDEX IF NOT EXISTS FOR (d:Directory) ON (d.path)
+CREATE INDEX IF NOT EXISTS FOR (d:Directory) ON (d.depth)
+
+// Add CONTAINS relationships
+CREATE INDEX IF NOT EXISTS FOR ()-[r:CONTAINS]-() ON (r.timestamp)
+```
+
+#### Task 0.3: Stream File Discovery
+**Files**: `developer_graph/chunk_ingestion.py`
+**Effort**: 3 hours
+**Dependencies**: Task 0.2
+
+**Problem**: Chunk ingestion uses multiple recursive glob passes, generating large intermediate lists for big repositories.
+
+**Solution**: Replace with streaming os.walk approach.
+
+**Code Changes**:
+```python
+# BEFORE: Multiple recursive globs
+doc_files = glob.glob(f"{repo_path}/**/*.md", recursive=True)
+code_files = glob.glob(f"{repo_path}/**/*.py", recursive=True)
+
+# AFTER: Streaming file discovery
+def stream_file_discovery(repo_path, extensions, exclude_patterns):
+    for root, dirs, files in os.walk(repo_path):
+        # Filter directories
+        dirs[:] = [d for d in dirs if not any(fnmatch.fnmatch(d, pattern) for pattern in exclude_patterns)]
+        
+        for file in files:
+            if any(file.endswith(ext) for ext in extensions):
+                yield os.path.join(root, file)
+```
+
+#### Task 0.4: Consolidate Stats Queries
+**Files**: `developer_graph/api.py`
+**Effort**: 2 hours
+**Dependencies**: Task 0.1
+
+**Problem**: /stats endpoint executes many sequential queries, forcing repeated round trips.
+
+**Solution**: Single consolidated query with caching.
+
+**Code Changes**:
+```python
+# BEFORE: Multiple sequential queries
+total_nodes = session.run("MATCH (n) RETURN count(n) as total").single()["total"]
+total_rels = session.run("MATCH ()-[r]->() RETURN count(r) as total").single()["total"]
+node_stats = session.run("MATCH (n) UNWIND labels(n) as label RETURN label as type, count(*) as count").data()
+
+# AFTER: Single consolidated query
+def get_consolidated_stats(session):
+    result = session.run("""
+        MATCH (n)
+        WITH count(n) as total_nodes
+        MATCH ()-[r]->()
+        WITH total_nodes, count(r) as total_rels
+        MATCH (n)
+        UNWIND labels(n) as label
+        WITH total_nodes, total_rels, label, count(*) as count
+        RETURN total_nodes, total_rels, collect({type: label, count: count}) as node_types
+    """).single()
+    return result
+```
 
 ### Phase 1: Critical Fixes (Priority: BLOCKING) - 16 hours
 
@@ -432,18 +535,23 @@ def cleanup_orphaned_nodes(self) -> int
 def detect_duplicate_relationships(self) -> List[Dict]
 ```
 
-## Implementation Timeline - Consolidated
+## Implementation Timeline - Consolidated + Pipeline Optimization
 
-### Week 1: Critical Fixes (16 hours)
+### Week 1: Pipeline Performance Fixes (12 hours)
+- **Days 1-2**: Task 0.1 (Fix Per-Node Transaction Overhead) + Task 0.2 (Add Directory Hierarchy)
+- **Days 3-4**: Task 0.3 (Stream File Discovery) + Task 0.4 (Consolidate Stats Queries)
+- **Day 5**: Integration testing and performance validation
+
+### Week 2: Critical Fixes (16 hours)
 - **Days 1-2**: Task 1.1 (Fix Schema Inconsistency Crisis)
 - **Days 3-4**: Task 1.2 (Fix Analytics Bugs) + Task 1.3 (Evidence-Based Derivation)
 - **Day 5**: Task 1.4 (Relationship Derivation Endpoint)
 
-### Week 2: Bootstrap & Integration (8 hours)
+### Week 3: Bootstrap & Integration (8 hours)
 - **Days 1-2**: Task 2.1 (Lean Bootstrap Endpoint)
 - **Days 3-4**: Task 2.2 (Fix Existing Endpoints)
 
-### Week 3: Performance & Quality (16 hours)
+### Week 4: Performance & Quality (16 hours)
 - **Days 1-2**: Task 3.1 (Optimize Temporal Queries)
 - **Days 3-4**: Task 3.2 (Data Quality Validation)
 - **Day 5**: Integration testing and performance tuning
@@ -459,6 +567,9 @@ def detect_duplicate_relationships(self) -> List[Dict]
 - [ ] Evidence-based relationship derivation with confidence scoring
 
 ### Performance Requirements
+- [ ] **PIPELINE**: Ingest 10k commits in <5 minutes on standard hardware
+- [ ] **PIPELINE**: /stats endpoint responds in <500ms after caching warm-up
+- [ ] **PIPELINE**: Directory queries return within 200ms for paths ≤10 levels deep
 - [ ] Windowed subgraph queries <300ms for 30-day windows
 - [ ] Full-text search <100ms for typical queries
 - [ ] Sprint subgraph queries <200ms
@@ -540,10 +651,30 @@ def detect_duplicate_relationships(self) -> List[Dict]
 
 ---
 
-**Total Estimated Effort**: 40 hours (vs. 120 hours in original plan)
-**Critical Path**: Schema fixes → Derivation pipeline → Performance optimization
+**Total Estimated Effort**: 52 hours (vs. 120 hours in original plan)
+**Critical Path**: Pipeline performance → Schema fixes → Derivation pipeline → Performance optimization
 **Dependencies**: None (can start immediately)
 **Rollback Plan**: Full database backup + migration rollback script
+
+## Pipeline Audit Integration Summary
+
+### **🚀 Performance Improvements**
+- **Batch Operations**: Eliminate per-node transaction overhead (4x faster ingestion)
+- **Streaming File Discovery**: Reduce memory footprint for large repositories
+- **Consolidated Queries**: Single query for stats endpoint (5x faster response)
+- **Directory Hierarchy**: Enable robust visualizations with proper parent/child relationships
+
+### **📊 New Capabilities**
+- **Directory Navigation**: Tree structure for better visualization
+- **Hierarchical Relationships**: CONTAINS relationships for files and subdirectories
+- **Streaming Processing**: Handle large repositories without memory issues
+- **Cached Analytics**: Fast stats endpoint with short-lived caching
+
+### **⚡ Immediate Impact**
+- **Week 1**: 4x faster ingestion, 5x faster stats, directory hierarchy
+- **Week 2**: Schema consistency, evidence-based relationships
+- **Week 3**: Unified bootstrap, fixed endpoints
+- **Week 4**: Performance optimization, data quality validation
 
 ## Evidence-Based Relationship Derivation Logic
 

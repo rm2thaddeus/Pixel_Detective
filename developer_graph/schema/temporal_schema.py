@@ -22,6 +22,9 @@ def apply_schema(driver: Driver) -> None:
         session.run("CREATE CONSTRAINT IF NOT EXISTS FOR (d:Document) REQUIRE d.path IS UNIQUE")
         session.run("CREATE CONSTRAINT IF NOT EXISTS FOR (s:Sprint) REQUIRE s.number IS UNIQUE")
         
+        # Phase 0: Directory hierarchy constraints
+        session.run("CREATE CONSTRAINT IF NOT EXISTS FOR (dir:Directory) REQUIRE dir.path IS UNIQUE")
+        
         # Phase 1: Performance indexes for time-bounded queries
         session.run("CREATE INDEX IF NOT EXISTS FOR (c:GitCommit) ON (c.timestamp)")
         # Legacy index kept for compatibility in mixed graphs; prefer GitCommit
@@ -32,6 +35,10 @@ def apply_schema(driver: Driver) -> None:
         session.run("CREATE INDEX IF NOT EXISTS FOR (d:Document) ON (d.path)")
         session.run("CREATE INDEX IF NOT EXISTS FOR (s:Sprint) ON (s.number)")
         
+        # Phase 0: Directory hierarchy indexes
+        session.run("CREATE INDEX IF NOT EXISTS FOR (dir:Directory) ON (dir.path)")
+        session.run("CREATE INDEX IF NOT EXISTS FOR (dir:Directory) ON (dir.depth)")
+        
         # Relationship indexes for temporal queries
         session.run("CREATE INDEX IF NOT EXISTS FOR ()-[r:TOUCHED]-() ON (r.timestamp)")
         session.run("CREATE INDEX IF NOT EXISTS FOR ()-[r:IMPLEMENTS]-() ON (r.timestamp)")
@@ -39,6 +46,9 @@ def apply_schema(driver: Driver) -> None:
         session.run("CREATE INDEX IF NOT EXISTS FOR ()-[r:REFACTORED_TO]-() ON (r.timestamp)")
         session.run("CREATE INDEX IF NOT EXISTS FOR ()-[r:DEPRECATED_BY]-() ON (r.timestamp)")
         session.run("CREATE INDEX IF NOT EXISTS FOR ()-[r:LINKS_TO]-() ON (r.timestamp)")
+        
+        # Phase 0: Directory hierarchy relationship indexes
+        session.run("CREATE INDEX IF NOT EXISTS FOR ()-[r:CONTAINS]-() ON (r.timestamp)")
 
         # Phase 1: Vector index for semantic search on Chunk embeddings
         try:
@@ -485,4 +495,100 @@ def relate_requirement_implements_file_enhanced(
         timestamp=timestamp,
         provenance=provenance,
     )
+
+
+# -------------------- Phase 0: Directory Hierarchy Helpers --------------------
+
+def merge_directory(tx, directory_info: Dict[str, object]):
+    """Merge a Directory node with hierarchy information.
+    
+    Expected keys: path, depth, parent_path (optional)
+    """
+    tx.run(
+        """
+        MERGE (d:Directory {path: $path})
+        ON CREATE SET d.depth = $depth,
+                      d.uid = $uid,
+                      d.parent_path = $parent_path
+        ON MATCH SET d.depth = coalesce($depth, d.depth),
+                     d.uid = coalesce($uid, d.uid),
+                     d.parent_path = coalesce($parent_path, d.parent_path)
+        """,
+        path=directory_info["path"],
+        depth=directory_info.get("depth", 0),
+        uid=str(directory_info["path"]) if "path" in directory_info else None,
+        parent_path=directory_info.get("parent_path"),
+    )
+
+
+def relate_directory_contains_file(tx, directory_path: str, file_path: str, timestamp: str = None):
+    """Create CONTAINS relationship between directory and file."""
+    tx.run(
+        """
+        MATCH (d:Directory {path: $dir_path})
+        MERGE (f:File {path: $file_path})
+        MERGE (d)-[r:CONTAINS]->(f)
+        ON CREATE SET r.timestamp = $timestamp
+        ON MATCH SET r.timestamp = coalesce($timestamp, r.timestamp)
+        """,
+        dir_path=directory_path,
+        file_path=file_path,
+        timestamp=timestamp,
+    )
+
+
+def relate_directory_contains_directory(tx, parent_path: str, child_path: str, timestamp: str = None):
+    """Create CONTAINS relationship between parent and child directories."""
+    tx.run(
+        """
+        MATCH (parent:Directory {path: $parent_path})
+        MATCH (child:Directory {path: $child_path})
+        MERGE (parent)-[r:CONTAINS]->(child)
+        ON CREATE SET r.timestamp = $timestamp
+        ON MATCH SET r.timestamp = coalesce($timestamp, r.timestamp)
+        """,
+        parent_path=parent_path,
+        child_path=child_path,
+        timestamp=timestamp,
+    )
+
+
+def create_directory_hierarchy(tx, file_paths: List[str], timestamp: str = None):
+    """Create complete directory hierarchy from file paths.
+    
+    This function analyzes file paths and creates all necessary Directory nodes
+    and CONTAINS relationships to build a complete hierarchy.
+    """
+    # Extract all unique directory paths from file paths
+    directories = set()
+    for file_path in file_paths:
+        path_parts = file_path.replace("\\", "/").split("/")
+        for i in range(1, len(path_parts)):  # Skip filename, include all parent dirs
+            dir_path = "/".join(path_parts[:i])
+            if dir_path:  # Skip empty paths
+                directories.add(dir_path)
+    
+    # Create directory nodes with depth information
+    for dir_path in sorted(directories):
+        depth = dir_path.count("/")
+        parent_path = "/".join(dir_path.split("/")[:-1]) if "/" in dir_path else None
+        
+        merge_directory(tx, {
+            "path": dir_path,
+            "depth": depth,
+            "parent_path": parent_path
+        })
+    
+    # Create CONTAINS relationships for directories
+    for dir_path in sorted(directories):
+        depth = dir_path.count("/")
+        if depth > 0:  # Not root directory
+            parent_path = "/".join(dir_path.split("/")[:-1])
+            relate_directory_contains_directory(tx, parent_path, dir_path, timestamp)
+    
+    # Create CONTAINS relationships for files
+    for file_path in file_paths:
+        dir_path = "/".join(file_path.replace("\\", "/").split("/")[:-1])
+        if dir_path:  # File has a parent directory
+            relate_directory_contains_file(tx, dir_path, file_path, timestamp)
 
