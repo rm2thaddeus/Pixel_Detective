@@ -598,11 +598,11 @@ class EnhancedGitIngester:
                 if (file_name in sprint_name or 
                     any(part in sprint_name for part in file_path.split('/') if len(part) > 3)):
                     
-                    # Create TOUCHED relationship (structural mention signal)
+                    # Create MENTIONS relationship (structural mention signal)
                     tx.run("""
                         MATCH (s:Sprint {number: $sprint_num})
                         MATCH (f:File {path: $file_path})
-                        MERGE (s)-[t:TOUCHED {type: 'mentions'}]->(f)
+                        MERGE (s)-[t:MENTIONS]->(f)
                     """, sprint_num=sprint_num, file_path=file_path)
                     touches_count += 1
         
