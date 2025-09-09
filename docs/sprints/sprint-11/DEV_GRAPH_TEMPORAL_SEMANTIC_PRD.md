@@ -57,6 +57,9 @@ Status: **IMPLEMENTATION COMPLETE** - Phase 1 & 2 Delivered with Complete Tempor
 - ✅ `/api/v1/dev-graph/ingest/parallel` - **NEW: Optimized parallel ingestion**
 - ✅ `/api/v1/dev-graph/reset` - Database reset with confirmation
 - ✅ `/api/v1/dev-graph/ingest/bootstrap` - Updated to use parallel pipeline
+ - ✅ `/api/v1/dev-graph/ingest/derive-relationships` - Evidence-based derivation with confidence
+ - ✅ `/api/v1/analytics` - Combined analytics (activity, graph, traceability)
+ - ✅ `/api/v1/dev-graph/evolution/timeline` - Time-based commit/file evolution view
 
 ### 🎯 **Next Phase Priorities**
 - **Phase 3: Embeddings** - Integrate ML service for chunk embeddings
@@ -160,7 +163,8 @@ Relationships
 - (Chunk {kind:'doc'})-[:LINKS_TO {method, score, sources, confidence, timestamp, provenance}]->(Chunk {kind:'code'})
 - (Requirement)-[:EVOLVES_FROM {sources, confidence, commit?, timestamp, diff_summary?}]->(Requirement)
 - (Sprint)-[:CONTAINS_DOC]->(Document)
-- (Document)-[:REFERENCES]->(Requirement|Sprint|Document) (optional)
+ - (Document)-[:REFERENCES]->(Requirement|Sprint|Document) (optional)
+ - (Sprint)-[:MENTIONS]->(File) (structural, planning reference; non-temporal)
 - (GitCommit)-[:BY]->(GitAuthor) (optional)
 
 Indexes & Constraints (Neo4j)

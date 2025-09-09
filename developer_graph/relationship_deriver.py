@@ -229,9 +229,24 @@ class RelationshipDeriver:
     @staticmethod
     def _calculate_confidence_stats(tx) -> Dict[str, Any]:
         """Calculate confidence statistics for derived relationships."""
+        # Check if confidence relationships exist first
+        check_result = tx.run("""
+            MATCH ()-[r]->()
+            WHERE r.confidence IS NOT NULL
+            RETURN count(r) as total_with_confidence
+        """).single()
+        
+        if not check_result or check_result["total_with_confidence"] == 0:
+            return {
+                "avg_confidence": 0.0,
+                "high_confidence": 0,
+                "medium_confidence": 0,
+                "low_confidence": 0
+            }
+        
         result = tx.run(
             """
-            MATCH ()-[r:IMPLEMENTS|EVOLVES_FROM|DEPENDS_ON]->()
+            MATCH ()-[r]->()
             WHERE r.confidence IS NOT NULL
             RETURN avg(r.confidence) as avg_confidence,
                    count(CASE WHEN r.confidence >= 0.8 THEN 1 END) as high_confidence,

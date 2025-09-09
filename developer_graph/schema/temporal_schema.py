@@ -47,6 +47,10 @@ def apply_schema(driver: Driver) -> None:
         session.run("CREATE INDEX IF NOT EXISTS FOR ()-[r:DEPRECATED_BY]-() ON (r.timestamp)")
         session.run("CREATE INDEX IF NOT EXISTS FOR ()-[r:LINKS_TO]-() ON (r.timestamp)")
         
+        # Phase 2: Commit ordering relationship indexes
+        session.run("CREATE INDEX IF NOT EXISTS FOR ()-[r:NEXT_COMMIT]-() ON (r.timestamp)")
+        session.run("CREATE INDEX IF NOT EXISTS FOR ()-[r:PREV_COMMIT]-() ON (r.timestamp)")
+        
         # Phase 0: Directory hierarchy relationship indexes
         session.run("CREATE INDEX IF NOT EXISTS FOR ()-[r:CONTAINS]-() ON (r.timestamp)")
 
@@ -591,4 +595,115 @@ def create_directory_hierarchy(tx, file_paths: List[str], timestamp: str = None)
         dir_path = "/".join(file_path.replace("\\", "/").split("/")[:-1])
         if dir_path:  # File has a parent directory
             relate_directory_contains_file(tx, dir_path, file_path, timestamp)
+
+
+# Phase 2: Commit ordering helper functions
+def create_commit_ordering(tx, commits: list) -> None:
+    """Create NEXT_COMMIT and PREV_COMMIT relationships between commits.
+    
+    Args:
+        commits: List of commit dictionaries with 'hash' and 'timestamp' keys
+    """
+    if len(commits) < 2:
+        return
+    
+    # Sort commits by timestamp to ensure proper ordering
+    sorted_commits = sorted(commits, key=lambda x: x['timestamp'])
+    
+    # Create NEXT_COMMIT relationships (current -> next)
+    for i in range(len(sorted_commits) - 1):
+        current_hash = sorted_commits[i]['hash']
+        next_hash = sorted_commits[i + 1]['hash']
+        timestamp = sorted_commits[i + 1]['timestamp']  # Use next commit's timestamp
+        
+        tx.run("""
+            MATCH (current:GitCommit {hash: $current_hash})
+            MATCH (next:GitCommit {hash: $next_hash})
+            MERGE (current)-[r:NEXT_COMMIT]->(next)
+            SET r.timestamp = $timestamp
+        """, current_hash=current_hash, next_hash=next_hash, timestamp=timestamp)
+    
+    # Create PREV_COMMIT relationships (current -> previous)
+    for i in range(1, len(sorted_commits)):
+        current_hash = sorted_commits[i]['hash']
+        prev_hash = sorted_commits[i - 1]['hash']
+        timestamp = sorted_commits[i]['timestamp']  # Use current commit's timestamp
+        
+        tx.run("""
+            MATCH (current:GitCommit {hash: $current_hash})
+            MATCH (prev:GitCommit {hash: $prev_hash})
+            MERGE (current)-[r:PREV_COMMIT]->(prev)
+            SET r.timestamp = $timestamp
+        """, current_hash=current_hash, prev_hash=prev_hash, timestamp=timestamp)
+
+
+def get_commit_sequence(tx, start_hash: str, direction: str = "next", limit: int = 10) -> list:
+    """Get a sequence of commits in chronological order.
+    
+    Args:
+        start_hash: Hash of the starting commit
+        direction: "next" for forward, "prev" for backward
+        limit: Maximum number of commits to return
+        
+    Returns:
+        List of commit dictionaries with hash, message, author, timestamp
+    """
+    if direction == "next":
+        rel_type = "NEXT_COMMIT"
+        query = f"""
+            MATCH (start:GitCommit {{hash: $start_hash}})
+            MATCH path = (start)-[:{rel_type}*1..{limit}]->(end:GitCommit)
+            RETURN [node in nodes(path) | {{
+                hash: node.hash,
+                message: node.message,
+                author: node.author,
+                timestamp: node.timestamp
+            }}] as commits
+        """
+    else:  # prev
+        rel_type = "PREV_COMMIT"
+        query = f"""
+            MATCH (start:GitCommit {{hash: $start_hash}})
+            MATCH path = (start)-[:{rel_type}*1..{limit}]->(end:GitCommit)
+            RETURN [node in nodes(path) | {{
+                hash: node.hash,
+                message: node.message,
+                author: node.author,
+                timestamp: node.timestamp
+            }}] as commits
+        """
+    
+    result = tx.run(query, start_hash=start_hash)
+    record = result.single()
+    return record["commits"] if record else []
+
+
+def get_commit_timeline(tx, from_timestamp: str, to_timestamp: str, limit: int = 100) -> list:
+    """Get commits in a time window with ordering relationships.
+    
+    Args:
+        from_timestamp: Start timestamp (ISO format)
+        to_timestamp: End timestamp (ISO format)
+        limit: Maximum number of commits to return
+        
+    Returns:
+        List of commit dictionaries with hash, message, author, timestamp, next_hash, prev_hash
+    """
+    query = """
+        MATCH (c:GitCommit)
+        WHERE c.timestamp >= $from_ts AND c.timestamp <= $to_ts
+        OPTIONAL MATCH (c)-[:NEXT_COMMIT]->(next:GitCommit)
+        OPTIONAL MATCH (c)<-[:PREV_COMMIT]-(prev:GitCommit)
+        RETURN c.hash as hash,
+               c.message as message,
+               c.author as author,
+               c.timestamp as timestamp,
+               next.hash as next_hash,
+               prev.hash as prev_hash
+        ORDER BY c.timestamp
+        LIMIT $limit
+    """
+    
+    result = tx.run(query, from_ts=from_timestamp, to_ts=to_timestamp, limit=limit)
+    return [dict(record) for record in result]
 

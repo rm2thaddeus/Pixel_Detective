@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from typing import Optional
+from typing import Optional, List
 from fastapi import APIRouter, Query, HTTPException
 from ..app_state import driver, git, engine
+from ..schema.temporal_schema import get_commit_sequence, get_commit_timeline
 import logging
 
 
@@ -138,4 +139,131 @@ def file_history(path: str, limit: int = Query(200, le=2000)):
 @router.get("/api/v1/dev-graph/subgraph/by-commits")
 def time_bounded_subgraph(start_commit: Optional[str] = None, end_commit: Optional[str] = None, limit: int = Query(500, ge=1, le=5000), offset: int = Query(0, ge=0)):
     return engine.time_bounded_subgraph(start_commit=start_commit, end_commit=end_commit, limit=limit, offset=offset)
+
+
+# Phase 2: Commit ordering endpoints
+@router.get("/api/v1/dev-graph/commits/sequence")
+def get_commit_sequence_endpoint(
+    start_hash: str = Query(..., description="Hash of the starting commit"),
+    direction: str = Query("next", description="Direction: 'next' for forward, 'prev' for backward"),
+    limit: int = Query(10, ge=1, le=100, description="Maximum number of commits to return")
+):
+    """Get a sequence of commits in chronological order using NEXT_COMMIT/PREV_COMMIT relationships.
+    
+    Phase 2: Commit ordering for timeline navigation.
+    """
+    try:
+        with driver.session() as session:
+            commits = session.execute_read(get_commit_sequence, start_hash, direction, limit)
+            return {
+                "success": True,
+                "commits": commits,
+                "count": len(commits),
+                "direction": direction,
+                "start_hash": start_hash
+            }
+    except Exception as e:
+        logger.error(f"Failed to get commit sequence: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/api/v1/dev-graph/commits/timeline")
+def get_commit_timeline_endpoint(
+    from_timestamp: str = Query(..., description="Start timestamp (ISO format)"),
+    to_timestamp: str = Query(..., description="End timestamp (ISO format)"),
+    limit: int = Query(100, ge=1, le=1000, description="Maximum number of commits to return")
+):
+    """Get commits in a time window with ordering relationships.
+    
+    Phase 2: Timeline view with commit ordering for UI navigation.
+    """
+    try:
+        with driver.session() as session:
+            commits = session.execute_read(get_commit_timeline, from_timestamp, to_timestamp, limit)
+            return {
+                "success": True,
+                "commits": commits,
+                "count": len(commits),
+                "from_timestamp": from_timestamp,
+                "to_timestamp": to_timestamp
+            }
+    except Exception as e:
+        logger.error(f"Failed to get commit timeline: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/api/v1/dev-graph/commits/next/{commit_hash}")
+def get_next_commit(commit_hash: str):
+    """Get the next commit in chronological order.
+    
+    Phase 2: Simple navigation to next commit.
+    """
+    try:
+        with driver.session() as session:
+            result = session.run("""
+                MATCH (c:GitCommit {hash: $commit_hash})-[:NEXT_COMMIT]->(next:GitCommit)
+                RETURN next.hash as hash,
+                       next.message as message,
+                       next.author as author,
+                       next.timestamp as timestamp
+            """, commit_hash=commit_hash)
+            
+            record = result.single()
+            if record:
+                return {
+                    "success": True,
+                    "next_commit": {
+                        "hash": record["hash"],
+                        "message": record["message"],
+                        "author": record["author"],
+                        "timestamp": record["timestamp"]
+                    }
+                }
+            else:
+                return {
+                    "success": True,
+                    "next_commit": None,
+                    "message": "No next commit found (this is the latest commit)"
+                }
+    except Exception as e:
+        logger.error(f"Failed to get next commit: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/api/v1/dev-graph/commits/prev/{commit_hash}")
+def get_prev_commit(commit_hash: str):
+    """Get the previous commit in chronological order.
+    
+    Phase 2: Simple navigation to previous commit.
+    """
+    try:
+        with driver.session() as session:
+            result = session.run("""
+                MATCH (c:GitCommit {hash: $commit_hash})-[:PREV_COMMIT]->(prev:GitCommit)
+                RETURN prev.hash as hash,
+                       prev.message as message,
+                       prev.author as author,
+                       prev.timestamp as timestamp
+            """, commit_hash=commit_hash)
+            
+            record = result.single()
+            if record:
+                return {
+                    "success": True,
+                    "prev_commit": {
+                        "hash": record["hash"],
+                        "message": record["message"],
+                        "author": record["author"],
+                        "timestamp": record["timestamp"]
+                    }
+                }
+            else:
+                return {
+                    "success": True,
+                    "prev_commit": None,
+                    "message": "No previous commit found (this is the earliest commit)"
+                }
+    except Exception as e:
+        logger.error(f"Failed to get previous commit: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 

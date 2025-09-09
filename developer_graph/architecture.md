@@ -1,127 +1,114 @@
-Developer Graph API — Architecture and Performance Guide
+Developer Graph API — Architecture Overview
 
-Overview
-- Purpose: Provide a temporal, traceable knowledge graph of development activity (code, commits, requirements, docs) for fast data visualization and analytics.
-- Tech: FastAPI + Neo4j. Temporal edges store `timestamp` to enable bounded subgraphs and timelines. Git is the source of truth for time.
+Status: Current as of modularization and Phase 1 fixes
 
-Domain Model
-- Node Labels:
-  - GitCommit: `hash`, `author`, `message`, `timestamp`, `branch`, `uid`.
-  - File: `path`, `language`, `uid`.
-  - Requirement: `id`, `title`, `author`, `date_created`, `goal_alignment`, `tags`, `uid`.
-  - Document: `path`, optional derived fields; used for sprint and doc-chunk hierarchy.
-  - Chunk: `id`, content‑oriented slices for doc granularity.
-  - Sprint: `number`, `start_date`, `end_date` (resolved by mapper at query time).
+1. Overview
+- Purpose: Provide time‑aware developer graph APIs with unified temporal schema, fast ingestion, analytics, and evidence‑based relationships.
+- Tech: FastAPI (routers), Neo4j 5.x, GitPython, Python 3.x.
+- Key Concepts: Temporal edges with timestamps (TOUCHED/IMPLEMENTS/EVOLVES_FROM), evidence sources with confidence.
 
-- Relationships (all may carry `timestamp` when applicable):
-  - (GitCommit)-[:TOUCHED {change_type, timestamp}]->(File)
-  - (Requirement)-[:IMPLEMENTS {commit, timestamp}]->(File)
-  - (Requirement)-[:EVOLVES_FROM {commit, diff_summary, timestamp}]->(Requirement)
-  - (File)-[:REFACTORED_TO {commit, refactor_type, timestamp}]->(File)
-  - (A)-[:DEPRECATED_BY {commit, reason, timestamp}]->(B) where A,B can be Requirement or File
-  - Structural: (Sprint)-[:CONTAINS_DOC]->(Document), (Document)-[:CONTAINS_CHUNK]->(Chunk), (Chunk)-[:MENTIONS]->(Requirement)
+2. High‑Level Components
+- app_state.py: Initializes shared services and driver
+  - driver: Neo4j driver
+  - git: GitHistoryService
+  - engine: TemporalEngine
+  - sprint_mapper: SprintMapper
+  - deriver: RelationshipDeriver
+  - validator: DataValidator
+  - chunk_service: ChunkIngestionService
+  - embedding_service: EmbeddingService
+  - parallel_pipeline: ParallelIngestionPipeline
+- Routers (developer_graph/routes)
+  - health_stats: health, stats
+  - nodes_relations: nodes, relations
+  - search: property and fulltext search
+  - commits_timeline: commits list, timeline, commit detail, file history, subgraph by commit range
+  - sprints: sprints list, sprint map, sprint details, sprint subgraph
+  - graph: windowed subgraph, commit buckets
+  - analytics: activity, graph, combined analytics
+  - ingest: bootstrap, docs, git ingestion (enhanced/batched/temporal semantic), parallel ingest, chunks, derive relationships, embeddings
+  - chunks: chunk stats/list
+  - metrics: engine metrics
+  - validate: schema/data validation & cleanup helpers
+  - admin: reset/cleanup/full‑reset
 
-Stable Node Identity
-- Problem: Prior versions derived IDs differently client‑side, causing instability and mismatches.
-- Change: All core nodes now persist `uid`:
-  - GitCommit.uid = hash
-  - File.uid = path
-  - Requirement.uid = id
-- API prefers `uid` as the returned `id` to stabilize linking and visualization.
+3. Data Model (Temporal Semantic)
+- Nodes
+  - GitCommit {hash, message, author, timestamp, branch?, uid}
+  - File {path, language?, is_code?, is_doc?, extension?, uid}
+  - Requirement {id, title?, description?, author?, date_created?, tags?, uid}
+  - Document {path, name?, title?, type?, uid}
+  - Chunk {id, doc_path?, heading?, level?, ordinal?, content_preview?, length?, kind?, text?, embedding?, uid}
+  - Sprint {number, name?, start_date?, end_date?, uid}
+- Relationships (selected)
+  - (GitCommit)-[:TOUCHED {change_type, additions?, deletions?, timestamp}]->(File)
+  - (Requirement)-[:IMPLEMENTS {sources, confidence, commit?, timestamp, provenance?}]->(File)
+  - (Requirement)-[:EVOLVES_FROM {sources, confidence, commit?, timestamp, diff_summary?}]->(Requirement)
+  - (File)-[:REFACTORED_TO {commit, refactor_type?, timestamp}]->(File)
+  - (Sprint)-[:INCLUDES]->(GitCommit)
+  - (Sprint)-[:CONTAINS_DOC]->(Document)
+  - (Document)-[:CONTAINS_CHUNK]->(Chunk)
+  - (Chunk)-[:MENTIONS]->(Requirement)
+  - (Sprint)-[:MENTIONS]->(File) (structural planning reference)
 
-Schema and Indexing
-- Constraints:
-  - UNIQUE: GitCommit.hash, File.path, Requirement.id, Chunk.id
-- Property Indexes:
-  - GitCommit.timestamp, Commit.timestamp (compat), File.path, Requirement.id, Chunk.id
-- Relationship Indexes (temporal):
-  - TOUCHED.timestamp, IMPLEMENTS.timestamp, EVOLVES_FROM.timestamp, REFACTORED_TO.timestamp, DEPRECATED_BY.timestamp
-- Full‑Text Indexes (new):
-  - file_fulltext on File(path)
-  - requirement_fulltext on Requirement(id, title)
-  - commit_fulltext on GitCommit(message, author)
+4. Schema & Indexing
+- Constraints: unique on GitCommit.hash, File.path, Requirement.id, Chunk.id, Document.path, Sprint.number
+- Property Indexes: GitCommit.timestamp, File.path, Requirement.id, Chunk.id
+- Relationship Indexes: timestamp index on TOUCHED/IMPLEMENTS/EVOLVES_FROM/DEPRECATED_BY/REFACTORED_TO
+- Fulltext: file_fulltext, requirement_fulltext, commit_fulltext, chunk_fulltext, document_fulltext
+- Vector: Chunk.embedding (cosine), 512 dims (if available)
 
-API Surface (key routes)
-- Retrieval
-  - GET /api/v1/dev-graph/nodes: label‑filtered list with pagination (offset/limit). For large graphs, prefer subgraph endpoints.
-  - GET /api/v1/dev-graph/relations: relation list with optional type and start Neo4j internal id; prefer windowed subgraph.
-  - GET /api/v1/dev-graph/graph/subgraph: time‑bounded subgraph with type filtering and cursor pagination; returns nodes, edges, counts, perf.
-  - GET /api/v1/dev-graph/commits/buckets: bucketized commit activity (day|week) for timeline prefetch/caching.
-  - GET /api/v1/dev-graph/search: fallback scan search (small datasets only).
-  - NEW GET /api/v1/dev-graph/search/fulltext: fast full‑text search over File/Requirement/GitCommit using FT indexes.
-- Git helpers
-  - GET /api/v1/dev-graph/commits, /commit/{hash}, /file/history
-- Evolution/Traceability
-  - GET /api/v1/dev-graph/evolution/requirement/{id}
-  - GET /api/v1/dev-graph/evolution/file?path=...
-  - GET /api/v1/analytics/activity, /api/v1/analytics/graph, /api/v1/analytics/traceability
+5. Ingestion Flows
+- TemporalEngine (developer_graph/temporal_engine.py)
+  - ingest_recent_commits, *_batched, *_parallel
+  - time_bounded_subgraph, get_commits_buckets, evolution timelines
+  - Creates GitCommit + File + TOUCHED(timestamp), derives IMPLEMENTS from commit messages; detects refactors
+- EnhancedDevGraphIngester (developer_graph/enhanced_ingest.py)
+  - Sprints, documents, chunk extraction, mentions, references
+  - Batch UNWIND operations for performance
+- EnhancedGitIngester (developer_graph/enhanced_git_ingest.py)
+  - Commit analysis and provenance; sprint rollups; doc chunk modifications
+  - Uses GitCommit + TOUCHED(timestamp), and structural MENTIONS for planning
+- Bootstrap (routes/ingest.py)
+  - Apply schema → enhanced docs → parallel commit ingest → sprint mapping → optional chunking → relationship derivation
 
-Performance Audit and Bottlenecks
-- Full Scan Search: `/search` uses `any(prop in keys(n) ...)` which forces label‑agnostic scans. Use `/search/fulltext` instead.
-- Skip/Limit on Large Sets: `SKIP` suffers on big edge sets. For interactive timelines use keyset pagination: `ORDER BY r.timestamp DESC, r.commit` with a cursor `{last_ts, last_commit}` to avoid deep skips.
-- Unstable IDs: Client deduced IDs from mixed properties, breaking link reuse and cache. Now `uid` normalizes identity.
-- Label‑less Patterns: `MATCH (a)-[r]->(b)` has poor selectivity. Prefer label‑constrained patterns and temporal predicates when practical.
-- Missing Hints for Viz: Nodes often lacked `x`, `y`, `size`. The subgraph endpoint now ensures deterministic coordinates and default sizes by label to stabilize rendering.
+6. Evidence‑Based Relationship Derivation
+- RelationshipDeriver (developer_graph/relationship_deriver.py)
+  - IMPLEMENTS: commit‑message (0.9), doc‑mention (0.6), code‑comment proxy (0.8)
+  - EVOLVES_FROM: pattern extraction from commit messages (replaces/evolves from/supersedes)
+  - DEPENDS_ON: import graph best‑effort mapping (when File‑[:IMPORTS]->File exists)
+  - Confidence accumulation: `1 - (1 - prev) * (1 - new)`; sources appended
+  - Watermarks: maintain `DerivationWatermark` per strategy
 
-Recommended Query Patterns
-- Time‑bounded subgraph (use indexes):
-  - Predicate: `r.timestamp IS NOT NULL AND r.timestamp >= $from AND r.timestamp <= $to`
-  - Constrain with labels when feasible: `(c:GitCommit)-[r:TOUCHED]->(f:File)`
-- Keyset pagination for edges:
-  - First page: `ORDER BY r.timestamp DESC LIMIT $limit`
-  - Next page: add `AND (r.timestamp < $last_ts OR (r.timestamp = $last_ts AND r.commit < $last_commit))`
-- Full‑text search:
-  - `CALL db.index.fulltext.queryNodes('requirement_fulltext', $q)`; follow with label‑specific expansions.
+7. API Contracts (selected)
+- GET /api/v1/dev-graph/health: HealthResponse
+- GET /api/v1/dev-graph/stats: StatsResponse (consolidated query)
+- GET /api/v1/dev-graph/graph/subgraph: WindowedSubgraphResponse
+- GET /api/v1/dev-graph/commits/buckets: CommitsBucketsResponse
+- GET /api/v1/dev-graph/evolution/timeline: commits + file lifecycles (actions via coalesce(action, change_type))
+- POST /api/v1/dev-graph/ingest/bootstrap: staged bootstrap; returns per‑stage progress
+- POST /api/v1/dev-graph/ingest/derive-relationships: counts + confidence stats
 
-Ingestion Pipeline
-- Source: Git via GitPython (`GitHistoryService`)
-- Flow: Read commits -> `merge_commit` -> touched files -> `merge_file` -> `relate_commit_touched_file`
-- Requirement references: Extract FR-/NFR- patterns from messages; `merge_requirement`, `relate_implements`.
-- Evolution signals: Simple heuristics for `EVOLVES_FROM`, `DEPRECATED_BY` and file renames for `REFACTORED_TO`.
-- Schema: `apply_schema()` creates constraints, indexes, and full‑text indexes.
+8. Performance & Caching
+- Engine TTL cache (default 60s) for hot subgraphs
+- Consolidated stats query (single round‑trip)
+- Batched UNWIND writes across ingesters
+- Parallel ingestion pipeline for commits and chunks
 
-Visualization‑Oriented Node Properties
-- `uid`: stable identity for nodes in client graphs
-- `labels`: returned on subgraph nodes for consistent coloring/typing
-- Coordinates: subgraph provides deterministic `x`,`y` fallback based on `uid` hash
-- `size`: lightweight defaults by label (Requirement > File > Commit > Document/Chunk)
+9. Logging & Telemetry
+- Logging to stdout + file `dev_graph_api.log`
+- /api/v1/dev-graph/metrics exposes basic engine metrics; health includes memory usage
 
-Concrete Optimizations to Implement (High Impact)
-- Replace `/search` usage with `/search/fulltext` in the UI.
-- Prefer `/graph/subgraph` for primary data fetch. Avoid raw `/relations` in the UI unless tightly filtered by type and time.
-- Add keyset pagination to `/graph/subgraph` (cursor as `{ts, rel_type, commit}`) to eliminate deep `SKIP`.
-- Add label constraints in heavy queries:
-  - e.g., analytics edge counts: split by type already; ensure covered by `r.timestamp` index predicate.
-- Cache layer (optional):
-  - Server‑side LRU memo for recent windowed subgraphs keyed by `{from,to,types,limit,cursor}` for short bursts.
-  - Precompute commit buckets daily and cache for quick timeline loads.
+10. Operational Notes
+- Environment:
+  - NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD
+  - REPO_PATH
+  - TEMPORAL_LIMIT (optional)
+- Security/CORS: env `CORS_ORIGINS` overrides default localhost origins
 
-Schema Extensions (Optional, for richer viz)
-- Author node: `(GitAuthor {email,name})` and `(GitCommit)-[:BY]->(GitAuthor)` to power author‑centric views and reuse strings.
-- Directory hierarchy: `(Folder {path})` with `(Folder)-[:CONTAINS]->(File)` for structure layouts.
-- Topic/Tag nodes: normalize `Requirement.tags` to nodes to cluster by themes.
+11. Extensibility Guidelines
+- Add a new router under `developer_graph/routes/` and include it in `developer_graph/api.py`
+- Access shared services via `developer_graph/app_state.*`
+- Keep endpoint paths stable to avoid FE breakage; add versioned variants if contracts change
+- For new relationship derivations, add a strategy to RelationshipDeriver with clear source + confidence math
 
-Operational Notes
-- Neo4j tuning: ensure pagecache (~graph size), enable metrics; for large datasets consider 5.x and GDS for centrality precomputes.
-- Data volume expectations: edges with timestamps dominate timelines; indexes on rel.timestamps are already created to keep these fast.
-- Security: current config can run without password in dev; configure `NEO4J_PASSWORD` in production.
-
-Known Gaps / Next Steps
-- Implement keyset cursor in `/graph/subgraph` to avoid `SKIP`.
-- Add an init endpoint to trigger `apply_schema()` at startup or during migrations.
-- Expand full‑text to Documents/Chunks if needed for content search.
-- Consider projections via GDS for community detection precomputation (cached attributes on nodes for layout seeding).
-
-Frontend Contract Summary
-- Primary graph endpoint: `/api/v1/dev-graph/graph/subgraph` with cursor pagination (move to keyset cursor `{last_ts, last_commit}` for scale).
-- Timeline density: `/api/v1/dev-graph/commits/buckets` (day/week) feeding canvas timeline and range selection.
-- Evolution detail: `/api/v1/dev-graph/evolution/file` and `/api/v1/dev-graph/evolution/requirement/{id}`.
-- Sprint hierarchy: `/api/v1/dev-graph/sprints/{number}/subgraph`.
-- Search: `/api/v1/dev-graph/search/fulltext`.
-- Health/metrics: `/api/v1/dev-graph/health` (extend with perf/telemetry) or `/metrics`.
-
-Appendix: File Map
-- API: `developer_graph/api.py`
-- Temporal Engine: `developer_graph/temporal_engine.py`
-- Schema Helpers: `developer_graph/schema/temporal_schema.py`
-- Git Integration: `developer_graph/git_history_service.py`

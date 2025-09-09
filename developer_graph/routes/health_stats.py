@@ -46,6 +46,7 @@ def health_check():
 def get_stats():
     try:
         with driver.session() as session:
+            # Simplified stats query to avoid timeouts
             result = session.run(
                 """
                 MATCH (n)
@@ -54,17 +55,28 @@ def get_stats():
                 WITH total_nodes, count(r) as total_rels
                 MATCH (c:GitCommit)
                 WHERE c.timestamp >= datetime() - duration('P7D')
-                WITH total_nodes, total_rels, count(c) as recent_commits
-                MATCH (n)
-                UNWIND labels(n) as label
-                WITH total_nodes, total_rels, recent_commits, label, count(*) as count
-                WITH total_nodes, total_rels, recent_commits, collect({type: label, count: count}) as node_stats
-                MATCH ()-[r]->()
-                WITH total_nodes, total_rels, recent_commits, node_stats, type(r) as rel_type, count(*) as count
-                WITH total_nodes, total_rels, recent_commits, node_stats, collect({type: rel_type, count: count}) as rel_stats
-                RETURN total_nodes, total_rels, recent_commits, node_stats, rel_stats
+                RETURN total_nodes, total_rels, count(c) as recent_commits
                 """
             ).single()
+            
+            # Get node type counts separately
+            node_result = session.run(
+                """
+                MATCH (n)
+                UNWIND labels(n) as label
+                RETURN label as type, count(*) as count
+                ORDER BY count DESC
+                """
+            ).data()
+            
+            # Get relationship type counts separately
+            rel_result = session.run(
+                """
+                MATCH ()-[r]->()
+                RETURN type(r) as type, count(*) as count
+                ORDER BY count DESC
+                """
+            ).data()
 
             if not result:
                 return {"error": "No data found in graph", "timestamp": "2025-01-05T09:00:00Z"}
@@ -72,16 +84,14 @@ def get_stats():
             total_nodes = result["total_nodes"] or 0
             total_rels = result["total_rels"] or 0
             recent_commits = result["recent_commits"] or 0
-            node_stats = result["node_stats"] or []
-            rel_stats = result["rel_stats"] or []
 
             node_type_counts = {}
-            for stat in node_stats:
+            for stat in node_result:
                 if stat and stat.get("type") and stat.get("count"):
                     node_type_counts[stat["type"]] = stat["count"]
 
             rel_type_counts = {}
-            for stat in rel_stats:
+            for stat in rel_result:
                 if stat and stat.get("type") and stat.get("count"):
                     rel_type_counts[stat["type"]] = stat["count"]
 

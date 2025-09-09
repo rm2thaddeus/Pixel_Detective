@@ -278,6 +278,36 @@ WHERE r.timestamp IS NOT NULL
 RETURN count(r) as temporal_edges
 ```
 
+### Phase 1b: API Modularization (Lean Router Split)
+**Status**: COMPLETED
+
+**Motivation**: `developer_graph/api.py` had grown too large and hard to reason about. We split it into focused routers while keeping endpoint paths unchanged for the frontend.
+
+**Changes**:
+- New app state module: `developer_graph/app_state.py` centralizes `driver`, `engine`, `git`, `sprint_mapper`, `deriver`, `validator`, `chunk_service`, `embedding_service`, `parallel_pipeline`.
+- New routers (imported by `developer_graph/api.py`):
+  - `routes/health_stats.py`: health, stats
+  - `routes/nodes_relations.py`: nodes, relations (+counts)
+  - `routes/search.py`: simple + fulltext search
+  - `routes/commits_timeline.py`: commits list, timeline, commit details, file history, subgraph by commits
+  - `routes/graph.py`: windowed subgraph, commits buckets
+  - `routes/analytics.py`: activity, graph, combined analytics
+  - `routes/sprints.py`: sprints list, map, details, sprint subgraph
+  - `routes/evolution.py`: requirement and file evolution timelines
+  - `routes/ingest.py`: bootstrap, docs, git enhanced/batched, temporal‑semantic, parallel, chunks, derive‑relationships, embeddings
+  - `routes/chunks.py`: chunk statistics, list chunks
+  - `routes/metrics.py`: engine metrics
+  - `routes/validate.py`: validation and cleanup endpoints
+
+**Outcome**:
+- Endpoint paths are unchanged; FE integrations continue to work.
+- Code is easier to maintain; shared state is initialized once.
+
+**Inconsistencies Resolved During Split**:
+- Timeline actions now use `coalesce(r.action, r.change_type)` to align with ingest data.
+- Planning references use `MENTIONS` (structural) instead of `TOUCHED` to avoid polluting temporal analytics.
+- Legacy `developer_graph/ingest.py` migrated to unified `GitCommit`/`TOUCHED` with `r.timestamp`.
+
 #### Task 1.2: Fix Analytics Bugs
 **Files**: `developer_graph/api.py`
 **Effort**: 2 hours
@@ -432,29 +462,12 @@ Response:
 
 **Implementation**:
 ```python
-@app.post("/api/v1/dev-graph/ingest/bootstrap")
-def bootstrap_graph(reset: bool = False, commit_limit: int = 1000, derive_relationships: bool = True):
-    """One-button bootstrap using existing components - LEAN APPROACH"""
-    if reset:
-        _engine.clear_graph()
-    
-    # Stage 1: Schema (existing)
-    _engine.apply_schema()
-    
-    # Stage 2: Docs/Chunks (existing)
-    ingest_docs()
-    
-    # Stage 3: Commits (existing) 
-    _engine.ingest_recent_commits(limit=commit_limit)
-    
-    # Stage 4: Sprint mapping (existing)
-    _engine.map_sprints_to_commits()
-    
-    # Stage 5: Derive relationships (new)
-    if derive_relationships:
-        derive_relationships()
-    
-    return {"success": True, "stages_completed": 5}
+# New location: developer_graph/routes/ingest.py
+@router.post("/api/v1/dev-graph/ingest/bootstrap")
+def bootstrap_graph(...):
+    # Uses TemporalEngine + ParallelIngestionPipeline + EnhancedDevGraphIngester
+    # Stages and response contract remain the same as specified
+    ...
 ```
 
 #### Task 2.2: Fix Existing Endpoints
@@ -823,3 +836,17 @@ CALL db.indexes(); // verify commit_fulltext exists for GitCommit
   - Analytics and commit buckets endpoints working with clean data.
   - Relationship derivation endpoint functional (though no relationships derived with small dataset).
   - **RESULT**: Frontend can now take full advantage of unified temporal schema and evidence-based relationships.
+
+- 2025-09-09: API Modularization & Relationship Deriver Stabilization.
+  - Split monolithic `developer_graph/api.py` into routers under `developer_graph/routes/` with a central app state in `developer_graph/app_state.py`. All endpoint paths preserved.
+  - Implemented production-ready `RelationshipDeriver` without custom Cypher functions; uses Python regex to extract FR/NFR IDs and evolution pairs; accumulates confidence and sources.
+  - Aligned timeline actions with ingest by coalescing `r.action`/`r.change_type`.
+  - Converted planning sprint→file references to `MENTIONS` (structural) from `TOUCHED`.
+  - Migrated legacy `developer_graph/ingest.py` to unified `GitCommit`/`TOUCHED` schema with timestamps on temporal edges.
+
+## Verification Checklist (Post-Refactor)
+- Timeline view shows created/modified/deleted correctly (commit/file events are present and typed)
+- `/api/v1/analytics` returns consistent node/edge counts and traceability metrics
+- Derivation endpoint runs and returns sensible counts + confidence stats
+- No `:Commit`/`:TOUCHES` labels in the database; only `:GitCommit`/`:TOUCHED`
+- Structural relationships (MENTIONS, CONTAINS_*) are not time-filtered in analytics

@@ -94,7 +94,12 @@ def bootstrap_graph(
 
         derived_counts = {"implements": 0, "evolves_from": 0, "depends_on": 0}
         if derive_relationships and not dry_run:
-            derived_counts = deriver.derive_all()
+            derived_result = deriver.derive_all()
+            derived_counts = {
+                "implements": derived_result.get("implements", 0),
+                "evolves_from": derived_result.get("evolves_from", 0),
+                "depends_on": derived_result.get("depends_on", 0)
+            }
         progress["relationships_derived"] = sum(derived_counts.values())
 
         return {
@@ -106,6 +111,161 @@ def bootstrap_graph(
         }
     except Exception as e:
         logger.exception("Bootstrap failed")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/api/v1/dev-graph/ingest/bootstrap/lean")
+def bootstrap_lean(
+    commit_limit: int = Query(500, ge=1, le=5000),
+    derive_relationships: bool = True,
+    dry_run: bool = False,
+):
+    """Phase 2: Lean bootstrap endpoint for quick setup.
+    
+    Minimal bootstrap that focuses on core functionality:
+    - Apply schema
+    - Ingest recent commits with ordering
+    - Derive relationships (optional)
+    - Return essential metrics
+    """
+    start = time.time()
+    try:
+        # Stage 1: Apply schema (2 min)
+        logger.info("Stage 1/3: Applying schema...")
+        engine.apply_schema()
+        
+        # Stage 2: Ingest commits with ordering (3 min)
+        logger.info("Stage 2/3: Ingesting commits with ordering...")
+        # Use enhanced git ingest to create commit ordering relationships
+        from ..enhanced_git_ingest import EnhancedGitIngester
+        enhanced_ingester = EnhancedGitIngester(REPO_PATH, NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD)
+        enhanced_ingester.ingest()
+        ingested = commit_limit  # Enhanced ingest processes all commits
+        
+        # Stage 3: Derive relationships (optional, 2 min)
+        derived_counts = {"implements": 0, "evolves_from": 0, "depends_on": 0}
+        if derive_relationships and not dry_run:
+            logger.info("Stage 3/3: Deriving relationships...")
+            derived_result = deriver.derive_all()
+            derived_counts = {
+                "implements": derived_result.get("implements", 0),
+                "evolves_from": derived_result.get("evolves_from", 0),
+                "depends_on": derived_result.get("depends_on", 0)
+            }
+        
+        duration = time.time() - start
+        
+        return {
+            "success": True,
+            "stages_completed": 3,
+            "ingested_commits": ingested,
+            "derived": derived_counts,
+            "duration_seconds": round(duration, 2),
+            "commits_per_second": round(ingested / max(duration, 0.001), 2),
+            "message": f"Lean bootstrap completed: {ingested} commits, {sum(derived_counts.values())} relationships"
+        }
+    except Exception as e:
+        logger.exception("Lean bootstrap failed")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/api/v1/dev-graph/ingest/bootstrap/complete")
+def bootstrap_complete(
+    reset_graph: bool = True,
+    commit_limit: int = Query(1000, ge=1, le=5000),
+    derive_relationships: bool = True,
+    dry_run: bool = False,
+):
+    """Complete bootstrap endpoint that does everything properly.
+    
+    This is the single entry point that:
+    - Resets the database (optional)
+    - Applies schema
+    - Runs enhanced git ingest with commit ordering
+    - Derives relationships
+    - Returns comprehensive metrics
+    """
+    start = time.time()
+    try:
+        progress = {
+            "database_reset": False,
+            "schema_applied": False,
+            "enhanced_ingest_completed": False,
+            "relationships_derived": False,
+            "commits_ingested": 0,
+            "files_processed": 0,
+            "chunks_created": 0,
+            "relationships_created": 0
+        }
+        
+        # Stage 1: Reset database (optional)
+        if reset_graph and not dry_run:
+            logger.info("Stage 1/4: Resetting database...")
+            with driver.session() as session:
+                session.run("MATCH (n) DETACH DELETE n")
+            progress["database_reset"] = True
+        
+        # Stage 2: Apply schema
+        logger.info("Stage 2/4: Applying schema...")
+        engine.apply_schema()
+        progress["schema_applied"] = True
+        
+        # Stage 3: Enhanced git ingest with commit ordering
+        if not dry_run:
+            logger.info("Stage 3/4: Running enhanced git ingest with commit ordering...")
+            from ..enhanced_git_ingest import EnhancedGitIngester
+            enhanced_ingester = EnhancedGitIngester(REPO_PATH, NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD)
+            enhanced_ingester.ingest()
+            progress["enhanced_ingest_completed"] = True
+        
+        # Stage 4: Derive relationships
+        derived_counts = {"implements": 0, "evolves_from": 0, "depends_on": 0}
+        if derive_relationships and not dry_run:
+            logger.info("Stage 4/4: Deriving relationships...")
+            derived_result = deriver.derive_all()
+            derived_counts = {
+                "implements": derived_result.get("implements", 0),
+                "evolves_from": derived_result.get("evolves_from", 0),
+                "depends_on": derived_result.get("depends_on", 0)
+            }
+            progress["relationships_derived"] = True
+        
+        # Get final statistics
+        with driver.session() as session:
+            # Get node counts
+            node_counts = session.run("""
+                MATCH (n)
+                UNWIND labels(n) as label
+                RETURN label as type, count(*) as count
+                ORDER BY count DESC
+            """).data()
+            
+            # Get relationship counts
+            rel_counts = session.run("""
+                MATCH ()-[r]->()
+                RETURN type(r) as type, count(*) as count
+                ORDER BY count DESC
+            """).data()
+        
+        duration = time.time() - start
+        
+        # Format results
+        node_stats = {item["type"]: item["count"] for item in node_counts}
+        rel_stats = {item["type"]: item["count"] for item in rel_counts}
+        
+        return {
+            "success": True,
+            "stages_completed": 4,
+            "progress": progress,
+            "node_stats": node_stats,
+            "relationship_stats": rel_stats,
+            "derived": derived_counts,
+            "duration_seconds": round(duration, 2),
+            "commits_per_second": round(node_stats.get("GitCommit", 0) / max(duration, 0.001), 2),
+            "message": f"Complete bootstrap finished: {node_stats.get('GitCommit', 0)} commits, {sum(rel_stats.values())} relationships"
+        }
+    except Exception as e:
+        logger.exception("Complete bootstrap failed")
         raise HTTPException(status_code=500, detail=str(e))
 
 

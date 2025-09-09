@@ -37,22 +37,26 @@ In Progress (Phase 4):
 
 - UI (Next.js): `tools/dev-graph-ui/`
   - `src/app/dev-graph/complex/page.tsx`: main composite screen.
-  - `components/EvolutionGraph.tsx`: Sigma.js graph visualization.
-  - `components/EnhancedTimelineView.tsx`: canvas timeline using bucketed commits.
-  - `hooks/useWindowedSubgraph.ts`: windowed subgraph + commit buckets.
-- API (FastAPI): `developer_graph/api.py`
-  - `GET /api/v1/dev-graph/graph/subgraph` windowed subgraph
-  - `GET /api/v1/dev-graph/commits/buckets` commit density
-  - `GET /api/v1/dev-graph/nodes|relations|search|commits|sprints` core queries
-  - `POST /api/v1/dev-graph/ingest/recent` ingestion helper
+  - `components/BiologicalEvolutionGraph.tsx`: graph visualization.
+  - `hooks/*`: windowed subgraph + commit buckets.
+- API (FastAPI): `developer_graph/api.py` (router composition)
+  - `developer_graph/app_state.py`: initializes `driver`, `engine`, and services
+  - Routers under `developer_graph/routes/` (paths unchanged):
+    - health_stats, nodes_relations, search, commits_timeline, sprints, graph, analytics,
+      ingest, chunks, metrics, validate, admin, evolution
+  - Example endpoints:
+    - `GET /api/v1/dev-graph/graph/subgraph` windowed subgraph
+    - `GET /api/v1/dev-graph/commits/buckets` commit density
+    - `GET /api/v1/dev-graph/sprints/{number}/subgraph` sprint hierarchy
+    - `POST /api/v1/dev-graph/ingest/bootstrap` bootstrap ingestion
 - Engine: `developer_graph/temporal_engine.py`
-  - Git + Neo4j ingest, time-bounded queries, commit bucketing.
+  - Git + Neo4j ingest, time-bounded queries, commit bucketing
 - Schema: `developer_graph/schema/temporal_schema.py`
-  - Constraints and indexes for nodes; timestamp indexes for relationship types.
+  - Constraints and indexes for nodes; timestamp indexes for relationships
 
 ## Separation of Concerns (Backend vs Frontend)
 
-- Backend (FastAPI + Neo4j): authoritative data and query contracts
+- Backend (FastAPI + Neo4j): authoritative data and query contracts (modular routers)
   - Ingestion
     - Git temporal ingest via `TemporalEngine` (Commits, Files, TOUCHED/IMPLEMENTS, rename detection).
     - Docs/Sprints/Chunks ingest available via scripts (`developer_graph/enhanced_ingest.py`, `developer_graph/enhanced_git_ingest.py`).
@@ -68,7 +72,7 @@ In Progress (Phase 4):
     - Keep relationship `timestamp` indexes and label-constrained patterns.
     - TTL cache (~60s) for hot windowed subgraphs.
   - Telemetry & health
-    - Extend `/health` or add `/metrics` to expose `{avg_query_time_ms, cache_hit_rate, memory_usage_mb}` for the UI.
+    - `/api/v1/dev-graph/health`, `/api/v1/dev-graph/metrics` expose `{avg_query_time_ms, cache_hit_rate, memory_usage_mb}`.
   - Optional
     - Persist server-computed coordinates (`x/y`) to stabilize layouts across sessions.
 
@@ -125,7 +129,7 @@ Relationships:
 - File refactor: `(:File)-[:REFACTORED_TO {commit, refactor_type, timestamp}]->(:File)`
 - Sprint→Document: `(:Sprint)-[:CONTAINS_DOC]->(:Document)`
 - Document→Chunk: `(:Document)-[:CONTAINS_CHUNK]->(:Chunk)`
-- Chunk mentions: `(:Chunk)-[:MENTIONS]->(:Requirement)`
+ - Chunk mentions: `(:Chunk)-[:MENTIONS]->(:Requirement)`; Sprint→File planning links use `MENTIONS` (structural)
 - Cross-links: `(:Chunk)-[:REFERENCES {anchor?}]->(:Document|:Chunk)`
 - Sprint transitions: `(:Sprint)-[:TRANSITION_TO]->(:Sprint)`
 
@@ -189,8 +193,8 @@ SLOs:
 - `GET /api/v1/dev-graph/nodes|relations|commits|sprints`, `GET /api/v1/dev-graph/search?q=...`
   - Core listing and search utilities.
 
-- `POST /api/v1/dev-graph/ingest/recent?limit=100`
-  - On-demand ingestion of recent commits.
+- `POST /api/v1/dev-graph/ingest/bootstrap`
+  - One-button ingestion: schema, docs/chunks, commits, sprint mapping, relationship derivation
 
 ---
 

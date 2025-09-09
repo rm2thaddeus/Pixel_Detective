@@ -96,6 +96,9 @@ class EnhancedGitIngester:
                 # Create Requirement->File IMPLEMENTS edges inferred from commit mentions
                 session.execute_write(self._create_requirement_touches, commit_analysis)
 
+            # Phase 2: Create commit ordering relationships
+            session.execute_write(self._create_commit_ordering, commits)
+
             # Create planning-to-code Touches relationships
             session.execute_write(self._create_planning_touches)
 
@@ -607,6 +610,54 @@ class EnhancedGitIngester:
                     touches_count += 1
         
         print(f"Created {touches_count} planning-to-code Touches relationships")
+
+    @staticmethod
+    def _create_commit_ordering(tx, commits: List[CommitAnalysis]) -> None:
+        """Create NEXT_COMMIT and PREV_COMMIT relationships between commits.
+        
+        Phase 2: Add commit ordering relationships for timeline navigation.
+        """
+        if len(commits) < 2:
+            return
+        
+        # Convert CommitAnalysis objects to dictionaries for sorting
+        commit_data = []
+        for commit_analysis in commits:
+            commit_data.append({
+                'hash': commit_analysis.commit.hexsha,
+                'timestamp': commit_analysis.commit.committed_datetime.isoformat()
+            })
+        
+        # Sort commits by timestamp to ensure proper ordering
+        sorted_commits = sorted(commit_data, key=lambda x: x['timestamp'])
+        
+        # Create NEXT_COMMIT relationships (current -> next)
+        for i in range(len(sorted_commits) - 1):
+            current_hash = sorted_commits[i]['hash']
+            next_hash = sorted_commits[i + 1]['hash']
+            timestamp = sorted_commits[i + 1]['timestamp']  # Use next commit's timestamp
+            
+            tx.run("""
+                MATCH (current:GitCommit {hash: $current_hash})
+                MATCH (next:GitCommit {hash: $next_hash})
+                MERGE (current)-[r:NEXT_COMMIT]->(next)
+                SET r.timestamp = $timestamp
+            """, current_hash=current_hash, next_hash=next_hash, timestamp=timestamp)
+        
+        # Create PREV_COMMIT relationships (current -> previous)
+        for i in range(1, len(sorted_commits)):
+            current_hash = sorted_commits[i]['hash']
+            prev_hash = sorted_commits[i - 1]['hash']
+            timestamp = sorted_commits[i]['timestamp']  # Use current commit's timestamp
+            
+            tx.run("""
+                MATCH (current:GitCommit {hash: $current_hash})
+                MATCH (prev:GitCommit {hash: $prev_hash})
+                MERGE (current)-[r:PREV_COMMIT]->(prev)
+                SET r.timestamp = $timestamp
+            """, current_hash=current_hash, prev_hash=prev_hash, timestamp=timestamp)
+        
+        print(f"Created commit ordering relationships for {len(sorted_commits)} commits")
 
 
 def main():
