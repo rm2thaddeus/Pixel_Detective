@@ -39,6 +39,7 @@ class FileChange:
     old_path: Optional[str] = None
     additions: int = 0
     deletions: int = 0
+    loc_after: int = 0
 
 @dataclass
 class CommitAnalysis:
@@ -186,13 +187,31 @@ class EnhancedGitIngester:
                 
                 # Get diff content as string
                 diff_content = str(item.diff) if item.diff else ""
+
+                # Lines of code after this commit for the file (approximate)
+                loc_after = 0
+                try:
+                    blob = None
+                    # If deleted, try previous path; else use current
+                    if not item.deleted_file:
+                        blob = commit.tree / path
+                    elif item.a_path:
+                        blob = commit.tree / item.a_path
+                    if blob and blob.type == 'blob':
+                        content = blob.data_stream.read().decode('utf-8', errors='ignore')
+                        # count lines robustly
+                        if content:
+                            loc_after = content.count('\n') + (0 if content.endswith('\n') else 1)
+                except Exception:
+                    loc_after = 0
                 
                 file_change = FileChange(
                     path=path,
                     change_type=change_type,
                     old_path=old_path,
                     additions=diff_content.count('\n+'),
-                    deletions=diff_content.count('\n-')
+                    deletions=diff_content.count('\n-'),
+                    loc_after=0 if change_type == 'D' else loc_after
                 )
                 file_changes.append(file_change)
                 
@@ -291,13 +310,16 @@ class EnhancedGitIngester:
                 SET r.change_type = $change_type,
                     r.additions = $additions,
                     r.deletions = $deletions,
+                    r.lines_after = $loc_after,
                     r.timestamp = $timestamp
+                SET f.loc = CASE $change_type WHEN 'D' THEN 0 ELSE $loc_after END
             """,
             commit_hash=commit_hash,
             file_path=file_change.path,
             change_type=file_change.change_type,
             additions=file_change.additions,
             deletions=file_change.deletions,
+            loc_after=file_change.loc_after,
             timestamp=commit_analysis.commit.committed_datetime.isoformat())
 
             # If file was renamed, record refactor edge between files

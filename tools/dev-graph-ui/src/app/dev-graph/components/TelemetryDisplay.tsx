@@ -46,127 +46,61 @@ export function TelemetryDisplay({ className }: TelemetryDisplayProps) {
     );
   }
 
-  const getStatusColor = (status: string) => {
-    switch (status.toLowerCase()) {
-      case 'healthy':
-      case 'ok':
-        return successColor;
-      case 'warning':
-        return warningColor;
-      case 'error':
-      case 'critical':
-        return errorColor;
-      default:
-        return 'gray.500';
-    }
-  };
-
-  const getStatusBadge = (status: string) => {
-    const color = getStatusColor(status);
-    return (
-      <Badge colorScheme={status.toLowerCase() === 'healthy' || status.toLowerCase() === 'ok' ? 'green' : 
-                           status.toLowerCase() === 'warning' ? 'orange' : 'red'} 
-             variant="subtle" size="sm">
-        {status}
-      </Badge>
-    );
-  };
+  // Derive a simple status from metrics
+  const derivedStatus = (() => {
+    // If cache_hit_rate and avg_query_time_ms present, infer status
+    const hit = typeof (telemetry as any).cache_hit_rate === 'number' ? (telemetry as any).cache_hit_rate : 0;
+    const avg = typeof (telemetry as any).avg_query_time_ms === 'number' ? (telemetry as any).avg_query_time_ms : 0;
+    if (avg > 0 && hit >= 0) return 'OK';
+    return 'Unknown';
+  })();
 
   return (
     <Box p={4} bg={bgColor} borderWidth={1} borderColor={borderColor} borderRadius="md" className={className}>
       <VStack spacing={4} align="stretch">
         {/* Header */}
         <HStack justify="space-between" align="center">
-          <Text fontSize="md" fontWeight="bold">System Status</Text>
-          {getStatusBadge(telemetry.status || 'Unknown')}
+          <Text fontSize="md" fontWeight="bold">Engine Telemetry</Text>
+          <Badge colorScheme={derivedStatus === 'OK' ? 'green' : 'gray'} variant="subtle" size="sm">
+            {derivedStatus}
+          </Badge>
         </HStack>
 
         {/* Health Metrics */}
         <SimpleGrid columns={{ base: 2, md: 4 }} spacing={4}>
           <Stat size="sm">
-            <StatLabel fontSize="xs">Uptime</StatLabel>
-            <StatNumber fontSize="sm">{telemetry.uptime || 'N/A'}</StatNumber>
+            <StatLabel fontSize="xs">Avg Query Time</StatLabel>
+            <StatNumber fontSize="sm">{(telemetry as any).avg_query_time_ms ?? 'N/A'}</StatNumber>
+            <StatHelpText fontSize="xs">ms</StatHelpText>
+          </Stat>
+          <Stat size="sm">
+            <StatLabel fontSize="xs">Cache Hit Rate</StatLabel>
+            <StatNumber fontSize="sm">{Math.round(((telemetry as any).cache_hit_rate ?? 0) * 100)}</StatNumber>
+            <StatHelpText fontSize="xs">%</StatHelpText>
+          </Stat>
+          <Stat size="sm">
+            <StatLabel fontSize="xs">Cache Size</StatLabel>
+            <StatNumber fontSize="sm">{(telemetry as any).cache_size ?? 'N/A'}</StatNumber>
           </Stat>
           <Stat size="sm">
             <StatLabel fontSize="xs">Memory</StatLabel>
-            <StatNumber fontSize="sm">{telemetry.memory_usage || 'N/A'}</StatNumber>
-            <StatHelpText fontSize="xs">{telemetry.memory_percent || '0'}% used</StatHelpText>
-          </Stat>
-          <Stat size="sm">
-            <StatLabel fontSize="xs">CPU</StatLabel>
-            <StatNumber fontSize="sm">{telemetry.cpu_usage || 'N/A'}</StatNumber>
-            <StatHelpText fontSize="xs">{telemetry.cpu_percent || '0'}% used</StatHelpText>
-          </Stat>
-          <Stat size="sm">
-            <StatLabel fontSize="xs">Response Time</StatLabel>
-            <StatNumber fontSize="sm">{telemetry.avg_response_time || 'N/A'}</StatNumber>
-            <StatHelpText fontSize="xs">ms</StatHelpText>
+            <StatNumber fontSize="sm">{(telemetry as any).memory_usage_mb ?? 'N/A'}</StatNumber>
+            <StatHelpText fontSize="xs">MB</StatHelpText>
           </Stat>
         </SimpleGrid>
 
-        {/* Database Status */}
-        {telemetry.database && (
-          <Box>
-            <Text fontSize="sm" fontWeight="medium" mb={2}>Database</Text>
-            <HStack spacing={4}>
-              <HStack spacing={1}>
-                <Text fontSize="xs" color="gray.600">Status:</Text>
-                {getStatusBadge(telemetry.database.status || 'Unknown')}
-              </HStack>
-              <HStack spacing={1}>
-                <Text fontSize="xs" color="gray.600">Connections:</Text>
-                <Text fontSize="xs">{telemetry.database.connections || 'N/A'}</Text>
-              </HStack>
-              <HStack spacing={1}>
-                <Text fontSize="xs" color="gray.600">Size:</Text>
-                <Text fontSize="xs">{telemetry.database.size || 'N/A'}</Text>
-              </HStack>
-            </HStack>
-          </Box>
-        )}
-
-        {/* Services Status */}
-        {telemetry.services && Object.keys(telemetry.services).length > 0 && (
-          <Box>
-            <Text fontSize="sm" fontWeight="medium" mb={2}>Services</Text>
-            <VStack spacing={1} align="stretch">
-              {Object.entries(telemetry.services).map(([service, status]) => (
-                <HStack key={service} justify="space-between" fontSize="xs">
-                  <Text textTransform="capitalize">{service.replace('_', ' ')}</Text>
-                  {getStatusBadge(typeof status === 'string' ? status : 'Unknown')}
-                </HStack>
-              ))}
-            </VStack>
-          </Box>
-        )}
-
-        {/* Performance Metrics */}
-        {telemetry.performance && (
-          <Box>
-            <Text fontSize="sm" fontWeight="medium" mb={2}>Performance</Text>
-            <SimpleGrid columns={{ base: 2, md: 3 }} spacing={4}>
-              <Stat size="sm">
-                <StatLabel fontSize="xs">Requests/min</StatLabel>
-                <StatNumber fontSize="sm">{telemetry.performance.requests_per_minute || 'N/A'}</StatNumber>
-              </Stat>
-              <Stat size="sm">
-                <StatLabel fontSize="xs">Error Rate</StatLabel>
-                <StatNumber fontSize="sm">{telemetry.performance.error_rate || 'N/A'}</StatNumber>
-                <StatHelpText fontSize="xs">%</StatHelpText>
-              </Stat>
-              <Stat size="sm">
-                <StatLabel fontSize="xs">Cache Hit</StatLabel>
-                <StatNumber fontSize="sm">{telemetry.performance.cache_hit_rate || 'N/A'}</StatNumber>
-                <StatHelpText fontSize="xs">%</StatHelpText>
-              </Stat>
-            </SimpleGrid>
-          </Box>
-        )}
-
-        {/* Last Updated */}
-        <Text fontSize="xs" color="gray.500" textAlign="right">
-          Last updated: {telemetry.timestamp ? new Date(telemetry.timestamp).toLocaleTimeString() : 'Unknown'}
-        </Text>
+        {/* Uptime and connections if available */}
+        <SimpleGrid columns={{ base: 2, md: 4 }} spacing={4}>
+          <Stat size="sm">
+            <StatLabel fontSize="xs">Uptime</StatLabel>
+            <StatNumber fontSize="sm">{(telemetry as any).uptime_seconds ?? 'N/A'}</StatNumber>
+            <StatHelpText fontSize="xs">seconds</StatHelpText>
+          </Stat>
+          <Stat size="sm">
+            <StatLabel fontSize="xs">Active Connections</StatLabel>
+            <StatNumber fontSize="sm">{(telemetry as any).active_connections ?? 'N/A'}</StatNumber>
+          </Stat>
+        </SimpleGrid>
       </VStack>
     </Box>
   );

@@ -9,7 +9,7 @@ from ..app_state import driver
 router = APIRouter()
 
 
-@router.get("/api/v1/analytics/activity")
+@router.get("/api/v1/dev-graph/analytics/activity")
 def analytics_activity(
     from_timestamp: Optional[str] = Query(None, description="Start timestamp (ISO format)"),
     to_timestamp: Optional[str] = Query(None, description="End timestamp (ISO format)")
@@ -56,7 +56,7 @@ def analytics_activity(
         }
 
 
-@router.get("/api/v1/analytics/graph")
+@router.get("/api/v1/dev-graph/analytics/graph")
 def analytics_graph(
     from_timestamp: Optional[str] = Query(None, description="Start timestamp (ISO format) for edge counts"),
     to_timestamp: Optional[str] = Query(None, description="End timestamp (ISO format) for edge counts"),
@@ -112,7 +112,53 @@ def analytics_graph(
         return {"nodes": nodes, "edges": edges, "window": {"from": from_timestamp, "to": to_timestamp}}
 
 
-@router.get("/api/v1/analytics")
+@router.get("/api/v1/dev-graph/analytics/traceability")
+def analytics_traceability(
+    from_timestamp: Optional[str] = Query(None, description="Start timestamp (ISO format)"),
+    to_timestamp: Optional[str] = Query(None, description="End timestamp (ISO format)")
+):
+    with driver.session() as session:
+        total_rec = session.run("MATCH (r:Requirement) RETURN count(r) AS c").single()
+        total = total_rec["c"] if total_rec else 0
+        
+        where = []
+        params = {}
+        if from_timestamp:
+            where.append("rel.timestamp >= $from_ts")
+            params["from_ts"] = from_timestamp
+        if to_timestamp:
+            where.append("rel.timestamp <= $to_ts")
+            params["to_ts"] = to_timestamp
+        clause = ("WHERE " + " AND ".join(where)) if where else ""
+        
+        impl_q = """
+            MATCH (r:Requirement)-[rel:IMPLEMENTS]->(:File)
+        """ + clause + """
+            RETURN count(DISTINCT r) AS c
+        """
+        impl_rec = session.run(impl_q, params).single()
+        implemented = impl_rec["c"] if impl_rec else 0
+        
+        avg_q = """
+            MATCH (r:Requirement)
+            OPTIONAL MATCH (r)-[rel:IMPLEMENTS]->(:File)
+        """ + clause + """
+            WITH r, count(rel) AS file_links
+            RETURN coalesce(avg(file_links), 0) AS avg_files_per_requirement
+        """
+        avg_rec = session.run(avg_q, params).single()
+        avg_files = avg_rec["avg_files_per_requirement"] if avg_rec else 0
+        
+        return {
+            "implemented_requirements": implemented,
+            "unimplemented_requirements": max(total - implemented, 0),
+            "avg_files_per_requirement": avg_files,
+            "coverage_percentage": round((implemented / max(1, total)) * 100, 2),
+            "window": {"from": from_timestamp, "to": to_timestamp}
+        }
+
+
+@router.get("/api/v1/dev-graph/analytics")
 def get_analytics(
     from_timestamp: Optional[str] = Query(None, description="Start timestamp (ISO format)"),
     to_timestamp: Optional[str] = Query(None, description="End timestamp (ISO format)")

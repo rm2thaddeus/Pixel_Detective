@@ -18,7 +18,7 @@ def list_commits(limit: int = Query(100, le=1000), path: Optional[str] = None):
 
 
 @router.get("/api/v1/dev-graph/evolution/timeline")
-def get_evolution_timeline(limit: int = Query(50, ge=1, le=200)):
+def get_evolution_timeline(limit: int = Query(50, ge=1, le=200), max_files_per_commit: int = Query(50, ge=1, le=200)):
     try:
         with driver.session() as session:
             commits_query = """
@@ -27,12 +27,12 @@ def get_evolution_timeline(limit: int = Query(50, ge=1, le=200)):
                 WITH c, collect({
                     path: f.path,
                     action: CASE 
-                        WHEN coalesce(r.action, r.change_type) = 'A' THEN 'created'
-                        WHEN coalesce(r.action, r.change_type) = 'M' THEN 'modified' 
-                        WHEN coalesce(r.action, r.change_type) = 'D' THEN 'deleted'
+                        WHEN coalesce(r.change_type, 'M') = 'A' THEN 'created'
+                        WHEN coalesce(r.change_type, 'M') = 'M' THEN 'modified' 
+                        WHEN coalesce(r.change_type, 'M') = 'D' THEN 'deleted'
                         ELSE 'modified'
                     END,
-                    size: f.size,
+                    size: coalesce(r.lines_after, f.loc, 0),
                     type: CASE
                         WHEN f.path CONTAINS '.py' OR f.path CONTAINS '.js' OR f.path CONTAINS '.ts' THEN 'code'
                         WHEN f.path CONTAINS '.md' OR f.path CONTAINS '.txt' THEN 'document'
@@ -40,11 +40,12 @@ def get_evolution_timeline(limit: int = Query(50, ge=1, le=200)):
                         ELSE 'other'
                     END
                 }) as files
-                RETURN c.hash as hash, c.timestamp as timestamp, c.message as message, c.author as author, files
+                RETURN c.hash as hash, c.timestamp as timestamp, c.message as message, c.author as author, 
+                       files[0..$max_files_per_commit] as files
                 ORDER BY c.timestamp ASC
                 LIMIT $limit
             """
-            commits_result = session.run(commits_query, limit=limit)
+            commits_result = session.run(commits_query, limit=limit, max_files_per_commit=max_files_per_commit)
             commits = []
             for record in commits_result:
                 commit_data = {
@@ -63,12 +64,12 @@ def get_evolution_timeline(limit: int = Query(50, ge=1, le=200)):
                     commit_hash: c.hash,
                     timestamp: c.timestamp,
                     action: CASE 
-                        WHEN coalesce(r.action, r.change_type) = 'A' THEN 'created'
-                        WHEN coalesce(r.action, r.change_type) = 'M' THEN 'modified'
-                        WHEN coalesce(r.action, r.change_type) = 'D' THEN 'deleted'
+                        WHEN coalesce(r.change_type, 'M') = 'A' THEN 'created'
+                        WHEN coalesce(r.change_type, 'M') = 'M' THEN 'modified'
+                        WHEN coalesce(r.change_type, 'M') = 'D' THEN 'deleted'
                         ELSE 'modified'
                     END,
-                    size: f.size
+                    size: coalesce(r.lines_after, f.loc, 0)
                 }) as evolution_history
                 WHERE size(evolution_history) > 0
                 WITH f, evolution_history
@@ -77,7 +78,7 @@ def get_evolution_timeline(limit: int = Query(50, ge=1, le=200)):
                        head([ev IN evolution_history | ev.timestamp]) as created_at,
                        head([ev IN evolution_history WHERE ev.action = 'deleted' | ev.timestamp]) as deleted_at,
                        size([ev IN evolution_history WHERE ev.action = 'modified' | ev]) as modifications,
-                       f.size as current_size,
+                       0 as current_size,
                        CASE
                            WHEN f.path CONTAINS '.py' OR f.path CONTAINS '.js' OR f.path CONTAINS '.ts' THEN 'code'
                            WHEN f.path CONTAINS '.md' OR f.path CONTAINS '.txt' THEN 'document'
@@ -125,10 +126,29 @@ def get_evolution_timeline(limit: int = Query(50, ge=1, le=200)):
 
 @router.get("/api/v1/dev-graph/commit/{commit_hash}")
 def commit_details(commit_hash: str):
-    details = git.get_commit(commit_hash)
-    if details is None:
-        return {"error": "Commit not found"}
-    return details
+    """Return commit details along with per-file diffs (additions, deletions, lines_after)."""
+    try:
+        with driver.session() as session:
+            rec = session.run(
+                """
+                MATCH (c:GitCommit {hash: $hash})
+                OPTIONAL MATCH (c)-[r:TOUCHED]->(f:File)
+                RETURN c.hash AS hash, c.message AS message, c.author AS author, c.timestamp AS timestamp,
+                       collect({path: f.path, additions: r.additions, deletions: r.deletions, lines_after: coalesce(r.lines_after, f.loc, 0), change_type: r.change_type}) AS files
+                """,
+                {"hash": commit_hash},
+            ).single()
+            if not rec:
+                return {"error": "Commit not found"}
+            return {
+                "hash": rec["hash"],
+                "message": rec["message"],
+                "author": rec["author"],
+                "timestamp": rec["timestamp"],
+                "files": [f for f in rec["files"] if f.get("path")],
+            }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/api/v1/dev-graph/file/history")

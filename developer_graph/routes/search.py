@@ -12,7 +12,9 @@ router = APIRouter()
 @router.get("/api/v1/dev-graph/search")
 def search(q: str):
     cypher = (
-        "MATCH (n) WHERE any(prop in keys(n) WHERE toString(n[prop]) CONTAINS $q) "
+        "MATCH (n) WHERE any(prop in keys(n) WHERE "
+        "CASE WHEN n[prop] IS NOT NULL AND NOT n[prop] IS LIST THEN toString(n[prop]) CONTAINS $q "
+        "ELSE false END) "
         "RETURN n LIMIT 50"
     )
     records = run_query(driver, cypher, q=q)

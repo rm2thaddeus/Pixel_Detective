@@ -36,6 +36,14 @@ interface Relation {
 export default function EnhancedDevGraphPage() {
   const [selectedNodeType, setSelectedNodeType] = useState<string>('');
   const [selectedRelationType, setSelectedRelationType] = useState<string>('');
+  // Local UI state
+  const [stats, setStats] = useState<{ nodes: { total: number }, relations: { total: number }, commits: any[] } | null>(null);
+  const [nodeTypes, setNodeTypes] = useState<NodeType[]>([]);
+  const [relationTypes, setRelationTypes] = useState<RelationType[]>([]);
+  const [nodes, setNodes] = useState<Node[]>([]);
+  const [relations, setRelations] = useState<Relation[]>([]);
+  const [loadingNodes, setLoadingNodes] = useState(false);
+  const [loadingRelations, setLoadingRelations] = useState(false);
   
   // Use new hooks for data fetching
   const { data: analyticsData, isLoading: analyticsLoading, error: analyticsError } = useAnalytics();
@@ -109,7 +117,7 @@ export default function EnhancedDevGraphPage() {
           commitsRes.json()
         ]);
 
-        setStats({ nodes, relations, commits });
+        setStats({ nodes, relations, commits: Array.isArray(commits?.value) ? commits.value : [] });
         
         // Analyze node types from sample data
         await analyzeNodeTypes();
@@ -118,7 +126,7 @@ export default function EnhancedDevGraphPage() {
       } catch (error) {
         console.error('Failed to fetch stats:', error);
       } finally {
-        setLoading(false);
+        // Loading state is derived from react-query hooks; nothing to do here.
       }
     };
 

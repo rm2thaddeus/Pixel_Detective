@@ -194,7 +194,7 @@ export function useAnalytics(fromTimestamp?: string, toTimestamp?: string) {
       if (fromTimestamp) searchParams.set('from_timestamp', fromTimestamp);
       if (toTimestamp) searchParams.set('to_timestamp', toTimestamp);
       
-      const url = `${process.env.NEXT_PUBLIC_DEV_GRAPH_API_URL || 'http://localhost:8080'}/api/v1/analytics?${searchParams.toString()}`;
+      const url = `${process.env.NEXT_PUBLIC_DEV_GRAPH_API_URL || 'http://localhost:8080'}/api/v1/dev-graph/analytics?${searchParams.toString()}`;
       const response = await fetch(url);
       if (!response.ok) {
         throw new Error(`Failed to fetch analytics: ${response.statusText}`);
@@ -214,7 +214,7 @@ export function useActivityAnalytics(fromTimestamp?: string, toTimestamp?: strin
       if (fromTimestamp) searchParams.set('from_timestamp', fromTimestamp);
       if (toTimestamp) searchParams.set('to_timestamp', toTimestamp);
       
-      const url = `${process.env.NEXT_PUBLIC_DEV_GRAPH_API_URL || 'http://localhost:8080'}/api/v1/analytics/activity?${searchParams.toString()}`;
+      const url = `${process.env.NEXT_PUBLIC_DEV_GRAPH_API_URL || 'http://localhost:8080'}/api/v1/dev-graph/analytics/activity?${searchParams.toString()}`;
       const response = await fetch(url);
       if (!response.ok) {
         throw new Error(`Failed to fetch activity analytics: ${response.statusText}`);
@@ -233,7 +233,7 @@ export function useGraphAnalytics(timestamp?: string) {
       const searchParams = new URLSearchParams();
       if (timestamp) searchParams.set('timestamp', timestamp);
       
-      const url = `${process.env.NEXT_PUBLIC_DEV_GRAPH_API_URL || 'http://localhost:8080'}/api/v1/analytics/graph?${searchParams.toString()}`;
+      const url = `${process.env.NEXT_PUBLIC_DEV_GRAPH_API_URL || 'http://localhost:8080'}/api/v1/dev-graph/analytics/graph?${searchParams.toString()}`;
       const response = await fetch(url);
       if (!response.ok) {
         throw new Error(`Failed to fetch graph analytics: ${response.statusText}`);
@@ -253,7 +253,7 @@ export function useTraceabilityAnalytics(fromTimestamp?: string, toTimestamp?: s
       if (fromTimestamp) searchParams.set('from_timestamp', fromTimestamp);
       if (toTimestamp) searchParams.set('to_timestamp', toTimestamp);
       
-      const url = `${process.env.NEXT_PUBLIC_DEV_GRAPH_API_URL || 'http://localhost:8080'}/api/v1/analytics/traceability?${searchParams.toString()}`;
+      const url = `${process.env.NEXT_PUBLIC_DEV_GRAPH_API_URL || 'http://localhost:8080'}/api/v1/dev-graph/analytics/traceability?${searchParams.toString()}`;
       const response = await fetch(url);
       if (!response.ok) {
         throw new Error(`Failed to fetch traceability analytics: ${response.statusText}`);
@@ -270,7 +270,7 @@ export function useTelemetry() {
   return useQuery({
     queryKey: ['dev-graph', 'telemetry'],
     queryFn: async () => {
-      const url = `${process.env.NEXT_PUBLIC_DEV_GRAPH_API_URL || 'http://localhost:8080'}/api/v1/dev-graph/metrics`;
+      const url = `${process.env.NEXT_PUBLIC_DEV_GRAPH_API_URL || 'http://localhost:8080'}/api/v1/dev-graph/stats`;
       const response = await fetch(url);
       if (!response.ok) {
         // Fallback to health endpoint if metrics not available
@@ -305,7 +305,7 @@ export function useFullTextSearch(query: string, label?: string) {
       searchParams.set('q', query);
       if (label) searchParams.set('label', label);
       
-      const url = `${process.env.NEXT_PUBLIC_DEV_GRAPH_API_URL || 'http://localhost:8080'}/api/v1/dev-graph/search/fulltext?${searchParams.toString()}`;
+      const url = `${process.env.NEXT_PUBLIC_DEV_GRAPH_API_URL || 'http://localhost:8080'}/api/v1/dev-graph/search?${searchParams.toString()}`;
       const response = await fetch(url);
       if (!response.ok) {
         throw new Error(`Failed to search: ${response.statusText}`);

@@ -29,7 +29,7 @@ export default function DevGraphPage() {
   const stats = analyticsData && subgraphData ? {
     nodes: { total: subgraphData.pagination?.total_nodes || 0 },
     relations: { total: subgraphData.pagination?.total_edges || 0 },
-    commits: commitsData || []
+    commits: Array.isArray((commitsData as any)?.value) ? (commitsData as any).value : []
   } : null;
 
   if (loading) {

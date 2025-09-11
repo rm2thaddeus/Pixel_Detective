@@ -133,7 +133,7 @@ export default function TemporalEvolutionGraph({
 
     console.log('TemporalEvolutionGraph: Visible files', visibleFiles.length);
 
-    // Create commit backbone (vertical line)
+    // Create commit backbone (vertical line) centered
     const commitX = innerWidth / 2;
     g.append("line")
       .attr("x1", commitX)
@@ -195,9 +195,14 @@ export default function TemporalEvolutionGraph({
       .text(new Date(currentCommit.timestamp).toLocaleDateString());
 
     // Create file dendrograms
-    const fileSpacing = innerHeight / Math.max(visibleFiles.length, 1);
+    // Cap number of files per view for readability, prioritize those touched in current commit
+    const changedSet = new Set(currentCommit.files.map(f => f.path));
+    const changed = visibleFiles.filter(f => changedSet.has(f.path));
+    const context = visibleFiles.filter(f => !changedSet.has(f.path)).slice(0, Math.max(6, 20 - changed.length));
+    const filesForView = [...changed, ...context];
+    const fileSpacing = innerHeight / Math.max(filesForView.length, 1);
     
-    visibleFiles.forEach((file, index) => {
+    filesForView.forEach((file, index) => {
       const fileY = innerHeight * 0.3 + (index * fileSpacing);
       const fileX = commitX + (index % 2 === 0 ? -100 : 100);
       
@@ -225,7 +230,7 @@ export default function TemporalEvolutionGraph({
       // File node color based on type and modification count
       const baseColor = fileTypeColors[file.type];
       const modificationIntensity = Math.min(1, file.modifications / 10);
-      const nodeColor = d3.interpolate(baseColor, '#ef4444')(modificationIntensity);
+      const nodeColor = d3.interpolate(baseColor, currentEvolution.action === 'deleted' ? '#ef4444' : '#10b981')(modificationIntensity);
 
       // File node
       const fileNode = fileGroup.append("circle")

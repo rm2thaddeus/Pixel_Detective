@@ -1,10 +1,8 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Box, Heading, Text, VStack, HStack, Button, Spinner, Alert, AlertIcon, Tabs, TabList, TabPanels, Tab, TabPanel, Switch, FormLabel } from '@chakra-ui/react';
-import TemporalEvolutionGraph from '../components/TemporalEvolutionGraph';
-import BiologicalEvolutionGraph from '../components/BiologicalEvolutionGraph';
-import SimplePhysicsSimulation from '../components/SimplePhysicsSimulation';
+import { Box, Heading, Text, VStack, HStack, Button, Spinner, Alert, AlertIcon, Slider, SliderTrack, SliderFilledTrack, SliderThumb, HStack as ChakraHStack, Badge } from '@chakra-ui/react';
+import ProgressiveStructureGraph from '../components/ProgressiveStructureGraph';
 
 const DEV_GRAPH_API_URL = process.env.NEXT_PUBLIC_DEV_GRAPH_API_URL || 'http://localhost:8080';
 
@@ -48,9 +46,9 @@ export default function TimelinePage() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [useBiologicalView, setUseBiologicalView] = useState(true);
-  const [viewMode, setViewMode] = useState<'biological' | 'technical' | 'physics'>('physics');
-  const [evolutionSnapshots, setEvolutionSnapshots] = useState<any[]>([]);
+  const [maxNodes, setMaxNodes] = useState(100);
+  const [showFolderGroups, setShowFolderGroups] = useState(true);
+  const [currentSubgraph, setCurrentSubgraph] = useState<{ nodes: any[]; edges: any[] } | null>(null);
 
   useEffect(() => {
     const fetchEvolutionData = async () => {
@@ -58,7 +56,7 @@ export default function TimelinePage() {
         setLoading(true);
         setError(null);
 
-        const response = await fetch(`${DEV_GRAPH_API_URL}/api/v1/dev-graph/evolution/timeline?limit=50`);
+        const response = await fetch(`${DEV_GRAPH_API_URL}/api/v1/dev-graph/evolution/timeline?limit=50&max_files_per_commit=30`);
         
         if (!response.ok) {
           throw new Error('Failed to fetch evolution timeline data');
@@ -76,10 +74,16 @@ export default function TimelinePage() {
         setCommits(data.commits || []);
         setFileLifecycles(data.file_lifecycles || []);
         setCurrentTimeIndex(0); // Start from the first commit
-        
-        // Generate evolution snapshots for biological view
-        const snapshots = generateEvolutionSnapshots(data.commits || [], data.file_lifecycles || []);
-        setEvolutionSnapshots(snapshots);
+        // Also hydrate subgraph for first commit
+        if ((data.commits || []).length > 0) {
+          const first = (data.commits || [])[0];
+          try {
+            const sg = await fetchCommitSubgraph(first.hash);
+            setCurrentSubgraph(sg);
+          } catch (e) {
+            console.warn('Failed to fetch subgraph for initial commit, will use demo fallback.', e);
+          }
+        }
       } catch (err: any) {
         console.error("Error fetching evolution data:", err);
         setError(err.message || "Failed to load data");
@@ -88,10 +92,11 @@ export default function TimelinePage() {
         const demoLifecycles = generateDemoFileLifecycles();
         setCommits(demoCommits);
         setFileLifecycles(demoLifecycles);
-        
-        // Generate demo evolution snapshots
-        const demoSnapshots = generateEvolutionSnapshots(demoCommits, demoLifecycles);
-        setEvolutionSnapshots(demoSnapshots);
+        // Try to fetch subgraph for first demo commit as well
+        try {
+          const sg = await fetchCommitSubgraph(demoCommits[0]?.hash);
+          setCurrentSubgraph(sg);
+        } catch {}
       } finally {
         setLoading(false);
       }
@@ -100,54 +105,36 @@ export default function TimelinePage() {
     fetchEvolutionData();
   }, []);
 
-  const generateEvolutionSnapshots = (commits: Commit[], lifecycles: FileLifecycle[]): any[] => {
-    return commits.map((commit, index) => {
-      // Get files visible at this commit
-      const visibleFiles = lifecycles.filter(file => {
-        const createdBefore = new Date(file.created_at) <= new Date(commit.timestamp);
-        const notDeletedYet = !file.deleted_at || new Date(file.deleted_at) > new Date(commit.timestamp);
-        return createdBefore && notDeletedYet;
-      }).map(file => {
-        // Determine file status at this commit
-        let status = 'alive';
-        const fileInCommit = commit.files.find(f => f.path === file.path);
-        if (fileInCommit) {
-          if (fileInCommit.action === 'deleted') status = 'deleted';
-          else if (fileInCommit.action === 'modified') status = 'modified';
-        }
-        
-        return {
-          id: file.path,
-          path: file.path,
-          type: file.type,
-          created_at: file.created_at,
-          deleted_at: file.deleted_at,
-          last_modified: commit.timestamp,
-          size: fileInCommit?.size || file.current_size,
-          commit_count: file.modifications,
-          status,
-          modifications: file.modifications
-        };
-      });
-
-      return {
-        timestamp: commit.timestamp,
-        commit_hash: commit.hash,
-        files: visibleFiles,
-        branches: ['main'], // Simplified for demo
-        active_developers: [commit.author],
-        commit: {
-          hash: commit.hash,
-          message: commit.message,
-          timestamp: commit.timestamp,
-          author_name: commit.author,
-          files_changed: commit.files.map(f => f.path),
-          x: 0,
-          y: 0
-        }
-      };
-    });
+  // Fetch subgraph scoped to a single commit
+  const fetchCommitSubgraph = async (commitHash?: string) => {
+    if (!commitHash) return { nodes: [], edges: [] };
+    const params = new URLSearchParams();
+    params.set('start_commit', commitHash);
+    params.set('end_commit', commitHash);
+    params.set('limit', '800');
+    const url = `${DEV_GRAPH_API_URL}/api/v1/dev-graph/subgraph/by-commits?${params.toString()}`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('Failed to fetch commit-scoped subgraph');
+    const sg = await res.json();
+    // Normalize keys to {nodes, edges}
+    return { nodes: sg.nodes || [], edges: sg.edges || sg.links || [] };
   };
+
+  // Update subgraph whenever current commit changes
+  useEffect(() => {
+    const run = async () => {
+      const c = commits[currentTimeIndex];
+      if (!c) return;
+      try {
+        const sg = await fetchCommitSubgraph(c.hash);
+        setCurrentSubgraph(sg);
+      } catch (e) {
+        console.warn('Failed to fetch subgraph for commit', c.hash, e);
+      }
+    };
+    run();
+  }, [currentTimeIndex, commits]);
+
 
   const generateDemoCommits = (): Commit[] => [
     { 
@@ -322,95 +309,58 @@ export default function TimelinePage() {
           </Box>
         )}
 
-        {/* View Toggle */}
-        <HStack spacing={4} justify="center" py={4}>
-          <FormLabel htmlFor="view-toggle" mb={0}>
-            Visualization Mode:
-          </FormLabel>
-          <Switch
-            id="view-toggle"
-            isChecked={useBiologicalView}
-            onChange={(e) => setUseBiologicalView(e.target.checked)}
-            colorScheme="purple"
-          />
-          <Text fontSize="sm" color={useBiologicalView ? 'purple.600' : 'gray.600'}>
-            {useBiologicalView ? '🧬 Biological Evolution' : '📊 Technical Timeline'}
-          </Text>
-        </HStack>
+        {/* Visualization Controls */}
+        <Box p={4} bg="gray.50" borderRadius="md">
+          <VStack spacing={4} align="stretch">
+            <HStack justify="space-between" align="center">
+              <Text fontSize="md" fontWeight="semibold">Visualization Controls</Text>
+              <Badge colorScheme="blue" fontSize="sm">
+                {commits.length > 0 ? `${commits[currentTimeIndex]?.files?.length || 0} files in current commit` : '0 files'}
+              </Badge>
+            </HStack>
+            
+            <HStack spacing={6} align="center">
+              <VStack spacing={2} align="start">
+                <Text fontSize="sm" fontWeight="medium">Max Nodes: {maxNodes}</Text>
+                <Slider
+                  value={maxNodes}
+                  onChange={(value) => setMaxNodes(value)}
+                  min={20}
+                  max={500}
+                  step={10}
+                  width="200px"
+                >
+                  <SliderTrack>
+                    <SliderFilledTrack />
+                  </SliderTrack>
+                  <SliderThumb />
+                </Slider>
+              </VStack>
+              
+              <VStack spacing={2} align="start">
+                <Text fontSize="sm" fontWeight="medium">Group by Folders</Text>
+                <Button
+                  size="sm"
+                  variant={showFolderGroups ? "solid" : "outline"}
+                  colorScheme="green"
+                  onClick={() => setShowFolderGroups(!showFolderGroups)}
+                >
+                  {showFolderGroups ? "Enabled" : "Disabled"}
+                </Button>
+              </VStack>
+            </HStack>
+          </VStack>
+        </Box>
 
-        {/* Evolution Visualization */}
-        <Tabs variant="enclosed" colorScheme="purple" index={viewMode === 'biological' ? 0 : viewMode === 'technical' ? 1 : 2} onChange={(index) => setViewMode(index === 0 ? 'biological' : index === 1 ? 'technical' : 'physics')}>
-          <TabList>
-            <Tab>Evolution View</Tab>
-            <Tab>Technical Details</Tab>
-            <Tab>Physics Simulation</Tab>
-          </TabList>
-          <TabPanels>
-            <TabPanel>
-              {useBiologicalView && evolutionSnapshots.length > 0 ? (
-                <BiologicalEvolutionGraph
-                  snapshot={evolutionSnapshots[currentTimeIndex]}
-                  previousSnapshot={currentTimeIndex > 0 ? evolutionSnapshots[currentTimeIndex - 1] : undefined}
-                  height={900}
-                  width={1200}
-                  showLabels={true}
-                  enableAnimation={true}
-                  isPlaying={isPlaying}
-                  currentIndex={currentTimeIndex}
-                  totalSnapshots={evolutionSnapshots.length}
-                  onPlayPause={handlePlayPause}
-                  onNext={handleNext}
-                  onPrevious={handlePrevious}
-                />
-              ) : (
-                <TemporalEvolutionGraph
-                  commits={commits}
-                  fileLifecycles={fileLifecycles}
-                  currentTimeIndex={currentTimeIndex}
-                  isPlaying={isPlaying}
-                  onTimeChange={handleTimeChange}
-                  width={1200}
-                  height={600}
-                />
-              )}
-            </TabPanel>
-            <TabPanel>
-              <TemporalEvolutionGraph
-                commits={commits}
-                fileLifecycles={fileLifecycles}
-                currentTimeIndex={currentTimeIndex}
-                isPlaying={isPlaying}
-                onTimeChange={handleTimeChange}
-                width={1200}
-                height={600}
-              />
-            </TabPanel>
-            <TabPanel>
-              <SimplePhysicsSimulation
-                commits={commits.map(commit => ({
-                  id: commit.hash,
-                  message: commit.message,
-                  timestamp: commit.timestamp,
-                  files: commit.files.map(file => ({
-                    id: file.path,
-                    path: file.path,
-                    type: file.type === 'document' ? 'doc' : file.type === 'config' ? 'config' : file.type === 'other' ? 'test' : 'code',
-                    status: file.action === 'created' ? 'new' : file.action === 'deleted' ? 'deleted' : 'modified',
-                    modifications: 1,
-                    commit_count: 1,
-                    created_at: commit.timestamp,
-                    last_modified: commit.timestamp
-                  }))
-                }))}
-                currentIndex={currentTimeIndex}
-                height={700}
-                width={1200}
-                isPlaying={isPlaying}
-                onTimeChange={setCurrentTimeIndex}
-              />
-            </TabPanel>
-          </TabPanels>
-        </Tabs>
+        {/* Main Visualization */}
+        <ProgressiveStructureGraph
+          commits={commits}
+          currentTimeIndex={currentTimeIndex}
+          width={1200}
+          height={600}
+          maxNodes={maxNodes}
+          showFolderGroups={showFolderGroups}
+        />
       </VStack>
     </Box>
   );

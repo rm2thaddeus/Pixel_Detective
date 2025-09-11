@@ -79,7 +79,12 @@ def get_stats():
             ).data()
 
             if not result:
-                return {"error": "No data found in graph", "timestamp": "2025-01-05T09:00:00Z"}
+                return {
+                    "summary": {"total_nodes": 0, "total_relationships": 0, "recent_commits_7d": 0},
+                    "node_types": [],
+                    "relationship_types": [],
+                    "timestamp": "2025-01-05T09:00:00Z"
+                }
 
             total_nodes = result["total_nodes"] or 0
             total_rels = result["total_rels"] or 0
@@ -117,5 +122,11 @@ def get_stats():
                 "timestamp": "2025-01-05T09:00:00Z",
             }
     except Exception as e:
-        return {"error": f"Failed to retrieve stats: {str(e)}", "timestamp": "2025-01-05T09:00:00Z"}
+        return {
+            "summary": {"total_nodes": 0, "total_relationships": 0, "recent_commits_7d": 0},
+            "node_types": [],
+            "relationship_types": [],
+            "timestamp": "2025-01-05T09:00:00Z",
+            "error": f"Failed to retrieve stats: {str(e)}"
+        }
 
