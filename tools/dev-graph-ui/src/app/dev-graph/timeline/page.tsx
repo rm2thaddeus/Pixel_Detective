@@ -44,6 +44,7 @@ interface FileEvolution {
 }
 
 export default function TimelinePage() {
+  console.log('TimelinePage: Component rendering');
   const [commits, setCommits] = useState<Commit[]>([]);
   const [fileLifecycles, setFileLifecycles] = useState<FileLifecycle[]>([]);
   const [currentTimeIndex, setCurrentTimeIndex] = useState(0);
@@ -97,14 +98,18 @@ export default function TimelinePage() {
   const textColor = useColorModeValue('gray.800', 'gray.200');
   const mutedTextColor = useColorModeValue('gray.600', 'gray.400');
 
+  console.log('TimelinePage: About to run useEffect');
   useEffect(() => {
+    console.log('TimelinePage: useEffect triggered, starting data fetch');
+    console.log('TimelinePage: useEffect is running!');
     const fetchEvolutionData = async () => {
       try {
+        console.log('TimelinePage: Starting data fetch, API URL:', DEV_GRAPH_API_URL);
         setLoading(true);
         setError(null);
 
         // Load commits up to API limit (200 max) with reasonable file count per commit
-        const filesPerCommit = Math.max(10, Math.min(200, Math.floor((useAutoNodeBudget ? autoNodeBudget : maxNodes) / 10)));
+        const filesPerCommit = 50; // Use a fixed value to avoid dependency issues
         const response = await fetch(`${DEV_GRAPH_API_URL}/api/v1/dev-graph/evolution/timeline?limit=200&max_files_per_commit=${filesPerCommit}`);
         
         if (!response.ok) {
@@ -119,6 +124,16 @@ export default function TimelinePage() {
           sampleCommit: data.commits?.[0],
           sampleFileLifecycle: data.file_lifecycles?.[0]
         });
+        
+        // Debug LOC data specifically
+        if (data.commits?.[0]?.files) {
+          const filesWithLoc = data.commits[0].files.filter(f => f.loc > 0 || f.lines_after > 0);
+          console.log('TimelinePage: Files with LOC data', {
+            totalFiles: data.commits[0].files.length,
+            filesWithLoc: filesWithLoc.length,
+            sampleFilesWithLoc: filesWithLoc.slice(0, 3)
+          });
+        }
         
         setCommits(data.commits || []);
         setFileLifecycles(data.file_lifecycles || []);

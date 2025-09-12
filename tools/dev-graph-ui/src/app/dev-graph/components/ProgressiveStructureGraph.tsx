@@ -105,13 +105,19 @@ export default function ProgressiveStructureGraph({
       upto,
       showingCommits: `${startIndex + 1} to ${upto + 1}`,
       firstCommit: commits[startIndex]?.hash?.substring(0, 8),
-      lastCommit: commits[upto]?.hash?.substring(0, 8)
+      lastCommit: commits[upto]?.hash?.substring(0, 8),
+      sampleFile: commits[upto]?.files?.[0],
+      locDataAvailable: commits[upto]?.files?.some(f => f.loc !== undefined || f.lines_after !== undefined)
     });
 
     // Commit chain
     for (let i = startIndex; i <= upto; i++) {
       const c = commits[i];
-      const totalLoc = (c.files || []).reduce((sum, f) => sum + Math.max(0, f.lines_after || f.loc || f.size || 0), 0);
+      const totalLoc = (c.files || []).reduce((sum, f) => {
+        // Prioritize lines_after, then loc, then size as fallback
+        const loc = f.lines_after ?? f.loc ?? f.size ?? 0;
+        return sum + Math.max(0, loc);
+      }, 0);
       const rCommit = sizeByLOC ? Math.min(20, Math.max(8, Math.sqrt(totalLoc) * 0.2 + 8)) : 12;
       nodeMap.set(c.hash, { id: c.hash, nodeType: 'commit', radius: rCommit, loc: totalLoc, filesTouched: c.files?.length || 0 });
       if (i > startIndex) {
@@ -149,7 +155,7 @@ export default function ProgressiveStructureGraph({
         }
         const folder = folderMap.get(folderPath)!;
         folder.files.push(file);
-        folder.totalSize += file.lines_after || file.loc || file.size || 0;
+        folder.totalSize += file.lines_after ?? file.loc ?? file.size ?? 0;
         folder.fileTypes.add(file.type);
       }
 
@@ -189,7 +195,7 @@ export default function ProgressiveStructureGraph({
         
         if (isRecentFile || isImportantFile) {
           const kind: FileKind = file.type as FileKind;
-          const loc = Math.max(0, file.lines_after || file.loc || file.size || 0);
+          const loc = Math.max(0, file.lines_after ?? file.loc ?? file.size ?? 0);
           const r = sizeByLOC ? Math.min(16, Math.max(4, loc > 0 ? Math.sqrt(loc) * 0.3 : 6)) : 8;
           
           nodeMap.set(filePath, { 
@@ -213,7 +219,7 @@ export default function ProgressiveStructureGraph({
       // No folder grouping - just add files directly
       for (const [filePath, { file }] of sortedFiles) {
         const kind: FileKind = file.type as FileKind;
-        const loc = Math.max(0, file.lines_after || file.loc || file.size || 0);
+        const loc = Math.max(0, file.lines_after ?? file.loc ?? file.size ?? 0);
         const r = sizeByLOC ? Math.min(16, Math.max(4, loc > 0 ? Math.sqrt(loc) * 0.3 : 6)) : 8;
         
         nodeMap.set(filePath, { 
@@ -238,7 +244,7 @@ export default function ProgressiveStructureGraph({
       nodes: Array.from(nodeMap.values()).slice(0, maxNodes), // Hard limit
       links: linkList 
     };
-  }, [commits, currentTimeIndex, maxNodes, showFolderGroups, rangeStartIndex]);
+  }, [commits, currentTimeIndex, maxNodes, showFolderGroups, rangeStartIndex, sizeByLOC, colorByLOC]);
 
   // Create once
   useEffect(() => {
@@ -322,12 +328,14 @@ export default function ProgressiveStructureGraph({
     }
   }, [resetToken]);
 
-  // Update on data changes
+  // Update on data changes - only when nodes/links actually change
   useEffect(() => {
+    if (!svgRef.current || !simRef.current) return;
+    
     const svg = d3.select(svgRef.current);
     const edgesLayer = svg.select<SVGGElement>('g.edges');
     const nodesLayer = svg.select<SVGGElement>('g.nodes');
-    const sim = simRef.current!;
+    const sim = simRef.current;
 
     const edgeKey = (d: any) => {
       const sid = typeof d.source === 'string' ? d.source : d.source?.id;

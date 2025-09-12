@@ -63,6 +63,33 @@ class EnhancedGitIngester:
         self.requirement_map = {}
         self.sprint_map = {}
 
+    def _get_file_content_at_commit(self, commit: Commit, path: Optional[str]) -> Optional[str]:
+        """Return text content of a file at a specific commit.
+
+        Tries tree lookup first, then falls back to `git show` plumbing. Handles
+        platform path separators robustly.
+        """
+        if not path:
+            return None
+
+        # Ensure POSIX-style path for git
+        posix_path = path.replace('\\', '/')
+
+        # Attempt 1: tree lookup
+        try:
+            blob = commit.tree / posix_path
+            if blob is not None and getattr(blob, 'type', None) == 'blob':
+                return blob.data_stream.read().decode('utf-8', errors='ignore')
+        except Exception:
+            # Fall through to git plumbing fallback
+            pass
+
+        # Attempt 2: git show (robust to path resolution quirks)
+        try:
+            return self.repo.git.show(f"{commit.hexsha}:{posix_path}")
+        except Exception:
+            return None
+
     def ingest(self):
         """Main ingestion process with enhanced git analysis."""
         print("Starting enhanced git-based ingestion...")
@@ -173,6 +200,9 @@ class EnhancedGitIngester:
             doc_files = []
             
             # Analyze commit diff
+            print(f"DEBUG: Analyzing commit {commit.hexsha[:8]} - {commit.message.strip()}")
+            print(f"DEBUG: Commit has {len(commit.parents)} parents")
+            
             for item in commit.diff(commit.parents[0] if commit.parents else None):
                 change_type = 'M'  # Modified by default
                 if item.new_file:
@@ -185,23 +215,21 @@ class EnhancedGitIngester:
                 path = item.b_path if item.b_path else item.a_path
                 old_path = item.a_path if item.renamed_file else None
                 
+                print(f"DEBUG: File change - {change_type}: {path}")
+                
                 # Get diff content as string
                 diff_content = str(item.diff) if item.diff else ""
 
                 # Lines of code after this commit for the file (approximate)
                 loc_after = 0
                 try:
-                    blob = None
-                    # If deleted, try previous path; else use current
                     if not item.deleted_file:
-                        blob = commit.tree / path
-                    elif item.a_path:
-                        blob = commit.tree / item.a_path
-                    if blob and blob.type == 'blob':
-                        content = blob.data_stream.read().decode('utf-8', errors='ignore')
-                        # count lines robustly
+                        content = self._get_file_content_at_commit(commit, path)
                         if content:
                             loc_after = content.count('\n') + (0 if content.endswith('\n') else 1)
+                    else:
+                        # File deleted -> zero LOC after
+                        loc_after = 0
                 except Exception:
                     loc_after = 0
                 
@@ -240,10 +268,8 @@ class EnhancedGitIngester:
                 # If it's a code file, try to extract requirements from content
                 if Path(file_change.path).suffix.lower() in CODE_EXTENSIONS:
                     try:
-                        # Get file content at this commit
-                        blob = commit.tree / file_change.path
-                        if blob:
-                            content = blob.data_stream.read().decode('utf-8', errors='ignore')
+                        content = self._get_file_content_at_commit(commit, file_change.path)
+                        if content:
                             content_requirements = REQ_PATTERN.findall(content)
                             content_sprints = SPRINT_REF_PATTERN.findall(content)
                             requirements_mentioned.update(content_requirements)
@@ -395,16 +421,9 @@ class EnhancedGitIngester:
             if file_change.change_type in ['M', 'A'] and Path(file_change.path).suffix.lower() in DOC_EXTENSIONS:
                 # For documentation files, try to track chunk-level changes
                 try:
-                    # Check if file exists in this commit's tree
-                    try:
-                        blob = commit_analysis.commit.tree / file_change.path
-                        if blob and blob.type == 'blob':
-                            content = blob.data_stream.read().decode('utf-8', errors='ignore')
-                        else:
-                            # File doesn't exist or is not a blob, skip
-                            continue
-                    except (KeyError, AttributeError):
-                        # File path doesn't exist in this commit, skip
+                    # Fetch content robustly for this commit
+                    content = self._get_file_content_at_commit(commit_analysis.commit, file_change.path)
+                    if not content:
                         continue
 
                     # Extract structured chunks with consistent IDs
