@@ -34,6 +34,23 @@ class EnhancedDevGraphIngester:
         self.driver = GraphDatabase.driver(neo4j_uri, auth=(user, password))
         self.requirement_map = {}  # Track requirements across sprints
 
+    def _normalize_repo_relative_path(self, file_path: Path) -> str:
+        """Return repo-relative POSIX path for a given path.
+
+        Ensures consistent forward-slash paths relative to the repository root
+        regardless of OS or whether an absolute/relative path was provided.
+        """
+        try:
+            root = Path(self.repo_path).resolve()
+            p = file_path
+            if not p.is_absolute():
+                p = (root / p).resolve()
+            rel = p.relative_to(root)
+            return rel.as_posix()
+        except Exception:
+            # Fallback: best-effort POSIX-ify the original path
+            return str(file_path).replace('\\', '/')
+
     def ingest(self):
         """Main ingestion process with enhanced coverage."""
         print("Starting enhanced ingestion...")
@@ -223,15 +240,34 @@ class EnhancedDevGraphIngester:
     def parse_documents(self) -> List[Dict[str, str]]:
         """Parse all document files for references and content."""
         documents = []
-        base = Path(self.repo_path) / "docs" / "sprints"
         
-        for item in base.iterdir():
-            if item.is_dir():
-                for file_path in item.rglob("*.md"):
-                    if file_path.is_file():
-                        doc = self._parse_document_file(file_path)
-                        if doc:
-                            documents.append(doc)
+        # Process docs/sprints directory
+        base = Path(self.repo_path) / "docs" / "sprints"
+        if base.exists():
+            for item in base.iterdir():
+                if item.is_dir():
+                    for file_path in item.rglob("*.md"):
+                        if file_path.is_file():
+                            doc = self._parse_document_file(file_path)
+                            if doc:
+                                documents.append(doc)
+        
+        # Process root-level .md files
+        root_path = Path(self.repo_path)
+        for file_path in root_path.glob("*.md"):
+            if file_path.is_file():
+                doc = self._parse_document_file(file_path)
+                if doc:
+                    documents.append(doc)
+        
+        # Process docs directory (non-sprints)
+        docs_path = Path(self.repo_path) / "docs"
+        if docs_path.exists():
+            for file_path in docs_path.rglob("*.md"):
+                if file_path.is_file() and not str(file_path).startswith(str(base)):
+                    doc = self._parse_document_file(file_path)
+                    if doc:
+                        documents.append(doc)
         
         return documents
 
@@ -239,6 +275,9 @@ class EnhancedDevGraphIngester:
         """Parse a single document file."""
         try:
             content = file_path.read_text(encoding="utf-8")
+            
+            # Extract title from first H1 heading or filename
+            title = self._extract_title(content, file_path.name)
             
             # Extract references to other documents, requirements, sprints
             references = []
@@ -252,8 +291,9 @@ class EnhancedDevGraphIngester:
                 references.append(f"{match.group(0)}")
             
             return {
-                "path": str(file_path),
+                "path": self._normalize_repo_relative_path(file_path),
                 "name": file_path.name,
+                "title": title,
                 "content": content[:500],  # First 500 chars
                 "references": list(set(references)),
                 "type": "document"
@@ -261,6 +301,20 @@ class EnhancedDevGraphIngester:
         except Exception as e:
             print(f"Error parsing document {file_path}: {e}")
             return None
+    
+    def _extract_title(self, content: str, filename: str) -> str:
+        """Extract title from markdown content or use filename."""
+        lines = content.split('\n')
+        for line in lines:
+            # Look for first H1 heading
+            if line.strip().startswith('# '):
+                return line.strip()[2:].strip()
+            # Look for H2 heading if no H1
+            elif line.strip().startswith('## ') and not any(l.strip().startswith('# ') for l in lines[:lines.index(line)]):
+                return line.strip()[3:].strip()
+        
+        # Fallback to filename without extension
+        return Path(filename).stem.replace('_', ' ').replace('-', ' ').title()
 
     # -------------------- Chunk Parsing --------------------
     def parse_chunks(self) -> List[Dict[str, object]]:
@@ -268,17 +322,44 @@ class EnhancedDevGraphIngester:
 
         Chunk identity: f"{path}#{slug}-{ordinal}" where slug is derived from heading text.
         """
-        base = Path(self.repo_path) / "docs" / "sprints"
         chunks: List[Dict[str, object]] = []
-        for item in base.iterdir():
-            if not item.is_dir():
-                continue
-            for file_path in item.rglob("*.md"):
-                try:
-                    text = file_path.read_text(encoding="utf-8")
-                except Exception:
+        
+        # Process docs/sprints directory
+        base = Path(self.repo_path) / "docs" / "sprints"
+        if base.exists():
+            for item in base.iterdir():
+                if not item.is_dir():
                     continue
-                chunks.extend(self._extract_chunks_from_text(str(file_path), text))
+                for file_path in item.rglob("*.md"):
+                    try:
+                        text = file_path.read_text(encoding="utf-8")
+                    except Exception:
+                        continue
+                    norm = self._normalize_repo_relative_path(file_path)
+                    chunks.extend(self._extract_chunks_from_text(norm, text))
+        
+        # Process root-level .md files
+        root_path = Path(self.repo_path)
+        for file_path in root_path.glob("*.md"):
+            try:
+                text = file_path.read_text(encoding="utf-8")
+                norm = self._normalize_repo_relative_path(file_path)
+                chunks.extend(self._extract_chunks_from_text(norm, text))
+            except Exception:
+                continue
+        
+        # Process docs directory (non-sprints)
+        docs_path = Path(self.repo_path) / "docs"
+        if docs_path.exists():
+            for file_path in docs_path.rglob("*.md"):
+                if file_path.is_file() and not str(file_path).startswith(str(base)):
+                    try:
+                        text = file_path.read_text(encoding="utf-8")
+                        norm = self._normalize_repo_relative_path(file_path)
+                        chunks.extend(self._extract_chunks_from_text(norm, text))
+                    except Exception:
+                        continue
+        
         return chunks
 
     @staticmethod

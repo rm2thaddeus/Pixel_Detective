@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import React, { useEffect, useMemo, useRef } from 'react';
 import * as d3 from 'd3';
@@ -38,8 +38,11 @@ interface ProgressiveStructureGraphProps {
   rangeEndIndex?: number;
   // Encodings and interactions
   sizeByLOC?: boolean;
-  colorByLOC?: boolean;
   enableZoom?: boolean;
+  // New coloring controls
+  colorMode?: 'folder' | 'type' | 'commit-flow' | 'activity' | 'none';
+  highlightDocs?: boolean;
+  edgeEmphasis?: number; // 0..1 controls edge visibility
 }
 
 type NodeDatum = {
@@ -51,6 +54,7 @@ type NodeDatum = {
   fileCount?: number;
   loc?: number; // lines of code associated (commit total, file size, or folder aggregate)
   filesTouched?: number;
+  touchCount?: number; // how many commits touched this file (for activity coloring)
 };
 
 type LinkDatum = {
@@ -78,8 +82,10 @@ export default function ProgressiveStructureGraph({
   rangeStartIndex,
   rangeEndIndex,
   sizeByLOC = true,
-  colorByLOC = true,
   enableZoom = true,
+  colorMode = 'folder',
+  highlightDocs = true,
+  edgeEmphasis = 0.4,
 }: ProgressiveStructureGraphProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   const simRef = useRef<d3.Simulation<NodeDatum, undefined>>();
@@ -89,6 +95,12 @@ export default function ProgressiveStructureGraph({
     const parts = filePath.split('/');
     if (parts.length <= 1) return '/';
     return parts.slice(0, -1).join('/');
+  };
+  // Top-level folder (used for coloring)
+  const getTopLevelFolder = (filePath: string): string => {
+    const normalized = filePath.replace(/\\/g, '/');
+    const idx = normalized.indexOf('/');
+    return idx === -1 ? normalized : normalized.slice(0, idx);
   };
 
   // Build nodes/links up to the current index with folder grouping and node limiting
@@ -140,9 +152,12 @@ export default function ProgressiveStructureGraph({
     }
 
     // Apply node limiting and folder grouping
-    const sortedFiles = Array.from(allFiles.entries())
-      .sort(([,a], [,b]) => b.commits.size - a.commits.size) // Sort by frequency
-      .slice(0, maxNodes - commits.length - 5); // Reserve space for commits and folders
+    const sortedAll = Array.from(allFiles.entries()).sort(([,a], [,b]) => b.commits.size - a.commits.size);
+    // Always prioritize document nodes so sprint docs are visible and never collapsed
+    const docEntries = sortedAll.filter(([, { file }]) => (file.type as FileKind) === 'document');
+    const nonDocEntries = sortedAll.filter(([, { file }]) => (file.type as FileKind) !== 'document');
+    const budgetForFiles = Math.max(0, maxNodes - commits.length - 5); // Reserve space for commits and folders
+    const sortedFiles = [...docEntries, ...nonDocEntries].slice(0, budgetForFiles);
 
     if (showFolderGroups) {
       // Group files by folder
@@ -189,7 +204,7 @@ export default function ProgressiveStructureGraph({
       const recentCommitFiles = new Set(commits[upto]?.files?.map(f => f.path) || []);
       const importantFiles = sortedFiles.slice(0, Math.min(20, maxNodes / 5)); // Top 20 files or 1/5 of max nodes
       
-      for (const [filePath, { file }] of sortedFiles) {
+      for (const [filePath, { file, commits: fileCommits }] of sortedFiles as any) {
         const isRecentFile = recentCommitFiles.has(filePath);
         const isImportantFile = importantFiles.some(([path]) => path === filePath);
         
@@ -204,6 +219,8 @@ export default function ProgressiveStructureGraph({
             fileKind: kind, 
             radius: r,
             loc,
+            folderPath: getTopLevelFolder(file.path),
+            touchCount: (fileCommits?.size as number) || 0,
           });
 
           // Link to all commits that touch this file
@@ -217,7 +234,7 @@ export default function ProgressiveStructureGraph({
       }
     } else {
       // No folder grouping - just add files directly
-      for (const [filePath, { file }] of sortedFiles) {
+      for (const [filePath, { file, commits: fileCommits }] of sortedFiles as any) {
         const kind: FileKind = file.type as FileKind;
         const loc = Math.max(0, file.lines_after ?? file.loc ?? file.size ?? 0);
         const r = sizeByLOC ? Math.min(16, Math.max(4, loc > 0 ? Math.sqrt(loc) * 0.3 : 6)) : 8;
@@ -228,6 +245,8 @@ export default function ProgressiveStructureGraph({
           fileKind: kind, 
           radius: r,
           loc,
+          folderPath: getTopLevelFolder(file.path),
+          touchCount: (fileCommits?.size as number) || 0,
         });
 
         // Link to all commits that touch this file
@@ -240,11 +259,31 @@ export default function ProgressiveStructureGraph({
       }
     }
 
+    // Build final node set ensuring all commits and all documents are kept
+    const allNodes = Array.from(nodeMap.values());
+    const commitNodes = allNodes.filter(n => n.nodeType === 'commit');
+    const docNodes = allNodes.filter(n => n.nodeType === 'file' && n.fileKind === 'document');
+    const mustKeepIds = new Set<string>([...commitNodes, ...docNodes].map(n => n.id));
+    const others = allNodes.filter(n => !mustKeepIds.has(n.id));
+
+    const finalNodes: NodeDatum[] = [];
+    // Always include commits and documents first
+    finalNodes.push(...commitNodes, ...docNodes);
+    // Fill the remaining budget with other nodes (folders, files)
+    for (const n of others) {
+      if (finalNodes.length >= Math.max(maxNodes, finalNodes.length)) break; // ensure we never drop must-keep set
+      finalNodes.push(n);
+    }
+
+    // Filter links to those whose endpoints are present
+    const allowed = new Set(finalNodes.map(n => n.id));
+    const finalLinks = linkList.filter(l => allowed.has(l.source as any) && allowed.has(l.target as any));
+
     return { 
-      nodes: Array.from(nodeMap.values()).slice(0, maxNodes), // Hard limit
-      links: linkList 
+      nodes: finalNodes,
+      links: finalLinks 
     };
-  }, [commits, currentTimeIndex, maxNodes, showFolderGroups, rangeStartIndex, sizeByLOC, colorByLOC]);
+  }, [commits, currentTimeIndex, maxNodes, showFolderGroups, rangeStartIndex, sizeByLOC]);
 
   // Create once
   useEffect(() => {
@@ -337,6 +376,27 @@ export default function ProgressiveStructureGraph({
     const nodesLayer = svg.select<SVGGElement>('g.nodes');
     const sim = simRef.current;
 
+    // Color helpers
+    const folderDomains = new Set<string>();
+    nodes.forEach((n: any) => { if (n.nodeType === 'file' && n.folderPath) folderDomains.add(n.folderPath); });
+    const folderColor = d3.scaleOrdinal<string, string>(d3.schemeTableau10).domain(Array.from(folderDomains));
+    const activityDomain = d3.extent(nodes.filter((n: any) => n.nodeType === 'file').map((n: any) => n.touchCount || 0)) as [number, number];
+    const activityColor = d3.scaleSequential(d3.interpolatePlasma).domain([activityDomain?.[0] ?? 0, activityDomain?.[1] ?? 1]);
+    const commitFlowColor = d3.scaleSequential(d3.interpolateTurbo).domain([0, Math.max(1, commits.length - 1)]);
+    const complement = (hex: string): string => {
+      try {
+        const c = d3.color(hex);
+        if (!c) return '#ffffff';
+        const hsl = d3.hsl(c);
+        hsl.h = (hsl.h + 180) % 360;
+        hsl.s = Math.min(1, hsl.s * 0.9);
+        hsl.l = Math.min(0.9, 1 - hsl.l * 0.6);
+        return hsl.formatHex();
+      } catch {
+        return '#ffffff';
+      }
+    };
+
     const edgeKey = (d: any) => {
       const sid = typeof d.source === 'string' ? d.source : d.source?.id;
       const tid = typeof d.target === 'string' ? d.target : d.target?.id;
@@ -350,21 +410,51 @@ export default function ProgressiveStructureGraph({
       .append('circle')
       .attr('r', 0)
       .attr('fill', (d: any) => {
-        if (colorByLOC && (d.nodeType === 'commit' || d.nodeType === 'folder' || d.nodeType === 'file')) {
-          // Color scale based on LOC (cool to warm)
-          const loc = Math.max(0, d.loc || 0);
-          const scale = d3.scaleSequential(d3.interpolateViridis).domain([0, 1000]);
-          return scale(Math.min(1000, loc));
+        if (d.nodeType === 'commit') {
+          const idx = Math.max(0, commits.findIndex(c => c.hash === d.id));
+          return colorMode === 'commit-flow' ? commitFlowColor(idx) : '#8b5cf6';
         }
-        if (d.nodeType === 'commit') return '#8b5cf6';
-        if (d.nodeType === 'folder') return '#f59e0b';
-        return FILE_COLORS[d.fileKind as FileKind] || '#6b7280';
+        if (d.nodeType === 'folder') {
+          if (colorMode === 'folder' || colorMode === 'commit-flow' || colorMode === 'activity') return folderColor((d.folderPath || 'folders') as string);
+          if (colorMode === 'none') return '#a98a2b';
+          return '#f59e0b';
+        }
+        // file nodes
+        switch (colorMode) {
+          case 'folder':
+          case 'commit-flow':
+            return folderColor((d.folderPath || 'files') as string);
+          case 'type':
+            return FILE_COLORS[d.fileKind as FileKind] || '#6b7280';
+          case 'activity':
+            return activityColor(d.touchCount || 0) as string;
+          case 'none':
+          default:
+            return '#6b7280';
+        }
       })
       .attr('stroke', '#fff')
       .attr('stroke-width', (d: any) => d.nodeType === 'folder' ? 2.5 : 1.5)
       .transition()
       .duration(250)
       .attr('r', (d: any) => d.radius);
+
+    // Document highlight ring with complementary color
+    nodeEnter
+      .filter((d: any) => highlightDocs && d.nodeType === 'file' && d.fileKind === 'document')
+      .append('circle')
+      .attr('class', 'doc-ring')
+      .attr('fill', 'none')
+      .attr('stroke-width', 2)
+      .attr('opacity', 0.9)
+      .attr('r', (d: any) => d.radius + 3)
+      .attr('stroke', (d: any) => {
+        let base = '#888';
+        if (colorMode === 'type') base = FILE_COLORS[d.fileKind as FileKind] || '#6b7280';
+        else if (colorMode === 'activity') base = activityColor(d.touchCount || 0) as string;
+        else base = folderColor((d.folderPath || 'docs') as string);
+        return complement(base);
+      });
     
     // Add folder labels
     nodeEnter
@@ -378,21 +468,34 @@ export default function ProgressiveStructureGraph({
     
     nodeEnter.append('title').text((d: any) => {
       if (d.nodeType === 'folder') return `${d.folderPath} (${d.fileCount} files, ${d.loc || 0} LOC)`;
-      if (d.nodeType === 'commit') return `${d.id} — Files: ${d.filesTouched || 0}, LOC: ${d.loc || 0}`;
-      return `${d.id} — LOC: ${d.loc || 0}`;
+      if (d.nodeType === 'commit') return `${d.id} â€” Files: ${d.filesTouched || 0}, LOC: ${d.loc || 0}`;
+      return `${d.id} â€” LOC: ${d.loc || 0}`;
     });
 
     nodeSel
       .select('circle')
       .attr('fill', (d: any) => {
-        if (colorByLOC && (d.nodeType === 'commit' || d.nodeType === 'folder' || d.nodeType === 'file')) {
-          const loc = Math.max(0, d.loc || 0);
-          const scale = d3.scaleSequential(d3.interpolateViridis).domain([0, 1000]);
-          return scale(Math.min(1000, loc));
+        if (d.nodeType === 'commit') {
+          const idx = Math.max(0, commits.findIndex(c => c.hash === d.id));
+          return colorMode === 'commit-flow' ? commitFlowColor(idx) : '#8b5cf6';
         }
-        if (d.nodeType === 'commit') return '#8b5cf6';
-        if (d.nodeType === 'folder') return '#f59e0b';
-        return FILE_COLORS[d.fileKind as FileKind] || '#6b7280';
+        if (d.nodeType === 'folder') {
+          if (colorMode === 'folder' || colorMode === 'commit-flow' || colorMode === 'activity') return folderColor((d.folderPath || 'folders') as string);
+          if (colorMode === 'none') return '#a98a2b';
+          return '#f59e0b';
+        }
+        switch (colorMode) {
+          case 'folder':
+          case 'commit-flow':
+            return folderColor((d.folderPath || 'files') as string);
+          case 'type':
+            return FILE_COLORS[d.fileKind as FileKind] || '#6b7280';
+          case 'activity':
+            return activityColor(d.touchCount || 0) as string;
+          case 'none':
+          default:
+            return '#6b7280';
+        }
       })
       .attr('r', (d: any) => d.radius)
       .attr('opacity', (d: any) => {
@@ -414,6 +517,30 @@ export default function ProgressiveStructureGraph({
         }
         return 0.6;
       });
+
+    // Ensure/update document ring per node
+    (nodeSel as any).each(function(d: any) {
+      const g = d3.select(this);
+      let ring = g.select<SVGCircleElement>('circle.doc-ring');
+      const isDoc = highlightDocs && d.nodeType === 'file' && d.fileKind === 'document';
+      if (isDoc) {
+        if (ring.empty()) {
+          ring = g.append('circle').attr('class', 'doc-ring');
+        }
+        let base = '#888';
+        if (colorMode === 'type') base = FILE_COLORS[d.fileKind as FileKind] || '#6b7280';
+        else if (colorMode === 'activity') base = activityColor(d.touchCount || 0) as string;
+        else base = folderColor((d.folderPath || 'docs') as string);
+        ring
+          .attr('fill', 'none')
+          .attr('stroke-width', 2)
+          .attr('opacity', 0.9)
+          .attr('r', d.radius + 3)
+          .attr('stroke', complement(base));
+      } else if (!ring.empty()) {
+        ring.remove();
+      }
+    });
     nodeSel.exit().remove();
 
     // Hook simulation nodes BEFORE assigning links
@@ -421,6 +548,11 @@ export default function ProgressiveStructureGraph({
 
     // Data-join edges
     const edgeSel = edgesLayer.selectAll<SVGLineElement, any>('line').data(links, edgeKey);
+    const chainOpacity = (0.3 + 0.7 * Math.max(0, Math.min(1, edgeEmphasis))) * (focusedView ? 1 : 0.9);
+    const fileOpacity = (0.02 + 0.28 * Math.max(0, Math.min(1, edgeEmphasis))) * (focusedView ? 1 : 1.2);
+    const chainWidth = 1 + 2 * Math.max(0, Math.min(1, edgeEmphasis));
+    const fileWidth = 0.4 + 0.8 * Math.max(0, Math.min(1, edgeEmphasis));
+
     edgeSel.enter()
       .append('line')
       .attr('stroke', (d: any) => {
@@ -428,12 +560,12 @@ export default function ProgressiveStructureGraph({
         return '#4a5568'; // Darker gray for file connections
       })
       .attr('stroke-width', (d: any) => {
-        if (d.kind === 'chain') return 3; // Thicker for commit chain
-        return 0.8; // Thinner for file connections
+        if (d.kind === 'chain') return chainWidth;
+        return fileWidth;
       })
       .attr('opacity', (d: any) => {
-        if (d.kind === 'chain') return focusedView ? 0.9 : 0.7; // Commit chain visibility
-        return focusedView ? 0.15 : 0.4; // File connections more subtle in focused view
+        if (d.kind === 'chain') return chainOpacity;
+        return fileOpacity;
       })
       .attr('stroke-dasharray', (d: any) => (d.kind === 'chain' ? 'none' : '4,4'));
     edgeSel.attr('stroke', (d: any) => {
@@ -441,12 +573,12 @@ export default function ProgressiveStructureGraph({
         return '#4a5568';
       })
       .attr('stroke-width', (d: any) => {
-        if (d.kind === 'chain') return 3;
-        return 0.8;
+        if (d.kind === 'chain') return chainWidth;
+        return fileWidth;
       })
       .attr('opacity', (d: any) => {
-        if (d.kind === 'chain') return focusedView ? 0.9 : 0.7;
-        return focusedView ? 0.15 : 0.4;
+        if (d.kind === 'chain') return chainOpacity;
+        return fileOpacity;
       })
       .attr('stroke-dasharray', (d: any) => (d.kind === 'chain' ? 'none' : '4,4'));
     edgeSel.exit().remove();
@@ -468,7 +600,7 @@ export default function ProgressiveStructureGraph({
         .selectAll<SVGGElement, any>('g.node')
         .attr('transform', (d: any) => `translate(${d.x}, ${d.y})`);
     }
-  }, [nodes, links]);
+  }, [nodes, links, colorMode, highlightDocs, edgeEmphasis, focusedView, commits, currentTimeIndex]);
 
   return <svg ref={svgRef} />;
 }

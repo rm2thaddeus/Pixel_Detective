@@ -76,23 +76,38 @@ class RelationshipDeriver:
     ) -> Dict[str, Any]:
         """Derive IMPLEMENTS relationships from multiple evidence sources."""
         total = 0
-        fr_pat = re.compile(r"\b(?:FR|NFR)-\d{2}-\d{2}\b")
-
-        # 1) Commit-message evidence (0.9)
+        
+        # Updated patterns to match actual commit messages
+        implement_patterns = [
+            r'\b(?:implements?|adds?|creates?|builds?|develops?)\s+([a-zA-Z0-9_-]+)',
+            r'\b(?:fixes?|resolves?)\s+([a-zA-Z0-9_-]+)',
+            r'\b(?:enhances?|improves?)\s+([a-zA-Z0-9_-]+)',
+            r'\b(?:refactors?|updates?)\s+([a-zA-Z0-9_-]+)',
+            r'\b(?:feature|functionality|component)\s+([a-zA-Z0-9_-]+)'
+        ]
+        
+        # 1) Commit-message evidence (0.8) - Updated to work with natural language
         q1 = (
             "MATCH (c:GitCommit)-[t:TOUCHED]->(f:File) "
             "WHERE ($since IS NULL OR coalesce(t.timestamp, c.timestamp) >= $since) "
-            "AND (c.message CONTAINS 'FR-' OR c.message CONTAINS 'NFR-') "
+            "AND (c.message CONTAINS 'implements' OR c.message CONTAINS 'adds' OR c.message CONTAINS 'creates' "
+            "OR c.message CONTAINS 'fixes' OR c.message CONTAINS 'enhances' OR c.message CONTAINS 'refactor') "
             "RETURN c.message AS message, f.path AS path, coalesce(t.timestamp, c.timestamp) AS ts"
         )
         for rec in tx.run(q1, since=since_timestamp or None):
             msg = rec.get("message") or ""
             path = rec.get("path")
             ts = rec.get("ts")
-            for rid in set(fr_pat.findall(msg)):
-                total += RelationshipDeriver._merge_implements(
-                    tx, rid, path, ts, sources=["commit-message"], conf=0.9
-                )
+            
+            # Extract feature/component names from commit messages
+            for pattern in implement_patterns:
+                matches = re.findall(pattern, msg, re.IGNORECASE)
+                for match in matches:
+                    # Create a requirement ID from the match
+                    req_id = f"REQ-{match.upper().replace(' ', '-')}"
+                    total += RelationshipDeriver._merge_implements(
+                        tx, req_id, path, ts, sources=["commit-message"], conf=0.8
+                    )
 
         # 2) Doc-mention evidence (0.6)
         q2 = (
@@ -174,10 +189,20 @@ class RelationshipDeriver:
     ) -> Dict[str, Any]:
         """Derive EVOLVES_FROM relationships using commit message patterns."""
         total = 0
+        
+        # Updated patterns to match actual commit messages
+        evolve_patterns = [
+            r'\b(?:replaces?|substitutes?|supersedes?)\s+([a-zA-Z0-9_-]+)',
+            r'\b(?:evolves?\s+from|based\s+on|derived\s+from)\s+([a-zA-Z0-9_-]+)',
+            r'\b(?:refactors?\s+from|migrates?\s+from)\s+([a-zA-Z0-9_-]+)',
+            r'\b(?:updates?\s+from|enhances?\s+from)\s+([a-zA-Z0-9_-]+)'
+        ]
+        
         q = (
             "MATCH (c:GitCommit) "
             "WHERE ($since IS NULL OR c.timestamp >= $since) "
-            "AND (c.message =~ '(?i).*replaces.*' OR c.message =~ '(?i).*evolves from.*' OR c.message =~ '(?i).*supersedes.*') "
+            "AND (c.message CONTAINS 'replaces' OR c.message CONTAINS 'evolves' OR c.message CONTAINS 'supersedes' "
+            "OR c.message CONTAINS 'refactor' OR c.message CONTAINS 'migrate' OR c.message CONTAINS 'update') "
             "RETURN c.message AS message, c.timestamp AS ts"
         )
         for rec in tx.run(q, since=since_timestamp or None):

@@ -50,6 +50,17 @@ export default function WelcomeDashboard() {
     staleTime: 60_000,
   });
 
+  // Fetch all commits for data quality calculation
+  const { data: allCommitsData, isLoading: allCommitsLoading } = useQuery({
+    queryKey: ['commits', 'all'],
+    queryFn: async () => {
+      const res = await fetch(`${DEV_GRAPH_API_URL}/api/v1/dev-graph/commits?limit=1000`);
+      if (!res.ok) throw new Error('Failed to fetch all commits');
+      return res.json();
+    },
+    staleTime: 10 * 60 * 1000, // 10 minutes
+  });
+
   const { data: sprintsData, isLoading: sprintsLoading } = useQuery({
     queryKey: ['sprints'],
     queryFn: async () => {
@@ -61,7 +72,7 @@ export default function WelcomeDashboard() {
   });
 
   // Calculate loading and error states
-  const loading = analyticsLoading || telemetryLoading || subgraphLoading || commitsLoading || sprintsLoading;
+  const loading = analyticsLoading || telemetryLoading || subgraphLoading || commitsLoading || allCommitsLoading || sprintsLoading;
   const error = analyticsError || telemetryError || subgraphError;
 
   // Helper functions for node and relation type colors
@@ -93,44 +104,87 @@ export default function WelcomeDashboard() {
     return colors[type as keyof typeof colors] || '#718096';
   };
 
-  // Helper function to calculate data quality score
+  // Consolidated Data Quality Metric - Comprehensive Assessment
   const calculateDataQualityScore = (analytics: any, commits: any) => {
-    let score = 0;
+    const metrics = {
+      dataAvailability: 0,
+      dataCompleteness: 0,
+      dataIntegrity: 0,
+      semanticRichness: 0,
+      traceability: 0
+    };
     
-    // Base score for having data
-    if (analytics?.activity?.peak_activity?.count > 0) score += 20;
-    if (analytics?.activity?.files_changed_per_day > 0) score += 20;
-    if (analytics?.activity?.authors_per_day > 0) score += 10;
+    // 1. DATA AVAILABILITY (20 points) - Basic data presence
+    if (analytics?.activity?.peak_activity?.count > 0) metrics.dataAvailability += 7;
+    if (analytics?.activity?.files_changed_per_day > 0) metrics.dataAvailability += 7;
+    if (analytics?.activity?.authors_per_day > 0) metrics.dataAvailability += 6;
     
-    // Bonus for recent activity
+    // 2. DATA COMPLETENESS (25 points) - Coverage and recent activity
     if (Array.isArray(commits) && commits.length > 0) {
-      score += 20;
+      metrics.dataCompleteness += 15;
       // Check for recent commits (last 7 days)
       const recentCommits = commits.filter((c: any) => {
         const commitDate = new Date(c.timestamp);
         const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
         return commitDate > weekAgo;
       });
-      if (recentCommits.length > 0) score += 10;
+      if (recentCommits.length > 0) metrics.dataCompleteness += 5;
+      
+      // Bonus for comprehensive commit coverage
+      const totalCommits = commits.length;
+      if (totalCommits > 200) metrics.dataCompleteness += 5; // Large dataset
     }
     
-    // Bonus for data diversity
-    if (analytics?.activity?.authors_per_day > 1) score += 10;
-    if (analytics?.activity?.files_changed_per_day > 100) score += 10;
+    // 3. DATA INTEGRITY (25 points) - Chunk linking and consistency
+    const chunks = analytics?.graph?.node_types?.chunks || 0;
+    const containsChunk = analytics?.graph?.edge_types?.CONTAINS_CHUNK || 0;
+    if (chunks > 0 && containsChunk > 0) {
+      const chunkLinkingRatio = containsChunk / chunks;
+      if (chunkLinkingRatio >= 0.98) metrics.dataIntegrity += 25; // 98%+ linked (excellent)
+      else if (chunkLinkingRatio >= 0.95) metrics.dataIntegrity += 20; // 95%+ linked (very good)
+      else if (chunkLinkingRatio >= 0.9) metrics.dataIntegrity += 15; // 90%+ linked (good)
+      else if (chunkLinkingRatio >= 0.8) metrics.dataIntegrity += 10; // 80%+ linked (fair)
+      else metrics.dataIntegrity += 5; // Some linking
+    }
     
-    // Bonus for graph complexity
-    if (analytics?.graph?.total_nodes > 1000) score += 10;
-    if (analytics?.graph?.total_edges > 10000) score += 10;
+    // 4. SEMANTIC RICHNESS (20 points) - Relationship derivation quality
+    const implementsCount = analytics?.graph?.edge_types?.IMPLEMENTS || 0;
+    const evolvesFrom = analytics?.graph?.edge_types?.EVOLVES_FROM || 0;
+    const refactoredTo = analytics?.graph?.edge_types?.REFACTORED_TO || 0;
+    const semanticRels = implementsCount + evolvesFrom + refactoredTo;
     
-    return Math.min(100, score);
+    if (semanticRels > 500) metrics.semanticRichness += 20; // 500+ semantic relationships (excellent)
+    else if (semanticRels > 200) metrics.semanticRichness += 15; // 200+ semantic relationships (very good)
+    else if (semanticRels > 100) metrics.semanticRichness += 12; // 100+ semantic relationships (good)
+    else if (semanticRels > 50) metrics.semanticRichness += 8; // 50+ semantic relationships (fair)
+    else if (semanticRels > 10) metrics.semanticRichness += 4; // 10+ semantic relationships (basic)
+    
+    // 5. TRACEABILITY (10 points) - Requirements coverage
+    const traceability = analytics?.traceability?.coverage_percentage || 0;
+    if (traceability > 80) metrics.traceability += 10; // 80%+ traceability (excellent)
+    else if (traceability > 60) metrics.traceability += 8; // 60%+ traceability (very good)
+    else if (traceability > 40) metrics.traceability += 6; // 40%+ traceability (good)
+    else if (traceability > 20) metrics.traceability += 4; // 20%+ traceability (fair)
+    else if (traceability > 0) metrics.traceability += 2; // Some traceability (basic)
+    
+    // Calculate weighted total (100 points max)
+    const totalScore = Object.values(metrics).reduce((sum, score) => sum + score, 0);
+    
+    // Return both the total score and breakdown for debugging
+    return {
+      score: Math.min(100, totalScore),
+      breakdown: metrics,
+      total: totalScore
+    };
   };
 
   // Process data into SystemHealth format
+  const qualityMetrics = analyticsData && allCommitsData ? calculateDataQualityScore(analyticsData, allCommitsData) : null;
   const health: SystemHealth | null = analyticsData && telemetryData ? {
     api_connected: true, // If we got data, API is connected
     database_connected: true, // If we got data, database is connected
     last_ingestion: new Date().toISOString(),
-    data_quality_score: calculateDataQualityScore(analyticsData, commitsData),
+    data_quality_score: qualityMetrics?.score || 0,
     total_nodes: analyticsData.graph.total_nodes || 0,
     total_relations: analyticsData.graph.total_edges || 0,
     recent_commits: analyticsData.activity.peak_activity.count || 0,
@@ -231,6 +285,33 @@ export default function WelcomeDashboard() {
                   size="sm"
                   mt={2}
                 />
+                {qualityMetrics && (
+                  <Box mt={3} fontSize="xs" color="gray.600">
+                    <Text fontWeight="bold" mb={1}>Quality Breakdown:</Text>
+                    <VStack align="start" spacing={1}>
+                      <HStack justify="space-between" w="full">
+                        <Text>Data Availability:</Text>
+                        <Text>{qualityMetrics.breakdown.dataAvailability}/20</Text>
+                      </HStack>
+                      <HStack justify="space-between" w="full">
+                        <Text>Data Completeness:</Text>
+                        <Text>{qualityMetrics.breakdown.dataCompleteness}/25</Text>
+                      </HStack>
+                      <HStack justify="space-between" w="full">
+                        <Text>Data Integrity:</Text>
+                        <Text>{qualityMetrics.breakdown.dataIntegrity}/25</Text>
+                      </HStack>
+                      <HStack justify="space-between" w="full">
+                        <Text>Semantic Richness:</Text>
+                        <Text>{qualityMetrics.breakdown.semanticRichness}/20</Text>
+                      </HStack>
+                      <HStack justify="space-between" w="full">
+                        <Text>Traceability:</Text>
+                        <Text>{qualityMetrics.breakdown.traceability}/10</Text>
+                      </HStack>
+                    </VStack>
+                  </Box>
+                )}
               </Stat>
               
               <Stat>

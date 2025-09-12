@@ -50,6 +50,18 @@ class ParallelIngestionPipeline:
         self.commit_queue = queue.Queue(maxsize=1000)
         self.chunk_queue = queue.Queue(maxsize=2000)
         self.batch_size = 200
+
+    def _normalize_repo_relative_path(self, file_path: str) -> str:
+        """Return repo-relative POSIX path for a given (possibly relative) path."""
+        try:
+            root = os.path.abspath(self.repo_path)
+            abs_path = file_path
+            if not os.path.isabs(abs_path):
+                abs_path = os.path.abspath(os.path.join(root, file_path))
+            rel = os.path.relpath(abs_path, root)
+            return rel.replace('\\', '/')
+        except Exception:
+            return file_path.replace('\\', '/')
         self.flush_interval = 0.2  # 200ms
         
     def ingest_commits_parallel(self, limit: int = 100) -> Dict[str, int]:
@@ -109,7 +121,7 @@ class ParallelIngestionPipeline:
             cmd = [
                 "git", "--no-pager", "log",  # Disable pager correctly
                 "--name-status",
-                f"--pretty=format:%H\t%an\t%ae\t%aI\t%s",
+                f"--pretty=format:%H\t%an\t%ae\t%aI\t%B",  # Use %B for full commit message
                 f"-n{limit}"
             ]
             
@@ -119,7 +131,9 @@ class ParallelIngestionPipeline:
                 cmd, 
                 cwd=self.repo_path,
                 capture_output=True, 
-                text=True, 
+                text=True,
+                encoding="utf-8",
+                errors="ignore",
                 timeout=60,  # Increased timeout
                 env={**os.environ, 'GIT_PAGER': 'cat'}  # Disable pager
             )
@@ -141,49 +155,69 @@ class ParallelIngestionPipeline:
     def _parse_git_log_output(self, output: str) -> List[Dict[str, Any]]:
         """Parse git log output into commit objects."""
         commits = []
-        # Split by double newlines to separate commits, then process each commit
-        commit_blocks = output.split('\n\n')
+        lines = output.strip().split('\n')
         
-        for block in commit_blocks:
-            if not block.strip():
+        current_commit = None
+        current_files = []
+        in_commit_message = False
+        
+        for line in lines:
+            line = line.strip()
+            if not line:
                 continue
                 
-            lines = [line.strip() for line in block.split('\n') if line.strip()]
-            if not lines:
-                continue
+            # Check if this is a commit header (has 4 tabs and starts with commit hash)
+            if line.count('\t') == 4 and len(line.split('\t')[0]) == 40:
+                # Save previous commit if exists
+                if current_commit:
+                    current_commit["files"] = current_files
+                    commits.append(current_commit)
                 
-            # First line should be the commit header
-            header_line = lines[0]
-            if header_line.count('\t') == 4:
-                parts = header_line.split('\t', 4)
+                # Start new commit
+                parts = line.split('\t', 4)
                 if len(parts) == 5:
                     commit_hash, author, email, timestamp, message = parts
-                    
-                    # Collect file changes from remaining lines
-                    files = []
-                    for line in lines[1:]:
-                        if line.count('\t') == 1:
-                            file_parts = line.split('\t', 1)
-                            if len(file_parts) == 2:
-                                change_type, file_path = file_parts
-                                files.append({
-                                    "path": file_path,
-                                    "change_type": self._normalize_change_type(change_type)
-                                })
-                    
-                    commits.append({
+                    current_commit = {
                         "hash": commit_hash,
-                        "message": message,
+                        "message": message.strip(),
                         "author": author,
                         "email": email,
-                        "timestamp": timestamp,
-                        "files": files
+                        "timestamp": timestamp
+                    }
+                    current_files = []
+                    in_commit_message = True
+            
+            # Check if this is a file change (has 1 tab and we're not in commit message)
+            elif line.count('\t') == 1 and current_commit and not in_commit_message:
+                file_parts = line.split('\t', 1)
+                if len(file_parts) == 2:
+                    change_type, file_path = file_parts
+                    current_files.append({
+                        "path": file_path,
+                        "change_type": self._normalize_change_type(change_type)
                     })
+            
+            # If we're in a commit message and hit a file change, switch to file parsing
+            elif line.count('\t') == 1 and current_commit and in_commit_message:
+                in_commit_message = False
+                file_parts = line.split('\t', 1)
+                if len(file_parts) == 2:
+                    change_type, file_path = file_parts
+                    current_files.append({
+                        "path": file_path,
+                        "change_type": self._normalize_change_type(change_type)
+                    })
+        
+        # Don't forget the last commit
+        if current_commit:
+            current_commit["files"] = current_files
+            commits.append(current_commit)
         
         logger.info(f"Parsed {len(commits)} commits from git log output")
         if len(commits) == 0:
-            logger.warning(f"No commits parsed from {len(commit_blocks)} commit blocks")
-            logger.debug(f"First commit block: {commit_blocks[0][:200]}...")
+            logger.warning(f"No commits parsed from {len(lines)} lines")
+            if lines:
+                logger.debug(f"First line: {lines[0][:200]}...")
         return commits
     
     def _normalize_change_type(self, status: str) -> str:
@@ -200,18 +234,100 @@ class ParallelIngestionPipeline:
             return 'modified'
     
     def _process_commit(self, commit_data: Dict[str, Any]) -> Optional[CommitOperation]:
-        """Process a single commit (placeholder for future enrichment)."""
+        """Process a single commit with LOC calculation."""
         try:
+            # Calculate LOC for each file
+            enriched_files = []
+            for file_info in commit_data["files"]:
+                enriched_file = file_info.copy()
+                
+                # Calculate LOC data
+                loc_data = self._calculate_file_loc(commit_data["hash"], file_info["path"], file_info["change_type"])
+                enriched_file.update(loc_data)
+                
+                enriched_files.append(enriched_file)
+            
             return CommitOperation(
                 hash=commit_data["hash"],
                 message=commit_data["message"],
                 author=commit_data["author"],
                 email=commit_data["email"],
                 timestamp=commit_data["timestamp"],
-                files=commit_data["files"]
+                files=enriched_files
             )
         except Exception as e:
             logger.error(f"Error processing commit {commit_data.get('hash', 'unknown')}: {e}")
+            return None
+    
+    def _calculate_file_loc(self, commit_hash: str, file_path: str, change_type: str) -> Dict[str, Any]:
+        """Calculate LOC data for a file at a specific commit."""
+        try:
+            # For deleted files, return 0 LOC
+            if change_type == 'D':
+                return {
+                    "lines_after": 0,
+                    "additions": 0,
+                    "deletions": 0
+                }
+            
+            # Get file content at this commit
+            content = self._get_file_content_at_commit(commit_hash, file_path)
+            if not content:
+                return {
+                    "lines_after": 0,
+                    "additions": 0,
+                    "deletions": 0
+                }
+            
+            # Calculate lines of code
+            lines_after = content.count('\n') + (0 if content.endswith('\n') else 1)
+            
+            # For now, we'll set additions and deletions to 0 since we don't have diff data
+            # In a more sophisticated implementation, we could calculate these from git diff
+            return {
+                "lines_after": lines_after,
+                "additions": 0,  # TODO: Calculate from git diff
+                "deletions": 0   # TODO: Calculate from git diff
+            }
+            
+        except Exception as e:
+            logger.error(f"Error calculating LOC for {file_path} at {commit_hash}: {e}")
+            return {
+                "lines_after": 0,
+                "additions": 0,
+                "deletions": 0
+            }
+    
+    def _get_file_content_at_commit(self, commit_hash: str, file_path: str) -> Optional[str]:
+        """Get file content at a specific commit using git show."""
+        try:
+            # Ensure POSIX-style path for git
+            posix_path = file_path.replace('\\', '/')
+            
+            # Use git show to get file content at specific commit
+            cmd = ["git", "show", f"{commit_hash}:{posix_path}"]
+            
+            result = subprocess.run(
+                cmd,
+                cwd=self.repo_path,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="ignore",
+                timeout=10
+            )
+            
+            if result.returncode == 0:
+                return result.stdout
+            else:
+                logger.debug(f"Could not get content for {file_path} at {commit_hash}: {result.stderr}")
+                return None
+                
+        except subprocess.TimeoutExpired:
+            logger.error(f"Timeout getting content for {file_path} at {commit_hash}")
+            return None
+        except Exception as e:
+            logger.error(f"Error getting content for {file_path} at {commit_hash}: {e}")
             return None
     
     def _batch_write_commits(self, commits: List[CommitOperation]) -> int:
@@ -247,7 +363,7 @@ class ParallelIngestionPipeline:
         """Write a batch of commits using UNWIND operations."""
         try:
             with self.driver.session() as session:
-                # UNWIND template for commits and files
+                # UNWIND template for commits and files with LOC calculation
                 query = """
                 UNWIND $commits AS c
                 MERGE (gc:GitCommit {hash: c.hash}) 
@@ -269,7 +385,11 @@ class ParallelIngestionPipeline:
                 MERGE (fl:File {path: f.path})
                 MERGE (gc)-[r:TOUCHED]->(fl) 
                 SET r.change_type = f.change_type, 
-                    r.timestamp = c.timestamp
+                    r.timestamp = c.timestamp,
+                    r.lines_after = f.lines_after,
+                    r.additions = f.additions,
+                    r.deletions = f.deletions
+                SET fl.loc = CASE f.change_type WHEN 'D' THEN 0 ELSE f.lines_after END
                 """
                 
                 result = session.run(query, commits=batch)
@@ -342,7 +462,9 @@ class ParallelIngestionPipeline:
                     ['git', 'ls-files', pattern],
                     cwd=self.repo_path,
                     capture_output=True,
-                    text=True
+                    text=True,
+                    encoding="utf-8",
+                    errors="ignore"
                 )
                 if result.returncode == 0:
                     doc_files = [f for f in result.stdout.strip().split('\n') if f][:doc_limit]
@@ -358,7 +480,9 @@ class ParallelIngestionPipeline:
                     ['git', 'ls-files', pattern],
                     cwd=self.repo_path,
                     capture_output=True,
-                    text=True
+                    text=True,
+                    encoding="utf-8",
+                    errors="ignore"
                 )
                 if result.returncode == 0:
                     code_files = [f for f in result.stdout.strip().split('\n') if f][:code_limit]
@@ -377,9 +501,11 @@ class ParallelIngestionPipeline:
             
             # Simple chunking based on file type
             if file_type == 'documentation':
-                return self._chunk_documentation(file_path, content)
+                norm = self._normalize_repo_relative_path(file_path)
+                return self._chunk_documentation(norm, content)
             else:
-                return self._chunk_code(file_path, content)
+                norm = self._normalize_repo_relative_path(file_path)
+                return self._chunk_code(norm, content)
                 
         except Exception as e:
             logger.error(f"Error processing file {file_path}: {e}")

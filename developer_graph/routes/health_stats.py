@@ -46,20 +46,20 @@ def health_check():
 def get_stats():
     try:
         with driver.session() as session:
-            # Simplified stats query to avoid timeouts
-            result = session.run(
+            # Use separate, simpler queries to avoid timeouts
+            total_nodes = session.run("MATCH (n) RETURN count(n) as count").single()["count"]
+            total_rels = session.run("MATCH ()-[r]->() RETURN count(r) as count").single()["count"]
+            
+            # Get recent commits (last 7 days)
+            recent_commits = session.run(
                 """
-                MATCH (n)
-                WITH count(n) as total_nodes
-                MATCH ()-[r]->()
-                WITH total_nodes, count(r) as total_rels
                 MATCH (c:GitCommit)
                 WHERE c.timestamp >= datetime() - duration('P7D')
-                RETURN total_nodes, total_rels, count(c) as recent_commits
+                RETURN count(c) as count
                 """
-            ).single()
+            ).single()["count"] or 0
             
-            # Get node type counts separately
+            # Get node type counts
             node_result = session.run(
                 """
                 MATCH (n)
@@ -69,7 +69,7 @@ def get_stats():
                 """
             ).data()
             
-            # Get relationship type counts separately
+            # Get relationship type counts
             rel_result = session.run(
                 """
                 MATCH ()-[r]->()
@@ -78,17 +78,13 @@ def get_stats():
                 """
             ).data()
 
-            if not result:
+            if total_nodes == 0:
                 return {
                     "summary": {"total_nodes": 0, "total_relationships": 0, "recent_commits_7d": 0},
                     "node_types": [],
                     "relationship_types": [],
                     "timestamp": "2025-01-05T09:00:00Z"
                 }
-
-            total_nodes = result["total_nodes"] or 0
-            total_rels = result["total_rels"] or 0
-            recent_commits = result["recent_commits"] or 0
 
             node_type_counts = {}
             for stat in node_result:

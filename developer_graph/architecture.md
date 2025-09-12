@@ -15,6 +15,21 @@ python -m uvicorn developer_graph.api:app --reload --host 0.0.0.0 --port 8080
 npm run dev
 ```
 
+### Path normalization and document ingestion (Sprint 11)
+
+- All `Document.path` and chunk `doc_path` values are stored as repo‑relative POSIX paths (e.g. `docs/sprints/critical-ui-refactor/README.md`).
+- Both Enhanced and Parallel ingestion pipelines normalize paths consistently:
+  - Enhanced: `enhanced_ingest.py` `_normalize_repo_relative_path()`
+  - Parallel: `parallel_ingestion.py` `_normalize_repo_relative_path()`
+- Titles: markdown document titles are extracted from the first heading and stored in `Document.title`.
+- Chunk links: `Document` −[:CONTAINS_CHUNK]→ `Chunk` use normalized paths; verification shows zero mismatches.
+
+Operational notes:
+- Reset and bootstrap:
+  - DELETE `http://localhost:8080/api/v1/dev-graph/reset?confirm=true`
+  - POST `http://localhost:8080/api/v1/dev-graph/ingest/bootstrap?reset_graph=true&commit_limit=2000&derive_relationships=true&include_chunking=true`
+- Verification helper: run `python verify_docs.py` from repo root to print counts, sample titles, and path checks.
+
 ---
 
 1. Overview

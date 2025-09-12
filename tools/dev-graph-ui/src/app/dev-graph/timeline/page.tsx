@@ -60,7 +60,9 @@ export default function TimelinePage() {
   const [range, setRange] = useState<[number, number]>([0, 0]);
   const [totalCommits, setTotalCommits] = useState(0);
   const [sizeByLOC, setSizeByLOC] = useState(true);
-  const [colorByLOC, setColorByLOC] = useState(true);
+  const [colorMode, setColorMode] = useState<'folder' | 'type' | 'commit-flow' | 'activity' | 'none'>('folder');
+  const [highlightDocs, setHighlightDocs] = useState(true);
+  const [edgeEmphasis, setEdgeEmphasis] = useState(0.4);
   const [enableZoom, setEnableZoom] = useState(true);
   const [resetToken, setResetToken] = useState(0);
   // Compute adaptive node budget based on device/browser capabilities and viewport
@@ -108,9 +110,10 @@ export default function TimelinePage() {
         setLoading(true);
         setError(null);
 
-        // Load commits up to API limit (200 max) with reasonable file count per commit
-        const filesPerCommit = 50; // Use a fixed value to avoid dependency issues
-        const response = await fetch(`${DEV_GRAPH_API_URL}/api/v1/dev-graph/evolution/timeline?limit=200&max_files_per_commit=${filesPerCommit}`);
+        // Load commits with expanded backend limit so the UI can span the full range
+        const filesPerCommit = 50; // Keep file payload per commit bounded for perf
+        // Request a large upper bound; backend now allows up to 5000
+        const response = await fetch(`${DEV_GRAPH_API_URL}/api/v1/dev-graph/evolution/timeline?limit=5000&max_files_per_commit=${filesPerCommit}`);
         
         if (!response.ok) {
           throw new Error('Failed to fetch evolution timeline data');
@@ -140,7 +143,7 @@ export default function TimelinePage() {
         setTotalCommits(data.total_commits || (data.commits || []).length);
         setCurrentTimeIndex(0); // Start from the first commit
         if ((data.commits || []).length > 0) {
-          setRange([0, Math.min(199, (data.commits || []).length - 1)]); // Limit to 200 commits max for performance
+          setRange([0, (data.commits || []).length - 1]); // Allow full commit range
         }
         // Also hydrate subgraph for first commit
         if ((data.commits || []).length > 0) {
@@ -458,7 +461,7 @@ export default function TimelinePage() {
               <RangeSlider
                 value={range}
                 min={0}
-                max={Math.max(0, Math.min(199, totalCommits - 1))}
+                max={Math.max(0, totalCommits - 1)}
                 step={1}
                 isDisabled={commits.length === 0}
                 onChange={(val: [number, number]) => {
@@ -481,7 +484,8 @@ export default function TimelinePage() {
             </VStack>
 
             {/* Encodings & Interactions */}
-            <HStack spacing={4} wrap="wrap">
+            <VStack align="stretch" spacing={3}>
+              {/*
               <Button size="sm" variant={sizeByLOC ? 'solid' : 'outline'} colorScheme="orange" onClick={() => setSizeByLOC(!sizeByLOC)}>
                 📏 Size by LOC {sizeByLOC ? 'On' : 'Off'}
               </Button>
@@ -497,7 +501,44 @@ export default function TimelinePage() {
               <Button size="sm" variant={enableZoom ? 'solid' : 'outline'} colorScheme="teal" onClick={() => setEnableZoom(!enableZoom)}>
                 🔍 Zoom {enableZoom ? 'On' : 'Off'}
               </Button>
-            </HStack>
+              */}
+              <HStack spacing={3} wrap="wrap">
+                <Button size="sm" variant={sizeByLOC ? 'solid' : 'outline'} colorScheme="orange" onClick={() => setSizeByLOC(!sizeByLOC)}>
+                  Size by LOC {sizeByLOC ? 'On' : 'Off'}
+                </Button>
+                <Button size="sm" variant={showFolderGroups ? 'solid' : 'outline'} colorScheme="green" onClick={() => setShowFolderGroups(!showFolderGroups)}>
+                  Folder Groups {showFolderGroups ? 'On' : 'Off'}
+                </Button>
+                <Button size="sm" variant={focusedView ? 'solid' : 'outline'} colorScheme="blue" onClick={() => setFocusedView(!focusedView)}>
+                  Focus {focusedView ? 'On' : 'Off'}
+                </Button>
+                <Button size="sm" variant={enableZoom ? 'solid' : 'outline'} colorScheme="teal" onClick={() => setEnableZoom(!enableZoom)}>
+                  Zoom {enableZoom ? 'On' : 'Off'}
+                </Button>
+                <Button size="sm" variant={highlightDocs ? 'solid' : 'outline'} colorScheme="purple" onClick={() => setHighlightDocs(!highlightDocs)}>
+                  Highlight Docs {highlightDocs ? 'On' : 'Off'}
+                </Button>
+              </HStack>
+              <HStack spacing={3} align="center">
+                <Text fontSize="sm" fontWeight="medium" color={textColor}>Color Mode:</Text>
+                {(['folder','type','commit-flow','activity','none'] as const).map((mode) => (
+                  <Button key={mode} size="sm" variant={colorMode === mode ? 'solid' : 'outline'} onClick={() => setColorMode(mode)}>
+                    {mode === 'folder' && 'By Folder'}
+                    {mode === 'type' && 'By Type'}
+                    {mode === 'commit-flow' && 'Commit Flow'}
+                    {mode === 'activity' && 'By Activity'}
+                    {mode === 'none' && 'Neutral'}
+                  </Button>
+                ))}
+              </HStack>
+              <HStack spacing={3} align="center">
+                <Text fontSize="sm" fontWeight="medium" color={textColor}>Edge Emphasis</Text>
+                <Slider value={Math.round(edgeEmphasis * 100)} onChange={(v)=> setEdgeEmphasis(v/100)} min={0} max={100} step={5} width="240px">
+                  <SliderTrack bg={borderColor}><SliderFilledTrack bg="gray.400" /></SliderTrack>
+                  <SliderThumb bg="gray.400" />
+                </Slider>
+              </HStack>
+            </VStack>
           </VStack>
         </Box>
 
@@ -514,8 +555,10 @@ export default function TimelinePage() {
             rangeStartIndex={range[0]}
             rangeEndIndex={range[1]}
             sizeByLOC={sizeByLOC}
-            colorByLOC={colorByLOC}
             enableZoom={enableZoom}
+            colorMode={colorMode}
+            highlightDocs={highlightDocs}
+            edgeEmphasis={edgeEmphasis}
             resetToken={resetToken}
           />
         </Box>

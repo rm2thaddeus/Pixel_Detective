@@ -79,18 +79,9 @@ def bootstrap_graph(
         except Exception:
             progress["sprints_mapped"] = 0
 
-        if include_chunking and not dry_run:
-            try:
-                effective_doc_limit = min(doc_limit or 50, 50)
-                effective_code_limit = min(code_limit or 200, 200)
-                chunk_results = parallel_pipeline.ingest_chunks_parallel(
-                    doc_limit=effective_doc_limit,
-                    code_limit=effective_code_limit,
-                )
-                progress["chunks_created"] = chunk_results["chunks_created"]
-            except Exception as e:
-                logger.error(f"Chunking failed: {e}")
-                progress["chunks_created"] = 0
+        # Chunking is handled by EnhancedDevGraphIngester above
+        # Disable parallel chunking to avoid duplication
+        progress["chunks_created"] = 0
 
         derived_counts = {"implements": 0, "evolves_from": 0, "depends_on": 0}
         if derive_relationships and not dry_run:

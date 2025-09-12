@@ -18,7 +18,10 @@ def list_commits(limit: int = Query(100, le=1000), path: Optional[str] = None):
 
 
 @router.get("/api/v1/dev-graph/evolution/timeline")
-def get_evolution_timeline(limit: int = Query(50, ge=1, le=200), max_files_per_commit: int = Query(50, ge=1, le=200)):
+def get_evolution_timeline(
+    limit: int = Query(500, ge=1, le=5000),
+    max_files_per_commit: int = Query(50, ge=1, le=200)
+):
     try:
         with driver.session() as session:
             commits_query = """
@@ -297,4 +300,3 @@ def get_prev_commit(commit_hash: str):
     except Exception as e:
         logger.error(f"Failed to get previous commit: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-
