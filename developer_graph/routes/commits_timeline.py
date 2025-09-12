@@ -44,8 +44,10 @@ def get_evolution_timeline(limit: int = Query(50, ge=1, le=200), max_files_per_c
                         ELSE 'other'
                     END
                 }) as files
+                // Filter out null files (commits with no file changes)
+                WITH c, [file IN files WHERE file.path IS NOT NULL] as filtered_files
                 RETURN c.hash as hash, c.timestamp as timestamp, c.message as message, c.author as author, 
-                       files[0..$max_files_per_commit] as files
+                       filtered_files[0..$max_files_per_commit] as files
                 ORDER BY c.timestamp ASC
                 LIMIT $limit
             """

@@ -97,6 +97,16 @@ export default function ProgressiveStructureGraph({
     const linkList: LinkDatum[] = [];
     const startIndex = Math.max(0, Math.min(rangeStartIndex ?? 0, commits.length - 1));
     const upto = Math.max(startIndex, Math.min(currentTimeIndex, commits.length - 1));
+    
+    console.log('ProgressiveStructureGraph: Building graph', {
+      totalCommits: commits.length,
+      currentTimeIndex,
+      startIndex,
+      upto,
+      showingCommits: `${startIndex + 1} to ${upto + 1}`,
+      firstCommit: commits[startIndex]?.hash?.substring(0, 8),
+      lastCommit: commits[upto]?.hash?.substring(0, 8)
+    });
 
     // Commit chain
     for (let i = startIndex; i <= upto; i++) {

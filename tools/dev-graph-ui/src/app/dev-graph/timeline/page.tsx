@@ -264,14 +264,21 @@ export default function TimelinePage() {
   };
 
   const handleResetToRangeStart = () => {
-    console.log('Reset button clicked, current range:', range, 'current index:', currentTimeIndex, 'setting to:', range[0]);
+    console.log('Reset button clicked', {
+      currentRange: range,
+      currentIndex: currentTimeIndex,
+      settingTo: range[0],
+      totalCommits,
+      firstCommit: commits[0]?.hash?.substring(0, 8),
+      firstCommitMessage: commits[0]?.message?.substring(0, 50)
+    });
     setCurrentTimeIndex(range[0]);
     setIsPlaying(false);
     // force ProgressiveStructureGraph to reset zoom/sim
     setResetToken((t) => t + 1);
     // Force a small delay to ensure state updates
     setTimeout(() => {
-      console.log('After reset - currentTimeIndex should be:', range[0]);
+      console.log('After reset - currentTimeIndex should be:', range[0], 'actual:', currentTimeIndex);
     }, 100);
   };
 

@@ -6,7 +6,6 @@ Status: Current as of Sprint 11 - Biological Evolution UI Implementation
 
 ```bash
 # Quick Developer Graph API reload (from repo root)
-uvicorn developer_graph.api:app --host 0.0.0.0 --port 8080 --reload
 
 # Complete stack startup
 ./start_app.ps1
