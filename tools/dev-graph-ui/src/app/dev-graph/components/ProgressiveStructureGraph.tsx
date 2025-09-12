@@ -9,6 +9,10 @@ interface FileChange {
   path: string;
   action: 'created' | 'modified' | 'deleted';
   size: number; // LOC after commit if available
+  lines_after?: number;
+  loc?: number;
+  additions?: number;
+  deletions?: number;
   type: FileKind;
 }
 
@@ -25,8 +29,17 @@ interface ProgressiveStructureGraphProps {
   currentTimeIndex: number;
   width?: number;
   height?: number;
+  resetToken?: number;
   maxNodes?: number;
   showFolderGroups?: boolean;
+  focusedView?: boolean;
+  // Range of commits to visualize (inclusive indices in commits array)
+  rangeStartIndex?: number;
+  rangeEndIndex?: number;
+  // Encodings and interactions
+  sizeByLOC?: boolean;
+  colorByLOC?: boolean;
+  enableZoom?: boolean;
 }
 
 type NodeDatum = {
@@ -36,6 +49,8 @@ type NodeDatum = {
   radius: number;
   folderPath?: string;
   fileCount?: number;
+  loc?: number; // lines of code associated (commit total, file size, or folder aggregate)
+  filesTouched?: number;
 };
 
 type LinkDatum = {
@@ -45,10 +60,10 @@ type LinkDatum = {
 };
 
 const FILE_COLORS: Record<FileKind, string> = {
-  code: '#3b82f6',
-  document: '#10b981',
-  config: '#f59e0b',
-  other: '#6b7280',
+  code: '#3b82f6',      // Blue for code
+  document: '#f59e0b',   // Orange for documents  
+  config: '#8b5cf6',     // Purple for config
+  other: '#6b7280',      // Gray for other
 };
 
 export default function ProgressiveStructureGraph({
@@ -56,8 +71,15 @@ export default function ProgressiveStructureGraph({
   currentTimeIndex,
   width = 1200,
   height = 600,
+  resetToken,
   maxNodes = 100,
   showFolderGroups = true,
+  focusedView = true,
+  rangeStartIndex,
+  rangeEndIndex,
+  sizeByLOC = true,
+  colorByLOC = true,
+  enableZoom = true,
 }: ProgressiveStructureGraphProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   const simRef = useRef<d3.Simulation<NodeDatum, undefined>>();
@@ -73,13 +95,16 @@ export default function ProgressiveStructureGraph({
   const { nodes, links } = useMemo(() => {
     const nodeMap = new Map<string, NodeDatum>();
     const linkList: LinkDatum[] = [];
-    const upto = Math.max(0, Math.min(currentTimeIndex, commits.length - 1));
+    const startIndex = Math.max(0, Math.min(rangeStartIndex ?? 0, commits.length - 1));
+    const upto = Math.max(startIndex, Math.min(currentTimeIndex, commits.length - 1));
 
     // Commit chain
-    for (let i = 0; i <= upto; i++) {
+    for (let i = startIndex; i <= upto; i++) {
       const c = commits[i];
-      nodeMap.set(c.hash, { id: c.hash, nodeType: 'commit', radius: 12 });
-      if (i > 0) {
+      const totalLoc = (c.files || []).reduce((sum, f) => sum + Math.max(0, f.lines_after || f.loc || f.size || 0), 0);
+      const rCommit = sizeByLOC ? Math.min(20, Math.max(8, Math.sqrt(totalLoc) * 0.2 + 8)) : 12;
+      nodeMap.set(c.hash, { id: c.hash, nodeType: 'commit', radius: rCommit, loc: totalLoc, filesTouched: c.files?.length || 0 });
+      if (i > startIndex) {
         linkList.push({ source: commits[i - 1].hash, target: c.hash, kind: 'chain' });
       }
     }
@@ -87,7 +112,7 @@ export default function ProgressiveStructureGraph({
     // Collect all files from all commits up to current index
     const allFiles = new Map<string, { file: FileChange; commits: Set<string> }>();
     
-    for (let i = 0; i <= upto; i++) {
+    for (let i = startIndex; i <= upto; i++) {
       const c = commits[i];
       for (const f of c.files || []) {
         if (!f.path) continue;
@@ -114,7 +139,7 @@ export default function ProgressiveStructureGraph({
         }
         const folder = folderMap.get(folderPath)!;
         folder.files.push(file);
-        folder.totalSize += file.size || 0;
+        folder.totalSize += file.lines_after || file.loc || file.size || 0;
         folder.fileTypes.add(file.type);
       }
 
@@ -123,19 +148,24 @@ export default function ProgressiveStructureGraph({
         if (folderPath === '/') continue; // Skip root folder
         
         const folderId = `folder:${folderPath}`;
-        const folderSize = Math.min(25, Math.max(8, Math.sqrt(folderData.totalSize) * 0.3 + folderData.files.length * 0.5));
+        const folderSize = Math.min(28, Math.max(8, Math.sqrt(folderData.totalSize) * 0.25 + folderData.files.length * 0.4));
         
         nodeMap.set(folderId, {
           id: folderId,
           nodeType: 'folder',
-          radius: folderSize,
+          radius: sizeByLOC ? folderSize : 12,
           folderPath,
           fileCount: folderData.files.length,
+          loc: folderData.totalSize,
         });
 
-        // Link current commit to folder
-        if (upto >= 0) {
-          linkList.push({ source: commits[upto].hash, target: folderId, kind: 'touch' });
+        // Link all commits that touch files in this folder
+        for (let i = startIndex; i <= upto; i++) {
+          const commitFiles = new Set(commits[i]?.files?.map(f => f.path) || []);
+          const hasFilesInFolder = Array.from(folderData.files).some(f => commitFiles.has(f.path));
+          if (hasFilesInFolder) {
+            linkList.push({ source: commits[i].hash, target: folderId, kind: 'touch' });
+          }
         }
       }
 
@@ -149,19 +179,23 @@ export default function ProgressiveStructureGraph({
         
         if (isRecentFile || isImportantFile) {
           const kind: FileKind = file.type as FileKind;
-          const loc = Math.max(0, file.size || 0);
-          const r = Math.min(12, Math.max(4, loc > 0 ? Math.sqrt(loc) * 0.3 : 5));
+          const loc = Math.max(0, file.lines_after || file.loc || file.size || 0);
+          const r = sizeByLOC ? Math.min(16, Math.max(4, loc > 0 ? Math.sqrt(loc) * 0.3 : 6)) : 8;
           
           nodeMap.set(filePath, { 
             id: filePath, 
             nodeType: 'file', 
             fileKind: kind, 
-            radius: r 
+            radius: r,
+            loc,
           });
 
-          // Link to commit
-          if (upto >= 0) {
-            linkList.push({ source: commits[upto].hash, target: filePath, kind: 'touch' });
+          // Link to all commits that touch this file
+          for (let i = startIndex; i <= upto; i++) {
+            const commitFiles = new Set(commits[i]?.files?.map(f => f.path) || []);
+            if (commitFiles.has(filePath)) {
+              linkList.push({ source: commits[i].hash, target: filePath, kind: 'touch' });
+            }
           }
         }
       }
@@ -169,19 +203,23 @@ export default function ProgressiveStructureGraph({
       // No folder grouping - just add files directly
       for (const [filePath, { file }] of sortedFiles) {
         const kind: FileKind = file.type as FileKind;
-        const loc = Math.max(0, file.size || 0);
-        const r = Math.min(12, Math.max(4, loc > 0 ? Math.sqrt(loc) * 0.3 : 5));
+        const loc = Math.max(0, file.lines_after || file.loc || file.size || 0);
+        const r = sizeByLOC ? Math.min(16, Math.max(4, loc > 0 ? Math.sqrt(loc) * 0.3 : 6)) : 8;
         
         nodeMap.set(filePath, { 
           id: filePath, 
           nodeType: 'file', 
           fileKind: kind, 
-          radius: r 
+          radius: r,
+          loc,
         });
 
-        // Link to commit
-        if (upto >= 0) {
-          linkList.push({ source: commits[upto].hash, target: filePath, kind: 'touch' });
+        // Link to all commits that touch this file
+        for (let i = startIndex; i <= upto; i++) {
+          const commitFiles = new Set(commits[i]?.files?.map(f => f.path) || []);
+          if (commitFiles.has(filePath)) {
+            linkList.push({ source: commits[i].hash, target: filePath, kind: 'touch' });
+          }
         }
       }
     }
@@ -190,7 +228,7 @@ export default function ProgressiveStructureGraph({
       nodes: Array.from(nodeMap.values()).slice(0, maxNodes), // Hard limit
       links: linkList 
     };
-  }, [commits, currentTimeIndex, maxNodes, showFolderGroups]);
+  }, [commits, currentTimeIndex, maxNodes, showFolderGroups, rangeStartIndex]);
 
   // Create once
   useEffect(() => {
@@ -198,21 +236,81 @@ export default function ProgressiveStructureGraph({
     const svg = d3.select(svgRef.current);
     svg.attr('width', width).attr('height', height);
     svg.selectAll('*').remove();
+    
+    // Add dark background
+    svg.append('rect')
+      .attr('width', width)
+      .attr('height', height)
+      .attr('fill', '#1a202c') // Dark gray background
+      .attr('rx', 8)
+      .attr('ry', 8);
 
+    // Root container to enable zoom/pan on groups
+    const root = svg.append('g').attr('class', 'root');
     // Layers
-    svg.append('g').attr('class', 'edges');
-    svg.append('g').attr('class', 'nodes');
+    root.append('g').attr('class', 'edges');
+    root.append('g').attr('class', 'nodes');
 
-    // Optimized simulation with reduced forces for better performance
+    // Zoom/pan
+    if (enableZoom) {
+      const zoomed = (event: any) => {
+        root.attr('transform', event.transform);
+      };
+      svg.call(
+        d3
+          .zoom<SVGSVGElement, unknown>()
+          .extent([[0, 0], [width, height]])
+          .scaleExtent([0.2, 4])
+          .on('zoom', zoomed)
+      );
+    }
+
+    // Enhanced simulation with better organization and less tangling
     simRef.current = d3
       .forceSimulation<NodeDatum>([])
-      .force('link', d3.forceLink<NodeDatum, any>([]).id((d: any) => d.id).distance((l: any) => (l.kind === 'chain' ? 80 : 40)).strength((l: any) => (l.kind === 'chain' ? 0.8 : 0.3)))
-      .force('charge', d3.forceManyBody<NodeDatum>().strength(-80))
+      .force('link', d3.forceLink<NodeDatum, any>([]).id((d: any) => d.id).distance((l: any) => {
+        if (l.kind === 'chain') return 120; // Commit chain spacing
+        if (l.kind === 'touch') return 60;  // File/commit connections
+        return 40;
+      }).strength((l: any) => {
+        if (l.kind === 'chain') return 0.9; // Strong commit chain
+        if (l.kind === 'touch') return 0.4; // Moderate file connections
+        return 0.2;
+      }))
+      .force('charge', d3.forceManyBody<NodeDatum>().strength((d: any) => {
+        if (d.nodeType === 'commit') return -200; // Strong repulsion for commits
+        if (d.nodeType === 'folder') return -150; // Medium repulsion for folders
+        return -100; // Weak repulsion for files
+      }))
       .force('center', d3.forceCenter(width / 2, height / 2))
-      .force('collision', d3.forceCollide<NodeDatum>().radius((d) => d.radius + 8))
+      .force('collision', d3.forceCollide<NodeDatum>().radius((d) => d.radius + 12))
+      .force('x', d3.forceX<NodeDatum>((d: any) => {
+        // Organize commits horizontally by time
+        if (d.nodeType === 'commit') {
+          const commitIndex = commits.findIndex(c => c.hash === d.id);
+          return (commitIndex / Math.max(1, commits.length - 1)) * width;
+        }
+        return width / 2;
+      }).strength(0.3))
+      .force('y', d3.forceY<NodeDatum>((d: any) => {
+        // Organize files/folders vertically by type
+        if (d.nodeType === 'folder') return height * 0.3; // Top area for folders
+        if (d.nodeType === 'file') return height * 0.7;   // Bottom area for files
+        return height / 2; // Center for commits
+      }).strength(0.2))
       .alphaDecay(0.05) // Faster convergence
       .velocityDecay(0.4); // Reduce oscillation
   }, [width, height]);
+
+  // Reset zoom/simulation on external reset triggers
+  useEffect(() => {
+    if (resetToken === undefined) return;
+    const svg = d3.select(svgRef.current);
+    svg.select('g.root').attr('transform', null);
+    if (simRef.current) {
+      simRef.current.alpha(1).restart();
+    }
+  }, [resetToken]);
 
   // Update on data changes
   useEffect(() => {
@@ -234,6 +332,12 @@ export default function ProgressiveStructureGraph({
       .append('circle')
       .attr('r', 0)
       .attr('fill', (d: any) => {
+        if (colorByLOC && (d.nodeType === 'commit' || d.nodeType === 'folder' || d.nodeType === 'file')) {
+          // Color scale based on LOC (cool to warm)
+          const loc = Math.max(0, d.loc || 0);
+          const scale = d3.scaleSequential(d3.interpolateViridis).domain([0, 1000]);
+          return scale(Math.min(1000, loc));
+        }
         if (d.nodeType === 'commit') return '#8b5cf6';
         if (d.nodeType === 'folder') return '#f59e0b';
         return FILE_COLORS[d.fileKind as FileKind] || '#6b7280';
@@ -255,18 +359,43 @@ export default function ProgressiveStructureGraph({
       .text((d: any) => d.nodeType === 'folder' ? d.fileCount : '');
     
     nodeEnter.append('title').text((d: any) => {
-      if (d.nodeType === 'folder') return `${d.folderPath} (${d.fileCount} files)`;
-      return d.id;
+      if (d.nodeType === 'folder') return `${d.folderPath} (${d.fileCount} files, ${d.loc || 0} LOC)`;
+      if (d.nodeType === 'commit') return `${d.id} — Files: ${d.filesTouched || 0}, LOC: ${d.loc || 0}`;
+      return `${d.id} — LOC: ${d.loc || 0}`;
     });
 
     nodeSel
       .select('circle')
       .attr('fill', (d: any) => {
+        if (colorByLOC && (d.nodeType === 'commit' || d.nodeType === 'folder' || d.nodeType === 'file')) {
+          const loc = Math.max(0, d.loc || 0);
+          const scale = d3.scaleSequential(d3.interpolateViridis).domain([0, 1000]);
+          return scale(Math.min(1000, loc));
+        }
         if (d.nodeType === 'commit') return '#8b5cf6';
         if (d.nodeType === 'folder') return '#f59e0b';
         return FILE_COLORS[d.fileKind as FileKind] || '#6b7280';
       })
-      .attr('r', (d: any) => d.radius);
+      .attr('r', (d: any) => d.radius)
+      .attr('opacity', (d: any) => {
+        if (!focusedView) return 1.0; // Show all nodes in full view
+        
+        // Highlight current commit and its related files in focused view
+        if (d.nodeType === 'commit') {
+          const commitIndex = commits.findIndex(c => c.hash === d.id);
+          if (commitIndex === currentTimeIndex) return 1.0; // Current commit fully visible
+          if (Math.abs(commitIndex - currentTimeIndex) <= 2) return 0.8; // Nearby commits
+          return 0.3; // Distant commits more transparent
+        }
+        // Files and folders: highlight if they're in the current commit
+        if (currentTimeIndex >= 0 && currentTimeIndex < commits.length) {
+          const currentCommitFiles = new Set(commits[currentTimeIndex]?.files?.map(f => f.path) || []);
+          const isInCurrentCommit = currentCommitFiles.has(d.id) || 
+            (d.nodeType === 'folder' && Array.from(d.files || []).some((f: any) => currentCommitFiles.has(f.path)));
+          return isInCurrentCommit ? 1.0 : 0.2; // Current commit files fully visible, others very subtle
+        }
+        return 0.6;
+      });
     nodeSel.exit().remove();
 
     // Hook simulation nodes BEFORE assigning links
@@ -276,12 +405,32 @@ export default function ProgressiveStructureGraph({
     const edgeSel = edgesLayer.selectAll<SVGLineElement, any>('line').data(links, edgeKey);
     edgeSel.enter()
       .append('line')
-      .attr('stroke', (d: any) => (d.kind === 'chain' ? '#8b5cf6' : '#cbd5e1'))
-      .attr('stroke-width', (d: any) => (d.kind === 'chain' ? 2.5 : 1.3))
-      .attr('opacity', (d: any) => (d.kind === 'chain' ? 0.9 : 0.6));
-    edgeSel.attr('stroke', (d: any) => (d.kind === 'chain' ? '#8b5cf6' : '#cbd5e1'))
-      .attr('stroke-width', (d: any) => (d.kind === 'chain' ? 2.5 : 1.3))
-      .attr('opacity', (d: any) => (d.kind === 'chain' ? 0.9 : 0.6));
+      .attr('stroke', (d: any) => {
+        if (d.kind === 'chain') return '#8b5cf6'; // Purple for commit chain
+        return '#4a5568'; // Darker gray for file connections
+      })
+      .attr('stroke-width', (d: any) => {
+        if (d.kind === 'chain') return 3; // Thicker for commit chain
+        return 0.8; // Thinner for file connections
+      })
+      .attr('opacity', (d: any) => {
+        if (d.kind === 'chain') return focusedView ? 0.9 : 0.7; // Commit chain visibility
+        return focusedView ? 0.15 : 0.4; // File connections more subtle in focused view
+      })
+      .attr('stroke-dasharray', (d: any) => (d.kind === 'chain' ? 'none' : '4,4'));
+    edgeSel.attr('stroke', (d: any) => {
+        if (d.kind === 'chain') return '#8b5cf6';
+        return '#4a5568';
+      })
+      .attr('stroke-width', (d: any) => {
+        if (d.kind === 'chain') return 3;
+        return 0.8;
+      })
+      .attr('opacity', (d: any) => {
+        if (d.kind === 'chain') return focusedView ? 0.9 : 0.7;
+        return focusedView ? 0.15 : 0.4;
+      })
+      .attr('stroke-dasharray', (d: any) => (d.kind === 'chain' ? 'none' : '4,4'));
     edgeSel.exit().remove();
 
     // Hook simulation links AFTER nodes are registered

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Box, Heading, Text, VStack, HStack, Button, Spinner, Alert, AlertIcon, Slider, SliderTrack, SliderFilledTrack, SliderThumb, HStack as ChakraHStack, Badge } from '@chakra-ui/react';
+import { Box, Heading, Text, VStack, HStack, Button, Spinner, Alert, AlertIcon, Slider, SliderTrack, SliderFilledTrack, SliderThumb, HStack as ChakraHStack, Badge, useColorModeValue, RangeSlider, RangeSliderTrack, RangeSliderFilledTrack, RangeSliderThumb } from '@chakra-ui/react';
 import ProgressiveStructureGraph from '../components/ProgressiveStructureGraph';
 
 const DEV_GRAPH_API_URL = process.env.NEXT_PUBLIC_DEV_GRAPH_API_URL || 'http://localhost:8080';
@@ -18,6 +18,10 @@ interface FileChange {
   path: string;
   action: 'created' | 'modified' | 'deleted';
   size: number;
+  lines_after?: number;
+  loc?: number;
+  additions?: number;
+  deletions?: number;
   type: 'code' | 'document' | 'config' | 'other';
 }
 
@@ -47,8 +51,51 @@ export default function TimelinePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [maxNodes, setMaxNodes] = useState(100);
+  const [useAutoNodeBudget, setUseAutoNodeBudget] = useState(true);
+  const [autoNodeBudget, setAutoNodeBudget] = useState(200);
   const [showFolderGroups, setShowFolderGroups] = useState(true);
+  const [focusedView, setFocusedView] = useState(true);
   const [currentSubgraph, setCurrentSubgraph] = useState<{ nodes: any[]; edges: any[] } | null>(null);
+  const [range, setRange] = useState<[number, number]>([0, 0]);
+  const [totalCommits, setTotalCommits] = useState(0);
+  const [sizeByLOC, setSizeByLOC] = useState(true);
+  const [colorByLOC, setColorByLOC] = useState(true);
+  const [enableZoom, setEnableZoom] = useState(true);
+  const [resetToken, setResetToken] = useState(0);
+  // Compute adaptive node budget based on device/browser capabilities and viewport
+  useEffect(() => {
+    const computeAdaptiveMaxNodes = () => {
+      const mem = (navigator as any).deviceMemory || 4; // in GB
+      const cores = navigator.hardwareConcurrency || 4;
+      const area = Math.max(1, (window.innerWidth || 1200) * (window.innerHeight || 800));
+      const areaFactor = Math.min(2, Math.sqrt(area) / 1000); // ~0.8–2.0
+      // Base derived from mem and cores
+      const base = 250 * (mem / 4) * (cores / 4) * areaFactor;
+      // Clamp to safe range
+      const budget = Math.max(100, Math.min(2000, Math.floor(base)));
+      return budget;
+    };
+
+    const recalc = () => {
+      const budget = computeAdaptiveMaxNodes();
+      setAutoNodeBudget(budget);
+      if (useAutoNodeBudget) {
+        setMaxNodes(budget);
+      }
+    };
+
+    recalc();
+    window.addEventListener('resize', recalc);
+    return () => window.removeEventListener('resize', recalc);
+  }, [useAutoNodeBudget]);
+
+
+  // Dark mode color values
+  const bgColor = useColorModeValue('white', 'gray.800');
+  const cardBgColor = useColorModeValue('gray.50', 'gray.700');
+  const borderColor = useColorModeValue('gray.200', 'gray.600');
+  const textColor = useColorModeValue('gray.800', 'gray.200');
+  const mutedTextColor = useColorModeValue('gray.600', 'gray.400');
 
   useEffect(() => {
     const fetchEvolutionData = async () => {
@@ -56,7 +103,9 @@ export default function TimelinePage() {
         setLoading(true);
         setError(null);
 
-        const response = await fetch(`${DEV_GRAPH_API_URL}/api/v1/dev-graph/evolution/timeline?limit=50&max_files_per_commit=30`);
+        // Load commits up to API limit (200 max) with reasonable file count per commit
+        const filesPerCommit = Math.max(10, Math.min(200, Math.floor((useAutoNodeBudget ? autoNodeBudget : maxNodes) / 10)));
+        const response = await fetch(`${DEV_GRAPH_API_URL}/api/v1/dev-graph/evolution/timeline?limit=200&max_files_per_commit=${filesPerCommit}`);
         
         if (!response.ok) {
           throw new Error('Failed to fetch evolution timeline data');
@@ -73,7 +122,11 @@ export default function TimelinePage() {
         
         setCommits(data.commits || []);
         setFileLifecycles(data.file_lifecycles || []);
+        setTotalCommits(data.total_commits || (data.commits || []).length);
         setCurrentTimeIndex(0); // Start from the first commit
+        if ((data.commits || []).length > 0) {
+          setRange([0, Math.min(199, (data.commits || []).length - 1)]); // Limit to 200 commits max for performance
+        }
         // Also hydrate subgraph for first commit
         if ((data.commits || []).length > 0) {
           const first = (data.commits || [])[0];
@@ -210,31 +263,43 @@ export default function TimelinePage() {
     setIsPlaying(!isPlaying);
   };
 
+  const handleResetToRangeStart = () => {
+    console.log('Reset button clicked, current range:', range, 'current index:', currentTimeIndex, 'setting to:', range[0]);
+    setCurrentTimeIndex(range[0]);
+    setIsPlaying(false);
+    // force ProgressiveStructureGraph to reset zoom/sim
+    setResetToken((t) => t + 1);
+    // Force a small delay to ensure state updates
+    setTimeout(() => {
+      console.log('After reset - currentTimeIndex should be:', range[0]);
+    }, 100);
+  };
+
   const handleTimeChange = (index: number) => {
     setCurrentTimeIndex(index);
   };
 
   const handleNext = () => {
-    if (currentTimeIndex < commits.length - 1) {
+    if (currentTimeIndex < range[1]) {
       setCurrentTimeIndex(currentTimeIndex + 1);
     }
   };
 
   const handlePrevious = () => {
-    if (currentTimeIndex > 0) {
+    if (currentTimeIndex > range[0]) {
       setCurrentTimeIndex(currentTimeIndex - 1);
     }
   };
 
-  // Enhanced autoplay effect with variable speed
+  // Enhanced autoplay effect with consistent speed - respects commit range
   useEffect(() => {
     let interval: NodeJS.Timeout;
-    if (isPlaying && commits.length > 0) {
-      const speed = useBiologicalView ? 2000 : 1000; // Slower for biological view to appreciate evolution
+    if (isPlaying && commits.length > 0 && range[1] > range[0]) {
+      const speed = 1500; // Consistent speed for smooth playback
       interval = setInterval(() => {
         setCurrentTimeIndex(prev => {
           const next = prev + 1;
-          if (next >= commits.length) {
+          if (next > range[1]) {
             setIsPlaying(false);
             return prev;
           }
@@ -243,7 +308,7 @@ export default function TimelinePage() {
       }, speed);
     }
     return () => clearInterval(interval);
-  }, [isPlaying, commits.length, useBiologicalView]);
+  }, [isPlaying, commits.length, range]);
 
   if (loading) {
     return (
@@ -268,11 +333,11 @@ export default function TimelinePage() {
   }
 
   return (
-    <Box p={8}>
+    <Box p={8} bg={bgColor} minH="100vh">
       <VStack spacing={6} align="stretch">
         <Box>
-          <Heading size="lg" mb={2}>Timeline Evolution</Heading>
-          <Text color="gray.600">
+          <Heading size="lg" mb={2} color={textColor}>Timeline Evolution</Heading>
+          <Text color={mutedTextColor}>
             Watch your codebase evolve like a living organism. Each commit represents a generation, 
             files are organisms that grow, change, and die over time.
           </Text>
@@ -280,40 +345,58 @@ export default function TimelinePage() {
 
         {/* Playback Controls */}
         <HStack spacing={4} justify="center">
-          <Button onClick={handlePrevious} isDisabled={currentTimeIndex === 0}>
+          <Button 
+            onClick={(e) => {
+              e.preventDefault();
+              console.log('Button clicked!', e);
+              handleResetToRangeStart();
+            }}
+            colorScheme="gray" 
+            size="sm"
+            isDisabled={commits.length === 0}
+          >
+            Reset to Range Start
+          </Button>
+          <Button onClick={handlePrevious} isDisabled={currentTimeIndex <= range[0]} colorScheme="purple">
             Previous
           </Button>
           <Button onClick={handlePlayPause} colorScheme="blue">
             {isPlaying ? 'Pause' : 'Play'}
           </Button>
-          <Button onClick={handleNext} isDisabled={currentTimeIndex === commits.length - 1}>
+          <Button onClick={handleNext} isDisabled={currentTimeIndex >= range[1]} colorScheme="purple">
             Next
           </Button>
         </HStack>
+        
+        {/* Range Info */}
+        <Text fontSize="sm" color={mutedTextColor} textAlign="center">
+          Playing within range: {range[0] + 1} – {range[1] + 1} of {totalCommits} total | Current: {currentTimeIndex + 1}
+          {currentTimeIndex === range[0] && <Text as="span" color="green.400" fontWeight="bold"> (At range start)</Text>}
+        </Text>
 
         {/* Current Commit Info */}
         {commits[currentTimeIndex] && (
-          <Box p={4} bg="gray.50" borderRadius="md">
-            <Text fontWeight="bold">
-              Commit {currentTimeIndex + 1} of {commits.length}: {commits[currentTimeIndex].hash.substring(0, 8)}
+          <Box p={4} bg={cardBgColor} borderRadius="md" border="1px solid" borderColor={borderColor}>
+            <Text fontWeight="bold" color={textColor}>
+              Commit {currentTimeIndex + 1} of {totalCommits} (Range: {range[0] + 1}–{range[1] + 1}): {commits[currentTimeIndex].hash.substring(0, 8)}
             </Text>
-            <Text fontSize="sm" color="gray.600">
+            <Text fontSize="sm" color={mutedTextColor}>
               {commits[currentTimeIndex].message}
             </Text>
-            <Text fontSize="xs" color="gray.500">
+            <Text fontSize="xs" color={mutedTextColor}>
               {new Date(commits[currentTimeIndex].timestamp).toLocaleString()}
             </Text>
-            <Text fontSize="xs" color="gray.500">
+            <Text fontSize="xs" color={mutedTextColor}>
               Files: {commits[currentTimeIndex].files.length} | Author: {commits[currentTimeIndex].author}
             </Text>
           </Box>
         )}
 
         {/* Visualization Controls */}
-        <Box p={4} bg="gray.50" borderRadius="md">
+        <Box p={4} bg={cardBgColor} borderRadius="md" border="1px solid" borderColor={borderColor}>
           <VStack spacing={4} align="stretch">
             <HStack justify="space-between" align="center">
-              <Text fontSize="md" fontWeight="semibold">Visualization Controls</Text>
+              <Text fontSize="md" fontWeight="semibold" color={textColor}>Visualization Controls</Text>
               <Badge colorScheme="blue" fontSize="sm">
                 {commits.length > 0 ? `${commits[currentTimeIndex]?.files?.length || 0} files in current commit` : '0 files'}
               </Badge>
@@ -321,46 +404,99 @@ export default function TimelinePage() {
             
             <HStack spacing={6} align="center">
               <VStack spacing={2} align="start">
-                <Text fontSize="sm" fontWeight="medium">Max Nodes: {maxNodes}</Text>
+                <HStack spacing={3}>
+                  <Text fontSize="sm" fontWeight="medium" color={textColor}>Max Nodes: {useAutoNodeBudget ? autoNodeBudget : maxNodes}</Text>
+                  <Button size="sm" variant={useAutoNodeBudget ? 'solid' : 'outline'} colorScheme="blue" onClick={() => {
+                    const next = !useAutoNodeBudget;
+                    setUseAutoNodeBudget(next);
+                    if (next) setMaxNodes(autoNodeBudget);
+                  }}>
+                    Auto {useAutoNodeBudget ? 'On' : 'Off'}
+                  </Button>
+                </HStack>
                 <Slider
-                  value={maxNodes}
-                  onChange={(value) => setMaxNodes(value)}
-                  min={20}
-                  max={500}
+                  value={useAutoNodeBudget ? autoNodeBudget : maxNodes}
+                  onChange={(value) => { setMaxNodes(value); setUseAutoNodeBudget(false); }}
+                  min={50}
+                  max={2000}
                   step={10}
-                  width="200px"
+                  width="240px"
                 >
-                  <SliderTrack>
-                    <SliderFilledTrack />
+                  <SliderTrack bg={borderColor}>
+                    <SliderFilledTrack bg="blue.500" />
                   </SliderTrack>
-                  <SliderThumb />
+                  <SliderThumb bg="blue.500" />
                 </Slider>
               </VStack>
-              
-              <VStack spacing={2} align="start">
-                <Text fontSize="sm" fontWeight="medium">Group by Folders</Text>
-                <Button
-                  size="sm"
-                  variant={showFolderGroups ? "solid" : "outline"}
-                  colorScheme="green"
-                  onClick={() => setShowFolderGroups(!showFolderGroups)}
-                >
-                  {showFolderGroups ? "Enabled" : "Disabled"}
-                </Button>
-              </VStack>
+            </HStack>
+
+            {/* Commit Range */}
+            <VStack spacing={2} align="start">
+              <Text fontSize="sm" fontWeight="medium" color={textColor}>Commit Range</Text>
+              <RangeSlider
+                value={range}
+                min={0}
+                max={Math.max(0, Math.min(199, totalCommits - 1))}
+                step={1}
+                isDisabled={commits.length === 0}
+                onChange={(val: [number, number]) => {
+                  setRange(val);
+                  // Keep currentTimeIndex within the new range
+                  if (currentTimeIndex < val[0]) setCurrentTimeIndex(val[0]);
+                  if (currentTimeIndex > val[1]) setCurrentTimeIndex(val[1]);
+                }}
+                width="300px"
+              >
+                <RangeSliderTrack bg={borderColor}>
+                  <RangeSliderFilledTrack bg="purple.500" />
+                </RangeSliderTrack>
+                <RangeSliderThumb index={0} bg="purple.400" />
+                <RangeSliderThumb index={1} bg="purple.400" />
+              </RangeSlider>
+              <Text fontSize="xs" color={mutedTextColor}>
+                Showing commits {range[0] + 1} – {range[1] + 1} of {totalCommits} total
+              </Text>
+            </VStack>
+
+            {/* Encodings & Interactions */}
+            <HStack spacing={4} wrap="wrap">
+              <Button size="sm" variant={sizeByLOC ? 'solid' : 'outline'} colorScheme="orange" onClick={() => setSizeByLOC(!sizeByLOC)}>
+                📏 Size by LOC {sizeByLOC ? 'On' : 'Off'}
+              </Button>
+              <Button size="sm" variant={colorByLOC ? 'solid' : 'outline'} colorScheme="pink" onClick={() => setColorByLOC(!colorByLOC)}>
+                🎨 Color by LOC {colorByLOC ? 'On' : 'Off'}
+              </Button>
+              <Button size="sm" variant={showFolderGroups ? 'solid' : 'outline'} colorScheme="green" onClick={() => setShowFolderGroups(!showFolderGroups)}>
+                📁 Folders {showFolderGroups ? 'On' : 'Off'}
+              </Button>
+              <Button size="sm" variant={focusedView ? 'solid' : 'outline'} colorScheme="blue" onClick={() => setFocusedView(!focusedView)}>
+                🔍 Focus {focusedView ? 'On' : 'Off'}
+              </Button>
+              <Button size="sm" variant={enableZoom ? 'solid' : 'outline'} colorScheme="teal" onClick={() => setEnableZoom(!enableZoom)}>
+                🔍 Zoom {enableZoom ? 'On' : 'Off'}
+              </Button>
             </HStack>
           </VStack>
         </Box>
 
         {/* Main Visualization */}
-        <ProgressiveStructureGraph
-          commits={commits}
-          currentTimeIndex={currentTimeIndex}
-          width={1200}
-          height={600}
-          maxNodes={maxNodes}
-          showFolderGroups={showFolderGroups}
-        />
+        <Box border="1px solid" borderColor={borderColor} borderRadius="md" overflow="hidden">
+          <ProgressiveStructureGraph
+            commits={commits}
+            currentTimeIndex={currentTimeIndex}
+            width={1200}
+            height={600}
+            maxNodes={maxNodes}
+            showFolderGroups={showFolderGroups}
+            focusedView={focusedView}
+            rangeStartIndex={range[0]}
+            rangeEndIndex={range[1]}
+            sizeByLOC={sizeByLOC}
+            colorByLOC={colorByLOC}
+            enableZoom={enableZoom}
+            resetToken={resetToken}
+          />
+        </Box>
       </VStack>
     </Box>
   );

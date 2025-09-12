@@ -33,10 +33,14 @@ def get_evolution_timeline(limit: int = Query(50, ge=1, le=200), max_files_per_c
                         ELSE 'modified'
                     END,
                     size: coalesce(r.lines_after, f.loc, 0),
+                    lines_after: coalesce(r.lines_after, f.loc, 0),
+                    loc: f.loc,
+                    additions: r.additions,
+                    deletions: r.deletions,
                     type: CASE
-                        WHEN f.path CONTAINS '.py' OR f.path CONTAINS '.js' OR f.path CONTAINS '.ts' THEN 'code'
-                        WHEN f.path CONTAINS '.md' OR f.path CONTAINS '.txt' THEN 'document'
-                        WHEN f.path CONTAINS '.json' OR f.path CONTAINS '.yaml' OR f.path CONTAINS '.yml' THEN 'config'
+                        WHEN f.path CONTAINS '.py' OR f.path CONTAINS '.js' OR f.path CONTAINS '.ts' OR f.path CONTAINS '.tsx' OR f.path CONTAINS '.jsx' THEN 'code'
+                        WHEN f.path CONTAINS '.md' OR f.path CONTAINS '.txt' OR f.path CONTAINS '.rst' THEN 'document'
+                        WHEN f.path CONTAINS '.json' OR f.path CONTAINS '.yaml' OR f.path CONTAINS '.yml' OR f.path CONTAINS '.toml' THEN 'config'
                         ELSE 'other'
                     END
                 }) as files
@@ -113,10 +117,15 @@ def get_evolution_timeline(limit: int = Query(50, ge=1, le=200), max_files_per_c
                 }
                 file_lifecycles.append(lifecycle_data)
 
+            # Get total commit count for proper range calculation
+            total_commits_result = session.run("MATCH (c:GitCommit) RETURN count(c) as total")
+            total_commits_record = total_commits_result.single()
+            total_commits = total_commits_record["total"] if total_commits_record else len(commits)
+            
             return {
                 "commits": commits,
                 "file_lifecycles": file_lifecycles,
-                "total_commits": len(commits),
+                "total_commits": total_commits,
                 "total_files": len(file_lifecycles),
             }
     except Exception as e:
