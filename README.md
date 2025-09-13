@@ -17,6 +17,7 @@ Pixel Detective is a vibe coding manifesto: every aspect of this project was cre
 - **🔧 DevOps Pipeline** - Docker containerization and MCP server integration
 - **🗺️ Interactive Latent Space Explorer** - Real-time UMAP scatter plot with clustering, lasso selection & thumbnail previews
 - **⚡ GPU-Accelerated UMAP & Clustering** - Dedicated RAPIDS cuML micro-service delivering 10-300× speed-ups
+- **🎬 WebGL Timeline Visualization** - CUDA-accelerated code evolution timeline with real-time commit progression
 
 ## 🏗️ Architecture
 
@@ -88,6 +89,13 @@ Pixel Detective is a vibe coding manifesto: every aspect of this project was cre
 - **Curation Actions Menu** - Launch near-duplicate scans and view ingestion logs
 - **Advanced Filtering** - Metadata-based search refinement
 
+### Code Evolution Visualization
+- **WebGL Timeline** - CUDA-accelerated commit progression visualization
+- **Dual Rendering Engines** - SVG (detailed) and WebGL (performance) modes
+- **Interactive Timeline** - Play/pause with real-time commit highlighting
+- **Adaptive Performance** - Automatic node budget adjustment based on device capabilities
+- **Sprint Analytics** - Connect commits to development sprints and track progress
+
 ## 🛠️ Technology Stack
 
 ### Backend
@@ -101,6 +109,7 @@ Pixel Detective is a vibe coding manifesto: every aspect of this project was cre
 - **TypeScript** - Type-safe development
 - **Chakra UI** - Modern component library
 - **Zustand** - Lightweight state management
+- **WebGL2** - GPU-accelerated timeline visualization
 
 ### AI/ML Models
 - **CLIP** - Vision-language understanding
@@ -140,6 +149,7 @@ This script launches and hot-reloads the complete stack:
 3. **Ingestion Orchestration API** – FastAPI (8002)
 4. **ML Inference API** – FastAPI (8001, Host Python)
 5. **Next.js Frontend** – auto-opened at http://localhost:3000
+6. **Dev Graph Timeline** – WebGL visualization at http://localhost:3000/dev-graph/timeline
 
 **Note:** The frontend automatically detects and chooses between GPU UMAP (8003) and ML Inference (8001) services.
 

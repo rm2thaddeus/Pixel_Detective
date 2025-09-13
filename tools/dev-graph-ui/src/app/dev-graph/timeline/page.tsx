@@ -76,8 +76,8 @@ export default function TimelinePage() {
   const webglData = React.useMemo(() => {
     if (!commits || commits.length === 0) return { nodes: [], relations: [] };
     const start = Math.max(0, Math.min(range[0], commits.length - 1));
-    const end = Math.max(start, Math.min(range[1], commits.length - 1));
-    const selected: Commit[] = commits.slice(start, end + 1);
+    const upto = Math.max(start, Math.min(currentTimeIndex, Math.min(range[1], commits.length - 1)));
+    const selected: Commit[] = commits.slice(start, upto + 1);
 
     // Folder filter helpers
     const active = new Set(activeFolders || []);
@@ -110,7 +110,7 @@ export default function TimelinePage() {
       const totalLoc = (c.files || []).reduce((s, f) => s + Math.max(0, f.lines_after ?? f.loc ?? f.size ?? 0), 0);
       if (!nodeSet.has(c.hash)) {
         nodeSet.add(c.hash);
-        nodes.push({ id: c.hash, label: c.hash.substring(0, 7), size: sizeByLOC ? Math.min(12, 6 + Math.sqrt(totalLoc) * 0.15) : 8, color: '#9f7aea', timestamp: c.timestamp, originalType: 'GitCommit' });
+        nodes.push({ id: c.hash, label: c.hash.substring(0, 7), size: sizeByLOC ? Math.min(14, 7 + Math.sqrt(totalLoc) * 0.18) : 10, color: '#9f7aea', timestamp: c.timestamp, originalType: 'GitCommit', filesTouched: (c.files || []).length });
       }
       if (i > 0) {
         edges.push({ id: `${selected[i-1].hash}|${c.hash}`, from: selected[i-1].hash, to: c.hash, type: 'chain', color: '#8b5cf6', size: 1.6, timestamp: c.timestamp });
@@ -136,7 +136,7 @@ export default function TimelinePage() {
     for (const [path, { file, touches }] of picked) {
       const loc = Math.max(0, file.lines_after ?? file.loc ?? file.size ?? 0);
       nodeSet.add(path);
-      nodes.push({ id: path, label: path.split('/').pop(), size: sizeByLOC ? Math.min(10, 4 + Math.sqrt(loc) * 0.25) : 6, color: '#1c7ed6', folderPath: topFolderOf(path), originalType: file.type === 'document' ? 'Document' : 'File' });
+      nodes.push({ id: path, label: path.split('/').pop(), size: sizeByLOC ? Math.min(12, 5 + Math.sqrt(loc) * 0.28) : 7, color: '#1c7ed6', folderPath: topFolderOf(path), originalType: file.type === 'document' ? 'Document' : 'File', touchCount: touches });
       // connect to all commits that touched this file in range
       for (const c of selected) {
         if ((c.files || []).some(cf => cf.path === path)) {
@@ -146,7 +146,7 @@ export default function TimelinePage() {
     }
 
     return { nodes, relations: edges };
-  }, [commits, range, maxNodes, sizeByLOC, activeFolders, patternInput]);
+  }, [commits, range, currentTimeIndex, maxNodes, sizeByLOC, activeFolders, patternInput]);
   const [enableZoom, setEnableZoom] = useState(true);
   const [resetToken, setResetToken] = useState(0);
   // Compute adaptive node budget based on device/browser capabilities and viewport
@@ -194,10 +194,14 @@ export default function TimelinePage() {
         setLoading(true);
         setError(null);
 
-        // Load commits with expanded backend limit so the UI can span the full range
-        const filesPerCommit = 50; // Keep file payload per commit bounded for perf
-        // Request a large upper bound; backend now allows up to 5000
-        const response = await fetch(`${DEV_GRAPH_API_URL}/api/v1/dev-graph/evolution/timeline?limit=5000&max_files_per_commit=${filesPerCommit}`);
+        // Performance-optimized data loading based on commit count
+        const filesPerCommit = performanceMode === 'speed' ? 20 : performanceMode === 'quality' ? 100 : 50;
+        const commitLimit = performanceMode === 'speed' ? 1000 : performanceMode === 'quality' ? 5000 : 2500;
+        
+        console.log('TimelinePage: Performance mode:', performanceMode, 'Files per commit:', filesPerCommit, 'Commit limit:', commitLimit);
+        
+        // Request optimized data based on performance mode
+        const response = await fetch(`${DEV_GRAPH_API_URL}/api/v1/dev-graph/evolution/timeline?limit=${commitLimit}&max_files_per_commit=${filesPerCommit}`);
         
         if (!response.ok) {
           throw new Error('Failed to fetch evolution timeline data');
@@ -400,11 +404,32 @@ export default function TimelinePage() {
     }
   };
 
-  // Enhanced autoplay effect with adjustable speed - respects commit range
+  // Performance-optimized autoplay with equilibration timing
   useEffect(() => {
     let interval: NodeJS.Timeout;
     if (isPlaying && commits.length > 0 && range[1] > range[0]) {
-      const speed = Math.max(200, playSpeedMs);
+      const baseSpeed = Math.max(200, playSpeedMs);
+      
+      // Calculate dynamic timing based on data complexity and performance mode
+      const currentCommit = commits[currentTimeIndex];
+      const filesInCommit = currentCommit?.files?.length || 1;
+      const complexityFactor = Math.max(1, Math.log10(filesInCommit));
+      const performanceFactor = performanceMode === 'speed' ? 0.5 : performanceMode === 'quality' ? 2.0 : 1.0;
+      
+      // Add equilibration time for complex commits
+      const equilibrationTime = filesInCommit > 20 ? Math.max(baseSpeed * 0.3, baseSpeed * complexityFactor * performanceFactor * 0.1) : 0;
+      const totalSpeed = baseSpeed + equilibrationTime;
+      
+      console.log('TimelinePage: Performance-optimized animation timing', {
+        baseSpeed,
+        filesInCommit,
+        complexityFactor,
+        performanceFactor,
+        equilibrationTime,
+        totalSpeed,
+        performanceMode
+      });
+      
       interval = setInterval(() => {
         setCurrentTimeIndex(prev => {
           const next = prev + 1;
@@ -412,12 +437,23 @@ export default function TimelinePage() {
             setIsPlaying(false);
             return prev;
           }
+          
+          // Log equilibration for complex commits
+          const nextCommit = commits[next];
+          if (nextCommit?.files?.length > 20) {
+            console.log('TimelinePage: Equilibration pause for complex commit', {
+              commit: nextCommit.hash?.substring(0, 8),
+              files: nextCommit.files.length,
+              equilibrationTime: `${equilibrationTime}ms`
+            });
+          }
+          
           return next;
         });
-      }, speed);
+      }, totalSpeed);
     }
     return () => clearInterval(interval);
-  }, [isPlaying, commits.length, range, playSpeedMs]);
+  }, [isPlaying, commits.length, range, playSpeedMs, currentTimeIndex, commits, performanceMode]);
 
   // Hotkeys: Space toggle play/pause, arrows navigate, '?' help overlay placeholder
   useEffect(() => {
@@ -661,8 +697,42 @@ export default function TimelinePage() {
               <HStack spacing={3} align="center">
                 <Text fontSize="sm" fontWeight="medium" color={textColor}>Render Engine:</Text>
                 <Button size="sm" variant={renderEngine==='svg'?'solid':'outline'} onClick={()=> setRenderEngine('svg')}>SVG</Button>
-                <Button size="sm" variant={renderEngine==='webgl'?'solid':'outline'} onClick={()=> setRenderEngine('webgl')}>WebGL (beta)</Button>
-                <Text fontSize="xs" color={mutedTextColor}>Beta renderer; faster on large graphs</Text>
+                <Button size="sm" variant={renderEngine==='webgl'?'solid':'outline'} onClick={()=> setRenderEngine('webgl')}>WebGL (CUDA)</Button>
+                <Text fontSize="xs" color={mutedTextColor}>CUDA-accelerated renderer; optimized for large graphs</Text>
+              </HStack>
+              
+              {/* Performance Mode Controls */}
+              <HStack spacing={3} align="center">
+                <Text fontSize="sm" fontWeight="medium" color={textColor}>Performance:</Text>
+                <Button 
+                  size="sm" 
+                  variant={performanceMode === 'speed' ? 'solid' : 'outline'}
+                  colorScheme="green"
+                  onClick={() => setPerformanceMode('speed')}
+                >
+                  Speed
+                </Button>
+                <Button 
+                  size="sm" 
+                  variant={performanceMode === 'balanced' ? 'solid' : 'outline'}
+                  colorScheme="blue"
+                  onClick={() => setPerformanceMode('balanced')}
+                >
+                  Balanced
+                </Button>
+                <Button 
+                  size="sm" 
+                  variant={performanceMode === 'quality' ? 'solid' : 'outline'}
+                  colorScheme="purple"
+                  onClick={() => setPerformanceMode('quality')}
+                >
+                  Quality
+                </Button>
+                <Text fontSize="xs" color={mutedTextColor}>
+                  {performanceMode === 'speed' ? 'Fast playback, fewer details' : 
+                   performanceMode === 'quality' ? 'Full detail, slower playback' : 
+                   'Optimized for most use cases'}
+                </Text>
               </HStack>
 
               {/* Folder/Feature Grouping */}
@@ -727,9 +797,11 @@ export default function TimelinePage() {
                 height={600}
                 lightEdges
                 focusMode={focusedView}
-                layoutMode={'time-radial'}
+                layoutMode={'force'}
                 edgeTypes={['chain','touch']}
                 maxEdgesInView={2000}
+                highlightNodeId={commits[currentTimeIndex]?.hash}
+                currentCommitId={commits[currentTimeIndex]?.hash}
               />
             </>
           )}

@@ -25,9 +25,16 @@ Done (Phases 1–3):
 - Performance primitives: Windowed subgraph and commit-buckets endpoints implemented.
 - Bug fixes: Import path resolutions, infinite loop prevention on viewport changes, stable memoization.
 
+**NEW (Phase 4 - WebGL Timeline):**
+- ✅ **WebGL Timeline Renderer**: CUDA-accelerated WebGL2 visualization with real-time commit progression
+- ✅ **Dual Rendering Engine**: SVG (detailed) and WebGL (performance) modes with seamless switching
+- ✅ **Reactive Timeline**: Real-time highlighting of current commit and connected files/edges
+- ✅ **Performance Optimization**: Single WebGL context, proper resource cleanup, stable FPS
+- ✅ **Progressive Data Loading**: Time-based commit filtering with adaptive node budgets
+- ✅ **Interactive Controls**: Play/pause, speed control, range selection, folder filtering
+
 In Progress (Phase 4):
 - Graph performance + interactivity (progressive rendering, LoD, focus mode).
-- Timeline redesign (canvas-based with range brush and subgraph preview).
 - Sprint tree view (hierarchical, worker-based layout + caching).
 - Analytics wired to real backend metrics.
 
@@ -37,7 +44,10 @@ In Progress (Phase 4):
 
 - UI (Next.js): `tools/dev-graph-ui/`
   - `src/app/dev-graph/complex/page.tsx`: main composite screen.
+  - `src/app/dev-graph/timeline/page.tsx`: **NEW** - Interactive timeline with dual rendering engines.
   - `components/BiologicalEvolutionGraph.tsx`: graph visualization.
+  - `components/WebGLEvolutionGraph.tsx`: **NEW** - CUDA-accelerated WebGL2 timeline renderer.
+  - `components/ProgressiveStructureGraph.tsx`: SVG-based detailed visualization.
   - `hooks/*`: windowed subgraph + commit buckets.
 - API (FastAPI): `developer_graph/api.py` (router composition)
   - `developer_graph/app_state.py`: initializes `driver`, `engine`, and services
@@ -48,6 +58,8 @@ In Progress (Phase 4):
     - `GET /api/v1/dev-graph/graph/subgraph` windowed subgraph
     - `GET /api/v1/dev-graph/commits/buckets` commit density
     - `GET /api/v1/dev-graph/sprints/{number}/subgraph` sprint hierarchy
+    - `GET /api/v1/dev-graph/evolution/timeline` **NEW** - Timeline data with commit progression
+    - `GET /api/v1/dev-graph/subgraph/by-commits` **NEW** - Commit-scoped subgraph data
     - `POST /api/v1/dev-graph/ingest/bootstrap` bootstrap ingestion
 - Engine: `developer_graph/temporal_engine.py`
   - Git + Neo4j ingest, time-bounded queries, commit bucketing
@@ -109,6 +121,40 @@ In Progress (Phase 4):
 - Wire Timeline to commit buckets and add range→subgraph preview.
 - Sprint Tree view consumes `sprints/{number}/subgraph` and caches layouts.
 - Use workers for Louvain and FA2 when N exceeds thresholds; keep LoD reducers enabled.
+
+---
+
+## WebGL Timeline Architecture
+
+### Rendering Engine Comparison
+
+| Feature | SVG Mode | WebGL Mode |
+|---------|----------|------------|
+| **Performance** | ~100-500 nodes | ~2000+ nodes |
+| **Interactivity** | Full D3.js zoom/pan | Basic highlighting |
+| **Detail Level** | High (labels, tooltips) | Medium (size/color encoding) |
+| **Memory Usage** | DOM-based | GPU buffers |
+| **Use Case** | Analysis, debugging | Overview, progression |
+
+### WebGL Implementation Details
+
+**Core Components:**
+- `WebGLEvolutionGraph.tsx`: Main WebGL2 renderer with CUDA-like processing simulation
+- Single WebGL context with proper resource lifecycle management
+- Reactive data updates via refs (no re-initialization on data changes)
+- Dual shader programs: point sprites for nodes, line segments for edges
+
+**Performance Optimizations:**
+- Adaptive node budgets based on device capabilities (memory, CPU cores, viewport)
+- Progressive data loading with time-based filtering
+- GPU buffer management with proper cleanup
+- Stable FPS calculation and performance monitoring
+
+**Timeline Features:**
+- Real-time commit progression with visual highlighting
+- Edge brightness boosting for connected nodes
+- Size/color encoding based on file types and commit activity
+- Range selection with live filtering
 
 ---
 
@@ -181,7 +227,8 @@ SLOs:
 - `GET /api/v1/dev-graph/sprints/{number}/subgraph`
   - Returns hierarchical sprint subgraph (Sprint→Docs→Chunks→Requirements).
 
-
+
+
 - `GET /api/v1/analytics/activity?from_timestamp&to_timestamp`
   - Returns commit_count, file_changes, unique_authors for the window.
 
