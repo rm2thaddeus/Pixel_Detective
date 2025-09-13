@@ -3,6 +3,8 @@
 import React, { useState, useEffect } from 'react';
 import { Box, Heading, Text, VStack, HStack, Button, Spinner, Alert, AlertIcon, Slider, SliderTrack, SliderFilledTrack, SliderThumb, HStack as ChakraHStack, Badge, useColorModeValue, RangeSlider, RangeSliderTrack, RangeSliderFilledTrack, RangeSliderThumb } from '@chakra-ui/react';
 import ProgressiveStructureGraph from '../components/ProgressiveStructureGraph';
+import dynamic from 'next/dynamic';
+const WebGLEvolutionGraph = dynamic(() => import('../components/WebGLEvolutionGraph'), { ssr: false });
 
 const DEV_GRAPH_API_URL = process.env.NEXT_PUBLIC_DEV_GRAPH_API_URL || 'http://localhost:8080';
 
@@ -63,6 +65,88 @@ export default function TimelinePage() {
   const [colorMode, setColorMode] = useState<'folder' | 'type' | 'commit-flow' | 'activity' | 'none'>('folder');
   const [highlightDocs, setHighlightDocs] = useState(true);
   const [edgeEmphasis, setEdgeEmphasis] = useState(0.4);
+  const [playSpeedMs, setPlaySpeedMs] = useState(1800);
+  const [performanceMode, setPerformanceMode] = useState<'balanced' | 'quality' | 'speed'>('balanced');
+  const [renderEngine, setRenderEngine] = useState<'svg' | 'webgl'>('svg');
+  const [activeFolders, setActiveFolders] = useState<string[]>([]);
+  const [filterMode, setFilterMode] = useState<'dim' | 'hide'>('dim');
+  const [patternInput, setPatternInput] = useState<string>("");
+
+  // Build WebGL graph data (nodes/edges) from commits within the current range
+  const webglData = React.useMemo(() => {
+    if (!commits || commits.length === 0) return { nodes: [], relations: [] };
+    const start = Math.max(0, Math.min(range[0], commits.length - 1));
+    const end = Math.max(start, Math.min(range[1], commits.length - 1));
+    const selected: Commit[] = commits.slice(start, end + 1);
+
+    // Folder filter helpers
+    const active = new Set(activeFolders || []);
+    const patterns = (patternInput || '').split(',').map(s => s.trim()).filter(Boolean);
+    const matchesPatterns = (id: string) => {
+      if (patterns.length === 0) return true;
+      for (const p of patterns) {
+        try {
+          if (p.startsWith('/') && p.endsWith('/')) {
+            const re = new RegExp(p.slice(1, -1));
+            if (re.test(id)) return true;
+          } else if (id.includes(p)) return true;
+        } catch {}
+      }
+      return false;
+    };
+    const topFolderOf = (path: string) => {
+      const norm = path.replace(/\\/g, '/');
+      const idx = norm.indexOf('/');
+      return idx === -1 ? norm : norm.slice(0, idx);
+    };
+
+    const nodes: any[] = [];
+    const edges: any[] = [];
+    const nodeSet = new Set<string>();
+
+    // Add commit chain nodes
+    for (let i = 0; i < selected.length; i++) {
+      const c = selected[i];
+      const totalLoc = (c.files || []).reduce((s, f) => s + Math.max(0, f.lines_after ?? f.loc ?? f.size ?? 0), 0);
+      if (!nodeSet.has(c.hash)) {
+        nodeSet.add(c.hash);
+        nodes.push({ id: c.hash, label: c.hash.substring(0, 7), size: sizeByLOC ? Math.min(12, 6 + Math.sqrt(totalLoc) * 0.15) : 8, color: '#9f7aea', timestamp: c.timestamp, originalType: 'GitCommit' });
+      }
+      if (i > 0) {
+        edges.push({ id: `${selected[i-1].hash}|${c.hash}`, from: selected[i-1].hash, to: c.hash, type: 'chain', color: '#8b5cf6', size: 1.6, timestamp: c.timestamp });
+      }
+    }
+
+    // Aggregate and limit file nodes by frequency
+    const fileMap = new Map<string, { file: FileChange; touches: number }>();
+    for (const c of selected) {
+      for (const f of c.files || []) {
+        if (!f.path) continue;
+        const top = topFolderOf(f.path);
+        if (active.size > 0 && !active.has(top)) continue;
+        if (!matchesPatterns(f.path)) continue;
+        if (!fileMap.has(f.path)) fileMap.set(f.path, { file: f, touches: 0 });
+        fileMap.get(f.path)!.touches += 1;
+      }
+    }
+
+    const fileEntries = Array.from(fileMap.entries()).sort((a,b) => b[1].touches - a[1].touches);
+    const budget = Math.max(0, maxNodes - nodes.length - 10);
+    const picked = fileEntries.slice(0, budget);
+    for (const [path, { file, touches }] of picked) {
+      const loc = Math.max(0, file.lines_after ?? file.loc ?? file.size ?? 0);
+      nodeSet.add(path);
+      nodes.push({ id: path, label: path.split('/').pop(), size: sizeByLOC ? Math.min(10, 4 + Math.sqrt(loc) * 0.25) : 6, color: '#1c7ed6', folderPath: topFolderOf(path), originalType: file.type === 'document' ? 'Document' : 'File' });
+      // connect to all commits that touched this file in range
+      for (const c of selected) {
+        if ((c.files || []).some(cf => cf.path === path)) {
+          edges.push({ id: `${c.hash}|${path}`, from: c.hash, to: path, type: 'touch', color: '#4a5568', size: 0.6, timestamp: c.timestamp });
+        }
+      }
+    }
+
+    return { nodes, relations: edges };
+  }, [commits, range, maxNodes, sizeByLOC, activeFolders, patternInput]);
   const [enableZoom, setEnableZoom] = useState(true);
   const [resetToken, setResetToken] = useState(0);
   // Compute adaptive node budget based on device/browser capabilities and viewport
@@ -316,11 +400,11 @@ export default function TimelinePage() {
     }
   };
 
-  // Enhanced autoplay effect with consistent speed - respects commit range
+  // Enhanced autoplay effect with adjustable speed - respects commit range
   useEffect(() => {
     let interval: NodeJS.Timeout;
     if (isPlaying && commits.length > 0 && range[1] > range[0]) {
-      const speed = 1500; // Consistent speed for smooth playback
+      const speed = Math.max(200, playSpeedMs);
       interval = setInterval(() => {
         setCurrentTimeIndex(prev => {
           const next = prev + 1;
@@ -333,7 +417,35 @@ export default function TimelinePage() {
       }, speed);
     }
     return () => clearInterval(interval);
-  }, [isPlaying, commits.length, range]);
+  }, [isPlaying, commits.length, range, playSpeedMs]);
+
+  // Hotkeys: Space toggle play/pause, arrows navigate, '?' help overlay placeholder
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const isTyping = target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable);
+      if (isTyping) return;
+      if (e.code === 'Space') { e.preventDefault(); setIsPlaying(p => !p); }
+      if (e.code === 'ArrowRight') { e.preventDefault(); setCurrentTimeIndex(i => Math.min(i + 1, range[1])); }
+      if (e.code === 'ArrowLeft') { e.preventDefault(); setCurrentTimeIndex(i => Math.max(i - 1, range[0])); }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [range]);
+
+  // Derive top-level folders from loaded commits for grouping UI
+  const topLevelFolders = React.useMemo(() => {
+    const set = new Set<string>();
+    for (const c of commits) {
+      for (const f of c.files || []) {
+        if (!f.path) continue;
+        const norm = f.path.replace(/\\/g, '/');
+        const idx = norm.indexOf('/');
+        set.add(idx === -1 ? norm : norm.slice(0, idx));
+      }
+    }
+    return Array.from(set).sort();
+  }, [commits]);
 
   if (loading) {
     return (
@@ -391,6 +503,13 @@ export default function TimelinePage() {
           <Button onClick={handleNext} isDisabled={currentTimeIndex >= range[1]} colorScheme="purple">
             Next
           </Button>
+          <HStack>
+            <Text fontSize="sm" color={mutedTextColor}>Speed</Text>
+            <Slider value={Math.round((4000 - playSpeedMs) / 40)} onChange={(v)=> setPlaySpeedMs(4000 - v*40)} min={10} max={100} step={5} width="160px">
+              <SliderTrack bg={borderColor}><SliderFilledTrack bg="blue.400"/></SliderTrack>
+              <SliderThumb bg="blue.400" />
+            </Slider>
+          </HStack>
         </HStack>
         
         {/* Range Info */}
@@ -538,12 +657,43 @@ export default function TimelinePage() {
                   <SliderThumb bg="gray.400" />
                 </Slider>
               </HStack>
+
+              <HStack spacing={3} align="center">
+                <Text fontSize="sm" fontWeight="medium" color={textColor}>Render Engine:</Text>
+                <Button size="sm" variant={renderEngine==='svg'?'solid':'outline'} onClick={()=> setRenderEngine('svg')}>SVG</Button>
+                <Button size="sm" variant={renderEngine==='webgl'?'solid':'outline'} onClick={()=> setRenderEngine('webgl')}>WebGL (beta)</Button>
+                <Text fontSize="xs" color={mutedTextColor}>Beta renderer; faster on large graphs</Text>
+              </HStack>
+
+              {/* Folder/Feature Grouping */}
+              <VStack spacing={1} align="start">
+                <Text fontSize="sm" fontWeight="medium" color={textColor}>Feature Groups</Text>
+                <HStack spacing={2} wrap="wrap">
+                  {topLevelFolders.slice(0, 18).map(folder => (
+                    <Button key={folder} size="xs" variant={activeFolders.includes(folder) ? 'solid' : 'outline'} onClick={() => setActiveFolders(prev => prev.includes(folder) ? prev.filter(f=>f!==folder) : [...prev, folder])}>
+                      {folder}
+                    </Button>
+                  ))}
+                </HStack>
+                <HStack spacing={2}>
+                  <Button size="xs" onClick={() => setActiveFolders(topLevelFolders.slice(0, 18))}>Select All</Button>
+                  <Button size="xs" onClick={() => setActiveFolders([])}>Clear</Button>
+                  <Button size="xs" variant={filterMode==='hide' ? 'solid' : 'outline'} onClick={() => setFilterMode(filterMode==='hide'?'dim':'hide')}>
+                    {filterMode==='hide' ? 'Hide Others' : 'Dim Others'}
+                  </Button>
+                </HStack>
+                <HStack spacing={2}>
+                  <Text fontSize="xs" color={mutedTextColor}>Include patterns (comma‑separated, supports /regex/):</Text>
+                  <input value={patternInput} onChange={(e:any)=> setPatternInput(e.target.value)} placeholder="src/api,/^docs\\//" style={{ padding: '4px 6px', borderRadius: 6, border: `1px solid ${borderColor}`, background: 'transparent', color: textColor, width: '280px' }} />
+                </HStack>
+              </VStack>
             </VStack>
           </VStack>
         </Box>
 
         {/* Main Visualization */}
         <Box border="1px solid" borderColor={borderColor} borderRadius="md" overflow="hidden">
+          {renderEngine === 'svg' ? (
           <ProgressiveStructureGraph
             commits={commits}
             currentTimeIndex={currentTimeIndex}
@@ -559,8 +709,30 @@ export default function TimelinePage() {
             colorMode={colorMode}
             highlightDocs={highlightDocs}
             edgeEmphasis={edgeEmphasis}
+            activeFolders={activeFolders}
+            includePatterns={patternInput.split(',').map(s=>s.trim()).filter(Boolean)}
+            filterMode={filterMode}
             resetToken={resetToken}
           />
+          ) : (
+            <>
+              {console.log('TimelinePage: Attempting to render WebGL component with data:', {
+                nodesCount: webglData.nodes?.length || 0,
+                relationsCount: webglData.relations?.length || 0,
+                hasValidData: (webglData.nodes?.length || 0) > 0
+              })}
+              <WebGLEvolutionGraph
+                data={{ nodes: webglData.nodes, relations: webglData.relations }}
+                width={1200}
+                height={600}
+                lightEdges
+                focusMode={focusedView}
+                layoutMode={'time-radial'}
+                edgeTypes={['chain','touch']}
+                maxEdgesInView={2000}
+              />
+            </>
+          )}
         </Box>
       </VStack>
     </Box>

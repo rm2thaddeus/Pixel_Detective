@@ -43,6 +43,10 @@ interface ProgressiveStructureGraphProps {
   colorMode?: 'folder' | 'type' | 'commit-flow' | 'activity' | 'none';
   highlightDocs?: boolean;
   edgeEmphasis?: number; // 0..1 controls edge visibility
+  // Grouping and filtering
+  activeFolders?: string[]; // top-level folders selected
+  includePatterns?: string[]; // simple substring or regex patterns
+  filterMode?: 'dim' | 'hide';
 }
 
 type NodeDatum = {
@@ -86,6 +90,9 @@ export default function ProgressiveStructureGraph({
   colorMode = 'folder',
   highlightDocs = true,
   edgeEmphasis = 0.4,
+  activeFolders = [],
+  includePatterns = [],
+  filterMode = 'dim',
 }: ProgressiveStructureGraphProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   const simRef = useRef<d3.Simulation<NodeDatum, undefined>>();
@@ -301,7 +308,9 @@ export default function ProgressiveStructureGraph({
       .attr('ry', 8);
 
     // Root container to enable zoom/pan on groups
-    const root = svg.append('g').attr('class', 'root');
+    // Wrap with rotator > root groups to allow rotation separate from zoom
+    const rotator = svg.append('g').attr('class', 'rotator');
+    const root = rotator.append('g').attr('class', 'root');
     // Layers
     root.append('g').attr('class', 'edges');
     root.append('g').attr('class', 'nodes');
@@ -372,14 +381,15 @@ export default function ProgressiveStructureGraph({
     if (!svgRef.current || !simRef.current) return;
     
     const svg = d3.select(svgRef.current);
-    const edgesLayer = svg.select<SVGGElement>('g.edges');
-    const nodesLayer = svg.select<SVGGElement>('g.nodes');
+    const container = svg.select<SVGGElement>('g.root');
+    const edgesLayer = container.select<SVGGElement>('g.edges');
+    const nodesLayer = container.select<SVGGElement>('g.nodes');
     const sim = simRef.current;
 
     // Color helpers
     const folderDomains = new Set<string>();
     nodes.forEach((n: any) => { if (n.nodeType === 'file' && n.folderPath) folderDomains.add(n.folderPath); });
-    const folderColor = d3.scaleOrdinal<string, string>(d3.schemeTableau10).domain(Array.from(folderDomains));
+    const folderColor = d3.scaleOrdinal<string, string>((d3 as any).schemeSet3 || d3.schemeTableau10).domain(Array.from(folderDomains));
     const activityDomain = d3.extent(nodes.filter((n: any) => n.nodeType === 'file').map((n: any) => n.touchCount || 0)) as [number, number];
     const activityColor = d3.scaleSequential(d3.interpolatePlasma).domain([activityDomain?.[0] ?? 0, activityDomain?.[1] ?? 1]);
     const commitFlowColor = d3.scaleSequential(d3.interpolateTurbo).domain([0, Math.max(1, commits.length - 1)]);
@@ -500,22 +510,40 @@ export default function ProgressiveStructureGraph({
       .attr('r', (d: any) => d.radius)
       .attr('opacity', (d: any) => {
         if (!focusedView) return 1.0; // Show all nodes in full view
-        
+        // Group filtering
+        const inFolder = ((): boolean => {
+          if (d.nodeType === 'commit') return true;
+          const top = d.folderPath || (typeof d.id === 'string' ? (d.id as string).split('/')[0] : '');
+          const folderOk = (activeFolders?.length || 0) === 0 ? true : activeFolders.includes(top);
+          const patternOk = (includePatterns || []).length === 0 ? true : (includePatterns as string[]).some(p => {
+            try {
+              if (p.startsWith('/') && p.endsWith('/')) {
+                const re = new RegExp(p.slice(1, -1));
+                return re.test(String(d.id));
+              }
+            } catch {}
+            return String(d.id).includes(p);
+          });
+          return folderOk && patternOk;
+        })();
+        if (filterMode === 'hide' && !inFolder) return 0.02;
+
         // Highlight current commit and its related files in focused view
         if (d.nodeType === 'commit') {
           const commitIndex = commits.findIndex(c => c.hash === d.id);
           if (commitIndex === currentTimeIndex) return 1.0; // Current commit fully visible
           if (Math.abs(commitIndex - currentTimeIndex) <= 2) return 0.8; // Nearby commits
-          return 0.3; // Distant commits more transparent
+          return inFolder ? 0.3 : 0.1; // De-emphasize if out of group
         }
         // Files and folders: highlight if they're in the current commit
         if (currentTimeIndex >= 0 && currentTimeIndex < commits.length) {
           const currentCommitFiles = new Set(commits[currentTimeIndex]?.files?.map(f => f.path) || []);
           const isInCurrentCommit = currentCommitFiles.has(d.id) || 
             (d.nodeType === 'folder' && Array.from(d.files || []).some((f: any) => currentCommitFiles.has(f.path)));
-          return isInCurrentCommit ? 1.0 : 0.2; // Current commit files fully visible, others very subtle
+          const base = isInCurrentCommit ? 1.0 : 0.2;
+          return inFolder ? base : Math.min(base, 0.08);
         }
-        return 0.6;
+        return inFolder ? 0.6 : 0.1;
       });
 
     // Ensure/update document ring per node
@@ -601,6 +629,40 @@ export default function ProgressiveStructureGraph({
         .attr('transform', (d: any) => `translate(${d.x}, ${d.y})`);
     }
   }, [nodes, links, colorMode, highlightDocs, edgeEmphasis, focusedView, commits, currentTimeIndex]);
+
+  // Ctrl+drag rotation around center
+  useEffect(() => {
+    const svg = d3.select(svgRef.current);
+    if (!svg.node()) return;
+    const center = { x: width / 2, y: height / 2 };
+    let rotating = false;
+    let startAngle = 0;
+    let baseAngle = 0;
+    const rotator = svg.select<SVGGElement>('g.rotator');
+
+    const angleAt = (x: number, y: number) => Math.atan2(y - center.y, x - center.x) * 180 / Math.PI;
+
+    const drag = d3.drag<SVGSVGElement, unknown>()
+      .on('start', (event: any) => {
+        if (event.sourceEvent && event.sourceEvent.ctrlKey) {
+          rotating = true;
+          const { x, y } = event;
+          startAngle = angleAt(x, y);
+          const current = rotator.attr('data-angle');
+          baseAngle = current ? parseFloat(current) : 0;
+        }
+      })
+      .on('drag', (event: any) => {
+        if (!rotating) return;
+        const a = angleAt(event.x, event.y);
+        const angle = baseAngle + (a - startAngle);
+        rotator.attr('transform', `rotate(${angle} ${center.x} ${center.y})`).attr('data-angle', String(angle));
+      })
+      .on('end', () => { rotating = false; });
+
+    svg.call(drag as any);
+    return () => { try { svg.on('.drag', null as any); } catch {} };
+  }, [width, height]);
 
   return <svg ref={svgRef} />;
 }
