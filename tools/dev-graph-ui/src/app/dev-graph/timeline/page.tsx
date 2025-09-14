@@ -71,6 +71,11 @@ export default function TimelinePage() {
   const [activeFolders, setActiveFolders] = useState<string[]>([]);
   const [filterMode, setFilterMode] = useState<'dim' | 'hide'>('dim');
   const [patternInput, setPatternInput] = useState<string>("");
+  // Phase A WebGL controls
+  const [autoFit, setAutoFit] = useState(true);
+  const [alwaysShowEdges, setAlwaysShowEdges] = useState(false);
+  const [labelThreshold, setLabelThreshold] = useState(0.85);
+  const [qualityLevel, setQualityLevel] = useState(0.6);
 
   // Build WebGL graph data (nodes/edges) from commits within the current range
   const webglData = React.useMemo(() => {
@@ -694,6 +699,29 @@ export default function TimelinePage() {
                 </Slider>
               </HStack>
 
+              {/* Phase A — Parity polish toggles */}
+              <HStack spacing={3} align="center">
+                <Button size="sm" variant={autoFit ? 'solid' : 'outline'} onClick={() => setAutoFit(!autoFit)}>Auto‑fit {autoFit ? 'On' : 'Off'}</Button>
+                <Button size="sm" variant={alwaysShowEdges ? 'solid' : 'outline'} onClick={() => setAlwaysShowEdges(!alwaysShowEdges)}>Always show edges {alwaysShowEdges ? 'On' : 'Off'}</Button>
+                <HStack spacing={2} align="center">
+                  <Text fontSize="sm" color={textColor}>Label threshold</Text>
+                  <Slider value={Math.round(labelThreshold * 100)} onChange={(v)=> setLabelThreshold(v/100)} min={20} max={200} step={5} width="180px">
+                    <SliderTrack bg={borderColor}><SliderFilledTrack bg="purple.400" /></SliderTrack>
+                    <SliderThumb bg="purple.400" />
+                  </Slider>
+                </HStack>
+              </HStack>
+
+              {/* Phase B — Quality vs Speed */}
+              <HStack spacing={3} align="center">
+                <Text fontSize="sm" fontWeight="medium" color={textColor}>Quality vs Speed</Text>
+                <Slider value={Math.round(qualityLevel * 100)} onChange={(v)=> setQualityLevel(v/100)} min={10} max={100} step={5} width="240px">
+                  <SliderTrack bg={borderColor}><SliderFilledTrack bg="teal.400" /></SliderTrack>
+                  <SliderThumb bg="teal.400" />
+                </Slider>
+                <Text fontSize="xs" color={mutedTextColor}>{qualityLevel < 0.45 ? 'Speed' : qualityLevel > 0.7 ? 'Quality' : 'Balanced'}</Text>
+              </HStack>
+
               <HStack spacing={3} align="center">
                 <Text fontSize="sm" fontWeight="medium" color={textColor}>Render Engine:</Text>
                 <Button size="sm" variant={renderEngine==='svg'?'solid':'outline'} onClick={()=> setRenderEngine('svg')}>SVG</Button>
@@ -802,6 +830,13 @@ export default function TimelinePage() {
                 maxEdgesInView={2000}
                 highlightNodeId={commits[currentTimeIndex]?.hash}
                 currentCommitId={commits[currentTimeIndex]?.hash}
+                colorMode={colorMode}
+                highlightDocs={highlightDocs}
+                edgeEmphasis={edgeEmphasis}
+                autoFit={autoFit}
+                alwaysShowEdges={alwaysShowEdges}
+                labelThreshold={labelThreshold}
+                qualityLevel={qualityLevel}
               />
             </>
           )}
