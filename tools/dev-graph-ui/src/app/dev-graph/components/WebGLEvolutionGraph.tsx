@@ -1,8 +1,7 @@
 'use client';
 
-import React, { useEffect, useState, useRef, useMemo } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { Box, useColorModeValue } from '@chakra-ui/react';
-import * as d3 from 'd3';
 
 interface WebGLEvolutionGraphProps {
   data: { nodes: any[]; relations: any[] };
@@ -45,7 +44,9 @@ export default function WebGLEvolutionGraph({
   labelThreshold = 0.85,
   qualityLevel = 0.6
 }: WebGLEvolutionGraphProps) {
-  const [isLoading, setIsLoading] = useState(true);
+  const [isInitializing, setIsInitializing] = useState(true);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const isLoading = isInitializing || isProcessing;
   const [error, setError] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
   const [performanceMetrics, setPerformanceMetrics] = useState<{
@@ -76,6 +77,8 @@ export default function WebGLEvolutionGraph({
   const fileHomeRef = useRef<Map<string, string>>(new Map());
   const layoutPosRef = useRef<Map<string, { x: number; y: number }>>(new Map());
   const growthStartRef = useRef<number>(0);
+
+  const dataWorkerRef = useRef<Worker | null>(null);
 
   // Keep latest processed data without re-initializing WebGL
   const processedDataRef = useRef<{ nodes: any[]; relations: any[] }>({ nodes: [], relations: [] });
@@ -125,191 +128,49 @@ export default function WebGLEvolutionGraph({
     setMounted(true);
   }, []);
 
-  // Performance-optimized data processing with CUDA-like acceleration simulation
-  const processedData = useMemo(() => {
-    if (!data.nodes || !data.relations) return { nodes: [], relations: [] };
+  useEffect(() => () => {
+    try { dataWorkerRef.current?.terminate(); } catch {}
+    dataWorkerRef.current = null;
+  }, []);
 
-    const startTime = performance.now();
-    
-    // Simulate CUDA-like parallel processing for large datasets
-    const nodeCount = data.nodes.length;
-    const relationCount = data.relations.length;
-    
-    // Degree map for importance and labels
-    const deg = new Map<string, number>();
-    for (const r of data.relations || []) {
-      const a = String((r as any).source ?? (r as any).from ?? '');
-      const b = String((r as any).target ?? (r as any).to ?? '');
-      if (a) deg.set(a, (deg.get(a) || 0) + 1);
-      if (b) deg.set(b, (deg.get(b) || 0) + 1);
+  const [processedData, setProcessedData] = useState<{ nodes: any[]; relations: any[] }>({ nodes: [], relations: [] });
+
+  useEffect(() => {
+    if (!data.nodes || !data.relations) {
+      setProcessedData({ nodes: [], relations: [] });
+      return;
     }
 
-    // Apply viewport culling and LOD (Level of Detail) for performance
-    let processedNodes = data.nodes.map(n => {
-      const loc = (n.loc ?? n.lines_after ?? n.size ?? 1) as number;
-      const d = (n.degree ?? deg.get(String(n.id)) ?? 0) as number;
-      const importance = Math.max(1, (loc * 0.7) + (d * 3));
-      // carry folderPath/group if available
-      let folderPath = n.folderPath;
-      if (!folderPath && typeof n.path === 'string') {
-        const norm = (n.path as string).replace(/\\/g, '/');
-        const idx = norm.indexOf('/');
-        folderPath = idx === -1 ? norm : norm.slice(0, idx);
-      }
-      const filesTouched = (n.filesTouched ?? n.files_count ?? 0) as number;
-      const touchCount = (n.touchCount ?? n.touches ?? d ?? 0) as number;
-      return { ...n, importance, folderPath, degree: d, filesTouched, touchCount };
-    });
-    let processedRelations = data.relations;
-
-    // If we have too many nodes, implement progressive loading
-    if (nodeCount > maxEdgesInView) {
-      // Sort nodes by importance (size, connectivity, recency)
-      processedNodes = data.nodes
-        .map(node => ({
-          ...node,
-          importance: (node.size || 0) + (node.degree || 0) * 0.5
-        }))
-        .sort((a, b) => b.importance - a.importance)
-        .slice(0, maxEdgesInView);
-      
-      // Filter relations to only include visible nodes (support from/to or source/target)
-      const visibleNodeIds = new Set(processedNodes.map(n => String(n.id)));
-      processedRelations = data.relations.filter(rel => {
-        const src = String((rel as any).source ?? (rel as any).from ?? '');
-        const tgt = String((rel as any).target ?? (rel as any).to ?? '');
-        return visibleNodeIds.has(src) && visibleNodeIds.has(tgt);
-      });
+    if (!dataWorkerRef.current) {
+      dataWorkerRef.current = new Worker(new URL('./workers/layoutWorker.ts', import.meta.url));
     }
+    const worker = dataWorkerRef.current;
 
-    // Time spiral layout with dendrimer branches
-    if (layoutMode === 'time-radial') {
-      const cx = width / 2;
-      const cy = height / 2;
-      const commits = processedNodes.filter((n: any) => (n.originalType === 'GitCommit' || n.type === 'commit'));
-      const files = processedNodes.filter(n => !(n.originalType === 'GitCommit' || n.type === 'commit'));
+    const handleMessage = (e: MessageEvent<any>) => {
+      const { nodes, relations, commitPos, fileHome, layoutPos, commitIndex, touchDomain } = e.data || {};
+      setProcessedData({ nodes: nodes || [], relations: relations || [] });
+      try { commitPosRef.current = new Map(Object.entries(commitPos || {})); } catch {}
+      try { fileHomeRef.current = new Map(Object.entries(fileHome || {})); } catch {}
+      try { layoutPosRef.current = new Map(Object.entries(layoutPos || {})); } catch {}
+      try { commitIndexRef.current = new Map(Object.entries(commitIndex || {})); } catch {}
+      try { touchDomainRef.current = touchDomain || { min: 0, max: 1 }; } catch {}
+      setIsProcessing(false);
+    };
 
-      // Order commits by time (fallback to id if missing)
-      const timeOf = (n: any) => Number(new Date(n.timestamp || n.created_at || n.time || 0));
-      commits.sort((a, b) => timeOf(a) - timeOf(b));
-
-      const commitPos = new Map<string, { x: number; y: number; r: number; theta: number }>();
-      const fileHome = new Map<string, string>();
-      const layoutPos = new Map<string, { x: number; y: number }>();
-
-      // Spiral parameters: r = a + b * theta
-      const a = 60; // inner radius
-      const b = Math.max(10, Math.min(24, 14 + Math.log1p(commits.length) * 4));
-      const thetaStep = Math.PI * 0.45; // between 0.3 and 0.7 looks nice
-
-      // Place commits on spiral
-      for (let i = 0; i < commits.length; i++) {
-        const c = commits[i];
-        const theta = i * thetaStep;
-        const r = a + b * theta;
-        const x = cx + r * Math.cos(theta);
-        const y = cy + r * Math.sin(theta);
-        c.x = x; c.y = y;
-        commitPos.set(String(c.id), { x, y, r, theta });
-        layoutPos.set(String(c.id), { x, y });
-      }
-
-      // Map: commit -> files touched; file -> earliest touching commit
-      const rels = processedRelations || [];
-      const byCommit = new Map<string, Set<string>>();
-      for (const r of rels) {
-        const type = (r as any).type || (r as any).originalType;
-        if (type !== 'touch') continue;
-        const src = String((r as any).source ?? (r as any).from ?? '');
-        const tgt = String((r as any).target ?? (r as any).to ?? '');
-        const isSrcCommit = commitPos.has(src);
-        const commitId = isSrcCommit ? src : (commitPos.has(tgt) ? tgt : '');
-        const fileId = isSrcCommit ? tgt : src;
-        if (!commitId || !fileId) continue;
-        if (!byCommit.has(commitId)) byCommit.set(commitId, new Set());
-        byCommit.get(commitId)!.add(fileId);
-        if (!fileHome.has(fileId)) fileHome.set(fileId, commitId);
-      }
-
-      // Place files as dendrimer branches outwards from their home commit
-      const counters = new Map<string, number>();
-      const jitter = (s: string) => {
-        // deterministic tiny jitter from id
-        let h = 2166136261;
-        for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h += (h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24); }
-        const u = (h >>> 0) / 0xffffffff;
-        return (u - 0.5) * 6; // [-3,3] px
-      };
-
-      for (const f of files) {
-        const fid = String(f.id);
-        const home = fileHome.get(fid);
-        let cp: { x: number; y: number; r: number; theta: number } | undefined;
-        if (home) {
-          cp = commitPos.get(home);
-        } else {
-          cp = undefined;
-        }
-        if (!cp) {
-          // fallback near center
-          const x = cx + jitter(fid);
-          const y = cy + jitter(fid + 'y');
-          f.x = x; f.y = y; layoutPos.set(fid, { x, y });
-          continue;
-        }
-        const homeKey = String(home ?? '');
-        const count = (counters.get(homeKey) || 0);
-        counters.set(homeKey, count + 1);
-        const dir = { x: Math.cos(cp.theta), y: Math.sin(cp.theta) };
-        const perp = { x: -dir.y, y: dir.x };
-        const baseOut = 28; // start distance from commit
-        const gap = 12; // spacing between file nodes along dendrimer
-        const outward = baseOut + gap * count;
-        const lateral = ((count % 2 === 0) ? 1 : -1) * (4 + (count * 0.6)) + jitter(fid);
-        const x = cp.x + dir.x * outward + perp.x * lateral;
-        const y = cp.y + dir.y * outward + perp.y * lateral;
-        f.x = x; f.y = y; layoutPos.set(fid, { x, y });
-      }
-
-      // Update refs used by the render loop for animations
-      try { (commitPosRef as any).current = commitPos; } catch {}
-      try { (fileHomeRef as any).current = fileHome; } catch {}
-      try { (layoutPosRef as any).current = layoutPos; } catch {}
-    }
-
-    // Prepare commit ordering for commit-flow coloring
-    try {
-      const commits = processedNodes.filter(n => (n.originalType === 'GitCommit' || n.type === 'commit'));
-      commits.sort((a,b) => Number(new Date(a.timestamp || a.time || 0)) - Number(new Date(b.timestamp || b.time || 0)));
-      const map = new Map<string, number>();
-      for (let i = 0; i < commits.length; i++) map.set(String(commits[i].id as string), i);
-      commitIndexRef.current = map;
-    } catch {}
-
-    // Activity color domain for files
-    try {
-      let minT = Infinity, maxT = -Infinity;
-      for (const n of processedNodes) {
-        if (n.originalType === 'GitCommit' || n.type === 'commit') continue;
-        const t = n.touchCount ?? n.degree ?? 0;
-        if (t < minT) minT = t; if (t > maxT) maxT = t;
-      }
-      if (!isFinite(minT)) { minT = 0; maxT = 1; }
-      touchDomainRef.current = {min: minT, max: Math.max(minT+1, maxT)};
-    } catch {}
-
-    const processingTime = performance.now() - startTime;
-    
-    console.log('WebGLEvolutionGraph: CUDA-like processing completed', {
-      originalNodes: nodeCount,
-      processedNodes: processedNodes.length,
-      originalRelations: relationCount,
-      processedRelations: processedRelations.length,
-      processingTime: `${processingTime.toFixed(2)}ms`,
-      performanceGain: `${((nodeCount - processedNodes.length) / nodeCount * 100).toFixed(1)}% reduction`
+    worker.addEventListener('message', handleMessage);
+    setIsProcessing(true);
+    worker.postMessage({
+      nodes: data.nodes,
+      relations: data.relations,
+      maxEdgesInView,
+      layoutMode,
+      width,
+      height,
     });
 
-    return { nodes: processedNodes, relations: processedRelations };
+    return () => {
+      worker.removeEventListener('message', handleMessage);
+    };
   }, [data, maxEdgesInView, layoutMode, width, height]);
 
   // Keep ref in sync with memoized processed data
@@ -405,7 +266,7 @@ export default function WebGLEvolutionGraph({
         // Terminate prior physics worker if exists
         try { physicsWorkerRef.current?.terminate(); physicsWorkerRef.current = null; } catch {}
 
-        setIsLoading(true);
+        setIsInitializing(true);
         setError(null);
 
         // Require the actual canvas element from the DOM
@@ -430,11 +291,11 @@ export default function WebGLEvolutionGraph({
         // Initialize CUDA-accelerated rendering
         removeListeners = await initializeCUDARendering(canvas, gl);
         
-        setIsLoading(false);
+        setIsInitializing(false);
       } catch (err) {
         console.error('WebGLEvolutionGraph: Initialization failed', err);
         setError(err instanceof Error ? err.message : 'Failed to initialize WebGL rendering');
-        setIsLoading(false);
+        setIsInitializing(false);
       }
     };
 
@@ -1585,7 +1446,7 @@ void main() {
           color={panelText}
           fontSize="sm"
         >
-          Loading CUDA-accelerated visualization...
+          Processing graph layout...
         </Box>
       )}
 
