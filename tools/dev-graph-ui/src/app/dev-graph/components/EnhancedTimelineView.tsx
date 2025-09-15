@@ -97,29 +97,41 @@ export function EnhancedTimelineView({
       ctx.stroke();
     }
 
+    // Build prefix sums for cumulative calculations
+    const commitPrefix: number[] = [];
+    const filePrefix: number[] = [];
+    let commitSum = 0;
+    let fileSum = 0;
+    buckets.forEach((b, i) => {
+      commitSum += b.commit_count;
+      fileSum += b.file_changes;
+      commitPrefix[i] = commitSum;
+      filePrefix[i] = fileSum;
+    });
+
     // Draw bars based on mode
     buckets.forEach((bucket, index) => {
       const x = padding + (chartWidth / buckets.length) * index;
       const barWidth = (chartWidth / buckets.length) * 0.8;
-      
+      let barHeight;
       if (showComplexity) {
         // Graph complexity visualization - simulate growing complexity over time
-        const cumulativeCommits = buckets.slice(0, index + 1).reduce((sum, b) => sum + b.commit_count, 0);
-        const cumulativeFiles = buckets.slice(0, index + 1).reduce((sum, b) => sum + b.file_changes, 0);
-        
+        const cumulativeCommits = commitPrefix[index];
+        const cumulativeFiles = filePrefix[index];
+
         // Simulate graph complexity as a function of cumulative activity
         const complexity = Math.min(100, Math.sqrt(cumulativeCommits * 0.1 + cumulativeFiles * 0.05));
-        const barHeight = (complexity / 100) * chartHeight;
-        
+        barHeight = (complexity / 100) * chartHeight;
+
         // Color based on complexity level
         const intensity = complexity / 100;
         const color = intensity > 0.7 ? `rgba(168, 85, 247, ${0.4 + intensity * 0.6})` : // purple for high complexity
                      intensity > 0.4 ? `rgba(59, 130, 246, ${0.4 + intensity * 0.6})` : // blue for medium
                      `rgba(34, 197, 94, ${0.4 + intensity * 0.6})`; // green for low
-        
+
         ctx.fillStyle = color;
         ctx.fillRect(x, padding + chartHeight - barHeight, barWidth, barHeight);
-        
+
         // Draw complexity indicator dots
         const dotCount = Math.min(5, Math.floor(complexity / 20));
         for (let i = 0; i < dotCount; i++) {
@@ -131,26 +143,20 @@ export function EnhancedTimelineView({
         }
       } else {
         // Traditional commit count visualization
-        const barHeight = (bucket.commit_count / maxCommits) * chartHeight;
-        
+        barHeight = (bucket.commit_count / maxCommits) * chartHeight;
+
         // Color based on commit count
         const intensity = bucket.commit_count / maxCommits;
         const color = `rgba(59, 130, 246, ${0.3 + intensity * 0.7})`; // blue with varying opacity
-        
+
         ctx.fillStyle = color;
         ctx.fillRect(x, padding + chartHeight - barHeight, barWidth, barHeight);
       }
-      
+
       // Draw border
       ctx.strokeStyle = accentColor;
       ctx.lineWidth = 1;
-      ctx.strokeRect(x, padding + chartHeight - (showComplexity ? 
-        (Math.min(100, Math.sqrt(buckets.slice(0, index + 1).reduce((sum, b) => sum + b.commit_count, 0) * 0.1 + buckets.slice(0, index + 1).reduce((sum, b) => sum + b.file_changes, 0) * 0.05)) / 100) * chartHeight :
-        (bucket.commit_count / maxCommits) * chartHeight
-      ), barWidth, showComplexity ? 
-        (Math.min(100, Math.sqrt(buckets.slice(0, index + 1).reduce((sum, b) => sum + b.commit_count, 0) * 0.1 + buckets.slice(0, index + 1).reduce((sum, b) => sum + b.file_changes, 0) * 0.05)) / 100) * chartHeight :
-        (bucket.commit_count / maxCommits) * chartHeight
-      );
+      ctx.strokeRect(x, padding + chartHeight - barHeight, barWidth, barHeight);
     });
 
     // Draw selection range
