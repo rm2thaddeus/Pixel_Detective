@@ -1,8 +1,7 @@
 'use client';
 
 import { Box, Text, HStack, RangeSlider, RangeSliderTrack, RangeSliderFilledTrack, RangeSliderThumb, useColorModeValue, VStack, Button, IconButton, Select } from '@chakra-ui/react';
-import { useMemo, useState, useEffect } from 'react';
-import { Chrono } from 'react-chrono';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { FiPlay, FiPause, FiSkipBack, FiSkipForward } from 'react-icons/fi';
 
 export type TimelineEvent = {
@@ -15,20 +14,25 @@ export type TimelineEvent = {
   files_changed?: string[];
 };
 
-export function TimelineView({ 
-  events, 
-  onSelect, 
+export function TimelineView({
+  events,
+  onSelect,
   onRangeSelect,
-  onTimeScrub 
-}: { 
-  events: TimelineEvent[]; 
-  onSelect?: (ev: TimelineEvent) => void; 
+  onTimeScrub
+}: {
+  events: TimelineEvent[];
+  onSelect?: (ev: TimelineEvent) => void;
   onRangeSelect?: (startId: string, endId: string) => void;
   onTimeScrub?: (timestamp: string) => void;
 }) {
   const [selectedTimeRange, setSelectedTimeRange] = useState<[number, number]>([0, 100]);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTimeIndex, setCurrentTimeIndex] = useState(0);
+  const [autoRefresh, setAutoRefresh] = useState(false);
+  const [refreshInterval, setRefreshInterval] = useState(1000);
+  const [scrollTop, setScrollTop] = useState(0);
+
+  const listRef = useRef<HTMLDivElement>(null);
 
   // Ensure currentTimeIndex is always within bounds
   useEffect(() => {
@@ -36,17 +40,14 @@ export function TimelineView({
       setCurrentTimeIndex(events.length - 1);
     }
   }, [events.length, currentTimeIndex]);
-  const [autoRefresh, setAutoRefresh] = useState(false);
-  const [refreshInterval, setRefreshInterval] = useState(1000);
-  
+
   const bgColor = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.200', 'gray.600');
-  const cardForeColor = useColorModeValue('black', 'white');
 
   // Auto-refresh effect
   useEffect(() => {
     if (!autoRefresh || !isPlaying) return;
-    
+
     const interval = setInterval(() => {
       if (currentTimeIndex < events.length - 1) {
         const nextIndex = currentTimeIndex + 1;
@@ -55,36 +56,49 @@ export function TimelineView({
           onTimeScrub(events[nextIndex].timestamp);
         }
       } else {
-        // Loop back to start
         setCurrentTimeIndex(0);
         if (onTimeScrub && events[0]) {
           onTimeScrub(events[0].timestamp);
         }
       }
     }, refreshInterval);
-    
+
     return () => clearInterval(interval);
   }, [autoRefresh, isPlaying, currentTimeIndex, events, onTimeScrub, refreshInterval]);
 
-  // Convert events to react-chrono format
-  const chronoItems = useMemo(() => {
-    return events.filter(ev => ev && ev.timestamp).map((ev, index) => ({
-      title: ev.title || 'Untitled Event',
-      cardTitle: ev.title || 'Untitled Event',
-      cardSubtitle: ev.author || 'Unknown Author',
-      cardDetailedText: ev.files_changed?.join(', ') || 'No files changed',
-      date: new Date(ev.timestamp).toLocaleDateString(),
-      timestamp: ev.timestamp,
-      index,
-    }));
-  }, [events]);
+  // Virtualization constants
+  const itemHeight = 60;
+  const containerHeight = 400;
+  const buffer = 5;
+
+  const { startIndex, endIndex, visibleEvents, totalHeight } = useMemo(() => {
+    const start = Math.max(0, Math.floor(scrollTop / itemHeight) - buffer);
+    const end = Math.min(events.length, start + Math.ceil(containerHeight / itemHeight) + buffer * 2);
+    return {
+      startIndex: start,
+      endIndex: end,
+      visibleEvents: events.slice(start, end),
+      totalHeight: events.length * itemHeight
+    };
+  }, [scrollTop, events]);
+
+  // Scroll to current event when index changes
+  useEffect(() => {
+    if (!listRef.current) return;
+    const top = currentTimeIndex * itemHeight;
+    const viewTop = listRef.current.scrollTop;
+    const viewBottom = viewTop + containerHeight;
+    if (top < viewTop || top + itemHeight > viewBottom) {
+      listRef.current.scrollTo({ top: top - containerHeight / 2 + itemHeight / 2, behavior: 'smooth' });
+    }
+  }, [currentTimeIndex]);
 
   const handleRangeChange = (values: [number, number]) => {
     setSelectedTimeRange(values);
     if (onRangeSelect && events.length > 0) {
-      const startIndex = Math.floor((values[0] / 100) * (events.length - 1));
-      const endIndex = Math.floor((values[1] / 100) * (events.length - 1));
-      onRangeSelect(events[startIndex].id, events[endIndex].id);
+      const startIdx = Math.floor((values[0] / 100) * (events.length - 1));
+      const endIdx = Math.floor((values[1] / 100) * (events.length - 1));
+      onRangeSelect(events[startIdx].id, events[endIdx].id);
     }
   };
 
@@ -133,6 +147,10 @@ export function TimelineView({
     }
   };
 
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    setScrollTop(e.currentTarget.scrollTop);
+  };
+
   return (
     <Box p={4} bg={bgColor} borderWidth={1} borderColor={borderColor} borderRadius="md">
       <VStack spacing={4} align="stretch">
@@ -155,7 +173,7 @@ export function TimelineView({
               variant="ghost"
             />
             <IconButton
-              aria-label={isPlaying ? "Pause" : "Play"}
+              aria-label={isPlaying ? 'Pause' : 'Play'}
               icon={isPlaying ? <FiPause /> : <FiPlay />}
               size="sm"
               onClick={togglePlayback}
@@ -184,14 +202,14 @@ export function TimelineView({
             <Text fontSize="sm">Auto-refresh:</Text>
             <Button
               size="sm"
-              variant={autoRefresh ? "solid" : "outline"}
-              colorScheme={autoRefresh ? "green" : "gray"}
+              variant={autoRefresh ? 'solid' : 'outline'}
+              colorScheme={autoRefresh ? 'green' : 'gray'}
               onClick={() => setAutoRefresh(!autoRefresh)}
             >
-              {autoRefresh ? "ON" : "OFF"}
+              {autoRefresh ? 'ON' : 'OFF'}
             </Button>
           </HStack>
-          
+
           {autoRefresh && (
             <HStack spacing={2}>
               <Text fontSize="sm">Interval:</Text>
@@ -243,28 +261,48 @@ export function TimelineView({
           </Box>
         )}
 
-        {/* Chrono Timeline */}
+        {/* Virtualized Timeline */}
         {events.length > 0 && (
-          <Box height="400px" overflow="hidden">
-            <Chrono
-              items={chronoItems}
-              mode="VERTICAL"
-              onItemSelected={(item) => {
-                const index = chronoItems.findIndex(i => i.title === item.title);
-                setCurrentTimeIndex(index);
-                if (onSelect && events[index]) {
-                  onSelect(events[index]);
-                }
-              }}
-              theme={{
-                primary: '#2b8a3e',
-                secondary: '#e9ecef',
-                cardBgColor: bgColor,
-                                  cardForeColor: cardForeColor,
-                titleColor: '#2b8a3e',
-                titleColorActive: '#2b8a3e',
-              }}
-            />
+          <Box
+            height={`${containerHeight}px`}
+            overflowY="auto"
+            ref={listRef}
+            onScroll={handleScroll}
+            borderWidth={1}
+            borderColor={borderColor}
+            borderRadius="md"
+          >
+            <Box position="relative" height={`${totalHeight}px`}>
+              {visibleEvents.map((ev, i) => {
+                const index = startIndex + i;
+                return (
+                  <Box
+                    key={ev.id}
+                    position="absolute"
+                    top={`${index * itemHeight}px`}
+                    left="0"
+                    right="0"
+                    p={2}
+                    bg={index === currentTimeIndex ? 'green.50' : 'transparent'}
+                    _hover={{ bg: 'gray.50' }}
+                    cursor="pointer"
+                    borderBottom="1px solid"
+                    borderColor={borderColor}
+                    onClick={() => {
+                      setCurrentTimeIndex(index);
+                      if (onSelect) onSelect(ev);
+                      handleTimeScrub(index);
+                    }}
+                  >
+                    <Text fontWeight="bold">{ev.title || 'Untitled Event'}</Text>
+                    <Text fontSize="sm" color="gray.600">{new Date(ev.timestamp).toLocaleString()}</Text>
+                    {ev.author && (
+                      <Text fontSize="xs" color="gray.500">{ev.author}</Text>
+                    )}
+                  </Box>
+                );
+              })}
+            </Box>
           </Box>
         )}
 
@@ -279,5 +317,3 @@ export function TimelineView({
 }
 
 export default TimelineView;
-
-
