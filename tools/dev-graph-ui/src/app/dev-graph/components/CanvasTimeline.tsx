@@ -36,6 +36,7 @@ export function CanvasTimeline({
   const [hoveredEvent, setHoveredEvent] = useState<TimelineEvent | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [dragType, setDragType] = useState<'start' | 'end' | 'scrub' | null>(null);
+  const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0, dpr: 1 });
 
   const bgColor = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.200', 'gray.600');
@@ -69,6 +70,33 @@ export function CanvasTimeline({
       .sort((a, b) => a.timestamp - b.timestamp);
   }, [events]);
 
+  // Track canvas size and device pixel ratio
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const updateSize = () => {
+      const rect = canvas.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      setCanvasSize(prev => {
+        if (
+          prev.width !== rect.width ||
+          prev.height !== rect.height ||
+          prev.dpr !== dpr
+        ) {
+          return { width: rect.width, height: rect.height, dpr };
+        }
+        return prev;
+      });
+    };
+
+    updateSize();
+    const resizeObserver = new ResizeObserver(updateSize);
+    resizeObserver.observe(canvas);
+
+    return () => resizeObserver.disconnect();
+  }, []);
+
   // Draw timeline on canvas
   const drawTimeline = useCallback(() => {
     const canvas = canvasRef.current;
@@ -77,18 +105,22 @@ export function CanvasTimeline({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const rect = canvas.getBoundingClientRect();
-    const dpr = window.devicePixelRatio || 1;
-    canvas.width = rect.width * dpr;
-    canvas.height = rect.height * dpr;
-    ctx.scale(dpr, dpr);
+    const { width, height, dpr } = canvasSize;
+    if (width === 0 || height === 0) return;
+
+    const needResize = canvas.width !== width * dpr || canvas.height !== height * dpr;
+    if (needResize) {
+      canvas.width = width * dpr;
+      canvas.height = height * dpr;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
 
     // Clear canvas
-    ctx.clearRect(0, 0, rect.width, rect.height);
+    ctx.clearRect(0, 0, width, height);
 
     const padding = 20;
-    const timelineHeight = rect.height - padding * 2;
-    const timelineWidth = rect.width - padding * 2;
+    const timelineHeight = height - padding * 2;
+    const timelineWidth = width - padding * 2;
     const maxCount = Math.max(...bucketedEvents.map(b => b.count));
 
     // Draw timeline background
@@ -170,7 +202,7 @@ export function CanvasTimeline({
       ctx.stroke();
       ctx.setLineDash([]);
     }
-  }, [bucketedEvents, selectedTimeRange, currentTimeIndex, hoveredEvent, events, timelineBgColor, timelineLineColor]);
+  }, [bucketedEvents, selectedTimeRange, currentTimeIndex, hoveredEvent, events, timelineBgColor, timelineLineColor, canvasSize]);
 
   // Handle mouse events
   const handleMouseMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
