@@ -30,6 +30,8 @@ export function CanvasTimeline({
   height = 200
 }: CanvasTimelineProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [canvasSize, setCanvasSize] = useState<{ width: number; height: number }>({ width: 0, height: 0 });
+  const sizeRef = useRef({ width: 0, height: 0 });
   const [selectedTimeRange, setSelectedTimeRange] = useState<[number, number]>([0, 100]);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTimeIndex, setCurrentTimeIndex] = useState(0);
@@ -69,6 +71,32 @@ export function CanvasTimeline({
       .sort((a, b) => a.timestamp - b.timestamp);
   }, [events]);
 
+  // Handle canvas sizing and DPR scaling
+  const handleResize = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const width = rect.width;
+    const height = rect.height;
+    if (width !== sizeRef.current.width || height !== sizeRef.current.height) {
+      const dpr = window.devicePixelRatio || 1;
+      const ctx = canvas.getContext('2d');
+      canvas.width = width * dpr;
+      canvas.height = height * dpr;
+      if (ctx) ctx.scale(dpr, dpr);
+      sizeRef.current = { width, height };
+      setCanvasSize({ width, height });
+    }
+  }, []);
+
+  useEffect(() => {
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+    };
+  }, [handleResize]);
+
   // Draw timeline on canvas
   const drawTimeline = useCallback(() => {
     const canvas = canvasRef.current;
@@ -77,18 +105,15 @@ export function CanvasTimeline({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const rect = canvas.getBoundingClientRect();
-    const dpr = window.devicePixelRatio || 1;
-    canvas.width = rect.width * dpr;
-    canvas.height = rect.height * dpr;
-    ctx.scale(dpr, dpr);
+    const { width, height } = canvasSize;
+    if (width === 0 || height === 0) return;
 
     // Clear canvas
-    ctx.clearRect(0, 0, rect.width, rect.height);
+    ctx.clearRect(0, 0, width, height);
 
     const padding = 20;
-    const timelineHeight = rect.height - padding * 2;
-    const timelineWidth = rect.width - padding * 2;
+    const timelineHeight = height - padding * 2;
+    const timelineWidth = width - padding * 2;
     const maxCount = Math.max(...bucketedEvents.map(b => b.count));
 
     // Draw timeline background
@@ -170,7 +195,7 @@ export function CanvasTimeline({
       ctx.stroke();
       ctx.setLineDash([]);
     }
-  }, [bucketedEvents, selectedTimeRange, currentTimeIndex, hoveredEvent, events, timelineBgColor, timelineLineColor]);
+  }, [bucketedEvents, selectedTimeRange, currentTimeIndex, hoveredEvent, events, timelineBgColor, timelineLineColor, canvasSize]);
 
   // Handle mouse events
   const handleMouseMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -180,7 +205,7 @@ export function CanvasTimeline({
     const rect = canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const padding = 20;
-    const timelineWidth = rect.width - padding * 2;
+    const timelineWidth = canvasSize.width - padding * 2;
     
     const progress = Math.max(0, Math.min(1, (x - padding) / timelineWidth));
     const eventIndex = Math.floor(progress * (events.length - 1));
@@ -189,7 +214,7 @@ export function CanvasTimeline({
     if (event) {
       setHoveredEvent(event);
     }
-  }, [events]);
+  }, [events, canvasSize.width]);
 
   const handleMouseLeave = useCallback(() => {
     setHoveredEvent(null);
@@ -202,7 +227,7 @@ export function CanvasTimeline({
     const rect = canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const padding = 20;
-    const timelineWidth = rect.width - padding * 2;
+    const timelineWidth = canvasSize.width - padding * 2;
     
     const progress = Math.max(0, Math.min(1, (x - padding) / timelineWidth));
     const eventIndex = Math.floor(progress * (events.length - 1));
@@ -212,7 +237,7 @@ export function CanvasTimeline({
       onSelect(event);
       setCurrentTimeIndex(eventIndex);
     }
-  }, [events, onSelect]);
+  }, [events, onSelect, canvasSize.width]);
 
   // Redraw when data changes
   useEffect(() => {
