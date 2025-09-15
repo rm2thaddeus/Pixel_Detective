@@ -1,6 +1,5 @@
 {
   "dependencies": {
-    "@deck.gl/core": "^9.1.12",
-    "react-chrono": "^2.9.1"
+    "@deck.gl/core": "^9.1.12"
   }
 }
