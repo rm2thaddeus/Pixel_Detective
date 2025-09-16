@@ -483,9 +483,17 @@ export default function WelcomeDashboard() {
                     Watch your codebase evolve like a living organism. Commits as generations, 
                     files as organisms, branches as lineages.
                   </Text>
-                  <Button as={ChakraLink} href="/dev-graph/timeline" colorScheme="blue" size="sm">
-                    Explore Timeline
-                  </Button>
+                  <HStack spacing={2} flexWrap="wrap">
+                    <Button as={ChakraLink} href="/dev-graph/timeline/svg" colorScheme="purple" size="sm">
+                      SVG Timeline
+                    </Button>
+                    <Button as={ChakraLink} href="/dev-graph/timeline/webgl" colorScheme="teal" size="sm">
+                      WebGL2 Timeline
+                    </Button>
+                    <Button as={ChakraLink} href="/dev-graph/timeline" variant="outline" size="sm">
+                      Compare Modes
+                    </Button>
+                  </HStack>
                 </Box>
               </VStack>
               
