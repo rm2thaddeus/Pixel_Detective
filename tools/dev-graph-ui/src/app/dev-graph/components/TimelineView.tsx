@@ -1,8 +1,20 @@
 'use client';
 
-import { Box, Text, HStack, RangeSlider, RangeSliderTrack, RangeSliderFilledTrack, RangeSliderThumb, useColorModeValue, VStack, Button, IconButton, Select } from '@chakra-ui/react';
-import { useMemo, useState, useEffect } from 'react';
-import { Chrono } from 'react-chrono';
+import {
+  Box,
+  Text,
+  HStack,
+  RangeSlider,
+  RangeSliderTrack,
+  RangeSliderFilledTrack,
+  RangeSliderThumb,
+  useColorModeValue,
+  VStack,
+  Button,
+  IconButton,
+  Select,
+} from '@chakra-ui/react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { FiPlay, FiPause, FiSkipBack, FiSkipForward } from 'react-icons/fi';
 
 export type TimelineEvent = {
@@ -41,7 +53,6 @@ export function TimelineView({
   
   const bgColor = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.200', 'gray.600');
-  const cardForeColor = useColorModeValue('black', 'white');
 
   // Auto-refresh effect
   useEffect(() => {
@@ -66,18 +77,19 @@ export function TimelineView({
     return () => clearInterval(interval);
   }, [autoRefresh, isPlaying, currentTimeIndex, events, onTimeScrub, refreshInterval]);
 
-  // Convert events to react-chrono format
-  const chronoItems = useMemo(() => {
-    return events.filter(ev => ev && ev.timestamp).map((ev, index) => ({
-      title: ev.title || 'Untitled Event',
-      cardTitle: ev.title || 'Untitled Event',
-      cardSubtitle: ev.author || 'Unknown Author',
-      cardDetailedText: ev.files_changed?.join(', ') || 'No files changed',
-      date: new Date(ev.timestamp).toLocaleDateString(),
-      timestamp: ev.timestamp,
-      index,
-    }));
-  }, [events]);
+  const itemHeight = 60;
+  const visibleCount = 8;
+  const [scrollTop, setScrollTop] = useState(0);
+
+  const startIndex = Math.floor(scrollTop / itemHeight);
+  const visibleEvents = useMemo(
+    () => events.slice(startIndex, startIndex + visibleCount),
+    [events, startIndex]
+  );
+
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    setScrollTop(e.currentTarget.scrollTop);
+  };
 
   const handleRangeChange = (values: [number, number]) => {
     setSelectedTimeRange(values);
@@ -243,28 +255,38 @@ export function TimelineView({
           </Box>
         )}
 
-        {/* Chrono Timeline */}
+        {/* Virtualized Timeline List */}
         {events.length > 0 && (
-          <Box height="400px" overflow="hidden">
-            <Chrono
-              items={chronoItems}
-              mode="VERTICAL"
-              onItemSelected={(item) => {
-                const index = chronoItems.findIndex(i => i.title === item.title);
-                setCurrentTimeIndex(index);
-                if (onSelect && events[index]) {
-                  onSelect(events[index]);
-                }
-              }}
-              theme={{
-                primary: '#2b8a3e',
-                secondary: '#e9ecef',
-                cardBgColor: bgColor,
-                                  cardForeColor: cardForeColor,
-                titleColor: '#2b8a3e',
-                titleColorActive: '#2b8a3e',
-              }}
-            />
+          <Box height="400px" overflowY="auto" onScroll={handleScroll}>
+            <Box height={`${events.length * itemHeight}px`} position="relative">
+              {visibleEvents.map((ev, idx) => {
+                const absoluteIndex = startIndex + idx;
+                return (
+                  <Box
+                    key={ev.id}
+                    position="absolute"
+                    top={`${absoluteIndex * itemHeight}px`}
+                    left="0"
+                    right="0"
+                    p={2}
+                    bg={absoluteIndex === currentTimeIndex ? 'green.100' : 'transparent'}
+                    _hover={{ bg: 'gray.50', cursor: 'pointer' }}
+                    onClick={() => {
+                      setCurrentTimeIndex(absoluteIndex);
+                      handleTimeScrub(absoluteIndex);
+                      if (onSelect) {
+                        onSelect(ev);
+                      }
+                    }}
+                  >
+                    <Text fontSize="sm" fontWeight="bold">{ev.title}</Text>
+                    <Text fontSize="xs" color="gray.500">
+                      {new Date(ev.timestamp).toLocaleString()}
+                    </Text>
+                  </Box>
+                );
+              })}
+            </Box>
           </Box>
         )}
 
