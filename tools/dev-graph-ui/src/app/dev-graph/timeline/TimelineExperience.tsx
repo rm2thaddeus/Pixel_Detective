@@ -3,8 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { Box, Heading, Text, VStack, HStack, Button, Spinner, Alert, AlertIcon, Slider, SliderTrack, SliderFilledTrack, SliderThumb, Badge, useColorModeValue, RangeSlider, RangeSliderTrack, RangeSliderFilledTrack, RangeSliderThumb, Link as ChakraLink } from '@chakra-ui/react';
 import ProgressiveStructureGraph from '../components/ProgressiveStructureGraph';
-import dynamic from 'next/dynamic';
-const WebGLEvolutionGraph = dynamic(() => import('../components/WebGLEvolutionGraph'), { ssr: false });
+import SimpleWebGLTimeline from '../components/SimpleWebGLTimeline';
 
 const DEV_GRAPH_API_URL = process.env.NEXT_PUBLIC_DEV_GRAPH_API_URL || 'http://localhost:8080';
 
@@ -39,6 +38,11 @@ export function TimelineExperience({ initialEngine, allowEngineSwitch = false, a
   const [currentTimeIndex, setCurrentTimeIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [loading, setLoading] = useState(true);
+  
+  // Debug loading state
+  useEffect(() => {
+    console.log('TimelineExperience: Loading state changed to:', loading);
+  }, [loading]);
   const [error, setError] = useState<string | null>(null);
   const [maxNodes, setMaxNodes] = useState(100);
   const [useAutoNodeBudget, setUseAutoNodeBudget] = useState(true);
@@ -72,7 +76,11 @@ export function TimelineExperience({ initialEngine, allowEngineSwitch = false, a
     if (renderEngine !== 'webgl' || !commits || commits.length === 0) return { nodes: [], relations: [] };
     const start = Math.max(0, Math.min(range[0], commits.length - 1));
     const upto = Math.max(start, Math.min(currentTimeIndex, Math.min(range[1], commits.length - 1)));
-    const selected: Commit[] = commits.slice(start, upto + 1);
+    
+    // Sliding window ending at current commit for WebGL
+    const maxCommitsToProcess = 40; // allow deeper window; WebGL can handle
+    const windowStart = Math.max(start, upto - (maxCommitsToProcess - 1));
+    const selected: Commit[] = commits.slice(windowStart, upto + 1);
 
     // Folder filter helpers
     const active = new Set(activeFolders || []);
@@ -115,7 +123,11 @@ export function TimelineExperience({ initialEngine, allowEngineSwitch = false, a
     // Aggregate and limit file nodes by frequency
     const fileMap = new Map<string, { file: FileChange; touches: number }>();
     for (const c of selected) {
-      for (const f of c.files || []) {
+      // Limit files per commit to prevent performance issues
+      const maxFilesPerCommit = 10; // Reduced from 20 to 10 for better performance
+      const filesToProcess = (c.files || []).slice(0, maxFilesPerCommit);
+      
+      for (const f of filesToProcess) {
         if (!f.path) continue;
         const top = topFolderOf(f.path);
         if (active.size > 0 && !active.has(top)) continue;
@@ -140,6 +152,10 @@ export function TimelineExperience({ initialEngine, allowEngineSwitch = false, a
       }
     }
 
+    // Only log every 10th calculation to reduce console spam
+    if (Math.random() < 0.1) {
+      console.log(`WebGL2 Data Processing: ${selected.length} commits, ${nodes.length} nodes, ${edges.length} edges`);
+    }
     return { nodes, relations: edges };
   }, [renderEngine, commits, range, currentTimeIndex, maxNodes, sizeByLOC, activeFolders, patternInput]);
   const [enableZoom, setEnableZoom] = useState(true);
@@ -679,6 +695,7 @@ export function TimelineExperience({ initialEngine, allowEngineSwitch = false, a
 
         {/* Main Visualization */}
         <Box border="1px solid" borderColor={borderColor} borderRadius="md" overflow="hidden">
+          {console.log('TimelineExperience: Using render engine:', renderEngine, 'at', new Date().toISOString())}
           {renderEngine === 'svg' ? (
           <ProgressiveStructureGraph
             commits={commits}
@@ -702,25 +719,35 @@ export function TimelineExperience({ initialEngine, allowEngineSwitch = false, a
           />
           ) : (
             <>
-              <WebGLEvolutionGraph
-                data={{ nodes: webglData.nodes, relations: webglData.relations }}
-                width={1200}
-                height={600}
-                lightEdges
-                focusMode={focusedView}
-                layoutMode={'force'}
-                edgeTypes={['chain','touch']}
-                maxEdgesInView={2000}
-                highlightNodeId={commits[currentTimeIndex]?.hash}
-                currentCommitId={commits[currentTimeIndex]?.hash}
-                colorMode={colorMode}
-                highlightDocs={highlightDocs}
-                edgeEmphasis={edgeEmphasis}
-                autoFit={autoFit}
-                alwaysShowEdges={alwaysShowEdges}
-                labelThreshold={labelThreshold}
-                qualityLevel={qualityLevel}
-              />
+              {loading ? (
+                <Box display="flex" alignItems="center" justifyContent="center" height="600px">
+                  <VStack spacing={4}>
+                    <Spinner size="xl" color="teal.500" />
+                    <Text>Loading WebGL2 Timeline...</Text>
+                    <Text fontSize="sm" color="gray.500">
+                      Processing {commits.length} commits with WebGL2 acceleration
+                    </Text>
+                  </VStack>
+                </Box>
+              ) : (
+                <>
+                  {console.log('Using SimpleWebGLTimeline with data:', webglData.nodes.length, 'nodes')}
+                  <SimpleWebGLTimeline
+                    data={{ nodes: webglData.nodes, relations: webglData.relations }}
+                    width={1200}
+                    height={600}
+                    currentCommitId={commits[currentTimeIndex]?.hash}
+                    colorMode={colorMode}
+                    enableZoom={enableZoom}
+                    autoFit={true}
+                    sizeByLOC={sizeByLOC}
+                    highlightDocs={highlightDocs}
+                    alwaysShowEdges={alwaysShowEdges}
+                    edgeEmphasis={edgeEmphasis}
+                    currentFiles={commits[currentTimeIndex]?.files || []}
+                  />
+                </>
+              )}
             </>
           )}
         </Box>

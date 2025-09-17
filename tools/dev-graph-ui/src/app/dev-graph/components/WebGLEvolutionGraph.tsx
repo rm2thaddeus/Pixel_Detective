@@ -661,6 +661,11 @@ void main() {
       if (!glResourcesRef.current.program) return; // cleaned up
       const deltaTime = currentTime - lastFrameTimeRef.current;
       lastFrameTimeRef.current = currentTime;
+      
+      // Simple test to see if render is being called
+      if (fpsCounterRef.current % 60 === 0) {
+        console.log(`WebGL2 Render: Frame ${fpsCounterRef.current}`);
+      }
 
       // If worker is active, ask it to advance the physics step
       if (workerActiveRef.current && physicsWorkerRef.current) {
@@ -689,9 +694,8 @@ void main() {
         });
       }
 
-      // Clear canvas (theme-aware for high contrast)
-      const bg = canvasBgRgba as unknown as [number, number, number, number];
-      gl.clearColor(bg[0], bg[1], bg[2], bg[3]);
+      // Clear canvas with a visible background for debugging
+      gl.clearColor(0.2, 0.2, 0.4, 1.0); // Dark blue background
       gl.clear(gl.COLOR_BUFFER_BIT);
       let drawCalls = 0;
 
@@ -1026,7 +1030,8 @@ void main() {
 
       // Render nodes with CUDA-like parallel processing
       gl.bindVertexArray(vao);
-      renderNodes(gl, program, processedDataRef.current.nodes, positionBuffer!, colorBuffer!, sizeBuffer!, zoomRef, panRef, hiId, growT);
+      const nodesToRender = processedDataRef.current.nodes;
+      renderNodes(gl, program, nodesToRender, positionBuffer!, colorBuffer!, sizeBuffer!, zoomRef, panRef, hiId, growT);
       drawCalls += 1;
 
       // Continue animation loop
@@ -1138,6 +1143,7 @@ void main() {
     animationFrameRef.current = requestAnimationFrame(render);
     
     console.log('WebGLEvolutionGraph: CUDA-accelerated rendering initialized');
+    console.log('WebGLEvolutionGraph: Render loop started');
 
     // Handle context loss gracefully
     const onContextLost = (ev: Event) => {
@@ -1377,6 +1383,10 @@ void main() {
       // Use provided positions; fallback stays deterministic to avoid flicker
       let nx = (typeof node.x === 'number') ? node.x : (i % 2 === 0 ? (i * 13 % width) : (i * 7 % width));
       let ny = (typeof node.y === 'number') ? node.y : (i % 3 === 0 ? (i * 11 % height) : (i * 5 % height));
+      
+      // Ensure nodes are positioned within canvas bounds
+      nx = Math.max(50, Math.min(width - 50, nx));
+      ny = Math.max(50, Math.min(height - 50, ny));
 
       // Animated growth for files of the current commit
       const idStr = String(node.id);
