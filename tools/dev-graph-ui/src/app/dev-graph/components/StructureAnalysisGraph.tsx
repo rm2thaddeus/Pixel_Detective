@@ -38,8 +38,9 @@ interface StructureAnalysisGraphProps {
   metrics: StructureMetrics;
   height?: number;
   width?: number;
-  selectedNodeType?: string;
   selectedRelationType?: string;
+  selectedSourceType?: string;
+  selectedTargetType?: string;
   showClusters?: boolean;
   showLabels?: boolean;
   maxNodes?: number;
@@ -50,8 +51,9 @@ export default function StructureAnalysisGraph({
   metrics,
   height = 600,
   width = 1000,
-  selectedNodeType = '',
   selectedRelationType = '',
+  selectedSourceType = '',
+  selectedTargetType = '',
   showClusters = true,
   showLabels = false,
   maxNodes = 1000,
@@ -111,9 +113,10 @@ export default function StructureAnalysisGraph({
     // Use real data if available, otherwise generate synthetic data
     let nodes, links;
     if (useRealData && realData) {
-      nodes = realData.nodes.map(node => ({
-        id: node.id,
-        type: node.labels,
+      nodes = realData.nodes.map((node: any) => ({
+        id: String(node.id),
+        // Prefer explicit type, otherwise use first label, fallback to 'Unknown'
+        type: node.type || (Array.isArray(node.labels) ? node.labels[0] : node.labels) || 'Unknown',
         degree: 0, // Will be calculated below
         centrality: 0, // Will be calculated below
         isCentral: false, // Will be calculated below
@@ -121,10 +124,11 @@ export default function StructureAnalysisGraph({
         y: node.y || Math.random() * innerHeight
       }));
       
-      links = realData.edges.map(edge => ({
-        source: edge.from,
-        target: edge.to,
-        type: edge.type
+      const edges = (realData as any).edges || (realData as any).relations || [];
+      links = edges.map((edge: any) => ({
+        source: String(edge.from ?? edge.from_ ?? edge.source),
+        target: String(edge.to ?? edge.target),
+        type: edge.type || 'RELATES_TO'
       }));
       
       // Calculate degrees and centrality for real data
@@ -145,16 +149,27 @@ export default function StructureAnalysisGraph({
       links = generateSyntheticLinks(nodes, metrics);
     }
 
-    // Filter data based on selections
-    const filteredNodes = selectedNodeType 
-      ? nodes.filter(d => d.type === selectedNodeType)
-      : nodes;
-    
-    // Filter links to only include those connecting to filtered nodes
-    const filteredNodeIds = new Set(filteredNodes.map(n => n.id));
-    let filteredLinks = links.filter(link => 
-      filteredNodeIds.has(link.source) && filteredNodeIds.has(link.target)
-    );
+    // Build node lookup
+    const nodeById = new Map<string, any>();
+    nodes.forEach((n: any) => nodeById.set(String(n.id), n));
+    // Filter by relation and endpoint types
+    let filteredLinks = links.filter((link: any) => {
+      const s = nodeById.get(String(link.source));
+      const t = nodeById.get(String(link.target));
+      if (!s || !t) return false;
+      if (selectedRelationType && String(link.type) !== selectedRelationType) return false;
+      if (selectedSourceType && String(s.type) !== selectedSourceType) return false;
+      if (selectedTargetType && String(t.type) !== selectedTargetType) return false;
+      return true;
+    });
+
+    // Final safety pass to guarantee endpoints exist in node set
+    const nodeIdSet = new Set(nodes.map((n: any) => String(n.id)));
+    const safeLinks = filteredLinks.filter((l: any) => nodeIdSet.has(String(l.source)) && nodeIdSet.has(String(l.target)));
+    // Keep nodes that participate in at least one safe link (or keep all if no links)
+    const keepIds = new Set<string>();
+    safeLinks.forEach((l: any) => { keepIds.add(String(l.source)); keepIds.add(String(l.target)); });
+    const filteredNodes = nodes.filter((n: any) => keepIds.size === 0 || keepIds.has(String(n.id)));
     
     // Further filter by relation type if selected
     if (selectedRelationType) {
@@ -162,16 +177,11 @@ export default function StructureAnalysisGraph({
     }
 
     // Debug logging
-    console.log('Filtering debug:', {
-      totalNodes: nodes.length,
-      filteredNodes: filteredNodes.length,
-      totalLinks: links.length,
-      filteredLinks: filteredLinks.length,
-      selectedNodeType,
-      selectedRelationType,
-      nodeTypes: [...new Set(nodes.map(n => n.type))],
-      relationTypes: [...new Set(links.map(l => l.type))]
-    });
+    try {
+      const nodeTypesSet = [...new Set(nodes.map((n: any) => n.type))];
+      const relTypesSet = [...new Set(links.map((l: any) => l.type))];
+      console.log(`Filtering debug: nodes=${nodes.length}, filteredNodes=${filteredNodes.length}, links=${links.length}, filteredLinks=${filteredLinks.length}, nodeTypes=${nodeTypesSet.join(',')}, relTypes=${relTypesSet.join(',')}`);
+    } catch {}
 
     // If no nodes after filtering, show a message
     if (filteredNodes.length === 0) {
@@ -192,8 +202,8 @@ export default function StructureAnalysisGraph({
       .force("collision", d3.forceCollide().radius(20));
 
     // Only add link force if there are valid links
-    if (filteredLinks.length > 0) {
-      simulation.force("link", d3.forceLink(filteredLinks).id((d: any) => d.id).distance(50));
+    if (safeLinks.length > 0) {
+      simulation.force("link", d3.forceLink(safeLinks).id((d: any) => String(d.id)).distance(50));
     }
 
     // Color scales
@@ -209,9 +219,9 @@ export default function StructureAnalysisGraph({
     const link = g.append("g")
       .attr("class", "links")
       .selectAll("line")
-      .data(filteredLinks)
+      .data(safeLinks)
       .enter().append("line")
-      .attr("stroke", (d: any) => linkColorScale(d.type))
+      .attr("stroke", (d: any) => linkColorScale(d.type) || '#999')
       .attr("stroke-opacity", 0.6)
       .attr("stroke-width", 1);
 
@@ -374,7 +384,7 @@ export default function StructureAnalysisGraph({
       .attr("y", 35)
       .attr("font-size", "10px")
       .attr("fill", "#666")
-      .text(`Type: ${selectedNodeType || 'All'} | Relation: ${selectedRelationType || 'All'}`);
+      .text(`From: ${selectedSourceType || 'All'} | To: ${selectedTargetType || 'All'} | Relation: ${selectedRelationType || 'All'}`);
 
     // Add legend
     const legend = g.append("g")
@@ -434,7 +444,7 @@ export default function StructureAnalysisGraph({
       });
     }
 
-  }, [mounted, metrics, height, width, selectedNodeType, selectedRelationType, showClusters, showLabels, maxNodes, useRealData, realData]);
+  }, [mounted, metrics, height, width, selectedSourceType, selectedTargetType, selectedRelationType, showClusters, showLabels, maxNodes, useRealData, realData]);
 
   // Generate synthetic nodes based on metrics
   const generateSyntheticNodes = (metrics: StructureMetrics, maxNodes: number) => {

@@ -1,5 +1,5 @@
 'use client';
-import { Box, Heading, Text, VStack, HStack, Grid, GridItem, Card, CardBody, CardHeader, Badge, Button, Spinner, Alert, AlertIcon, useColorModeValue, Stat, StatLabel, StatNumber, StatHelpText, StatArrow, Progress, Divider, Icon, Flex } from '@chakra-ui/react';
+import { Box, Heading, Text, VStack, HStack, Grid, GridItem, Card, CardBody, CardHeader, Badge, Button, Spinner, Alert, AlertIcon, useColorModeValue, Stat, StatLabel, StatNumber, StatHelpText, StatArrow, Progress, Divider, Icon, Flex, Select } from '@chakra-ui/react';
 import { useState, useEffect } from 'react';
 import { Header } from '@/components/Header';
 import { Link as ChakraLink } from '@chakra-ui/react';
@@ -28,16 +28,59 @@ interface SystemHealth {
   };
 }
 
+interface QualityIndicator {
+  label: string;
+  value: number | string | null | undefined;
+  target?: number | null | undefined;
+  unit?: string;
+  status?: string;
+  description?: string;
+}
+
+interface QualitySection {
+  key: string;
+  label: string;
+  score: number;
+  max_score: number;
+  summary: string;
+  indicators: QualityIndicator[];
+}
+
+interface QualityCategory {
+  key: string;
+  label: string;
+  score: number;
+  max_score: number;
+  summary: string;
+  sections: QualitySection[];
+}
+
+interface QualityOverview {
+  categories: QualityCategory[];
+  generated_at: string;
+}
+
 export default function WelcomeDashboard() {
   const bgColor = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.200', 'gray.600');
   const pageBgColor = useColorModeValue('gray.50', 'gray.900');
-  const cardBgColor = useColorModeValue('gray.50', 'gray.700');
+  const indicatorBgColor = useColorModeValue('gray.100', 'gray.700');
 
   // Use new hooks for data fetching
   const { data: analyticsData, isLoading: analyticsLoading, error: analyticsError } = useAnalytics();
   const { data: telemetryData, isLoading: telemetryLoading, error: telemetryError } = useTelemetry();
   const { data: subgraphData, isLoading: subgraphLoading, error: subgraphError } = useWindowedSubgraph({ limit: 10 });
+  
+  // Fetch additional data using React Query
+  const { data: qualityOverview, isLoading: qualityLoading, error: qualityError } = useQuery({
+    queryKey: ['dev-graph', 'quality-overview'],
+    queryFn: async () => {
+      const res = await fetch(`${DEV_GRAPH_API_URL}/api/v1/dev-graph/quality`);
+      if (!res.ok) throw new Error('Failed to fetch quality overview');
+      return res.json() as Promise<QualityOverview>;
+    },
+    staleTime: 2 * 60 * 1000,
+  });
   
   // Fetch additional data using React Query
   const { data: commitsData, isLoading: commitsLoading } = useQuery({
@@ -72,7 +115,7 @@ export default function WelcomeDashboard() {
   });
 
   // Calculate loading and error states
-  const loading = analyticsLoading || telemetryLoading || subgraphLoading || commitsLoading || allCommitsLoading || sprintsLoading;
+  const loading = analyticsLoading || telemetryLoading || subgraphLoading || commitsLoading || allCommitsLoading || sprintsLoading || qualityLoading;
   const error = analyticsError || telemetryError || subgraphError;
 
   // Helper functions for node and relation type colors
@@ -104,87 +147,56 @@ export default function WelcomeDashboard() {
     return colors[type as keyof typeof colors] || '#718096';
   };
 
-  // Consolidated Data Quality Metric - Comprehensive Assessment
-  const calculateDataQualityScore = (analytics: any, commits: any) => {
-    const metrics = {
-      dataAvailability: 0,
-      dataCompleteness: 0,
-      dataIntegrity: 0,
-      semanticRichness: 0,
-      traceability: 0
-    };
-    
-    // 1. DATA AVAILABILITY (20 points) - Basic data presence
-    if (analytics?.activity?.peak_activity?.count > 0) metrics.dataAvailability += 7;
-    if (analytics?.activity?.files_changed_per_day > 0) metrics.dataAvailability += 7;
-    if (analytics?.activity?.authors_per_day > 0) metrics.dataAvailability += 6;
-    
-    // 2. DATA COMPLETENESS (25 points) - Coverage and recent activity
-    if (Array.isArray(commits) && commits.length > 0) {
-      metrics.dataCompleteness += 15;
-      // Check for recent commits (last 7 days)
-      const recentCommits = commits.filter((c: any) => {
-        const commitDate = new Date(c.timestamp);
-        const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-        return commitDate > weekAgo;
-      });
-      if (recentCommits.length > 0) metrics.dataCompleteness += 5;
-      
-      // Bonus for comprehensive commit coverage
-      const totalCommits = commits.length;
-      if (totalCommits > 200) metrics.dataCompleteness += 5; // Large dataset
+  // Process data into SystemHealth format
+  const qualityCategories = qualityOverview?.categories ?? [];
+  const [selectedQualityCategory, setSelectedQualityCategory] = useState<string>('data_quality');
+
+  useEffect(() => {
+    if (qualityCategories.length === 0) return;
+    if (!qualityCategories.some(category => category.key === selectedQualityCategory)) {
+      setSelectedQualityCategory(qualityCategories[0].key);
     }
-    
-    // 3. DATA INTEGRITY (25 points) - Chunk linking and consistency
-    const chunks = analytics?.graph?.node_types?.chunks || 0;
-    const containsChunk = analytics?.graph?.edge_types?.CONTAINS_CHUNK || 0;
-    if (chunks > 0 && containsChunk > 0) {
-      const chunkLinkingRatio = containsChunk / chunks;
-      if (chunkLinkingRatio >= 0.98) metrics.dataIntegrity += 25; // 98%+ linked (excellent)
-      else if (chunkLinkingRatio >= 0.95) metrics.dataIntegrity += 20; // 95%+ linked (very good)
-      else if (chunkLinkingRatio >= 0.9) metrics.dataIntegrity += 15; // 90%+ linked (good)
-      else if (chunkLinkingRatio >= 0.8) metrics.dataIntegrity += 10; // 80%+ linked (fair)
-      else metrics.dataIntegrity += 5; // Some linking
-    }
-    
-    // 4. SEMANTIC RICHNESS (20 points) - Relationship derivation quality
-    const implementsCount = analytics?.graph?.edge_types?.IMPLEMENTS || 0;
-    const evolvesFrom = analytics?.graph?.edge_types?.EVOLVES_FROM || 0;
-    const refactoredTo = analytics?.graph?.edge_types?.REFACTORED_TO || 0;
-    const semanticRels = implementsCount + evolvesFrom + refactoredTo;
-    
-    if (semanticRels > 500) metrics.semanticRichness += 20; // 500+ semantic relationships (excellent)
-    else if (semanticRels > 200) metrics.semanticRichness += 15; // 200+ semantic relationships (very good)
-    else if (semanticRels > 100) metrics.semanticRichness += 12; // 100+ semantic relationships (good)
-    else if (semanticRels > 50) metrics.semanticRichness += 8; // 50+ semantic relationships (fair)
-    else if (semanticRels > 10) metrics.semanticRichness += 4; // 10+ semantic relationships (basic)
-    
-    // 5. TRACEABILITY (10 points) - Requirements coverage
-    const traceability = analytics?.traceability?.coverage_percentage || 0;
-    if (traceability > 80) metrics.traceability += 10; // 80%+ traceability (excellent)
-    else if (traceability > 60) metrics.traceability += 8; // 60%+ traceability (very good)
-    else if (traceability > 40) metrics.traceability += 6; // 40%+ traceability (good)
-    else if (traceability > 20) metrics.traceability += 4; // 20%+ traceability (fair)
-    else if (traceability > 0) metrics.traceability += 2; // Some traceability (basic)
-    
-    // Calculate weighted total (100 points max)
-    const totalScore = Object.values(metrics).reduce((sum, score) => sum + score, 0);
-    
-    // Return both the total score and breakdown for debugging
-    return {
-      score: Math.min(100, totalScore),
-      breakdown: metrics,
-      total: totalScore
-    };
+  }, [qualityCategories, selectedQualityCategory]);
+
+  const selectedCategory = qualityCategories.find(category => category.key === selectedQualityCategory) || qualityCategories[0];
+  const dataQualityCategory = qualityCategories.find(category => category.key === 'data_quality') || selectedCategory;
+
+  const baselineScore = Math.round(dataQualityCategory?.score ?? 0);
+  const activeScore = Math.round(selectedCategory?.score ?? baselineScore);
+  const selectedPercent = selectedCategory ? Math.min(100, (selectedCategory.score / selectedCategory.max_score) * 100) : 0;
+  const selectedSections = selectedCategory?.sections ?? [];
+
+  const indicatorStatusColor: Record<string, string> = {
+    ok: 'green',
+    good: 'green',
+    excellent: 'green',
+    warn: 'yellow',
+    warning: 'yellow',
+    poor: 'red',
+    critical: 'red',
+    unknown: 'gray'
   };
 
-  // Process data into SystemHealth format
-  const qualityMetrics = analyticsData && allCommitsData ? calculateDataQualityScore(analyticsData, allCommitsData) : null;
+  const formatIndicatorValue = (value: number | string | null | undefined, unit?: string) => {
+    // Handle null, undefined, or invalid values
+    if (value === null || value === undefined) {
+      return unit ? 'N/A' + unit : 'N/A';
+    }
+    
+    if (typeof value === 'number') {
+      const formatted = Number.isInteger(value) ? value.toString() : value.toFixed(2).replace(/\.00$/, '');
+      return unit ? formatted + unit : formatted;
+    }
+    
+    const textValue = value.toString();
+    return unit ? textValue + unit : textValue;
+  };
+
   const health: SystemHealth | null = analyticsData && telemetryData ? {
-    api_connected: true, // If we got data, API is connected
-    database_connected: true, // If we got data, database is connected
+    api_connected: true,
+    database_connected: true,
     last_ingestion: new Date().toISOString(),
-    data_quality_score: qualityMetrics?.score || 0,
+    data_quality_score: baselineScore,
     total_nodes: analyticsData.graph.total_nodes || 0,
     total_relations: analyticsData.graph.total_edges || 0,
     recent_commits: analyticsData.activity.peak_activity.count || 0,
@@ -200,7 +212,7 @@ export default function WelcomeDashboard() {
         count: count as number,
         color: getRelationTypeColor(type)
       }))
-      .sort((a, b) => b.count - a.count), // Sort by count descending
+      .sort((a, b) => b.count - a.count),
     performance_metrics: {
       avg_query_time_ms: telemetryData.avg_query_time_ms || 0,
       cache_hit_rate: telemetryData.cache_hit_rate || 0,
@@ -244,7 +256,8 @@ export default function WelcomeDashboard() {
     );
   }
 
-  const healthStatus = health ? getHealthStatus(health.data_quality_score) : { status: 'unknown', color: 'gray', icon: FaTimesCircle };
+  const baselineHealth = getHealthStatus(baselineScore);
+  const selectedHealth = getHealthStatus(activeScore);
 
   return (
     <Box minH="100vh" bg={pageBgColor}>
@@ -265,52 +278,100 @@ export default function WelcomeDashboard() {
         <Card bg={bgColor} borderColor={borderColor}>
           <CardHeader>
             <HStack>
-              <Icon as={healthStatus.icon} color={`${healthStatus.color}.500`} />
+              <Icon as={baselineHealth.icon} color={`${baselineHealth.color}.500`} />
               <Heading size="md">System Health</Heading>
-              <Badge colorScheme={healthStatus.color} ml="auto">
-                {healthStatus.status.toUpperCase()}
+              <Badge colorScheme={baselineHealth.color} ml="auto">
+                {baselineHealth.status.toUpperCase()}
               </Badge>
             </HStack>
           </CardHeader>
           <CardBody>
             <Grid templateColumns={{ base: "1fr", md: "repeat(3, 1fr)" }} gap={6}>
               <Stat>
-                <StatLabel>Data Quality Score</StatLabel>
-                <StatNumber color={`${healthStatus.color}.500`}>
-                  {health?.data_quality_score || 0}%
+                <StatLabel>{selectedCategory ? selectedCategory.label + ' Score' : 'Data Quality Score'}</StatLabel>
+                {qualityCategories.length > 1 && (
+                  <Select
+                    size="xs"
+                    value={selectedQualityCategory}
+                    onChange={(event) => setSelectedQualityCategory(event.target.value)}
+                    maxW="180px"
+                    mt={1}
+                  >
+                    {qualityCategories.map(category => (
+                      <option key={category.key} value={category.key}>
+                        {category.label}
+                      </option>
+                    ))}
+                  </Select>
+                )}
+                <StatNumber color={(selectedHealth.color || 'gray') + '.500'}>
+                  {activeScore}%
                 </StatNumber>
-                <Progress 
-                  value={health?.data_quality_score || 0} 
-                  colorScheme={healthStatus.color}
+                <Progress
+                  value={selectedPercent}
+                  colorScheme={selectedHealth.color}
                   size="sm"
                   mt={2}
                 />
-                {qualityMetrics && (
+                {selectedCategory && (
                   <Box mt={3} fontSize="xs" color="gray.600">
-                    <Text fontWeight="bold" mb={1}>Quality Breakdown:</Text>
-                    <VStack align="start" spacing={1}>
-                      <HStack justify="space-between" w="full">
-                        <Text>Data Availability:</Text>
-                        <Text>{qualityMetrics.breakdown.dataAvailability}/20</Text>
-                      </HStack>
-                      <HStack justify="space-between" w="full">
-                        <Text>Data Completeness:</Text>
-                        <Text>{qualityMetrics.breakdown.dataCompleteness}/25</Text>
-                      </HStack>
-                      <HStack justify="space-between" w="full">
-                        <Text>Data Integrity:</Text>
-                        <Text>{qualityMetrics.breakdown.dataIntegrity}/25</Text>
-                      </HStack>
-                      <HStack justify="space-between" w="full">
-                        <Text>Semantic Richness:</Text>
-                        <Text>{qualityMetrics.breakdown.semanticRichness}/20</Text>
-                      </HStack>
-                      <HStack justify="space-between" w="full">
-                        <Text>Traceability:</Text>
-                        <Text>{qualityMetrics.breakdown.traceability}/10</Text>
-                      </HStack>
+                    {selectedCategory.summary && (
+                      <Text mb={2}>{selectedCategory.summary}</Text>
+                    )}
+                    <VStack align="stretch" spacing={3}>
+                      {selectedSections.map(section => (
+                        <Box key={section.key} borderWidth="1px" borderColor={borderColor} borderRadius="md" p={2}>
+                          <HStack justify="space-between" align="center" mb={1}>
+                            <Text fontWeight="semibold">{section.label}</Text>
+                            <Text>{section.score.toFixed(1)} / {section.max_score}</Text>
+                          </HStack>
+                          <Progress value={Math.min(100, (section.score / section.max_score) * 100)} size="xs" colorScheme={selectedHealth.color} />
+                          {section.indicators && section.indicators.length > 0 && (
+                            <VStack align="stretch" spacing={1} mt={2}>
+                              {section.indicators.slice(0, 4).map(indicator => (
+                                <Box key={section.key + '-' + indicator.label} p={1} borderRadius="sm" bg={indicatorBgColor}>
+                                  <HStack justify="space-between" align="flex-start">
+                                    <VStack align="flex-start" spacing={0}>
+                                      <HStack spacing={2}>
+                                        <Text fontSize="xs" fontWeight="semibold">{indicator.label}</Text>
+                                        {indicator.status && (
+                                          <Badge size="xs" colorScheme={indicatorStatusColor[indicator.status] || 'gray'}>
+                                            {indicator.status.toUpperCase()}
+                                          </Badge>
+                                        )}
+                                      </HStack>
+                                      {indicator.description && (
+                                        <Text fontSize="xs" color="gray.500">{indicator.description}</Text>
+                                      )}
+                                    </VStack>
+                                    <VStack align="flex-end" spacing={0}>
+                                      <Text fontSize="sm" fontWeight="semibold">{formatIndicatorValue(indicator.value, indicator.unit)}</Text>
+                                      {indicator.target !== undefined && indicator.target !== null && (
+                                        <Text fontSize="xs" color="gray.500">
+                                          Target: {formatIndicatorValue(indicator.target, indicator.unit)}
+                                        </Text>
+                                      )}
+                                    </VStack>
+                                  </HStack>
+                                </Box>
+                              ))}
+                              {section.indicators.length > 4 && (
+                                <Text fontSize="xs" color="gray.500">
+                                  +{section.indicators.length - 4} more indicators
+                                </Text>
+                              )}
+                            </VStack>
+                          )}
+                        </Box>
+                      ))}
                     </VStack>
                   </Box>
+                )}
+                {qualityError && (
+                  <Alert status="warning" variant="left-accent" mt={3} fontSize="xs">
+                    <AlertIcon />
+                    <Text>Unable to refresh quality overview. Showing last loaded data.</Text>
+                  </Alert>
                 )}
               </Stat>
               

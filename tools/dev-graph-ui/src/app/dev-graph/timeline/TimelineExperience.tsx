@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Box, Heading, Text, VStack, HStack, Button, Spinner, Alert, AlertIcon, Slider, SliderTrack, SliderFilledTrack, SliderThumb, Badge, useColorModeValue, RangeSlider, RangeSliderTrack, RangeSliderFilledTrack, RangeSliderThumb, Link as ChakraLink } from '@chakra-ui/react';
+import { FaDownload } from 'react-icons/fa';
 import ProgressiveStructureGraph from '../components/ProgressiveStructureGraph';
 import SimpleWebGLTimeline from '../components/SimpleWebGLTimeline';
 
@@ -194,6 +195,7 @@ export function TimelineExperience({ initialEngine, allowEngineSwitch = false, a
   const borderColor = useColorModeValue('gray.200', 'gray.600');
   const textColor = useColorModeValue('gray.800', 'gray.200');
   const mutedTextColor = useColorModeValue('gray.600', 'gray.400');
+  const exportBackground = useColorModeValue('#ffffff', '#1a202c');
 
   useEffect(() => {
     let isCancelled = false;
@@ -311,6 +313,160 @@ export function TimelineExperience({ initialEngine, allowEngineSwitch = false, a
     }
   };
 
+  const wait = useCallback((ms: number) => new Promise<void>((resolve) => {
+    setTimeout(resolve, ms);
+  }), []);
+
+  const drawSvgToCanvas = useCallback(async (svg: SVGSVGElement | null, ctx: CanvasRenderingContext2D, width: number, height: number) => {
+    if (!svg) throw new Error('SVG timeline is not ready yet');
+    const clone = svg.cloneNode(true) as SVGSVGElement;
+    clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+    const viewBoxParts = clone.getAttribute('viewBox')?.split(' ');
+    let svgWidth = svg.clientWidth || width;
+    let svgHeight = svg.clientHeight || height;
+    if (viewBoxParts && viewBoxParts.length === 4) {
+      const parsedWidth = parseFloat(viewBoxParts[2]);
+      const parsedHeight = parseFloat(viewBoxParts[3]);
+      if (!Number.isNaN(parsedWidth)) svgWidth = parsedWidth;
+      if (!Number.isNaN(parsedHeight)) svgHeight = parsedHeight;
+    }
+    const scale = Math.min(width / svgWidth, height / svgHeight);
+    const drawWidth = svgWidth * scale;
+    const drawHeight = svgHeight * scale;
+    const offsetX = (width - drawWidth) / 2;
+    const offsetY = (height - drawHeight) / 2;
+
+    const serialized = new XMLSerializer().serializeToString(clone);
+    const blob = new Blob([serialized], { type: 'image/svg+xml;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    await new Promise<void>((resolve, reject) => {
+      const image = new Image();
+      image.crossOrigin = 'anonymous';
+      image.onload = () => {
+        ctx.fillStyle = exportBackground;
+        ctx.fillRect(0, 0, width, height);
+        ctx.drawImage(image, offsetX, offsetY, drawWidth, drawHeight);
+        URL.revokeObjectURL(url);
+        resolve();
+      };
+      image.onerror = () => {
+        URL.revokeObjectURL(url);
+        reject(new Error('Failed to rasterize SVG frame'));
+      };
+      image.src = url;
+    });
+  }, [exportBackground]);
+
+  const drawCanvasToCanvas = useCallback((canvas: HTMLCanvasElement | null, ctx: CanvasRenderingContext2D, width: number, height: number) => {
+    if (!canvas) throw new Error('WebGL timeline is not ready yet');
+    ctx.fillStyle = exportBackground;
+    ctx.fillRect(0, 0, width, height);
+    ctx.drawImage(canvas, 0, 0, width, height);
+  }, [exportBackground]);
+
+  const downloadBlob = useCallback((blob: Blob, filename: string) => {
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setTimeout(() => URL.revokeObjectURL(url), 1500);
+  }, []);
+
+  const convertWebmToMp4 = useCallback(async (webmBlob: Blob) => {
+    const { createFFmpeg, fetchFile } = await import('@ffmpeg/ffmpeg');
+    if (!ffmpegRef.current) {
+      const ffmpeg = createFFmpeg({ log: false });
+      await ffmpeg.load();
+      ffmpegRef.current = ffmpeg;
+    }
+    const ffmpeg = ffmpegRef.current;
+    ffmpeg.FS('writeFile', 'input.webm', await fetchFile(webmBlob));
+    await ffmpeg.run('-i', 'input.webm', '-c:v', 'libx264', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p', 'output.mp4');
+    const data = ffmpeg.FS('readFile', 'output.mp4');
+    ffmpeg.FS('unlink', 'input.webm');
+    ffmpeg.FS('unlink', 'output.mp4');
+    return new Blob([data.buffer], { type: 'video/mp4' });
+  }, []);
+
+  const handleExport = useCallback(async () => {
+    if (isExporting) return;
+    if (!commits.length) {
+      toast({ title: 'Nothing to export', description: 'Load commits before exporting.', status: 'info', duration: 3000 });
+      return;
+    }
+    const safeStart = Math.max(0, Math.min(range[0], commits.length - 1));
+    const safeEnd = Math.max(safeStart, Math.min(range[1], commits.length - 1));
+    const frameCount = safeEnd - safeStart + 1;
+    if (frameCount <= 0) {
+      toast({ title: 'Invalid range', description: 'Select at least one commit to export.', status: 'warning', duration: 4000 });
+      return;
+    }
+    const mimeCandidates = ['video/mp4;codecs=h264', 'video/webm;codecs=vp9', 'video/webm'];
+    const mimeType = mimeCandidates.find((type) => typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(type));
+    if (!mimeType) {
+      toast({ title: 'Export unsupported', description: 'MediaRecorder is not available in this browser.', status: 'error' });
+      return;
+    }
+
+    try {
+      setIsExporting(true);
+      setIsPlaying(false);
+      const toastId = 'timeline-export';
+      toast({ id: toastId, title: 'Exporting timeline…', description: 'Rendering frames, please wait.', status: 'info', duration: 4000 });
+
+      const captureCanvas = document.createElement('canvas');
+      captureCanvas.width = 1280;
+      captureCanvas.height = 720;
+      const ctx = captureCanvas.getContext('2d');
+      if (!ctx) throw new Error('Unable to acquire canvas context for export');
+
+      const stream = captureCanvas.captureStream(6);
+      const recorded: BlobPart[] = [];
+      const recorder = new MediaRecorder(stream, { mimeType });
+      const stopPromise = new Promise<void>((resolve) => {
+        recorder.onstop = () => resolve();
+      });
+      recorder.ondataavailable = (event) => {
+        if (event.data && event.data.size > 0) recorded.push(event.data);
+      };
+      recorder.start();
+
+      const previousIndex = currentTimeIndex;
+      for (let step = safeStart; step <= safeEnd; step += 1) {
+        setCurrentTimeIndex(step);
+        await wait(240);
+        if (renderEngine === 'svg') {
+          await drawSvgToCanvas(svgElementRef.current, ctx, captureCanvas.width, captureCanvas.height);
+        } else {
+          drawCanvasToCanvas(canvasElementRef.current, ctx, captureCanvas.width, captureCanvas.height);
+        }
+      }
+
+      recorder.stop();
+      await stopPromise;
+      stream.getTracks().forEach((track) => track.stop());
+      setCurrentTimeIndex(previousIndex);
+
+      let outputBlob: Blob = new Blob(recorded, { type: mimeType.includes('mp4') ? 'video/mp4' : 'video/webm' });
+      if (!mimeType.includes('mp4')) {
+        toast.update('timeline-export', { title: 'Converting to mp4…', status: 'info', duration: 4000 });
+        outputBlob = await convertWebmToMp4(outputBlob);
+      }
+
+      const filename = 'timeline-' + renderEngine + '-' + (safeStart + 1) + '-to-' + (safeEnd + 1) + '.mp4';
+      downloadBlob(outputBlob, filename);
+      toast.update('timeline-export', { title: 'Export complete', description: 'Saved ' + filename, status: 'success', duration: 4000 });
+    } catch (error) {
+      console.error(error);
+      const message = error instanceof Error ? error.message : 'Unexpected error while exporting';
+      toast({ title: 'Export failed', description: message, status: 'error', duration: 5000 });
+    } finally {
+      setIsExporting(false);
+    }
+  }, [isExporting, commits, range, renderEngine, currentTimeIndex, wait, drawSvgToCanvas, drawCanvasToCanvas, convertWebmToMp4, downloadBlob, toast]);
   const handlePrevious = () => {
     if (currentTimeIndex > range[0]) {
       setCurrentTimeIndex(currentTimeIndex - 1);
@@ -427,6 +583,15 @@ export function TimelineExperience({ initialEngine, allowEngineSwitch = false, a
           </Button>
           <Button onClick={handleNext} isDisabled={currentTimeIndex >= range[1]} colorScheme="purple">
             Next
+          </Button>
+          <Button
+            leftIcon={<FaDownload />}
+            onClick={handleExport}
+            colorScheme="teal"
+            isDisabled={isExporting || commits.length === 0}
+            isLoading={isExporting}
+          >
+            Export MP4
           </Button>
           <HStack>
             <Text fontSize="sm" color={mutedTextColor}>Speed</Text>
@@ -667,28 +832,6 @@ export function TimelineExperience({ initialEngine, allowEngineSwitch = false, a
                 </Text>
               </HStack>
 
-              {/* Folder/Feature Grouping */}
-              <VStack spacing={1} align="start">
-                <Text fontSize="sm" fontWeight="medium" color={textColor}>Feature Groups</Text>
-                <HStack spacing={2} wrap="wrap">
-                  {topLevelFolders.slice(0, 18).map(folder => (
-                    <Button key={folder} size="xs" variant={activeFolders.includes(folder) ? 'solid' : 'outline'} onClick={() => setActiveFolders(prev => prev.includes(folder) ? prev.filter(f=>f!==folder) : [...prev, folder])}>
-                      {folder}
-                    </Button>
-                  ))}
-                </HStack>
-                <HStack spacing={2}>
-                  <Button size="xs" onClick={() => setActiveFolders(topLevelFolders.slice(0, 18))}>Select All</Button>
-                  <Button size="xs" onClick={() => setActiveFolders([])}>Clear</Button>
-                  <Button size="xs" variant={filterMode==='hide' ? 'solid' : 'outline'} onClick={() => setFilterMode(filterMode==='hide'?'dim':'hide')}>
-                    {filterMode==='hide' ? 'Hide Others' : 'Dim Others'}
-                  </Button>
-                </HStack>
-                <HStack spacing={2}>
-                  <Text fontSize="xs" color={mutedTextColor}>Include patterns (comma‑separated, supports /regex/):</Text>
-                  <input value={patternInput} onChange={(e:any)=> setPatternInput(e.target.value)} placeholder="src/api,/^docs\\//" style={{ padding: '4px 6px', borderRadius: 6, border: `1px solid ${borderColor}`, background: 'transparent', color: textColor, width: '280px' }} />
-                </HStack>
-              </VStack>
             </VStack>
           </VStack>
         </Box>
@@ -716,6 +859,7 @@ export function TimelineExperience({ initialEngine, allowEngineSwitch = false, a
             includePatterns={patternInput.split(',').map(s=>s.trim()).filter(Boolean)}
             filterMode={filterMode}
             resetToken={resetToken}
+            onSvgReady={(svg) => { svgElementRef.current = svg; }}
           />
           ) : (
             <>
@@ -745,6 +889,7 @@ export function TimelineExperience({ initialEngine, allowEngineSwitch = false, a
                     alwaysShowEdges={alwaysShowEdges}
                     edgeEmphasis={edgeEmphasis}
                     currentFiles={commits[currentTimeIndex]?.files || []}
+                    onCanvasReady={(canvas) => { canvasElementRef.current = canvas; }}
                   />
                 </>
               )}

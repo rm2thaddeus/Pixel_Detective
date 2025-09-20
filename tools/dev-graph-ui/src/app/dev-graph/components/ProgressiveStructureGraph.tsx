@@ -47,6 +47,7 @@ interface ProgressiveStructureGraphProps {
   activeFolders?: string[]; // top-level folders selected
   includePatterns?: string[]; // simple substring or regex patterns
   filterMode?: 'dim' | 'hide';
+  onSvgReady?: (svg: SVGSVGElement | null) => void;
 }
 
 type NodeDatum = {
@@ -93,8 +94,16 @@ export default function ProgressiveStructureGraph({
   activeFolders = [],
   includePatterns = [],
   filterMode = 'dim',
+  onSvgReady,
 }: ProgressiveStructureGraphProps) {
   const svgRef = useRef<SVGSVGElement>(null);
+  useEffect(() => {
+    if (onSvgReady) {
+      onSvgReady(svgRef.current);
+      return () => onSvgReady(null);
+    }
+    return () => undefined;
+  }, [onSvgReady]);
   const simRef = useRef<d3.Simulation<NodeDatum, undefined>>();
 
   // Helper function to extract folder path

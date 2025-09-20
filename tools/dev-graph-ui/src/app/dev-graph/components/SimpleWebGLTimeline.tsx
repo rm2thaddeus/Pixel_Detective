@@ -19,6 +19,7 @@ interface SimpleWebGLTimelineProps {
   highlightDocs?: boolean;
   enableZoom?: boolean;
   currentFiles?: { path: string; action: 'created' | 'modified' | 'deleted'; size?: number; lines_after?: number; loc?: number; type?: string }[];
+  onCanvasReady?: (canvas: HTMLCanvasElement | null) => void;
 }
 
 export default function SimpleWebGLTimeline({
@@ -33,12 +34,36 @@ export default function SimpleWebGLTimeline({
   sizeByLOC = true,
   highlightDocs = true,
   enableZoom = true,
-  currentFiles = []
+  currentFiles = [],
+  onCanvasReady
 }: SimpleWebGLTimelineProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  useEffect(() => {
+    if (onCanvasReady) {
+      onCanvasReady(canvasRef.current);
+      return () => onCanvasReady(null);
+    }
+    return () => undefined;
+  }, [onCanvasReady]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const animationFrameRef = useRef<number>();
+  const physicsRef = useRef<{
+    offsetsX: Float32Array;
+    offsetsY: Float32Array;
+    velX: Float32Array;
+    velY: Float32Array;
+    particles: Array<{ x: number; y: number; vx: number; vy: number; life: number; r: number; g: number; b: number; size: number }>; 
+    pulseLife: Float32Array; // per-node activity pulses (- for delete, + for create/modify)
+    lastCommitId?: string;
+  }>({
+    offsetsX: new Float32Array(0),
+    offsetsY: new Float32Array(0),
+    velX: new Float32Array(0),
+    velY: new Float32Array(0),
+    particles: [],
+    pulseLife: new Float32Array(0)
+  });
 
   console.log('SimpleWebGLTimeline: Component rendered with', data.nodes.length, 'nodes');
 
@@ -194,10 +219,12 @@ void main() {
           return;
         }
 
-        // Prepare data with commit-chain layout and file clustering
-        const positions = new Float32Array(data.nodes.length * 2);
-        const colors = new Float32Array(data.nodes.length * 3);
-        const sizes = new Float32Array(data.nodes.length);
+      // Prepare data with commit-chain layout and file clustering
+      const positions = new Float32Array(data.nodes.length * 2);
+      const colors = new Float32Array(data.nodes.length * 3);
+      const sizes = new Float32Array(data.nodes.length);
+      const anchorsX = new Float32Array(data.nodes.length);
+      const anchorsY = new Float32Array(data.nodes.length);
 
         const idToIndex = new Map<string, number>();
         data.nodes.forEach((n: any, idx: number) => idToIndex.set(n.id, idx));
@@ -237,8 +264,7 @@ void main() {
           if (isCommit) {
             const idx = commitIndex.get(node.id) ?? 0;
             const x = leftPad + (idx * (innerW / Math.max(1, commitCount - 1)));
-            positions[i * 2] = x;
-            positions[i * 2 + 1] = topY;
+            anchorsX[i] = x; anchorsY[i] = topY;
             sizes[i] = Math.max(10, node.size ?? 10);
             // commit color
             colors[i * 3] = 0.62; colors[i * 3 + 1] = 0.36; colors[i * 3 + 2] = 0.9;
@@ -246,11 +272,11 @@ void main() {
             const touches = touchesByFile.get(node.id) || [Math.floor(commitCount / 2)];
             const avgIdx = touches.reduce((a, b) => a + b, 0) / Math.max(1, touches.length);
             const x = leftPad + (avgIdx * (innerW / Math.max(1, commitCount - 1)));
-            positions[i * 2] = x;
+            anchorsX[i] = x;
             // map file y to 55–90% band with light spread by degree
             const spread = Math.min(1, (touches.length - 1) / 6);
             const baseY = minFileY + spread * (maxFileY - minFileY);
-            positions[i * 2 + 1] = baseY;
+            anchorsY[i] = baseY;
             let baseSize = Math.max(6, node.size ?? 7);
             // activity pulses
             if (createdNow.has(node.id)) baseSize *= 1.25;
@@ -277,6 +303,92 @@ void main() {
             colors[i * 3] = 1.0; colors[i * 3 + 1] = 1.0; colors[i * 3 + 2] = 0.0;
           }
         });
+
+        // --- Light physics pass (files repel, spring to anchors) ---
+        {
+          const ph = physicsRef.current;
+          if (ph.offsetsX.length !== data.nodes.length) {
+            ph.offsetsX = new Float32Array(data.nodes.length);
+            ph.offsetsY = new Float32Array(data.nodes.length);
+            ph.velX = new Float32Array(data.nodes.length);
+            ph.velY = new Float32Array(data.nodes.length);
+            ph.pulseLife = new Float32Array(data.nodes.length);
+          }
+          const SPRING = 0.08;
+          const DAMP = 0.86;
+          const REPULSE = 1200; // strength
+          const REPULSE_RADIUS = 90; // px
+
+          // one repulsion sweep among files
+          for (let i = 0; i < data.nodes.length; i++) {
+            const ni: any = data.nodes[i];
+            const isCommitI = ni.originalType === 'GitCommit' || ni.type === 'commit';
+            if (isCommitI) continue;
+            // spring
+            const px = anchorsX[i] + ph.offsetsX[i];
+            const py = anchorsY[i] + ph.offsetsY[i];
+            const fx = (anchorsX[i] - px) * SPRING;
+            const fy = (anchorsY[i] - py) * SPRING;
+            ph.velX[i] += fx; ph.velY[i] += fy;
+            // repulsion vs other files
+            for (let j = i + 1; j < data.nodes.length; j++) {
+              const nj: any = data.nodes[j];
+              const isCommitJ = nj.originalType === 'GitCommit' || nj.type === 'commit';
+              if (isCommitJ) continue;
+              const qx = anchorsX[j] + ph.offsetsX[j];
+              const qy = anchorsY[j] + ph.offsetsY[j];
+              const dx = qx - px; const dy = qy - py; const d2 = dx*dx + dy*dy;
+              if (d2 > REPULSE_RADIUS*REPULSE_RADIUS || d2 === 0) continue;
+              const d = Math.sqrt(d2);
+              const s = (REPULSE / Math.max(8, d2));
+              const rx = (dx / (d || 1)) * s; const ry = (dy / (d || 1)) * s;
+              ph.velX[i] -= rx; ph.velY[i] -= ry;
+              ph.velX[j] += rx; ph.velY[j] += ry;
+            }
+          }
+          // integrate
+          for (let i = 0; i < data.nodes.length; i++) {
+            const ni: any = data.nodes[i];
+            const isCommitI = ni.originalType === 'GitCommit' || ni.type === 'commit';
+            if (isCommitI) { ph.offsetsX[i] = 0; ph.offsetsY[i] = 0; ph.velX[i] = 0; ph.velY[i] = 0; continue; }
+            ph.velX[i] *= DAMP; ph.velY[i] *= DAMP;
+            ph.offsetsX[i] += ph.velX[i]; ph.offsetsY[i] += ph.velY[i];
+            // clamp offsets to keep in band
+            ph.offsetsY[i] = Math.max(-40, Math.min(40, ph.offsetsY[i]));
+            ph.offsetsX[i] = Math.max(-60, Math.min(60, ph.offsetsX[i]));
+          }
+
+          // finalize positions from anchors + offsets and compute pulse decay
+          for (let i = 0; i < data.nodes.length; i++) {
+            positions[i*2] = anchorsX[i] + ph.offsetsX[i];
+            positions[i*2+1] = anchorsY[i] + ph.offsetsY[i];
+            // decay any existing pulse
+            ph.pulseLife[i] *= 0.9;
+          }
+        }
+
+        // Handle activity: create/modify pulses and delete explosions
+        {
+          const ph = physicsRef.current;
+          if (currentFiles && currentFiles.length && ph.lastCommitId !== currentCommitId) {
+            ph.lastCommitId = currentCommitId;
+            for (const f of currentFiles) {
+              const idx = data.nodes.findIndex((n: any) => n.id === f.path);
+              if (idx < 0) continue;
+              const cx = positions[idx*2]; const cy = positions[idx*2+1];
+              if (f.action === 'deleted') {
+                for (let p = 0; p < 14; p++) {
+                  const a = Math.random()*Math.PI*2; const sp = 1.5 + Math.random()*3.0;
+                  ph.particles.push({ x: cx, y: cy, vx: Math.cos(a)*sp, vy: Math.sin(a)*sp, life: 24, r: 1.0, g: 0.75, b: 0.25, size: 6 });
+                }
+                ph.pulseLife[idx] = -0.8; // negative pulse shrinks/fades
+              } else {
+                // positive pulse for create/modify
+                ph.pulseLife[idx] = Math.max(ph.pulseLife[idx], f.action === 'created' ? 1.2 : 0.8);
+              }
+            }
+          }
+        }
 
         // Build edge buffers (chain + touch) and draw them first
         const edges = (data.relations || []) as any[];
@@ -315,15 +427,67 @@ void main() {
           gl.drawArrays(gl.LINES, 0, edges.length * 2);
         }
 
-        // Upload data to GPU
+        // Upload data to GPU (nodes + particles)
+        let extraPositions: Float32Array | null = null;
+        let extraColors: Float32Array | null = null;
+        let extraSizes: Float32Array | null = null;
+        {
+          const ph = physicsRef.current;
+          if (ph.particles.length > 0) {
+            // update particles
+            const alive: typeof ph.particles = [];
+            for (const pt of ph.particles) {
+              pt.x += pt.vx; pt.y += pt.vy; pt.vy += 0.08; // slight gravity
+              pt.life -= 1;
+              if (pt.life > 0) alive.push(pt);
+            }
+            ph.particles = alive.slice(0, 300);
+            const m = ph.particles.length;
+            if (m > 0) {
+              extraPositions = new Float32Array(m*2);
+              extraColors = new Float32Array(m*3);
+              extraSizes = new Float32Array(m);
+              for (let i = 0; i < m; i++) {
+                const pt = ph.particles[i];
+                extraPositions[i*2] = pt.x; extraPositions[i*2+1] = pt.y;
+                const fade = Math.max(0.2, pt.life/22);
+                extraColors[i*3] = pt.r; extraColors[i*3+1] = pt.g; extraColors[i*3+2] = pt.b;
+                extraSizes[i] = pt.size * fade;
+              }
+            }
+          }
+        }
+
+        // Apply pulse to sizes and color vibrance
+        {
+          const ph = physicsRef.current;
+          for (let i = 0; i < data.nodes.length; i++) {
+            const pulse = ph.pulseLife[i] || 0;
+            if (pulse !== 0) {
+              const k = pulse > 0 ? (1 + Math.min(0.35, pulse)) : (1 + Math.max(-0.35, pulse));
+              sizes[i] *= k;
+              const c0 = colors[i*3], c1 = colors[i*3+1], c2 = colors[i*3+2];
+              const boost = pulse > 0 ? 1.0 + Math.min(0.25, pulse*0.3) : 1.0 + Math.max(-0.4, pulse*0.5);
+              colors[i*3] = Math.min(1, c0*boost);
+              colors[i*3+1] = Math.min(1, c1*boost);
+              colors[i*3+2] = Math.min(1, c2*boost);
+            }
+          }
+        }
+
+        const totalCount = data.nodes.length + (extraSizes ? extraSizes.length : 0);
+        const drawPositions = totalCount === data.nodes.length ? positions : (() => { const out = new Float32Array(totalCount*2); out.set(positions); if (extraPositions) out.set(extraPositions, positions.length); return out; })();
+        const drawColors = totalCount === data.nodes.length ? colors : (() => { const out = new Float32Array(totalCount*3); out.set(colors); if (extraColors) out.set(extraColors, colors.length); return out; })();
+        const drawSizes = totalCount === data.nodes.length ? sizes : (() => { const out = new Float32Array(totalCount); out.set(sizes); if (extraSizes) out.set(extraSizes, sizes.length); return out; })();
+
         gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-        gl.bufferData(gl.ARRAY_BUFFER, positions, gl.STATIC_DRAW);
+        gl.bufferData(gl.ARRAY_BUFFER, drawPositions, gl.STATIC_DRAW);
 
         gl.bindBuffer(gl.ARRAY_BUFFER, colorBuffer);
-        gl.bufferData(gl.ARRAY_BUFFER, colors, gl.STATIC_DRAW);
+        gl.bufferData(gl.ARRAY_BUFFER, drawColors, gl.STATIC_DRAW);
 
         gl.bindBuffer(gl.ARRAY_BUFFER, sizeBuffer);
-        gl.bufferData(gl.ARRAY_BUFFER, sizes, gl.STATIC_DRAW);
+        gl.bufferData(gl.ARRAY_BUFFER, drawSizes, gl.STATIC_DRAW);
 
         // Use program
         gl.useProgram(program);
@@ -355,7 +519,7 @@ void main() {
         gl.vertexAttribPointer(sizeAttribute, 1, gl.FLOAT, false, 0, 0);
 
         // Draw points
-        gl.drawArrays(gl.POINTS, 0, data.nodes.length);
+        gl.drawArrays(gl.POINTS, 0, totalCount);
 
         // Continue render loop
         animationFrameRef.current = requestAnimationFrame(render);

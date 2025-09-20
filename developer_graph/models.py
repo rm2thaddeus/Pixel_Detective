@@ -117,3 +117,55 @@ class StatsResponse(BaseModel):
     node_types: List[Dict[str, Any]]
     relationship_types: List[Dict[str, Any]]
     timestamp: str
+
+
+class QualityIndicator(BaseModel):
+    """Atomic metric indicator used in quality dashboards."""
+    label: str
+    value: Union[float, int]
+    target: Optional[Union[float, int]] = None
+    unit: Optional[str] = None
+    status: Optional[str] = None
+    description: Optional[str] = None
+
+
+class QualitySection(BaseModel):
+    """Single pillar in a quality category (e.g., Data Completeness)."""
+    key: str
+    label: str
+    score: float
+    max_score: float
+    summary: str
+    indicators: List[QualityIndicator] = []
+
+
+class QualityCategory(BaseModel):
+    """High-level category displayed in UI dropdown."""
+    key: str
+    label: str
+    score: float
+    max_score: float
+    summary: str
+    sections: List[QualitySection]
+
+
+class QualityOverviewResponse(BaseModel):
+    """Response payload for data quality and system health overview."""
+    categories: List[QualityCategory]
+    generated_at: datetime
+
+
+class CypherQueryRequest(BaseModel):
+    """Request payload for running user-provided read-only Cypher queries."""
+    query: str
+    parameters: Optional[Dict[str, Any]] = None
+    max_nodes: Optional[int] = Field(default=500, ge=1, le=2000)
+    max_relationships: Optional[int] = Field(default=1000, ge=1, le=4000)
+
+
+class CypherQueryResponse(BaseModel):
+    """Response payload returning a derived subgraph for user Cypher queries."""
+    nodes: List[Dict[str, Any]]
+    relationships: List[Dict[str, Any]]
+    summary: Dict[str, Any]
+    warnings: List[str] = []
