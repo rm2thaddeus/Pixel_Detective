@@ -607,6 +607,27 @@ class ParallelIngestionPipeline:
         """Write a batch of chunks using UNWIND operations."""
         try:
             with self.driver.session() as session:
+                # Fix: Ensure all metadata is primitive values, not Map objects
+                clean_batch = []
+                for chunk in batch:
+                    clean_chunk = {
+                        "id": str(chunk["id"]),
+                        "content": str(chunk["content"]),
+                        "chunk_type": str(chunk["chunk_type"]),
+                        "doc_path": str(chunk["doc_path"]),
+                        "mentions": chunk["mentions"] if isinstance(chunk["mentions"], list) else []
+                    }
+                    # Only include metadata if it's a simple dict with primitive values
+                    if "metadata" in chunk and isinstance(chunk["metadata"], dict):
+                        clean_metadata = {}
+                        for k, v in chunk["metadata"].items():
+                            if isinstance(v, (str, int, float, bool)) or v is None:
+                                clean_metadata[str(k)] = v
+                        clean_chunk["metadata"] = clean_metadata
+                    else:
+                        clean_chunk["metadata"] = {}
+                    clean_batch.append(clean_chunk)
+                
                 # UNWIND template for chunks
                 query = """
                 UNWIND $chunks AS ch
@@ -615,6 +636,7 @@ class ParallelIngestionPipeline:
                     c.content = ch.content,
                     c.chunk_type = ch.chunk_type,
                     c.doc_path = ch.doc_path,
+                    c.kind = ch.chunk_type,
                     c.created_at = datetime()
                 ON MATCH SET
                     c.content = ch.content,
@@ -623,20 +645,24 @@ class ParallelIngestionPipeline:
                     c.updated_at = datetime()
                 
                 WITH ch, c
-                MATCH (d:Document {path: ch.doc_path})
-                MERGE (d)-[:CONTAINS_CHUNK]->(c)
+                OPTIONAL MATCH (d:Document {path: ch.doc_path})
+                FOREACH (x IN CASE WHEN d IS NOT NULL THEN [1] ELSE [] END |
+                    MERGE (d)-[:CONTAINS_CHUNK]->(c)
+                )
                 
                 WITH ch, c
                 UNWIND ch.mentions AS rid
+                WITH c, rid
+                WHERE rid IS NOT NULL AND rid <> ''
                 MERGE (r:Requirement {id: rid})
                 MERGE (c)-[:MENTIONS]->(r)
                 """
                 
-                result = session.run(query, chunks=batch)
+                result = session.run(query, chunks=clean_batch)
                 result.consume()  # Execute the query
                 
-                logger.info(f"Wrote batch of {len(batch)} chunks")
-                return len(batch)
+                logger.info(f"Wrote batch of {len(clean_batch)} chunks")
+                return len(clean_batch)
                 
         except Exception as e:
             logger.error(f"Error writing chunk batch: {e}")

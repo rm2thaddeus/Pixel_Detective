@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Box, Heading, Text, VStack, HStack, Button, Spinner, Alert, AlertIcon, Slider, SliderTrack, SliderFilledTrack, SliderThumb, Badge, useColorModeValue, RangeSlider, RangeSliderTrack, RangeSliderFilledTrack, RangeSliderThumb, Link as ChakraLink } from '@chakra-ui/react';
+import { Box, Heading, Text, VStack, HStack, Button, Spinner, Alert, AlertIcon, Slider, SliderTrack, SliderFilledTrack, SliderThumb, Badge, useColorModeValue, RangeSlider, RangeSliderTrack, RangeSliderFilledTrack, RangeSliderThumb, Link as ChakraLink, useToast } from '@chakra-ui/react';
 import { FaDownload } from 'react-icons/fa';
 import ProgressiveStructureGraph from '../components/ProgressiveStructureGraph';
 import SimpleWebGLTimeline from '../components/SimpleWebGLTimeline';
@@ -35,6 +35,7 @@ interface TimelineExperienceProps {
 }
 
 export function TimelineExperience({ initialEngine, allowEngineSwitch = false, alternateEngineHref, alternateEngineLabel }: TimelineExperienceProps) {
+  const toast = useToast();
   const [commits, setCommits] = useState<Commit[]>([]);
   const [currentTimeIndex, setCurrentTimeIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -161,6 +162,8 @@ export function TimelineExperience({ initialEngine, allowEngineSwitch = false, a
   }, [renderEngine, commits, range, currentTimeIndex, maxNodes, sizeByLOC, activeFolders, patternInput]);
   const [enableZoom, setEnableZoom] = useState(true);
   const [resetToken, setResetToken] = useState(0);
+  const [isExporting, setIsExporting] = useState(false);
+  const svgElementRef = useRef<SVGSVGElement>(null);
   // Compute adaptive node budget based on device/browser capabilities and viewport
   useEffect(() => {
     const computeAdaptiveMaxNodes = () => {

@@ -21,6 +21,8 @@ from .routes.chunks import router as chunks_router
 from .routes.metrics import router as metrics_router
 from .routes.validate import router as validate_router
 from .routes.quality import router as quality_router
+from .routes.data_quality import router as data_quality_router
+from .routes.unified_ingest import router as unified_ingest_router
 from .routes.admin import router as admin_router
 from .routes.evolution import router as evolution_router
 
@@ -56,6 +58,8 @@ app.include_router(chunks_router)
 app.include_router(metrics_router)
 app.include_router(validate_router)
 app.include_router(quality_router)
+app.include_router(data_quality_router)
+app.include_router(unified_ingest_router)
 app.include_router(admin_router)
 app.include_router(evolution_router)
 

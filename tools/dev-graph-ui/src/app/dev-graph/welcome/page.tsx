@@ -482,7 +482,7 @@ export default function WelcomeDashboard() {
                     </VStack>
                   </Box>
                 )}
-                {qualityError && (
+                {dataQualityError && (
                   <Alert status="warning" variant="left-accent" mt={3} fontSize="xs">
                     <AlertIcon />
                     <Text>Unable to refresh quality overview. Showing last loaded data.</Text>

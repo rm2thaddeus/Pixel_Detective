@@ -128,6 +128,8 @@ class RelationshipDeriver:
                 )
 
         # 3) Code-comment evidence (proxy via commit-message on code files) (0.8)
+        # Pattern to extract FR- and NFR- IDs from commit messages
+        fr_pattern = re.compile(r'(FR-\d+|NFR-\d+)', re.IGNORECASE)
         q3 = (
             "MATCH (c:GitCommit)-[t:TOUCHED]->(f:File) "
             "WHERE f.is_code = true AND ($since IS NULL OR coalesce(t.timestamp, c.timestamp) >= $since) "
@@ -138,7 +140,7 @@ class RelationshipDeriver:
             msg = rec.get("message") or ""
             path = rec.get("path")
             ts = rec.get("ts")
-            for rid in set(fr_pat.findall(msg)):
+            for rid in set(fr_pattern.findall(msg)):
                 total += RelationshipDeriver._merge_implements(
                     tx, rid, path, ts, sources=["code-comment"], conf=0.8
                 )

@@ -27,7 +27,7 @@ def analytics_data_quality():
 
     with driver.session() as session:
         orphaned_nodes = session.run(
-            "MATCH (n) WHERE size((n)--()) = 0 RETURN count(n) AS count"
+            "MATCH (n) WHERE NOT (n)--() RETURN count(n) AS count"
         ).single()["count"]
 
     touched_relationships = relationship_state.get("touched_edges", 0)

@@ -579,8 +579,8 @@ class EnhancedGitIngester:
                                 req_id=req_id,
                                 chunk_id=chunk_id)
                                     
-        except Exception as exc:
-            logger.exception("Error processing chunks for %s", file_change.path, exc_info=exc)
+                except Exception as exc:
+                    logger.exception("Error processing chunks for %s", file_change.path, exc_info=exc)
 
     @staticmethod
     def _slugify(text: str) -> str:
