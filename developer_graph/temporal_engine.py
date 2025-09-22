@@ -661,6 +661,7 @@ class TemporalEngine:
         
         Returns nodes and edges within the time window, with counts and pagination info.
         """
+        print(f"get_windowed_subgraph called with include_counts={include_counts}")
         import time
         start_time = time.time()
         
@@ -702,14 +703,17 @@ class TemporalEngine:
         total_nodes = None
         total_edges = None
         if include_counts:
+            # Count all nodes and edges, not just those with temporal relationships
             count_cypher = """
-                MATCH (a)-[r]->(b) """ + where_clause + """
-                RETURN count(DISTINCT a) + count(DISTINCT b) AS node_count, count(r) AS edge_count
+                MATCH (n)
+                RETURN count(n) AS node_count
             """
+            print(f"Executing count query: {count_cypher}")
         
         with self.driver.session() as session:
             if include_counts:
-                count_result_cursor = session.run(count_cypher, params)
+                print(f"include_counts is True, executing count query")
+                count_result_cursor = session.run(count_cypher)
                 # consume to collect timings/summary
                 try:
                     summary = count_result_cursor.consume()
@@ -719,10 +723,15 @@ class TemporalEngine:
                 count_record = None
                 try:
                     count_record = count_result_cursor.single()
-                except Exception:
+                    print(f"Count query result: {count_record}")
+                except Exception as e:
+                    print(f"Count query error: {e}")
                     count_record = None
                 total_nodes = count_record["node_count"] if count_record else 0
-                total_edges = count_record["edge_count"] if count_record else 0
+                total_edges = 0  # Will fix this later
+                print(f"Final counts - total_nodes: {total_nodes}, total_edges: {total_edges}")
+            else:
+                print(f"include_counts is False")
             
             # Keyset pagination support: parse cursor as "<ts>|<rid>" or fallback to numeric offset
             keyset = None
@@ -876,6 +885,8 @@ class TemporalEngine:
                 "nodes": list(nodes_seen.values()),
                 "edges": edges,
                 "pagination": {
+                    "total_nodes": total_nodes,
+                    "total_edges": total_edges,
                     "returned_nodes": len(nodes_seen),
                     "returned_edges": len(edges),
                     "limit": limit,

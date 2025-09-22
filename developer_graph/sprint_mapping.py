@@ -13,8 +13,8 @@ from typing import Dict, List, Optional, Tuple
 from git import Repo
 
 
-_START_RE = re.compile(r"Start Date\W*:?\s*([0-9]{4}-[0-9]{2}-[0-9]{2})", re.IGNORECASE)
-_END_RE = re.compile(r"End Date\W*:?\s*([0-9]{4}-[0-9]{2}-[0-9]{2})", re.IGNORECASE)
+_START_RE = re.compile(r"\*\*Start Date\*\*:\s*([0-9]{4}-[0-9]{2}-[0-9]{2})", re.IGNORECASE)
+_END_RE = re.compile(r"\*\*End Date\*\*:\s*([0-9]{4}-[0-9]{2}-[0-9]{2})", re.IGNORECASE)
 _SECTION_RE = re.compile(
     r"^###[^\n]*?Sprint\s+(\d+)(?::\s*([^\n]+))?\n(?P<body>.*?)(?=^###|\Z)",
     re.IGNORECASE | re.MULTILINE | re.DOTALL,
@@ -88,27 +88,142 @@ class SprintMapper:
         return {k: v.copy() for k, v in (self._cached_windows or {}).items()}
 
     def map_all_sprints(self) -> Dict[str, object]:
-        """Compute sprint windows and attach commit-span metadata."""
-        windows = self.get_sprint_windows(refresh=True)
+        """Compute sprint windows using git commit timestamps from sprint documents."""
         snapshots = []
-        for number, window in sorted(windows.items(), key=lambda item: int(item[0])):
-            start_iso = window.get("start")
-            end_iso = window.get("end")
+        
+        # Get all sprint directories
+        sprint_dirs = self._get_sprint_directories()
+        
+        for sprint_dir in sprint_dirs:
+            number = sprint_dir["number"]
+            name = sprint_dir["name"]
+            
+            # Get git timestamps for this sprint's documents
+            git_timestamps = self._get_sprint_git_timestamps(sprint_dir["path"])
+            
+            if not git_timestamps:
+                continue
+                
+            # Determine sprint window from git activity
+            start_iso, end_iso = self._determine_sprint_window(git_timestamps)
+            
             if not start_iso or not end_iso:
                 continue
+                
+            # Map commits in this window
             metrics = self.map_sprint_range(number, start_iso, end_iso)
+            
             snapshot = {
                 "number": number,
-                "name": window.get("name"),
+                "name": name,
                 "start": start_iso,
                 "end": end_iso,
                 "commit_count": metrics.get("count", 0),
                 "commit_range": metrics.get("commit_range", []),
+                "git_timestamps": git_timestamps
             }
             snapshots.append(snapshot)
+            
         return {"count": len(snapshots), "windows": snapshots}
 
     # -------------------- Internal helpers --------------------
+    
+    def _get_sprint_directories(self) -> List[Dict[str, str]]:
+        """Get all sprint directories with their numbers and names."""
+        sprint_dirs = []
+        base_dir = self.repo_path / "docs" / "sprints"
+        
+        if not base_dir.exists():
+            return sprint_dirs
+            
+        for item in base_dir.iterdir():
+            if not item.is_dir():
+                continue
+                
+            if item.name.startswith("sprint-"):
+                number = item.name.split("-")[1]
+                name = f"sprint-{number}"
+            elif item.name.startswith("s-"):
+                number = item.name.split("-")[1]
+                name = item.name
+            elif item.name.startswith("critical-"):
+                number = "critical"
+                name = item.name
+            else:
+                continue
+                
+            sprint_dirs.append({
+                "number": number,
+                "name": name,
+                "path": str(item)
+            })
+            
+        return sorted(sprint_dirs, key=lambda x: int(x["number"]) if x["number"].isdigit() else 999)
+    
+    def _get_sprint_git_timestamps(self, sprint_path: str) -> List[Dict[str, str]]:
+        """Get git commit timestamps for all files in a sprint directory."""
+        try:
+            repo = Repo(self.repo_path)
+            timestamps = []
+            
+            sprint_path_obj = Path(sprint_path)
+            if not sprint_path_obj.exists():
+                return timestamps
+                
+            # Get all markdown files in the sprint directory
+            for md_file in sprint_path_obj.rglob("*.md"):
+                try:
+                    # Get git log for this file
+                    commits = list(repo.iter_commits(paths=str(md_file.relative_to(self.repo_path))))
+                    
+                    if commits:
+                        # Get first and last commit timestamps
+                        first_commit = commits[-1]  # Oldest commit
+                        last_commit = commits[0]    # Newest commit
+                        
+                        timestamps.append({
+                            "file": str(md_file.relative_to(self.repo_path)),
+                            "first_commit": first_commit.hexsha,
+                            "first_timestamp": first_commit.committed_datetime.isoformat(),
+                            "last_commit": last_commit.hexsha,
+                            "last_timestamp": last_commit.committed_datetime.isoformat(),
+                            "commit_count": len(commits)
+                        })
+                        
+                except Exception as e:
+                    # Skip files that can't be processed
+                    continue
+                    
+            return timestamps
+            
+        except Exception as e:
+            return []
+    
+    def _determine_sprint_window(self, git_timestamps: List[Dict[str, str]]) -> Tuple[str, str]:
+        """Determine sprint start and end dates from git timestamps."""
+        if not git_timestamps:
+            return None, None
+            
+        # Find the earliest first commit and latest last commit
+        earliest_start = min(ts["first_timestamp"] for ts in git_timestamps)
+        latest_end = max(ts["last_timestamp"] for ts in git_timestamps)
+        
+        # Add some buffer (e.g., 1 day before start, 1 day after end)
+        from datetime import datetime, timedelta
+        
+        try:
+            start_dt = datetime.fromisoformat(earliest_start.replace('Z', '+00:00'))
+            end_dt = datetime.fromisoformat(latest_end.replace('Z', '+00:00'))
+            
+            # Add buffer
+            start_dt = start_dt - timedelta(days=1)
+            end_dt = end_dt + timedelta(days=1)
+            
+            return start_dt.isoformat(), end_dt.isoformat()
+            
+        except Exception:
+            return earliest_start, latest_end
+
     def _build_sprint_windows(self) -> Dict[str, Dict[str, str]]:
         windows = self._parse_planning_status()
         if not windows:

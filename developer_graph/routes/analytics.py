@@ -110,6 +110,8 @@ def analytics_graph(
             "requirements": count_nodes("Requirement"),
             "files": count_nodes("File"),
             "commits": count_nodes("GitCommit"),
+            "derivation_watermarks": count_nodes("DerivationWatermark"),
+            "directories": count_nodes("Directory"),
         }
 
         params = {}
