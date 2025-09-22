@@ -396,8 +396,8 @@ def ingest_commits_parallel(
 def ingest_chunks(
     include_docs: bool = Query(True, description="Include document chunking"),
     include_code: bool = Query(True, description="Include code chunking"),
-    doc_limit: int = Query(None, ge=1, le=1000, description="Limit number of documents"),
-    code_limit: int = Query(None, ge=1, le=5000, description="Limit number of code files"),
+    doc_limit: int = Query(None, description="Limit number of documents (None = no limit)"),
+    code_limit: int = Query(None, description="Limit number of code files (None = no limit)"),
     files: Optional[List[str]] = Query(None, description="Specific files to chunk"),
 ):
     try:
@@ -415,6 +415,50 @@ def ingest_chunks(
         return {"success": True, "stats": stats, "chunk_statistics": chunk_service.get_chunk_statistics()}
     except Exception as e:
         logger.exception("Chunk ingestion failed")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/api/v1/dev-graph/ingest/chunks/background")
+def ingest_chunks_background(
+    include_docs: bool = Query(True, description="Include document chunking"),
+    include_code: bool = Query(True, description="Include code chunking"),
+    files: Optional[List[str]] = Query(None, description="Specific files to chunk"),
+):
+    """Start chunking in background - returns immediately with job ID."""
+    try:
+        import threading
+        import uuid
+        from ..app_state import chunk_service
+        
+        job_id = str(uuid.uuid4())
+        
+        def background_chunking():
+            try:
+                if files:
+                    stats = chunk_service.ingest_specific_files(files)
+                else:
+                    stats = chunk_service.ingest_all_chunks(
+                        include_docs=include_docs,
+                        include_code=include_code,
+                        doc_limit=None,  # No limits
+                        code_limit=None,  # No limits
+                    )
+                logger.info(f"Background chunking job {job_id} completed: {stats}")
+            except Exception as e:
+                logger.error(f"Background chunking job {job_id} failed: {e}")
+        
+        # Start background thread
+        thread = threading.Thread(target=background_chunking, daemon=True)
+        thread.start()
+        
+        return {
+            "success": True, 
+            "job_id": job_id,
+            "message": "Chunking started in background",
+            "status": "running"
+        }
+    except Exception as e:
+        logger.exception("Background chunking failed to start")
         raise HTTPException(status_code=500, detail=str(e))
 
 

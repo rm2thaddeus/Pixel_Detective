@@ -53,9 +53,9 @@ class UnifiedIngestionPipeline:
         
     def run_complete_ingestion(self, 
                               reset_graph: bool = True,
-                              commit_limit: int = 1000,
-                              doc_limit: int = 100,
-                              code_limit: int = 500,
+                              commit_limit: int = None,
+                              doc_limit: int = None,
+                              code_limit: int = None,
                               derive_relationships: bool = True,
                               include_embeddings: bool = False,
                               max_workers: int = 4) -> Dict[str, Any]:
@@ -138,11 +138,11 @@ class UnifiedIngestionPipeline:
         
         start_time = time.time()
         
-        # Use chunk service for document ingestion
+        # Use chunk service for document ingestion - no limits by default
         doc_stats = chunk_service.ingest_all_chunks(
             include_docs=True,
             include_code=False,
-            doc_limit=doc_limit,
+            doc_limit=doc_limit,  # None means no limit
             code_limit=0
         )
         
@@ -161,12 +161,12 @@ class UnifiedIngestionPipeline:
         
         start_time = time.time()
         
-        # Use chunk service for code chunking
+        # Use chunk service for code chunking - no limits by default
         code_stats = chunk_service.ingest_all_chunks(
             include_docs=False,
             include_code=True,
             doc_limit=0,
-            code_limit=code_limit
+            code_limit=code_limit  # None means no limit
         )
         
         self.stages_completed += 1

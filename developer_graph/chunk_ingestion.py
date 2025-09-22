@@ -29,6 +29,7 @@ class ChunkIngestionService:
             '**/__pycache__/**',
             '**/.git/**',
             '**/venv/**',
+            '**/.venv/**',
             '**/env/**',
             '**/build/**',
             '**/dist/**',
@@ -83,14 +84,14 @@ class ChunkIngestionService:
     def _should_exclude_directory(self, dir_name: str) -> bool:
         """Check if directory should be excluded based on exclude patterns."""
         for exclude_pattern in self.exclude_patterns:
-            # Convert glob pattern to simple directory name check
-            if '*' in exclude_pattern:
-                pattern_parts = exclude_pattern.split('/')
-                for part in pattern_parts:
-                    if part and '*' in part and fnmatch.fnmatch(dir_name, part):
+            # Extract the directory name part from the pattern
+            # e.g., "**/node_modules/**" -> "node_modules"
+            pattern_parts = exclude_pattern.split('/')
+            for part in pattern_parts:
+                if part and '*' not in part:  # Found a literal directory name
+                    if dir_name == part:
                         return True
-            elif dir_name in exclude_pattern:
-                return True
+                # Skip glob patterns like "**" as they match everything
         return False
     
     def _matches_pattern(self, path: str, pattern: str) -> bool:
@@ -123,9 +124,7 @@ class ChunkIngestionService:
         if include_docs:
             print("Discovering documents...")
             documents = self.discover_documents()
-            if doc_limit:
-                documents = documents[:doc_limit]
-            
+            # Remove artificial limits - process ALL documents
             print(f"Found {len(documents)} documents to process")
             
             if documents:
@@ -138,9 +137,7 @@ class ChunkIngestionService:
         if include_code:
             print("Discovering code files...")
             code_files = self.discover_code_files()
-            if code_limit:
-                code_files = code_files[:code_limit]
-            
+            # Remove artificial limits - process ALL code files
             print(f"Found {len(code_files)} code files to process")
             
             if code_files:
