@@ -8,6 +8,11 @@
 
 With Sprint 11's interactive latent space visualization now **production-ready**, we have identified three high-impact enhancement areas for the next development phase. These improvements will significantly enhance user experience and developer productivity while building on the solid foundation established in Sprint 11.
 
+## 🔀 DevGraph Standalone Prep (High Priority)
+- ✅ Migration playbook captured in `docs/sprints/sprint-11/DEV_GRAPH_STANDALONE_MIGRATION.md`
+- 🔄 Mirror `engine.apply_schema` helpers into the standalone repository post-extraction
+- 🔄 Validate Neo4j connection details on the new host (Bolt URI, credentials, `REPO_PATH`)
+
 ## 🚀 Priority 1: Collection Dropdown Rework (HIGH)
 
 ### Current Pain Point

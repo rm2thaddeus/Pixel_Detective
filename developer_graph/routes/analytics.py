@@ -3,10 +3,46 @@ from __future__ import annotations
 from typing import Optional
 from fastapi import APIRouter, Query
 from datetime import datetime, timedelta
-from ..app_state import driver
+from ..app_state import driver, validator
 
 
 router = APIRouter()
+
+
+def _calculate_quality_score(touched: int, orphaned: int, timestamp_issues: int) -> float:
+    """Simple heuristic to keep the dashboard responsive."""
+    if touched <= 0:
+        return 0.0
+    score = 100.0
+    score -= min(40.0, orphaned * 0.5)
+    score -= min(40.0, timestamp_issues * 0.25)
+    return max(0.0, round(score, 2))
+
+
+@router.get("/api/v1/dev-graph/analytics/data-quality")
+def analytics_data_quality():
+    schema_state = validator.validate_schema_completeness()
+    temporal_state = validator.validate_temporal_consistency()
+    relationship_state = validator.validate_relationship_integrity()
+
+    with driver.session() as session:
+        orphaned_nodes = session.run(
+            "MATCH (n) WHERE size((n)--()) = 0 RETURN count(n) AS count"
+        ).single()["count"]
+
+    touched_relationships = relationship_state.get("touched_edges", 0)
+    timestamp_issues = sum(temporal_state.values())
+
+    return {
+        "touched_relationships": touched_relationships,
+        "orphaned_nodes": orphaned_nodes,
+        "timestamp_issues": timestamp_issues,
+        "schema": schema_state,
+        "temporal": temporal_state,
+        "relationships": relationship_state,
+        "data_quality_score": _calculate_quality_score(touched_relationships, orphaned_nodes, timestamp_issues),
+        "generated_at": datetime.utcnow().isoformat() + "Z",
+    }
 
 
 @router.get("/api/v1/dev-graph/analytics/activity")
@@ -248,4 +284,3 @@ def get_analytics(
             "graph": {"total_nodes": 0, "total_edges": 0, "node_types": {}, "edge_types": {}, "complexity_metrics": {"clustering_coefficient": 0, "average_path_length": 0, "modularity": 0}},
             "traceability": {"implemented_requirements": 0, "unimplemented_requirements": 0, "avg_files_per_requirement": 0, "coverage_percentage": 0},
         }
-

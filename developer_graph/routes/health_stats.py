@@ -46,77 +46,71 @@ def health_check():
 def get_stats():
     try:
         with driver.session() as session:
-            # Use separate, simpler queries to avoid timeouts
-            total_nodes = session.run("MATCH (n) RETURN count(n) as count").single()["count"]
-            total_rels = session.run("MATCH ()-[r]->() RETURN count(r) as count").single()["count"]
-            
-            # Get recent commits (last 7 days)
-            recent_commits = session.run(
+            record = session.run(
                 """
-                MATCH (c:GitCommit)
-                WHERE c.timestamp >= datetime() - duration('P7D')
-                RETURN count(c) as count
-                """
-            ).single()["count"] or 0
-            
-            # Get node type counts
-            node_result = session.run(
-                """
-                MATCH (n)
-                UNWIND labels(n) as label
-                RETURN label as type, count(*) as count
-                ORDER BY count DESC
-                """
-            ).data()
-            
-            # Get relationship type counts
-            rel_result = session.run(
-                """
-                MATCH ()-[r]->()
-                RETURN type(r) as type, count(*) as count
-                ORDER BY count DESC
-                """
-            ).data()
-
-            if total_nodes == 0:
-                return {
-                    "summary": {"total_nodes": 0, "total_relationships": 0, "recent_commits_7d": 0},
-                    "node_types": [],
-                    "relationship_types": [],
-                    "timestamp": "2025-01-05T09:00:00Z"
+                CALL {
+                    MATCH (n)
+                    RETURN count(n) AS total_nodes
                 }
+                CALL {
+                    MATCH ()-[r]->()
+                    RETURN count(r) AS total_relationships
+                }
+                CALL {
+                    MATCH (c:GitCommit)
+                    WHERE c.timestamp >= datetime() - duration('P7D')
+                    RETURN count(c) AS recent_commits_7d
+                }
+                CALL {
+                    MATCH (n)
+                    UNWIND labels(n) AS label
+                    RETURN label, count(*) AS cnt
+                }
+                WITH total_nodes, total_relationships, recent_commits_7d, collect({type: label, count: cnt}) AS node_type_list
+                CALL {
+                    MATCH ()-[r]->()
+                    RETURN type(r) AS rel_type, count(r) AS cnt
+                }
+                RETURN total_nodes, total_relationships, recent_commits_7d,
+                       node_type_list, collect({type: rel_type, count: cnt}) AS rel_type_list
+                """
+            ).single()
 
-            node_type_counts = {}
-            for stat in node_result:
-                if stat and stat.get("type") and stat.get("count"):
-                    node_type_counts[stat["type"]] = stat["count"]
+        if not record:
+            raise RuntimeError("Failed to collect stats")
 
-            rel_type_counts = {}
-            for stat in rel_result:
-                if stat and stat.get("type") and stat.get("count"):
-                    rel_type_counts[stat["type"]] = stat["count"]
+        total_nodes = record.get("total_nodes", 0) or 0
+        total_relationships = record.get("total_relationships", 0) or 0
+        recent_commits = record.get("recent_commits_7d", 0) or 0
 
-            node_types = []
-            colors = ['blue', 'green', 'purple', 'orange', 'red', 'teal', 'pink', 'yellow']
-            sorted_node_types = sorted(node_type_counts.items(), key=lambda x: x[1], reverse=True)
-            for i, (node_type, count) in enumerate(sorted_node_types):
-                node_types.append({'type': node_type, 'count': count, 'color': colors[i % len(colors)]})
+        colors = ['blue', 'green', 'purple', 'orange', 'red', 'teal', 'pink', 'yellow']
 
-            relationship_types = []
-            sorted_rel_types = sorted(rel_type_counts.items(), key=lambda x: x[1], reverse=True)
-            for i, (rel_type, count) in enumerate(sorted_rel_types):
-                relationship_types.append({'type': rel_type, 'count': count, 'color': colors[i % len(colors)]})
+        node_types = []
+        for idx, entry in enumerate(sorted(record.get("node_type_list", []), key=lambda item: item.get("count", 0), reverse=True)):
+            node_types.append({
+                'type': entry.get('type'),
+                'count': entry.get('count', 0),
+                'color': colors[idx % len(colors)]
+            })
 
-            return {
-                "summary": {
-                    "total_nodes": total_nodes,
-                    "total_relationships": total_rels,
-                    "recent_commits_7d": recent_commits,
-                },
-                "node_types": node_types,
-                "relationship_types": relationship_types,
-                "timestamp": "2025-01-05T09:00:00Z",
-            }
+        relationship_types = []
+        for idx, entry in enumerate(sorted(record.get("rel_type_list", []), key=lambda item: item.get("count", 0), reverse=True)):
+            relationship_types.append({
+                'type': entry.get('type'),
+                'count': entry.get('count', 0),
+                'color': colors[idx % len(colors)]
+            })
+
+        return {
+            "summary": {
+                "total_nodes": total_nodes,
+                "total_relationships": total_relationships,
+                "recent_commits_7d": recent_commits,
+            },
+            "node_types": node_types,
+            "relationship_types": relationship_types,
+            "timestamp": datetime.utcnow().isoformat() + "Z",
+        }
     except Exception as e:
         return {
             "summary": {"total_nodes": 0, "total_relationships": 0, "recent_commits_7d": 0},
@@ -125,4 +119,3 @@ def get_stats():
             "timestamp": "2025-01-05T09:00:00Z",
             "error": f"Failed to retrieve stats: {str(e)}"
         }
-

@@ -16,9 +16,12 @@ from pathlib import Path
 from typing import Dict, List, Iterable, Optional, Tuple, Set
 from collections import defaultdict
 from dataclasses import dataclass
+import logging
 
 from git import Repo, Commit
 from neo4j import GraphDatabase
+
+from .sprint_mapping import SprintMapper
 
 # Patterns for detecting requirements and references
 REQ_PATTERN = re.compile(r"\b(?:FR|NFR)-\d{2}-\d{2}\b")
@@ -53,6 +56,9 @@ class CommitAnalysis:
     message_requirements: Set[str]
     message_sprints: Set[str]
 
+logger = logging.getLogger(__name__)
+
+
 class EnhancedGitIngester:
     """Enhanced git-based ingestion that creates proper planning-to-implementation links."""
 
@@ -61,7 +67,8 @@ class EnhancedGitIngester:
         self.repo = Repo(repo_path)
         self.driver = GraphDatabase.driver(neo4j_uri, auth=(user, password))
         self.requirement_map = {}
-        self.sprint_map = {}
+        self.sprint_map: Dict[str, Tuple[str, str]] = {}
+        self.sprint_mapper = SprintMapper(repo_path)
 
     def _get_file_content_at_commit(self, commit: Commit, path: Optional[str]) -> Optional[str]:
         """Return text content of a file at a specific commit.
@@ -90,15 +97,96 @@ class EnhancedGitIngester:
         except Exception:
             return None
 
+    # -------------------- Validation helpers --------------------
+    def _validate_commit_processing(self, commit_analysis: CommitAnalysis) -> bool:
+        commit = commit_analysis.commit
+        try:
+            if not commit.hexsha or len(commit.hexsha) < 7:
+                logger.error("Invalid commit hash detected; skipping commit")
+                return False
+            if not getattr(commit, "committed_datetime", None):
+                logger.error("Missing timestamp on commit %s", commit.hexsha)
+                return False
+            return True
+        except Exception as exc:
+            logger.exception("Commit validation failed for %s", getattr(commit, "hexsha", "<unknown>"), exc_info=exc)
+            return False
+
+    def _validate_file_change(self, file_change: FileChange) -> bool:
+        if not file_change.path:
+            logger.warning("Skipping file change with empty path")
+            return False
+        if file_change.change_type not in {"A", "M", "D", "R"}:
+            logger.warning("Skipping file change %s with unsupported type %s", file_change.path, file_change.change_type)
+            return False
+        return True
+
+    def _backfill_file_flags(self) -> None:
+        code_ext = sorted(CODE_EXTENSIONS)
+        doc_ext = sorted(DOC_EXTENSIONS)
+        query = """
+            MATCH (f:File)
+            WITH f,
+                 CASE
+                     WHEN f.extension IS NOT NULL THEN toLower(f.extension)
+                     WHEN f.path CONTAINS '.' THEN '.' + toLower(last(split(f.path, '.')))
+                     ELSE ''
+                 END AS ext
+            SET f.extension = CASE WHEN f.extension IS NULL AND ext <> '' THEN ext ELSE f.extension END,
+                f.is_code = CASE WHEN f.is_code IS NULL THEN ext IN $code_ext ELSE f.is_code END,
+                f.is_doc = CASE WHEN f.is_doc IS NULL THEN ext IN $doc_ext ELSE f.is_doc END
+        """
+        with self.driver.session() as session:
+            session.run(query, {"code_ext": code_ext, "doc_ext": doc_ext})
+            session.run(
+                """
+                MATCH (c:GitCommit)
+                WHERE (c.uid IS NULL OR trim(c.uid) = '') AND c.hash IS NOT NULL
+                SET c.uid = c.hash
+                """
+            )
+
+    def _assert_ingest_guards(self) -> None:
+        cypher = """
+            CALL {
+                MATCH (c:GitCommit)
+                WHERE c.uid IS NULL OR trim(c.uid) = ''
+                RETURN count(c) AS missing_commit_uid
+            }
+            CALL {
+                MATCH (f:File)
+                WHERE f.is_code IS NULL
+                RETURN count(f) AS missing_is_code
+            }
+            CALL {
+                MATCH (f:File)
+                WHERE f.is_doc IS NULL
+                RETURN count(f) AS missing_is_doc
+            }
+            RETURN missing_commit_uid, missing_is_code, missing_is_doc
+        """
+        with self.driver.session() as session:
+            record = session.run(cypher).single()
+
+        missing_commit_uid = record.get("missing_commit_uid", 0) if record else 0
+        missing_is_code = record.get("missing_is_code", 0) if record else 0
+        missing_is_doc = record.get("missing_is_doc", 0) if record else 0
+
+        if any(val > 0 for val in (missing_commit_uid, missing_is_code, missing_is_doc)):
+            raise ValueError(
+                f"Data validation failure after ingest: commits missing uid={missing_commit_uid}, "
+                f"files missing is_code={missing_is_code}, files missing is_doc={missing_is_doc}"
+            )
+
     def ingest(self):
         """Main ingestion process with enhanced git analysis."""
-        print("Starting enhanced git-based ingestion...")
+        logger.info("Starting enhanced git-based ingestion...")
 
         # Optional full reset (fresh graph)
         reset = os.environ.get("RESET_GRAPH", "").lower() in {"1", "true", "yes"}
         if reset:
             with self.driver.session() as session:
-                print("RESET_GRAPH enabled — clearing existing graph data...")
+                logger.warning("RESET_GRAPH enabled — clearing existing graph data…")
                 session.run("MATCH (n) DETACH DELETE n")
 
         # First, run the basic enhanced ingest to get sprints, requirements, documents, chunks
@@ -111,7 +199,7 @@ class EnhancedGitIngester:
         # Then analyze git commits to create Touches relationships
         commits = self._analyze_git_commits()
         
-        print(f"Analyzed {len(commits)} commits")
+        logger.info("Analyzed %d commits", len(commits))
         
         with self.driver.session() as session:
             # Create Touches relationships between commits and files
@@ -150,11 +238,14 @@ class EnhancedGitIngester:
                 engine = TemporalEngine(self.driver, git_svc)
                 engine.apply_schema()
                 ingested = engine.ingest_recent_commits(limit=temporal_limit)
-                print(f"Temporal ingestion added GitCommit graph: {ingested} commits")
-            except Exception as e:
-                print(f"Temporal ingestion failed: {e}")
+                logger.info("Temporal ingestion added GitCommit graph: %s commits", ingested)
+            except Exception as exc:
+                logger.exception("Temporal ingestion failed", exc_info=exc)
         
-        print("Enhanced git-based ingestion completed!")
+        self._backfill_file_flags()
+        self._assert_ingest_guards()
+
+        logger.info("Enhanced git-based ingestion completed!")
 
     @staticmethod
     def _create_constraints(tx):
@@ -200,8 +291,8 @@ class EnhancedGitIngester:
             doc_files = []
             
             # Analyze commit diff
-            print(f"DEBUG: Analyzing commit {commit.hexsha[:8]} - {commit.message.strip()}")
-            print(f"DEBUG: Commit has {len(commit.parents)} parents")
+            logger.debug("Analyzing commit %s - %s", commit.hexsha[:8], commit.message.strip())
+            logger.debug("Commit %s has %d parents", commit.hexsha[:8], len(commit.parents))
             
             for item in commit.diff(commit.parents[0] if commit.parents else None):
                 change_type = 'M'  # Modified by default
@@ -215,7 +306,7 @@ class EnhancedGitIngester:
                 path = item.b_path if item.b_path else item.a_path
                 old_path = item.a_path if item.renamed_file else None
                 
-                print(f"DEBUG: File change - {change_type}: {path}")
+                logger.debug("File change %s – %s", change_type, path)
                 
                 # Get diff content as string
                 diff_content = str(item.diff) if item.diff else ""
@@ -289,14 +380,18 @@ class EnhancedGitIngester:
                 message_sprints=message_sprints
             )
             
-        except Exception as e:
-            print(f"Error analyzing commit {commit.hexsha}: {e}")
+        except Exception as exc:
+            logger.exception("Error analyzing commit %s", getattr(commit, "hexsha", "<unknown>"), exc_info=exc)
             return None
 
     def _create_commit_touches(self, tx, commit_analysis: CommitAnalysis):
         """Create Touches relationships between commits and files."""
         commit_hash = commit_analysis.commit.hexsha
-        
+
+        if not self._validate_commit_processing(commit_analysis):
+            logger.error("Skipping commit %s due to validation failure", commit_hash)
+            return
+
         # Create or update commit node (unified schema: GitCommit)
         tx.run("""
             MERGE (c:GitCommit {hash: $hash})
@@ -313,9 +408,11 @@ class EnhancedGitIngester:
         timestamp=commit_analysis.commit.committed_datetime.isoformat(),
         code_files_count=len(commit_analysis.code_files),
         doc_files_count=len(commit_analysis.doc_files))
-        
+
         # Create Touches relationships for all changed files
         for file_change in commit_analysis.file_changes:
+            if not self._validate_file_change(file_change):
+                continue
             # Create or update file node
             tx.run("""
                 MERGE (f:File {path: $path})
@@ -361,6 +458,8 @@ class EnhancedGitIngester:
                 new=file_change.path,
                 commit_hash=commit_hash,
                 ts=commit_analysis.commit.committed_datetime.isoformat())
+
+        logger.debug("Created TOUCHED relationships for commit %s", commit_hash)
 
         # Create Commit->Requirement IMPLEMENTS edges (provenance)
         all_reqs = set(commit_analysis.requirements_mentioned or set()).union(commit_analysis.message_requirements or set())
@@ -480,8 +579,8 @@ class EnhancedGitIngester:
                                 req_id=req_id,
                                 chunk_id=chunk_id)
                                     
-                except Exception as e:
-                    print(f"Error processing chunks for {file_change.path}: {e}")
+        except Exception as exc:
+            logger.exception("Error processing chunks for %s", file_change.path, exc_info=exc)
 
     @staticmethod
     def _slugify(text: str) -> str:
@@ -540,19 +639,21 @@ class EnhancedGitIngester:
         )
 
     def _parse_sprint_windows(self) -> Dict[str, Tuple[str, str]]:
-        """Parse sprint start/end dates from planning file."""
-        planning = Path(self.repo_path) / "docs" / "sprints" / "planning" / "SPRINT_STATUS.md"
-        windows: Dict[str, Tuple[str, str]] = {}
-        if not planning.exists():
-            return windows
+        """Return sprint windows via the shared SprintMapper cache."""
         try:
-            text = planning.read_text(encoding="utf-8")
-            pat = re.compile(r"Sprint\s*(\d+).*?Start Date\W*:?\s*([0-9-]{8,10}).*?End Date\W*:?\s*([0-9-]{8,10})", re.IGNORECASE | re.DOTALL)
-            for m in pat.finditer(text):
-                num, start_iso, end_iso = m.group(1), m.group(2), m.group(3)
-                windows[str(num)] = (start_iso, end_iso)
-        except Exception:
-            pass
+            windows_meta = self.sprint_mapper.get_sprint_windows()
+        except Exception as exc:
+            logger.warning("Failed to load sprint windows: %s", exc)
+            return {}
+
+        windows: Dict[str, Tuple[str, str]] = {}
+        for number, meta in windows_meta.items():
+            start_iso = meta.get("start")
+            end_iso = meta.get("end")
+            if start_iso and end_iso:
+                windows[str(number)] = (start_iso, end_iso)
+
+        self.sprint_map = windows
         return windows
 
     def _link_sprints_to_commits(self):
@@ -592,7 +693,7 @@ class EnhancedGitIngester:
 
     def _create_planning_touches(self, tx):
         """Create Touches relationships between planning documents and code files."""
-        print("Creating planning-to-code Touches relationships...")
+        logger.info("Creating planning-to-code Touches relationships…")
         
         # Get all requirements and sprints
         requirements = tx.run("MATCH (r:Requirement) RETURN r.id as id, coalesce(r.description, r.raw, '') as content").data()
@@ -650,7 +751,7 @@ class EnhancedGitIngester:
                     """, sprint_num=sprint_num, file_path=file_path)
                     touches_count += 1
         
-        print(f"Created {touches_count} planning-to-code Touches relationships")
+        logger.info("Created %d planning-to-code Touches relationships", touches_count)
 
     @staticmethod
     def _create_commit_ordering(tx, commits: List[CommitAnalysis]) -> None:
@@ -698,7 +799,7 @@ class EnhancedGitIngester:
                 SET r.timestamp = $timestamp
             """, current_hash=current_hash, prev_hash=prev_hash, timestamp=timestamp)
         
-        print(f"Created commit ordering relationships for {len(sorted_commits)} commits")
+        logger.info("Created commit ordering relationships for %d commits", len(sorted_commits))
 
 
 def main():

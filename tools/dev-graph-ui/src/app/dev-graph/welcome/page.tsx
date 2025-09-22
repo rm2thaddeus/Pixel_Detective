@@ -1,10 +1,10 @@
 'use client';
 import { Box, Heading, Text, VStack, HStack, Grid, GridItem, Card, CardBody, CardHeader, Badge, Button, Spinner, Alert, AlertIcon, useColorModeValue, Stat, StatLabel, StatNumber, StatHelpText, StatArrow, Progress, Divider, Icon, Flex, Select } from '@chakra-ui/react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Header } from '@/components/Header';
 import { Link as ChakraLink } from '@chakra-ui/react';
 import { FaCode, FaGitAlt, FaFileAlt, FaProjectDiagram, FaClock, FaUsers, FaChartLine, FaExclamationTriangle, FaCheckCircle, FaTimesCircle } from 'react-icons/fa';
-import { useAnalytics, useTelemetry, useWindowedSubgraph } from '../hooks/useWindowedSubgraph';
+import { useAnalytics, useTelemetry, useWindowedSubgraph, useDataQuality } from '../hooks/useWindowedSubgraph';
 import { useQuery } from '@tanstack/react-query';
 
 // Developer Graph API base URL
@@ -55,11 +55,6 @@ interface QualityCategory {
   sections: QualitySection[];
 }
 
-interface QualityOverview {
-  categories: QualityCategory[];
-  generated_at: string;
-}
-
 export default function WelcomeDashboard() {
   const bgColor = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.200', 'gray.600');
@@ -70,17 +65,7 @@ export default function WelcomeDashboard() {
   const { data: analyticsData, isLoading: analyticsLoading, error: analyticsError } = useAnalytics();
   const { data: telemetryData, isLoading: telemetryLoading, error: telemetryError } = useTelemetry();
   const { data: subgraphData, isLoading: subgraphLoading, error: subgraphError } = useWindowedSubgraph({ limit: 10 });
-  
-  // Fetch additional data using React Query
-  const { data: qualityOverview, isLoading: qualityLoading, error: qualityError } = useQuery({
-    queryKey: ['dev-graph', 'quality-overview'],
-    queryFn: async () => {
-      const res = await fetch(`${DEV_GRAPH_API_URL}/api/v1/dev-graph/quality`);
-      if (!res.ok) throw new Error('Failed to fetch quality overview');
-      return res.json() as Promise<QualityOverview>;
-    },
-    staleTime: 2 * 60 * 1000,
-  });
+  const { data: dataQuality, isLoading: dataQualityLoading, error: dataQualityError } = useDataQuality();
   
   // Fetch additional data using React Query
   const { data: commitsData, isLoading: commitsLoading } = useQuery({
@@ -115,8 +100,8 @@ export default function WelcomeDashboard() {
   });
 
   // Calculate loading and error states
-  const loading = analyticsLoading || telemetryLoading || subgraphLoading || commitsLoading || allCommitsLoading || sprintsLoading || qualityLoading;
-  const error = analyticsError || telemetryError || subgraphError;
+  const loading = analyticsLoading || telemetryLoading || subgraphLoading || commitsLoading || allCommitsLoading || sprintsLoading || dataQualityLoading;
+  const error = analyticsError || telemetryError || subgraphError || dataQualityError;
 
   // Helper functions for node and relation type colors
   const getNodeTypeColor = (type: string) => {
@@ -148,7 +133,120 @@ export default function WelcomeDashboard() {
   };
 
   // Process data into SystemHealth format
-  const qualityCategories = qualityOverview?.categories ?? [];
+  const qualityCategories = useMemo<QualityCategory[]>(() => {
+    if (!dataQuality) {
+      return [
+        {
+          key: 'data_quality',
+          label: 'Data Quality',
+          score: 0,
+          max_score: 100,
+          summary: 'Data quality metrics not available yet – trigger an ingest to populate metrics.',
+          sections: [
+            {
+              key: 'no-data',
+              label: 'No metrics available',
+              score: 0,
+              max_score: 100,
+              summary: 'Once the developer graph ingest completes this panel will populate automatically.',
+              indicators: [],
+            },
+          ],
+        },
+      ];
+    }
+
+    const schemaEntries = Object.entries(dataQuality.schema || {});
+    const schemaScore = schemaEntries.filter(([, present]) => present).length;
+    const schemaMax = Math.max(schemaEntries.length, 1);
+
+    const relationshipEntries = Object.entries(dataQuality.relationships || {});
+    const temporalEntries = Object.entries(dataQuality.temporal || {});
+
+    return [
+      {
+        key: 'data_quality',
+        label: 'Data Quality',
+        score: dataQuality.data_quality_score ?? 0,
+        max_score: 100,
+        summary: 'Graph integrity metrics from automated ingest assertions.',
+        sections: [
+          {
+            key: 'graph-integrity',
+            label: 'Graph Integrity',
+            score: dataQuality.data_quality_score ?? 0,
+            max_score: 100,
+            summary: 'Core counts used to grade the graph snapshot.',
+            indicators: [
+              {
+                label: 'TOUCHED relationships',
+                value: dataQuality.touched_relationships ?? 0,
+                status: (dataQuality.touched_relationships ?? 0) > 0 ? 'ok' : 'warn',
+              },
+              {
+                label: 'Orphaned nodes',
+                value: dataQuality.orphaned_nodes ?? 0,
+                status: (dataQuality.orphaned_nodes ?? 0) > 0 ? 'warn' : 'ok',
+              },
+              {
+                label: 'Timestamp issues',
+                value: dataQuality.timestamp_issues ?? 0,
+                status: (dataQuality.timestamp_issues ?? 0) > 0 ? 'warn' : 'ok',
+              },
+            ],
+          },
+          {
+            key: 'temporal-consistency',
+            label: 'Temporal Consistency',
+            score: Math.max(
+              0,
+              100 - temporalEntries.reduce((sum, [, value]) => sum + (value ?? 0), 0),
+            ),
+            max_score: 100,
+            summary: 'Missing timestamps detected on temporal relationships.',
+            indicators: temporalEntries.map(([label, value]) => ({
+              label,
+              value,
+              status: (value ?? 0) > 0 ? 'warn' : 'ok',
+            })),
+          },
+        ],
+      },
+      {
+        key: 'schema',
+        label: 'Schema Coverage',
+        score: schemaScore,
+        max_score: schemaMax,
+        summary: 'Neo4j schema and relationship coverage checks.',
+        sections: [
+          {
+            key: 'schema-status',
+            label: 'Schema Status',
+            score: schemaScore,
+            max_score: schemaMax,
+            summary: 'Presence of core nodes, documents and constraints.',
+            indicators: schemaEntries.map(([label, present]) => ({
+              label,
+              value: present ? 'Present' : 'Missing',
+              status: present ? 'ok' : 'warn',
+            })),
+          },
+          {
+            key: 'relationship-coverage',
+            label: 'Relationship Coverage',
+            score: relationshipEntries.length,
+            max_score: Math.max(relationshipEntries.length, 1),
+            summary: 'Counts surfaced by the validator across relationship types.',
+            indicators: relationshipEntries.map(([label, value]) => ({
+              label,
+              value,
+              status: (value ?? 0) > 0 ? 'ok' : 'warn',
+            })),
+          },
+        ],
+      },
+    ];
+  }, [dataQuality]);
   const [selectedQualityCategory, setSelectedQualityCategory] = useState<string>('data_quality');
 
   useEffect(() => {
@@ -184,7 +282,8 @@ export default function WelcomeDashboard() {
     }
     
     if (typeof value === 'number') {
-      const formatted = Number.isInteger(value) ? value.toString() : value.toFixed(2).replace(/\.00$/, '');
+      const safeNumber = Number.isFinite(value) ? value : 0;
+      const formatted = Number.isInteger(safeNumber) ? safeNumber.toString() : safeNumber.toFixed(2).replace(/\.00$/, '');
       return unit ? formatted + unit : formatted;
     }
     
@@ -192,33 +291,49 @@ export default function WelcomeDashboard() {
     return unit ? textValue + unit : textValue;
   };
 
-  const health: SystemHealth | null = analyticsData && telemetryData ? {
-    api_connected: true,
-    database_connected: true,
-    last_ingestion: new Date().toISOString(),
-    data_quality_score: baselineScore,
-    total_nodes: analyticsData.graph.total_nodes || 0,
-    total_relations: analyticsData.graph.total_edges || 0,
-    recent_commits: analyticsData.activity.peak_activity.count || 0,
-    active_sprints: Array.isArray(sprintsData) ? sprintsData.length : 0,
-    node_types: Object.entries(analyticsData.graph.node_types || {}).map(([type, count]) => ({
+  const statsSummary = telemetryData?.summary ?? {
+    total_nodes: analyticsData?.graph?.total_nodes ?? 0,
+    total_relationships: analyticsData?.graph?.total_edges ?? 0,
+    recent_commits_7d: analyticsData?.activity?.peak_activity?.count ?? 0,
+  };
+
+  const fallbackNodeTypes = Object.entries(analyticsData?.graph?.node_types || {}).map(([type, count]) => ({
+    type,
+    count: count as number,
+    color: getNodeTypeColor(type),
+  }));
+
+  const fallbackRelTypes = Object.entries(analyticsData?.graph?.edge_types || {})
+    .map(([type, count]) => ({
       type,
       count: count as number,
-      color: getNodeTypeColor(type)
-    })),
-    relation_types: Object.entries(analyticsData.graph.edge_types || {})
-      .map(([type, count]) => ({
-        type,
-        count: count as number,
-        color: getRelationTypeColor(type)
-      }))
-      .sort((a, b) => b.count - a.count),
+      color: getRelationTypeColor(type),
+    }))
+    .sort((a, b) => b.count - a.count);
+
+  const nodeTypes = (telemetryData?.node_types?.length ? telemetryData.node_types : fallbackNodeTypes) ?? [];
+  const relationTypes = (telemetryData?.relationship_types?.length ? telemetryData.relationship_types : fallbackRelTypes) ?? [];
+
+  const health: SystemHealth = {
+    api_connected: !analyticsError,
+    database_connected: !telemetryError,
+    last_ingestion: analyticsData?.activity?.peak_activity?.timestamp ?? null,
+    data_quality_score: baselineScore,
+    total_nodes: statsSummary.total_nodes ?? 0,
+    total_relations: statsSummary.total_relationships ?? 0,
+    recent_commits: statsSummary.recent_commits_7d ?? 0,
+    active_sprints: Array.isArray(sprintsData) ? sprintsData.length : 0,
+    node_types: nodeTypes,
+    relation_types: relationTypes,
     performance_metrics: {
-      avg_query_time_ms: telemetryData.avg_query_time_ms || 0,
-      cache_hit_rate: telemetryData.cache_hit_rate || 0,
-      memory_usage_mb: telemetryData.memory_usage_mb || 0
-    }
-  } : null;
+      avg_query_time_ms: telemetryData?.avg_query_time_ms ?? 0,
+      cache_hit_rate: telemetryData?.cache_hit_rate ?? 0,
+      memory_usage_mb: telemetryData?.memory_usage_mb ?? 0,
+    },
+  };
+
+  const nodeTypeSummary = (health.node_types ?? []).slice(0, 6);
+  const relationTypeSummary = (health.relation_types ?? []).slice(0, 6);
 
   const getHealthStatus = (score: number) => {
     if (score >= 80) return { status: 'excellent', color: 'green', icon: FaCheckCircle };
@@ -454,17 +569,21 @@ export default function WelcomeDashboard() {
             </CardHeader>
             <CardBody>
               <VStack align="stretch" spacing={3}>
-                {health?.node_types?.slice(0, 6).map((nodeType, index) => (
-                  <HStack key={`node-${nodeType.type}-${index}`} justify="space-between">
-                    <HStack>
-                      <Box w={3} h={3} bg={`${nodeType.color}.500`} borderRadius="full" />
-                      <Text fontSize="sm">{nodeType.type}</Text>
+                {nodeTypeSummary.length > 0 ? (
+                  nodeTypeSummary.map((nodeType, index) => (
+                    <HStack key={`node-${nodeType.type}-${index}`} justify="space-between">
+                      <HStack>
+                        <Box w={3} h={3} bg={`${nodeType.color}.500`} borderRadius="full" />
+                        <Text fontSize="sm">{nodeType.type}</Text>
+                      </HStack>
+                      <Badge colorScheme={nodeType.color} variant="subtle">
+                        {nodeType.count}
+                      </Badge>
                     </HStack>
-                    <Badge colorScheme={nodeType.color} variant="subtle">
-                      {nodeType.count}
-                    </Badge>
-                  </HStack>
-                )) || <Text color="gray.500">No node type data available</Text>}
+                  ))
+                ) : (
+                  <Text color="gray.500">No node type data available</Text>
+                )}
               </VStack>
             </CardBody>
           </Card>
@@ -478,17 +597,21 @@ export default function WelcomeDashboard() {
             </CardHeader>
             <CardBody>
               <VStack align="stretch" spacing={3}>
-                {health?.relation_types?.slice(0, 6).map((relationType, index) => (
-                  <HStack key={`relation-${relationType.type}-${index}`} justify="space-between">
-                    <HStack>
-                      <Box w={3} h={3} bg={`${relationType.color}.500`} borderRadius="full" />
-                      <Text fontSize="sm">{relationType.type}</Text>
+                {relationTypeSummary.length > 0 ? (
+                  relationTypeSummary.map((relationType, index) => (
+                    <HStack key={`relation-${relationType.type}-${index}`} justify="space-between">
+                      <HStack>
+                        <Box w={3} h={3} bg={`${relationType.color}.500`} borderRadius="full" />
+                        <Text fontSize="sm">{relationType.type}</Text>
+                      </HStack>
+                      <Badge colorScheme={relationType.color} variant="subtle">
+                        {relationType.count}
+                      </Badge>
                     </HStack>
-                    <Badge colorScheme={relationType.color} variant="subtle">
-                      {relationType.count}
-                    </Badge>
-                  </HStack>
-                )) || <Text color="gray.500">No relation type data available</Text>}
+                  ))
+                ) : (
+                  <Text color="gray.500">No relation type data available</Text>
+                )}
               </VStack>
             </CardBody>
           </Card>

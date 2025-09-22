@@ -79,11 +79,30 @@ export interface AnalyticsResponse {
 }
 
 export interface TelemetryResponse {
-  avg_query_time_ms: number;
-  cache_hit_rate: number;
-  memory_usage_mb: number;
-  active_connections: number;
-  uptime_seconds: number;
+  summary: {
+    total_nodes: number;
+    total_relationships: number;
+    recent_commits_7d: number;
+  };
+  node_types: Array<{ type: string; count: number; color: string }>;
+  relationship_types: Array<{ type: string; count: number; color: string }>;
+  timestamp: string;
+  avg_query_time_ms?: number;
+  cache_hit_rate?: number;
+  memory_usage_mb?: number;
+  active_connections?: number;
+  uptime_seconds?: number;
+}
+
+export interface DataQualityResponse {
+  touched_relationships: number;
+  orphaned_nodes: number;
+  timestamp_issues: number;
+  data_quality_score: number;
+  generated_at: string;
+  schema: Record<string, boolean>;
+  temporal: Record<string, number>;
+  relationships: Record<string, number>;
 }
 
 export function useWindowedSubgraph(params: WindowedSubgraphParams = {}) {
@@ -270,29 +289,70 @@ export function useTelemetry() {
   return useQuery({
     queryKey: ['dev-graph', 'telemetry'],
     queryFn: async () => {
-      const url = `${process.env.NEXT_PUBLIC_DEV_GRAPH_API_URL || 'http://localhost:8080'}/api/v1/dev-graph/stats`;
-      const response = await fetch(url);
-      if (!response.ok) {
-        // Fallback to health endpoint if metrics not available
-        const healthUrl = `${process.env.NEXT_PUBLIC_DEV_GRAPH_API_URL || 'http://localhost:8080'}/api/v1/dev-graph/health`;
-        const healthResponse = await fetch(healthUrl);
-        if (!healthResponse.ok) {
-          throw new Error(`Failed to fetch telemetry: ${response.statusText}`);
+      const defaultResponse: TelemetryResponse = {
+        summary: {
+          total_nodes: 0,
+          total_relationships: 0,
+          recent_commits_7d: 0,
+        },
+        node_types: [],
+        relationship_types: [],
+        timestamp: new Date().toISOString(),
+      };
+
+      try {
+        const url = `${process.env.NEXT_PUBLIC_DEV_GRAPH_API_URL || 'http://localhost:8080'}/api/v1/dev-graph/stats`;
+        const response = await fetch(url);
+        if (!response.ok) {
+          return defaultResponse;
         }
-        const healthData = await healthResponse.json();
+        const data = await response.json();
         return {
-          avg_query_time_ms: healthData.avg_query_time_ms || 0,
-          cache_hit_rate: healthData.cache_hit_rate || 0,
-          memory_usage_mb: healthData.memory_usage_mb || 0,
-          active_connections: healthData.active_connections || 0,
-          uptime_seconds: healthData.uptime_seconds || 0,
+          summary: {
+            total_nodes: data?.summary?.total_nodes ?? 0,
+            total_relationships: data?.summary?.total_relationships ?? 0,
+            recent_commits_7d: data?.summary?.recent_commits_7d ?? 0,
+          },
+          node_types: Array.isArray(data?.node_types) ? data.node_types : [],
+          relationship_types: Array.isArray(data?.relationship_types) ? data.relationship_types : [],
+          timestamp: data?.timestamp ?? new Date().toISOString(),
+          avg_query_time_ms: data?.avg_query_time_ms ?? 0,
+          cache_hit_rate: data?.cache_hit_rate ?? 0,
+          memory_usage_mb: data?.memory_usage_mb ?? 0,
+          active_connections: data?.active_connections ?? 0,
+          uptime_seconds: data?.uptime_seconds ?? 0,
         } as TelemetryResponse;
+      } catch (error) {
+        console.warn('Failed to fetch telemetry stats', error);
+        return {
+          ...defaultResponse,
+          avg_query_time_ms: 0,
+          cache_hit_rate: 0,
+          memory_usage_mb: 0,
+          active_connections: 0,
+          uptime_seconds: 0,
+        } satisfies TelemetryResponse;
       }
-      return response.json() as Promise<TelemetryResponse>;
     },
     staleTime: 30_000, // 30 seconds
     gcTime: 2 * 60 * 1000, // 2 minutes
     refetchInterval: 30_000, // Refetch every 30 seconds
+  });
+}
+
+export function useDataQuality() {
+  return useQuery({
+    queryKey: ['dev-graph', 'analytics', 'data-quality'],
+    queryFn: async () => {
+      const url = `${process.env.NEXT_PUBLIC_DEV_GRAPH_API_URL || 'http://localhost:8080'}/api/v1/dev-graph/analytics/data-quality`;
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch data quality metrics: ${response.statusText}`);
+      }
+      return response.json() as Promise<DataQualityResponse>;
+    },
+    staleTime: 60_000,
+    gcTime: 5 * 60 * 1000,
   });
 }
 

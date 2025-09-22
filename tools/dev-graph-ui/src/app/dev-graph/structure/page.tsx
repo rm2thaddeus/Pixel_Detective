@@ -101,6 +101,7 @@ export default function StructureAnalysisPage() {
   const [selectedSourceType, setSelectedSourceType] = useState<string>('');
   const [selectedTargetType, setSelectedTargetType] = useState<string>('');
   const [selectedRelationType, setSelectedRelationType] = useState<string>('');
+  const [availableRelationTypes, setAvailableRelationTypes] = useState<string[]>([]);
   const [showClusters, setShowClusters] = useState(true);
   const [showLabels, setShowLabels] = useState(false);
   const [maxNodes, setMaxNodes] = useState(1000);
@@ -174,6 +175,24 @@ export default function StructureAnalysisPage() {
     };
 
     fetchStructureMetrics();
+  }, []);
+
+  // Fetch real relation types from graph data
+  useEffect(() => {
+    const fetchRelationTypes = async () => {
+      try {
+        const response = await fetch(`${DEV_GRAPH_API_URL}/api/v1/dev-graph/graph/subgraph?limit=200&include_counts=true`);
+        if (response.ok) {
+          const data = await response.json();
+          const relationTypes = [...new Set(data.edges.map((edge: any) => edge.type))];
+          setAvailableRelationTypes(relationTypes);
+        }
+      } catch (err) {
+        console.error('Failed to fetch relation types:', err);
+      }
+    };
+
+    fetchRelationTypes();
   }, []);
 
   // Simplified calculations for demonstration
@@ -439,8 +458,8 @@ export default function StructureAnalysisPage() {
                   onChange={(e) => setSelectedRelationType(e.target.value)}
                 >
                   <option value="">All Relations</option>
-                  {metrics?.relation_types.map(rt => (
-                    <option key={'rel-'+rt.type} value={rt.type}>{rt.type}</option>
+                  {availableRelationTypes.map(rt => (
+                    <option key={'rel-'+rt} value={rt}>{rt}</option>
                   ))}
                 </Select>
               </HStack>
@@ -484,7 +503,8 @@ export default function StructureAnalysisPage() {
                   size="sm" 
                   variant="outline" 
                   onClick={() => {
-                    setSelectedNodeType('');
+                    setSelectedSourceType('');
+                    setSelectedTargetType('');
                     setSelectedRelationType('');
                   }}
                 >

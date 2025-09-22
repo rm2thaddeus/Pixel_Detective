@@ -73,11 +73,13 @@ def bootstrap_graph(
         commit_results = parallel_pipeline.ingest_commits_parallel(limit=commit_limit)
         progress["commits_ingested"] = commit_results["commits_ingested"]
 
-        try:
-            mapped = sprint_mapper.map_all_sprints()
-            progress["sprints_mapped"] = mapped.get("count", 0) if isinstance(mapped, dict) else 1
-        except Exception:
+        mapped = sprint_mapper.map_all_sprints()
+        if isinstance(mapped, dict):
+            progress["sprints_mapped"] = mapped.get("count", 0)
+            progress["sprint_windows"] = mapped.get("windows", [])
+        else:
             progress["sprints_mapped"] = 0
+            progress["sprint_windows"] = []
 
         # Chunking is handled by EnhancedDevGraphIngester above
         # Disable parallel chunking to avoid duplication

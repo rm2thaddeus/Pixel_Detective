@@ -18,6 +18,7 @@ Pixel Detective is a vibe coding manifesto: every aspect of this project was cre
 - **🗺️ Interactive Latent Space Explorer** - Real-time UMAP scatter plot with clustering, lasso selection & thumbnail previews
 - **⚡ GPU-Accelerated UMAP & Clustering** - Dedicated RAPIDS cuML micro-service delivering 10-300× speed-ups
 - **🎬 WebGL Timeline Visualization** - CUDA-accelerated code evolution timeline with real-time commit progression
+- **📦 DevGraph Standalone Ready** - Migration playbook published at `docs/sprints/sprint-11/DEV_GRAPH_STANDALONE_MIGRATION.md`
 
 ## 🏗️ Architecture
 

@@ -1,5 +1,5 @@
 'use client';
-import { Box } from '@chakra-ui/react';
+import { Box, Button, HStack } from '@chakra-ui/react';
 import { useEffect, useRef, useState } from 'react';
 import * as d3 from 'd3';
 
@@ -62,6 +62,7 @@ export default function StructureAnalysisGraph({
   const svgRef = useRef<SVGSVGElement>(null);
   const [mounted, setMounted] = useState(false);
   const [realData, setRealData] = useState<{nodes: any[], edges: any[]} | null>(null);
+  const [showEdges, setShowEdges] = useState(true);
 
   useEffect(() => {
     setMounted(true);
@@ -170,18 +171,39 @@ export default function StructureAnalysisGraph({
     const keepIds = new Set<string>();
     safeLinks.forEach((l: any) => { keepIds.add(String(l.source)); keepIds.add(String(l.target)); });
     const filteredNodes = nodes.filter((n: any) => keepIds.size === 0 || keepIds.has(String(n.id)));
-    
-    // Further filter by relation type if selected
-    if (selectedRelationType) {
-      filteredLinks = filteredLinks.filter(d => d.type === selectedRelationType);
-    }
 
     // Debug logging
     try {
       const nodeTypesSet = [...new Set(nodes.map((n: any) => n.type))];
       const relTypesSet = [...new Set(links.map((l: any) => l.type))];
-      console.log(`Filtering debug: nodes=${nodes.length}, filteredNodes=${filteredNodes.length}, links=${links.length}, filteredLinks=${filteredLinks.length}, nodeTypes=${nodeTypesSet.join(',')}, relTypes=${relTypesSet.join(',')}`);
-    } catch {}
+      const safeRelTypesSet = [...new Set(safeLinks.map((l: any) => l.type))];
+      console.log(`Filtering debug:`, {
+        totalNodes: nodes.length,
+        filteredNodes: filteredNodes.length,
+        totalLinks: links.length,
+        filteredLinks: filteredLinks.length,
+        safeLinks: safeLinks.length,
+        selectedRelationType,
+        selectedSourceType,
+        selectedTargetType,
+        nodeTypes: nodeTypesSet,
+        allRelTypes: relTypesSet,
+        safeRelTypes: safeRelTypesSet
+      });
+    } catch (e) {
+      console.error('Debug logging error:', e);
+    }
+
+    if (safeLinks.length === 0) {
+      console.warn('StructureAnalysisGraph: no edges returned for current filters', {
+        nodeCount: nodes.length,
+        filteredNodes: filteredNodes.length,
+        totalLinks: links.length,
+        selectedRelationType,
+        selectedSourceType,
+        selectedTargetType,
+      });
+    }
 
     // If no nodes after filtering, show a message
     if (filteredNodes.length === 0) {
@@ -223,7 +245,8 @@ export default function StructureAnalysisGraph({
       .enter().append("line")
       .attr("stroke", (d: any) => linkColorScale(d.type) || '#999')
       .attr("stroke-opacity", 0.6)
-      .attr("stroke-width", 1);
+      .attr("stroke-width", 1)
+      .style("display", showEdges ? "block" : "none");
 
     // Create nodes
     const node = g.append("g")
@@ -444,7 +467,14 @@ export default function StructureAnalysisGraph({
       });
     }
 
-  }, [mounted, metrics, height, width, selectedSourceType, selectedTargetType, selectedRelationType, showClusters, showLabels, maxNodes, useRealData, realData]);
+  }, [mounted, metrics, height, width, selectedSourceType, selectedTargetType, selectedRelationType, showClusters, showLabels, maxNodes, useRealData, realData, showEdges]);
+
+  useEffect(() => {
+    if (!svgRef.current) return;
+    d3.select(svgRef.current)
+      .selectAll('g.links line')
+      .style('display', showEdges ? 'block' : 'none');
+  }, [showEdges]);
 
   // Generate synthetic nodes based on metrics
   const generateSyntheticNodes = (metrics: StructureMetrics, maxNodes: number) => {
@@ -548,15 +578,22 @@ export default function StructureAnalysisGraph({
   }
 
   return (
-    <Box style={{ height, width, minHeight: height, minWidth: width }}>
-      <svg 
-        ref={svgRef} 
-        style={{ 
-          height: '100%', 
-          width: '100%', 
-          minHeight: height, 
-          minWidth: width 
-        }} 
+    <Box position="relative" style={{ height, width, minHeight: height, minWidth: width }}>
+      <Box position="absolute" top="12px" right="16px" zIndex={1}>
+        <HStack spacing={2}>
+          <Button size="xs" variant={showEdges ? 'solid' : 'outline'} onClick={() => setShowEdges(!showEdges)}>
+            {showEdges ? 'Hide edges' : 'Show edges'}
+          </Button>
+        </HStack>
+      </Box>
+      <svg
+        ref={svgRef}
+        style={{
+          height: '100%',
+          width: '100%',
+          minHeight: height,
+          minWidth: width,
+        }}
       />
     </Box>
   );
