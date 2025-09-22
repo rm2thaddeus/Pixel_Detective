@@ -185,6 +185,57 @@ class UnifiedIngestionPipeline:
         start_time = time.time()
         mapped = sprint_mapper.map_all_sprints()
         
+        # Create Sprint nodes in the database
+        if isinstance(mapped, dict) and mapped.get("windows"):
+            sprint_windows = mapped.get("windows", [])
+            sprint_nodes = []
+            
+            for window in sprint_windows:
+                sprint_nodes.append({
+                    "number": window["number"],
+                    "name": window["name"],
+                    "start_date": window["start"],
+                    "end_date": window["end"],
+                    "uid": window["number"]
+                })
+            
+            # Create Sprint nodes in database
+            with self.driver.session() as session:
+                session.run("""
+                    UNWIND $sprints AS sprint
+                    MERGE (s:Sprint {number: sprint.number})
+                    SET s.name = sprint.name, 
+                        s.start_date = sprint.start_date, 
+                        s.end_date = sprint.end_date,
+                        s.uid = sprint.uid
+                """, sprints=sprint_nodes)
+                
+                # Create INCLUDES relationships between sprints and commits
+                for window in sprint_windows:
+                    session.run("""
+                        MATCH (s:Sprint {number: $sprint_number})
+                        MATCH (c:GitCommit)
+                        WHERE datetime(c.timestamp) >= datetime($start_date)
+                          AND datetime(c.timestamp) <= datetime($end_date)
+                        MERGE (s)-[:INCLUDES]->(c)
+                    """, 
+                    sprint_number=window["number"],
+                    start_date=window["start"],
+                    end_date=window["end"])
+                
+                # Create CONTAINS_DOC relationships between sprints and documents
+                for window in sprint_windows:
+                    sprint_number = window["number"]
+                    # Find documents that belong to this sprint based on path
+                    session.run("""
+                        MATCH (s:Sprint {number: $sprint_number})
+                        MATCH (d:Document)
+                        WHERE d.path CONTAINS $sprint_pattern
+                        MERGE (s)-[:CONTAINS_DOC]->(d)
+                    """, 
+                    sprint_number=sprint_number,
+                    sprint_pattern=f"sprint-{sprint_number}")
+        
         self.stages_completed += 1
         self.results["stage_5"] = {
             "sprints_mapped": mapped.get("count", 0) if isinstance(mapped, dict) else 0,

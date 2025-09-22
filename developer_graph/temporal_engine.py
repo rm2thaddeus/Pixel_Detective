@@ -680,14 +680,15 @@ class TemporalEngine:
             pass
         
         # Build WHERE clause for time bounds
-        where_clauses = ["r.timestamp IS NOT NULL"]
+        # Include both temporal relationships and non-temporal relationships (like Sprint nodes)
+        where_clauses = ["(r.timestamp IS NOT NULL OR type(r) IN ['INCLUDES', 'CONTAINS_DOC', 'CONTAINS_CHUNK', 'PART_OF', 'IMPLEMENTS', 'MENTIONS', 'EVOLVES_FROM', 'REFACTORED_TO'])"]
         params = {"limit": max(1, min(limit, 5000))}
         
         if from_timestamp:
-            where_clauses.append("r.timestamp >= $from_ts")
+            where_clauses.append("(r.timestamp IS NULL OR r.timestamp >= $from_ts)")
             params["from_ts"] = from_timestamp
         if to_timestamp:
-            where_clauses.append("r.timestamp <= $to_ts")
+            where_clauses.append("(r.timestamp IS NULL OR r.timestamp <= $to_ts)")
             params["to_ts"] = to_timestamp
             
         # Add node type filtering if specified
