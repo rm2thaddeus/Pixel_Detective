@@ -1,209 +1,230 @@
-Developer Graph Services — Architecture Overview
+﻿Developer Graph API - Architecture Overview
+===========================================
 
-Status: Current as of Sprint 11 - Biological Evolution UI Implementation
+Status
+------
+- Last updated: 2025-09-24 (addendum merged into main architecture; original final recorded 2025-09-23)
+- Owners: Dev Graph Platform Team
+- Repository root: `C:\Users\aitor\OneDrive\Escritorio\Vibe Coding`
 
-## 🚀 Quick Start Commands
+Quick Start Commands
+--------------------
 
 ```bash
-# Quick Developer Graph API reload (from repo root)
+# API only (from repo root)
 python -m uvicorn developer_graph.api:app --reload --host 0.0.0.0 --port 8080
 
-
-# Complete stack startup
+# Complete stack
 ./start_app.ps1
 
 # Frontend only (from tools/dev-graph-ui)
 npm run dev
 ```
 
-### Path normalization and document ingestion (Sprint 11)
+System Overview
+---------------
 
-- All `Document.path` and chunk `doc_path` values are stored as repo‑relative POSIX paths (e.g. `docs/sprints/critical-ui-refactor/README.md`).
-- Both Enhanced and Parallel ingestion pipelines normalize paths consistently:
-  - Enhanced: `enhanced_ingest.py` `_normalize_repo_relative_path()`
-  - Parallel: `parallel_ingestion.py` `_normalize_repo_relative_path()`
-- Titles: markdown document titles are extracted from the first heading and stored in `Document.title`.
-- Chunk links: `Document` −[:CONTAINS_CHUNK]→ `Chunk` use normalized paths; verification shows zero mismatches.
+The Developer Graph platform fuses Git history, documentation, sprint planning, and semantic chunking into a time-aware knowledge graph. It is composed of:
 
-Operational notes:
-- Reset and bootstrap:
-  - DELETE `http://localhost:8080/api/v1/dev-graph/reset?confirm=true`
-  - POST `http://localhost:8080/api/v1/dev-graph/ingest/bootstrap?reset_graph=true&commit_limit=2000&derive_relationships=true&include_chunking=true`
-- Verification helper: run `python verify_docs.py` from repo root to print counts, sample titles, and path checks.
+- **Backend API (FastAPI)** - routers in `developer_graph/routes/*` exposing graph operations, analytics, ingestion, and admin endpoints.
+- **Graph Persistence (Neo4j 5.x)** - temporal schema with strict uniqueness constraints, timestamped relationships, fulltext, and vector indexes.
+- **Ingestion Services**
+  - `ParallelIngestionPipeline` for commit extraction and batched writes.
+  - `ChunkIngestionService` for document/code discovery and chunk creation.
+  - `UnifiedIngestionPipeline` combining reset, commits, chunks, sprint mapping, relationship derivation, and optional embeddings behind `/api/v1/dev-graph/ingest/unified`.
+- **Shared Services (`app_state.py`)** - GitHistoryService, TemporalEngine, SprintMapper, RelationshipDeriver, ChunkIngestionService, EmbeddingService, ParallelIngestionPipeline.
+- **Frontend (Next.js 15.5)** - biological evolution graphs, timelines, and analytics dashboards located under `tools/dev-graph-ui`.
 
----
+API Surface (Current)
+---------------------
 
-1. Overview
-- Purpose: Provide time‑aware developer graph APIs with unified temporal schema, fast ingestion, analytics, evidence‑based relationships, and interactive biological evolution visualizations.
-- Tech: FastAPI (routers), Neo4j 5.x, GitPython, Python 3.x, Next.js 15.5, D3.js, Chakra UI.
-- Key Concepts: Temporal edges with timestamps (TOUCHED/IMPLEMENTS/EVOLVES_FROM), evidence sources with confidence, biological evolution metaphors for code visualization.
+- `GET /api/v1/dev-graph/health`, `GET /api/v1/dev-graph/metrics` - liveness and baseline metrics.
+- Ingestion endpoints:
+  - `POST /api/v1/dev-graph/ingest/unified` plus `/status`, `/stop`, `/report` for progress tracking.
+  - `POST /api/v1/dev-graph/ingest/optimized` - experimental high-parallel path (see `developer_graph/routes/optimized_ingest.py:639`).
+  - `POST /api/v1/dev-graph/ingest/unlimited` - queue-backed variant for no-limit processing.
+  - `POST /api/v1/dev-graph/ingest/bootstrap`, `/bootstrap/lean`, `/bootstrap/complete` - legacy bootstraps covering schema + commits + derivation.
+  - `POST /api/v1/dev-graph/ingest/chunks` - direct chunking via `ChunkIngestionService` with optional targeted `files`.
+  - `POST /api/v1/dev-graph/ingest/recent`, `/git/enhanced`, `/git/batched`, `/temporal-semantic`, `/parallel` - commit-focused ingestion choices.
+- Graph queries & analytics: search, sprint, timeline, evolution, quality, admin routes in `developer_graph/routes/*`.
 
-2. High‑Level Components
+Data Model (Temporal Semantic)
+------------------------------
 
-## 2.1 Backend Services
-- app_state.py: Initializes shared services and driver
-  - driver: Neo4j driver
-  - git: GitHistoryService
-  - engine: TemporalEngine
-  - sprint_mapper: SprintMapper
-  - deriver: RelationshipDeriver
-  - validator: DataValidator
-  - chunk_service: ChunkIngestionService
-  - embedding_service: EmbeddingService
-  - parallel_pipeline: ParallelIngestionPipeline
-- Routers (developer_graph/routes)
-  - health_stats: health, stats
-  - nodes_relations: nodes, relations
-  - search: property and fulltext search
-  - commits_timeline: commits list, timeline, commit detail, file history, subgraph by commit range
-  - sprints: sprints list, sprint map, sprint details, sprint subgraph
-  - graph: windowed subgraph, commit buckets
-  - analytics: activity, graph, combined analytics
-  - ingest: bootstrap, docs, git ingestion (enhanced/batched/temporal semantic), parallel ingest, chunks, derive relationships, embeddings
-  - chunks: chunk stats/list
-  - metrics: engine metrics
-  - validate: schema/data validation & cleanup helpers
-  - admin: reset/cleanup/full‑reset
+- **Nodes** - `GitCommit`, `File`, `Document`, `Chunk`, `Requirement`, `Sprint`, with derived attributes (language, type, UID).
+- **Relationships** - timestamped `TOUCHED`, `IMPLEMENTS`, `EVOLVES_FROM`, `REFACTORED_TO`, `CONTAINS_CHUNK`, `MENTIONS`, sprint inclusion edges, and optional dependency links.
+- **Indexes & Constraints** - unique constraints on core node identifiers; range indexes on timestamps; fulltext indexes for search; optional vector index on `Chunk.embedding` for semantic similarity.
 
-## 2.2 Frontend Services (tools/dev-graph-ui)
-- Next.js 15.5 application with TypeScript
-- D3.js for data visualization and biological evolution animations
-- Chakra UI for component library and responsive design
-- Key Components:
-  - BiologicalEvolutionGraph: Temporal commit tree with file dendrograms, biological metaphors (birth/growth/mutation/death)
-  - TemporalEvolutionGraph: Traditional timeline visualization with file lifecycles
-  - SimplePhysicsSimulation: Physics-based file movement simulation
-  - ProgressiveStructureGraph: Structural analysis over time
-- Visualization Features:
-  - Biological evolution metaphors (organisms, generations, ecosystem)
-  - Physics simulations with gravity, springs, and repulsion forces
-  - Interactive timeline controls and playback
-  - Real-time data fetching from Developer Graph API
+Ingestion Architecture
+----------------------
 
-3. Data Model (Temporal Semantic)
-- Nodes
-  - GitCommit {hash, message, author, timestamp, branch?, uid}
-  - File {path, language?, is_code?, is_doc?, extension?, uid}
-  - Requirement {id, title?, description?, author?, date_created?, tags?, uid}
-  - Document {path, name?, title?, type?, uid}
-  - Chunk {id, doc_path?, heading?, level?, ordinal?, content_preview?, length?, kind?, text?, embedding?, uid}
-  - Sprint {number, name?, start_date?, end_date?, uid}
-- Relationships (selected)
-  - (GitCommit)-[:TOUCHED {change_type, additions?, deletions?, timestamp}]->(File)
-  - (Requirement)-[:IMPLEMENTS {sources, confidence, commit?, timestamp, provenance?}]->(File)
-  - (Requirement)-[:EVOLVES_FROM {sources, confidence, commit?, timestamp, diff_summary?}]->(Requirement)
-  - (File)-[:REFACTORED_TO {commit, refactor_type?, timestamp}]->(File)
-  - (Sprint)-[:INCLUDES]->(GitCommit)
-  - (Sprint)-[:CONTAINS_DOC]->(Document)
-  - (Document)-[:CONTAINS_CHUNK]->(Chunk)
-  - (Chunk)-[:MENTIONS]->(Requirement)
-  - (Sprint)-[:MENTIONS]->(File) (structural planning reference)
+1. **Stage 1 - Reset & Schema**
+   - Optional graph wipe followed by schema application (`TemporalEngine.apply_schema`).
+   - All constraint/index creation is idempotent; noisy but harmless Neo4j notices are expected after the first run.
+2. **Stage 2 - Commit Ingestion**
+   - `ParallelIngestionPipeline.ingest_commits_parallel()` pulls Git history with `git --name-status`, fanning out to worker threads for diff parsing, and writes commits in 200-size batches.
+3. **Stage 3 - Repository Discovery & Chunking**
+   - `ChunkIngestionService.discover_all_files()` walks the repo once, normalizing Windows paths to POSIX and categorising into documents, code, config, data, and other files.
+   - `ChunkIngester` reads files, generates Markdown or code chunks, and merges them into Neo4j with consistent repo-relative paths.
+   - Limits are optional; omitting them processes *all* discovered files and logs the effective limit (`no limit`, `0 (skip)`, etc.).
+4. **Stage 4 - Chunk Summary**
+   - Reuses cached discovery results to report code ingestion metrics without reprocessing files.
+   - Note: In current code this stage is a summary only; all chunking work happens in Stage 3.
+5. **Stage 5 - Sprint Mapping**
+   - `SprintMapper.map_all_sprints()` imports sprint windows and links documents/commits.
+6. **Stage 6 - Relationship Derivation**
+   - `RelationshipDeriver` applies heuristic strategies (commit messages, doc mentions, dependency analysis) with accumulated confidences.
+7. **Stage 7 - Embeddings (Optional)**
+   - `EmbeddingService` can populate vector embeddings for chunks; defaults to off to keep ingestion latency manageable.
 
-4. Schema & Indexing
-- Constraints: unique on GitCommit.hash, File.path, Requirement.id, Chunk.id, Document.path, Sprint.number
-- Property Indexes: GitCommit.timestamp, File.path, Requirement.id, Chunk.id
-- Relationship Indexes: timestamp index on TOUCHED/IMPLEMENTS/EVOLVES_FROM/DEPRECATED_BY/REFACTORED_TO
-- Fulltext: file_fulltext, requirement_fulltext, commit_fulltext, chunk_fulltext, document_fulltext
-- Vector: Chunk.embedding (cosine), 512 dims (if available)
+Reality Check vs Code
+---------------------
 
-5. Ingestion Flows
-- TemporalEngine (developer_graph/temporal_engine.py)
-  - ingest_recent_commits, *_batched, *_parallel
-  - time_bounded_subgraph, get_commits_buckets, evolution timelines
-  - Creates GitCommit + File + TOUCHED(timestamp), derives IMPLEMENTS from commit messages; detects refactors
-- EnhancedDevGraphIngester (developer_graph/enhanced_ingest.py)
-  - Sprints, documents, chunk extraction, mentions, references
-  - Batch UNWIND operations for performance
-- EnhancedGitIngester (developer_graph/enhanced_git_ingest.py)
-  - Commit analysis and provenance; sprint rollups; doc chunk modifications
-  - Uses GitCommit + TOUCHED(timestamp), and structural MENTIONS for planning
-- Bootstrap (routes/ingest.py)
-  - Apply schema → enhanced docs → parallel commit ingest → sprint mapping → optional chunking → relationship derivation
+- `UnifiedIngestionPipeline` sets `total_stages = 6` even though seven stages execute (see `developer_graph/routes/unified_ingest.py:51`); adjust or merge Stage 3+4 when reporting.
+- Chunk writers diverge: `ChunkIngestionService` persists `Chunk.text`/`kind`, while parallel/optimized paths also set `c.content` and alternate relationships (e.g., `BELONGS_TO`). Standardise on `text` as the primary payload and `kind = doc|code`.
+- Relationship derivation expects `(:File)-[:IMPORTS]->(:File)` edges; none are created yet, so DEPENDS_ON warnings are expected until an import graph exists.
 
-6. Evidence‑Based Relationship Derivation
-- RelationshipDeriver (developer_graph/relationship_deriver.py)
-  - IMPLEMENTS: commit‑message (0.9), doc‑mention (0.6), code‑comment proxy (0.8)
-  - EVOLVES_FROM: pattern extraction from commit messages (replaces/evolves from/supersedes)
-  - DEPENDS_ON: import graph best‑effort mapping (when File‑[:IMPORTS]->File exists)
-  - Confidence accumulation: `1 - (1 - prev) * (1 - new)`; sources appended
-  - Watermarks: maintain `DerivationWatermark` per strategy
+Path Normalisation & Consistency
+--------------------------------
 
-7. API Contracts (selected)
-- GET /api/v1/dev-graph/health: HealthResponse
-- GET /api/v1/dev-graph/stats: StatsResponse (consolidated query)
-- GET /api/v1/dev-graph/graph/subgraph: WindowedSubgraphResponse
-- GET /api/v1/dev-graph/commits/buckets: CommitsBucketsResponse
-- GET /api/v1/dev-graph/evolution/timeline: commits + file lifecycles (actions via coalesce(action, change_type))
-- POST /api/v1/dev-graph/ingest/bootstrap: staged bootstrap; returns per‑stage progress
-- POST /api/v1/dev-graph/ingest/derive-relationships: counts + confidence stats
+- Repo root resolved once (`ChunkIngestionService.repo_root`).
+- All stored paths use forward slashes relative to the repo root; ingestion gracefully handles relative or absolute inputs during manual runs.
+- Failures during chunk creation are logged with file path plus exception for triage.
 
-8. Performance & Caching
-- Engine TTL cache (default 60s) for hot subgraphs
-- Consolidated stats query (single round‑trip)
-- Batched UNWIND writes across ingesters
-- Parallel ingestion pipeline for commits and chunks
+Performance Snapshot (2025-09-23)
+---------------------------------
 
-9. Logging & Telemetry
-- Logging to stdout + file `dev_graph_api.log`
-- /api/v1/dev-graph/metrics exposes basic engine metrics; health includes memory usage
-- Frontend logging via browser console and React Query DevTools
+| Stage                                 | Metric / Output                                     | Result |
+|---------------------------------------|------------------------------------------------------|--------|
+| Commit extraction (Stage 2)           | 273 commits parsed                                   | 0.60 s |
+| Commit processing (Stage 2)           | 273 commits with 8 workers                           | 54.67 s |
+| Commit writes (Stage 2)               | 273 commits written (200 + 73 batch)                 | 56.91 s total |
+| Document ingestion (Stage 3)          | 172 documents -> 2,627 chunks                        | 42m 16s |
+| Code ingestion (Stage 3)              | 440 code files -> 13,234 chunks                      | 42m 16s |
+| Sprint mapping (Stage 5)              | 12 sprints                                           | 12.6 s |
+| Relationship derivation (Stage 6)     | 482 relationships (warning: missing `DEPENDS_ON`)    | 3.4 s |
+| Unified pipeline (Stage 1-6)          | Final graph: 18,840 nodes / 21,254 relationships     | 2,611 s |
 
-10. Current Implementation Status (Sprint 11)
-- ✅ Biological Evolution Graph: Temporal commit tree with file dendrograms
-- ✅ Physics Simulation: Basic physics-based file movement
-- ✅ Timeline Controls: Playback, navigation, time-based visualization
-- ✅ Data Integration: Real-time API integration with Developer Graph
-- ⚠️ UI/UX Issues: Physics simulation crowding, canvas space utilization
-- 🔄 In Progress: Layout optimization and space utilization improvements
+> Observation: chunk creation dominates wall-clock time (~42 minutes) versus <1 minute for commit ingestion. The total unified run (reset through derivation) completes in ~43.5 minutes.
 
-11. Operational Notes
-- Environment:
-  - NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD
-  - REPO_PATH
-  - TEMPORAL_LIMIT (optional)
-- Security/CORS: env `CORS_ORIGINS` overrides default localhost origins
+Operational Audit
+-----------------
 
-12. Service Startup Commands
+Completed:
+- Unified ingestion endpoint uses optional limits and reports discovery vs. selected vs. processed counts.
+- Path handling consolidated across pipelines; Neo4j now stores consistent repo-relative POSIX paths.
+- Stage logs and final report include discovery summaries, sample paths, per-stage durations, and final graph totals.
 
-## 12.1 Complete Stack Startup
-```powershell
-# From repository root - starts all services
-./start_app.ps1
-```
+Needs Improvement (Tracked)
+---------------------------
 
-## 12.2 Backend Services Only
-```powershell
-# From repository root - starts all backend services
-./start_backend.ps1
+- Stage accounting mismatch between implemented stages and reported `total_stages` in `UnifiedIngestionPipeline`.
+- Chunk ingestion remains single-threaded; batching with worker/process pools should trim the 42-minute runtime.
+- Chunk schema is inconsistent across writers (`text` vs `content`, varying relationships); normalise for downstream consumers.
+- Long-running chunking lacks streaming progress feedback; add job IDs and status feeds to avoid timeouts.
+- Relationship derivation warns on DEPENDS_ON because no import graph exists yet; need import extraction or guardrails.
 
-# With background jobs (recommended for development)
-./start_backend.ps1 -UseJobs
+Streamlining Plan (Next Steps)
+------------------------------
 
-# Skip Docker containers (Python services only)
-./start_backend.ps1 -SkipContainers
-```
+1. **Unify Chunk Schema and Writers**
+   - Standardise `Chunk` payload (`id`, `kind`, `text`, `file_path`, `heading`, `section|symbol`, `span`, `length`).
+   - Ensure all writers set `text` and `kind`; write `content` in parallel for one release before removing it.
+   - Normalise relationships to `(:Document)-[:CONTAINS_CHUNK]->(:Chunk)` and `(:Chunk)-[:PART_OF]->(:File)`.
 
-## 12.3 Frontend Development
-```powershell
-# From tools/dev-graph-ui directory
-cd tools/dev-graph-ui
-npm run dev
-```
+2. **Incremental Ingestion (Manifest + Delta)**
+   - Generate a manifest (repo-relative path, size, mtime, SHA-1) using `git ls-files` plus hashing.
+   - Compare manifests to skip unchanged files and delete orphaned chunks/files.
+   - Extend derivation watermarks to track last ingested commit for incremental runs.
 
-## 12.4 Service Endpoints
-- **Qdrant UI**: http://localhost:6333
-- **Neo4j Browser**: http://localhost:7474 (neo4j/password)
-- **Developer Graph API**: http://localhost:8080/docs
-- **ML Inference Service**: http://localhost:8001/docs
-- **Ingestion Orchestrator**: http://localhost:8002/docs
-- **GPU UMAP API**: http://localhost:8003/docs
-- **Dev Graph UI**: http://localhost:3000/dev-graph/timeline
+3. **True Parallel Chunking**
+   - Wrap `ChunkIngestionService` work in a `ProcessPoolExecutor` with bounded queues and batched UNWIND writes (500-1,000 chunks/transaction).
+   - Preserve idempotent MERGE semantics.
 
-13. Extensibility Guidelines
-- Add a new router under `developer_graph/routes/` and include it in `developer_graph/api.py`
-- Access shared services via `developer_graph/app_state.*`
-- Keep endpoint paths stable to avoid FE breakage; add versioned variants if contracts change
-- For new relationship derivations, add a strategy to RelationshipDeriver with clear source + confidence math
-- For new UI visualizations, add components to `tools/dev-graph-ui/src/app/dev-graph/components/`
-- Use D3.js for custom visualizations, Chakra UI for standard components
+4. **Import Graph for DEPENDS_ON**
+   - Parse imports/includes for Python/TS/JS during chunking to create `(:File)-[:IMPORTS]->(:File)`.
+   - Gate DEPENDS_ON derivation until import edges exist to silence warnings.
 
+5. **Job Control and Streaming Progress**
+   - Introduce `ingestion_job_id`, allow `/status/{job_id}` polling or SSE, and persist job snapshots in memory or a lightweight store.
+
+6. **Profiles and Scoping**
+   - Add `profile=full|delta|quick` and optional `subpath` filters to `/ingest/unified`.
+
+7. **Observability and SLOs**
+   - Emit per-stage throughput to `/metrics` and alert when Stage 3 drops below target; log top-N slowest files.
+
+Phased Implementation
+---------------------
+
+- **Phase A (quick wins, 1-2 days)**
+  - Fix `total_stages` reporting to 7 (or merge Stage 3+4) and update the final report.
+  - Standardise chunk writes (`text`, `kind`) while keeping `content` as a transitional alias.
+  - Guard DEPENDS_ON derivation when no `IMPORTS` edges exist.
+  - Align timeline endpoint caps to the PRD (`limit=5000`) where safe.
+
+- **Phase B (incremental + parallel, 1-2 sprints)**
+  - Ship manifest + delta planner and store last-run manifest (Neo4j node or JSON artifact).
+  - Move chunking to `ProcessPoolExecutor` with bounded queues and batched UNWIND writes.
+  - Add job IDs and profile/subpath arguments to unified ingestion.
+  - Build minimum viable import graph for Python/TS to unlock DEPENDS_ON.
+
+- **Phase C (quality + embeddings, ongoing)**
+  - Run background embeddings with quotas/backoff and stamp `embedding_ts`.
+  - Add data quality gate that fails the unified run when orphan/timestamp ratios breach thresholds.
+
+Acceptance Metrics
+------------------
+
+- Stage 3 throughput ≥ 600 chunks/min with 8 workers on this repo.
+- Delta runs at least 10× faster than full ingest when <10% of files change.
+- Unified report node/relationship totals within ±1% of Neo4j counts.
+- No DEPENDS_ON warnings when imports are absent; counts >0 once import graph lands.
+
+Performance Improvement Ideas (Legacy Reference)
+-----------------------------------------------
+
+1. **Parallel Chunk Ingestion**
+   - Use a worker pool (ThreadPoolExecutor or ProcessPool for CPU-bound parsing) to ingest documents/code concurrently.
+   - Aggregate per-file results and execute batched Neo4j writes to avoid excessive transactions.
+
+2. **Incremental Chunking Cache**
+   - Track file hashes (e.g., SHA-1) and skip unchanged files between runs, drastically reducing ingestion for stable repos.
+
+3. **Streaming Chunk Writes**
+   - Replace per-chunk write transactions with batched UNWIND statements to lower transaction overhead.
+
+4. **Hardware Acceleration**
+   - GPU acceleration applies mainly to embedding generation; ingestion itself is IO/CPU-bound. Profiling may reveal hotspots suitable for Cython or Rust extensions.
+   - Consider memory-mapped file reading for large docs or codebases to reduce Python-level overhead.
+
+5. **Monitoring & Alerts**
+   - Expose ingestion duration metrics via `/metrics` and alert when stages exceed target thresholds.
+
+Roadmap: Advanced Relationship Derivation
+-----------------------------------------
+
+- Evaluate ML-based semantic similarity (e.g., cross-encoder or graph neural nets) to derive higher-confidence `IMPLEMENTS`/`DEPENDS_ON` edges.
+- Integrate lightweight LLM summarisation for commit-to-requirement mapping.
+- Next research milestones are tracked in `docs/sprints/sprint-11/DEV_GRAPH_TEMPORAL_SEMANTIC_PRD.md` under "ML Relationship Enhancements".
+
+Operational Notes & Environment
+-------------------------------
+
+- Core env vars: `NEO4J_URI`, `NEO4J_USER`, `NEO4J_PASSWORD`, `REPO_PATH`, optional `CORS_ORIGINS`.
+- Logs: stdout + `dev_graph_api.log`; keep log rotation plan for long-running ingestion.
+- Supporting scripts: `verify_docs.py` for document sanity checks, `fix_data_quality.py` for ad hoc cleanups.
+
+Extensibility Guidelines
+------------------------
+
+- Add routers under `developer_graph/routes/` and include them in `developer_graph/api.py`.
+- Shared services are available via `developer_graph.app_state` to avoid circular initialisation.
+- Version breaking API changes by adding `/api/v2/*` endpoints to safeguard frontend integrations.
+- For new visualisations, place components in `tools/dev-graph-ui/src/app/dev-graph/components/` and leverage D3 + Chakra UI conventions.
+
+Change Log
+----------
+- 2025-09-24: Integrated architecture addendum (original final 2025-09-23) into main doc; added API surface and streamlining plan with phased rollout.
+- 2025-09-23: Documented unified ingestion architecture, updated performance metrics with 43.5-minute pipeline run, and recorded optimisation backlog.
+- 2025-09-15: Initial Sprint 11 biological evolution UI architecture review (superseded).

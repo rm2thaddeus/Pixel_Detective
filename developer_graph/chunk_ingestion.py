@@ -38,6 +38,14 @@ class ChunkIngestionService:
         }
         self.max_file_size_bytes = 2 * 1024 * 1024  # keep ingestion performant
 
+    @staticmethod
+    def _format_limit(limit: Optional[int]) -> str:
+        if limit is None:
+            return "no limit"
+        if limit <= 0:
+            return f"{limit} (skip)"
+        return str(limit)
+
     def discover_documents(self) -> List[str]:
         """Discover document files within the repository."""
         return self.discover_all_files()['documents']
@@ -119,7 +127,7 @@ class ChunkIngestionService:
         stats['code_files']['skipped_due_to_limit'] = code_skipped
 
         if include_docs and doc_selection:
-            logger.info("Ingesting %d/%d documents (limit=%s)", len(doc_selection), len(doc_candidates), doc_limit)
+            logger.info("Ingesting %d/%d documents (limit=%s)", len(doc_selection), len(doc_candidates), self._format_limit(doc_limit))
             doc_start = time.time()
             doc_result = self.ingester.ingest_documents(doc_selection)
             stats['documents'].update({
@@ -131,9 +139,11 @@ class ChunkIngestionService:
             })
         else:
             stats['documents']['duration'] = 0.0
+            if include_docs:
+                logger.info("Skipping document ingestion (limit=%s)", self._format_limit(doc_limit))
 
         if include_code and code_selection:
-            logger.info("Ingesting %d/%d code files (limit=%s)", len(code_selection), len(code_candidates), code_limit)
+            logger.info("Ingesting %d/%d code files (limit=%s)", len(code_selection), len(code_candidates), self._format_limit(code_limit))
             code_start = time.time()
             code_result = self.ingester.ingest_code_files(code_selection)
             stats['code_files'].update({
@@ -145,6 +155,8 @@ class ChunkIngestionService:
             })
         else:
             stats['code_files']['duration'] = 0.0
+            if include_code:
+                logger.info("Skipping code ingestion (limit=%s)", self._format_limit(code_limit))
 
         stats['total_chunks'] = stats['documents']['chunks'] + stats['code_files']['chunks']
         stats['total_errors'] = stats['documents']['errors'] + stats['code_files']['errors']

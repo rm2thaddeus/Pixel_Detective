@@ -506,3 +506,11 @@ The foundation is now **rock-solid** and ready for:
 ---
 
 End of document.
+---
+
+## ML Relationship Enhancements (Next Research Cycle) – 2025-09-23
+- Capture ingestion metrics from unified pipeline (273 commits, 172 docs, 440 code files; ~6.5 min chunk stage) to benchmark downstream model impact.
+- Evaluate semantic similarity models (MiniLM cross-encoders, GTE-base) for higher-precision `IMPLEMENTS` inference.
+- Prototype embedding-based `DEPENDS_ON` suggestions by comparing chunk embeddings with import graphs.
+- Investigate lightweight LLM summarisation to generate requirement-to-commit justifications.
+- Define acceptance criteria and resourcing for Sprint 12; coordinate with platform team once chunk ingestion optimisation land.

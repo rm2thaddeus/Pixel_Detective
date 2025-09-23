@@ -53,9 +53,9 @@ class UnifiedIngestionPipeline:
         
     def run_complete_ingestion(self, 
                               reset_graph: bool = True,
-                              commit_limit: int = None,
-                              doc_limit: int = None,
-                              code_limit: int = None,
+                              commit_limit: Optional[int] = None,
+                              doc_limit: Optional[int] = None,
+                              code_limit: Optional[int] = None,
                               derive_relationships: bool = True,
                               include_embeddings: bool = False,
                               max_workers: int = 4) -> Dict[str, Any]:
@@ -133,7 +133,7 @@ class UnifiedIngestionPipeline:
         }
         logger.info(f"Ingested {commit_results.get('commits_ingested', 0)} commits")
     
-    def _stage_3_parallel_documents(self, doc_limit: int, code_limit: int, max_workers: int):
+    def _stage_3_parallel_documents(self, doc_limit: Optional[int], code_limit: Optional[int], max_workers: int):
         """Stage 3: Discover files and create chunks."""
         logger.info("Stage 3/7: Repository Discovery & Chunking")
 
@@ -154,6 +154,8 @@ class UnifiedIngestionPipeline:
         stage_duration = time.time() - start_time
 
         self.stages_completed += 1
+        limit_display = doc_limit if doc_limit is not None else 'no limit'
+
         self.results["stage_3"] = {
             "documents_discovered": doc_info.get("discovered", 0),
             "documents_selected": doc_info.get("selected", 0),
@@ -163,11 +165,17 @@ class UnifiedIngestionPipeline:
             "doc_skipped": doc_info.get("skipped_due_to_limit", 0),
             "doc_failures": doc_info.get("failures", [])[:10],
             "doc_duration": doc_info.get("duration", stage_duration),
+            "doc_limit": doc_limit,
             "discovery_summary": discovery,
             "discovery_samples": samples,
             "duration": stage_duration,
             "max_workers": max_workers,
         }
+
+        logger.info("Discovered %d documents, selected %d (limit=%s)",
+                    self.results["stage_3"].get("documents_discovered", 0),
+                    self.results["stage_3"].get("documents_selected", 0),
+                    limit_display)
 
         logger.info(
             "Processed %d documents (%d chunks, %d errors)",
@@ -176,7 +184,7 @@ class UnifiedIngestionPipeline:
             self.results["stage_3"].get("doc_errors", 0),
         )
 
-    def _stage_4_parallel_code_chunking(self, code_limit: int, max_workers: int):
+    def _stage_4_parallel_code_chunking(self, code_limit: Optional[int], max_workers: int):
         """Stage 4: Summarize code chunking results."""
         logger.info("Stage 4/7: Code Chunk Summary")
 
@@ -191,6 +199,8 @@ class UnifiedIngestionPipeline:
                 "code_errors": 0,
                 "code_skipped": 0,
                 "code_failures": [],
+                "code_limit": code_limit,
+                "code_duration": 0.0,
                 "duration": 0.0,
                 "max_workers": max_workers,
             }
@@ -200,6 +210,8 @@ class UnifiedIngestionPipeline:
         samples = self.chunk_stats.get("samples", {})
 
         self.stages_completed += 1
+        limit_display = code_limit if code_limit is not None else 'no limit'
+
         self.results["stage_4"] = {
             "code_files_discovered": code_info.get("discovered", 0),
             "code_files_selected": code_info.get("selected", 0),
@@ -209,10 +221,16 @@ class UnifiedIngestionPipeline:
             "code_skipped": code_info.get("skipped_due_to_limit", 0),
             "code_failures": code_info.get("failures", [])[:10],
             "code_samples": samples.get("code", []),
+            "code_duration": code_info.get("duration", 0.0),
+            "code_limit": code_limit,
             "duration": code_info.get("duration", 0.0),
-            "limit": code_limit,
             "max_workers": max_workers,
         }
+
+        logger.info("Discovered %d code files, selected %d (limit=%s)",
+                    self.results["stage_4"].get("code_files_discovered", 0),
+                    self.results["stage_4"].get("code_files_selected", 0),
+                    limit_display)
 
         logger.info(
             "Processed %d code files (%d chunks, %d errors)",
@@ -430,8 +448,8 @@ class UnifiedIngestionPipeline:
 def unified_parallel_ingestion(
     reset_graph: bool = Query(True, description="Reset database before ingestion"),
     commit_limit: int = Query(1000, ge=1, le=10000, description="Maximum commits to ingest"),
-    doc_limit: int = Query(100, ge=1, le=1000, description="Maximum documents to process"),
-    code_limit: int = Query(500, ge=1, le=5000, description="Maximum code files to process"),
+    doc_limit: Optional[int] = Query(None, ge=1, le=1000, description="Maximum documents to process (omit for all)"),
+    code_limit: Optional[int] = Query(None, ge=1, le=5000, description="Maximum code files to process (omit for all)"),
     derive_relationships: bool = Query(True, description="Derive semantic relationships"),
     include_embeddings: bool = Query(False, description="Generate embeddings for chunks"),
     max_workers: int = Query(4, ge=1, le=8, description="Maximum parallel workers")
@@ -530,5 +548,7 @@ def get_ingestion_report():
         "report": report_data,
         "generated_at": datetime.utcnow().isoformat() + "Z"
     }
+
+
 
 
