@@ -94,7 +94,7 @@ class RelationshipDeriver:
             "OR c.message CONTAINS 'fixes' OR c.message CONTAINS 'enhances' OR c.message CONTAINS 'refactor') "
             "RETURN c.message AS message, f.path AS path, coalesce(t.timestamp, c.timestamp) AS ts"
         )
-        for rec in tx.run(q1, since=since_timestamp or None):
+        for rec in tx.run(q1, since=since_timestamp or None, timeout=30):
             msg = rec.get("message") or ""
             path = rec.get("path")
             ts = rec.get("ts")
@@ -110,15 +110,31 @@ class RelationshipDeriver:
                     )
 
         # 2) Doc-mention evidence (0.6)
-        q2 = (
+        # Use file-linked chunks to avoid dependency on Document/Sprint routes.
+        q2a = (
             "MATCH (ch:Chunk)-[:MENTIONS]->(r:Requirement) "
-            "MATCH (d:Document)-[:CONTAINS_CHUNK]->(ch) "
-            "MATCH (s:Sprint)-[:CONTAINS_DOC]->(d) "
-            "MATCH (s)-[:INCLUDES]->(c:GitCommit)-[t:TOUCHED]->(f:File) "
+            "MATCH (f:File)-[:CONTAINS_CHUNK]->(ch) "
+            "MATCH (c:GitCommit)-[t:TOUCHED]->(f) "
             "WHERE ($since IS NULL OR coalesce(t.timestamp, c.timestamp) >= $since) "
             "RETURN DISTINCT r.id AS rid, f.path AS path, coalesce(t.timestamp, c.timestamp) AS ts"
         )
-        for rec in tx.run(q2, since=since_timestamp or None):
+        for rec in tx.run(q2a, since=since_timestamp or None, timeout=30):
+            rid = rec.get("rid")
+            path = rec.get("path")
+            ts = rec.get("ts")
+            if rid and path:
+                total += RelationshipDeriver._merge_implements(
+                    tx, rid, path, ts, sources=["doc-mention"], conf=0.6
+                )
+        # Fallback for older ingestions: Chunk -> PART_OF -> File
+        q2b = (
+            "MATCH (ch:Chunk)-[:MENTIONS]->(r:Requirement) "
+            "MATCH (ch)-[:PART_OF]->(f:File) "
+            "MATCH (c:GitCommit)-[t:TOUCHED]->(f) "
+            "WHERE ($since IS NULL OR coalesce(t.timestamp, c.timestamp) >= $since) "
+            "RETURN DISTINCT r.id AS rid, f.path AS path, coalesce(t.timestamp, c.timestamp) AS ts"
+        )
+        for rec in tx.run(q2b, since=since_timestamp or None, timeout=30):
             rid = rec.get("rid")
             path = rec.get("path")
             ts = rec.get("ts")
@@ -136,7 +152,7 @@ class RelationshipDeriver:
             "AND (c.message CONTAINS 'FR-' OR c.message CONTAINS 'NFR-') "
             "RETURN c.message AS message, f.path AS path, coalesce(t.timestamp, c.timestamp) AS ts"
         )
-        for rec in tx.run(q3, since=since_timestamp or None):
+        for rec in tx.run(q3, since=since_timestamp or None, timeout=30):
             msg = rec.get("message") or ""
             path = rec.get("path")
             ts = rec.get("ts")
@@ -322,4 +338,3 @@ class RelationshipDeriver:
             if new_id and old_id and new_id != old_id:
                 out.append((new_id, old_id))
         return out
-

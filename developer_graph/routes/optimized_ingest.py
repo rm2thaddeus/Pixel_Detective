@@ -338,7 +338,7 @@ class OptimizedIngestionPipeline:
             return []
     
     def _chunk_document(self, file_info: FileInfo, content: str) -> List[ChunkInfo]:
-        """Chunk document by sections."""
+        """Chunk document by sections and extract requirement mentions."""
         chunks = []
         lines = content.split('\n')
         
@@ -360,7 +360,8 @@ class OptimizedIngestionPipeline:
                         file_path=file_info.path,
                         heading=current_heading,
                         level=current_level,
-                        ordinal=chunk_index
+                        ordinal=chunk_index,
+                        metadata={},
                     ))
                     chunk_index += 1
                 
@@ -381,7 +382,8 @@ class OptimizedIngestionPipeline:
                 file_path=file_info.path,
                 heading=current_heading,
                 level=current_level,
-                ordinal=chunk_index
+                ordinal=chunk_index,
+                metadata={},
             ))
         
         return chunks
@@ -458,14 +460,23 @@ class OptimizedIngestionPipeline:
                 # Prepare data
                 chunk_data = []
                 for chunk in batch:
+                    mentions = []
+                    if chunk.chunk_type == 'doc' and chunk.content:
+                        try:
+                            import re as _re
+                            mentions = list({m.upper() for m in _re.findall(r"\b(?:FR|NFR)-\d{2}-\d{2}\b", chunk.content, _re.IGNORECASE)})
+                        except Exception:
+                            mentions = []
                     chunk_data.append({
                         "id": chunk.id,
                         "content": chunk.content,
+                        "text": chunk.content,  # normalized for embedding service
                         "chunk_type": chunk.chunk_type,
                         "file_path": chunk.file_path,
                         "heading": chunk.heading,
                         "level": chunk.level,
-                        "ordinal": chunk.ordinal
+                        "ordinal": chunk.ordinal,
+                        "mentions": mentions,
                     })
                 
                 # UNWIND query for chunks
@@ -474,6 +485,7 @@ class OptimizedIngestionPipeline:
                 MERGE (c:Chunk {id: ch.id})
                 ON CREATE SET 
                     c.content = ch.content,
+                    c.text = ch.text,
                     c.chunk_type = ch.chunk_type,
                     c.file_path = ch.file_path,
                     c.heading = ch.heading,
@@ -483,16 +495,23 @@ class OptimizedIngestionPipeline:
                     c.created_at = datetime()
                 ON MATCH SET
                     c.content = ch.content,
+                    c.text = ch.text,
                     c.chunk_type = ch.chunk_type,
                     c.file_path = ch.file_path,
                     c.updated_at = datetime()
-                
+
                 WITH ch, c
                 MERGE (f:File {path: ch.file_path})
                 SET f.extension = $extension,
                     f.is_code = (ch.chunk_type = 'code'),
                     f.is_doc = (ch.chunk_type = 'doc')
                 MERGE (f)-[:CONTAINS_CHUNK]->(c)
+
+                WITH ch, c
+                UNWIND ch.mentions AS rid
+                WITH c, rid WHERE rid IS NOT NULL AND rid <> ''
+                MERGE (r:Requirement {id: rid})
+                MERGE (c)-[:MENTIONS]->(r)
                 """
                 
                 result = session.run(query, chunks=chunk_data, extension=Path(batch[0].file_path).suffix.lower())

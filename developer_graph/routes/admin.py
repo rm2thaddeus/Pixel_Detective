@@ -105,3 +105,51 @@ def full_reset_and_ingest(
         logger.exception("Full reset and ingest failed")
         raise HTTPException(status_code=500, detail=str(e))
 
+
+@router.post("/api/v1/dev-graph/normalize/chunks")
+def normalize_chunks():
+    """Normalize Chunk properties for cross-pipeline compatibility.
+
+    - Ensure `ch.text` mirrors `ch.content` when missing
+    - Ensure `ch.kind` mirrors `ch.chunk_type` when missing
+    - Create missing Chunk->File PART_OF links using `file_path`
+    - Create missing File->Chunk CONTAINS_CHUNK from PART_OF
+    """
+    try:
+        with driver.session() as session:
+            # 1) Normalize text
+            session.run(
+                """
+                MATCH (ch:Chunk)
+                WHERE ch.text IS NULL AND ch.content IS NOT NULL
+                SET ch.text = ch.content
+                """
+            )
+            # 2) Normalize kind
+            session.run(
+                """
+                MATCH (ch:Chunk)
+                WHERE ch.kind IS NULL AND ch.chunk_type IS NOT NULL
+                SET ch.kind = ch.chunk_type
+                """
+            )
+            # 3) Create PART_OF from file_path
+            session.run(
+                """
+                MATCH (ch:Chunk)
+                WHERE ch.file_path IS NOT NULL AND NOT (ch)-[:PART_OF]->(:File)
+                MERGE (f:File {path: ch.file_path})
+                MERGE (ch)-[:PART_OF]->(f)
+                """
+            )
+            # 4) Create CONTAINS_CHUNK from existing PART_OF
+            session.run(
+                """
+                MATCH (ch:Chunk)-[:PART_OF]->(f:File)
+                MERGE (f)-[:CONTAINS_CHUNK]->(ch)
+                """
+            )
+        return {"success": True, "message": "Chunk normalization completed"}
+    except Exception as e:
+        logger.exception("Chunk normalization failed")
+        raise HTTPException(status_code=500, detail=str(e))
