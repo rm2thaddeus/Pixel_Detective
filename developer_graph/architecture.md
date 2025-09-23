@@ -127,6 +127,16 @@ Needs Improvement (Tracked)
 Streamlining Plan (Next Steps)
 ------------------------------
 
+Implementation Update (October 2025)
+-----------------------------------
+
+- Unified ingestion now issues job identifiers, exposes `/status/{job_id}` lookups, and stores per-stage telemetry so long-running runs can stream progress without holding the request open.
+- Incremental manifest tracking writes a snapshot with repo hash, size, mtime, and the latest commit hash; Stage 2 stores the newest commit so delta runs only touch updated files while the cleanup pass deletes orphan chunks/files.
+- Document/code chunking runs through a `ProcessPoolExecutor` with batched UNWIND writes, normalized chunk payload (`text`, `content`, `kind`), and logs the top slow documents/code files for visibility.
+- Import graph derivation now generates `(:File)-[:IMPORTS]->(:File)` edges for Python/TS/JS and only emits DEPENDS_ON when import evidence exists.
+- `/ingest/unified` accepts `profile=full|delta|quick`, optional `subpath` scoping, and returns the `job_id` alongside results; skip paths are now tracked per stage.
+- `/metrics` reports stage throughput (e.g., Stage 3 chunks/min vs target), surfaced alerts when throughput drops, and surfaces the slowest files from the most recent job.
+
 1. **Unify Chunk Schema and Writers**
    - Standardise `Chunk` payload (`id`, `kind`, `text`, `file_path`, `heading`, `section|symbol`, `span`, `length`).
    - Ensure all writers set `text` and `kind`; write `content` in parallel for one release before removing it.
@@ -180,6 +190,30 @@ Acceptance Metrics
 - Delta runs at least 10× faster than full ingest when <10% of files change.
 - Unified report node/relationship totals within ±1% of Neo4j counts.
 - No DEPENDS_ON warnings when imports are absent; counts >0 once import graph lands.
+
+Graph Quality (Connectivity & Clustering)
+----------------------------------------
+
+Baseline (Sept 2025 UI snapshot)
+- Clustering coefficient ~ 0.017 (goal: >0.15 for tighter local communities).
+- Average path length ~ 11.7 (goal: <8 for faster traversal).
+- Network density ~ 1.7% (goal: target 4-6% without overwhelming visualization).
+- Modularity ~ 0.259 (goal: >0.4 for well-separated thematic clusters once connectivity improves).
+
+Connectivity Improvement Tactics
+- **Derive additional edges:**
+  - Co-change: link files frequently touched in the same commit window to surface implicit architectural ties (TOUCHED aggregation).
+  - Static imports: persist (:File)-[:IMPORTS]->(:File) for Python/TS/JS and propagate to requirements (ties in with DEPENDS_ON work item).
+  - Semantic chunk links: run cosine similarity on embeddings to create (:Chunk)-[:RELATES_TO]->(:Chunk) above a confidence threshold.
+  - Doc cross-references: detect [link](...) syntax and inline references to connect documents and requirements.
+- **Strengthen requirement coverage:** backfill (:Requirement)-[:IMPLEMENTS]->(:File) via doc chunk patterns, issue IDs, and PR metadata; enrich with sprint-to-requirement edges.
+- **Normalize orphan cleanup:** incremental runs should delete stale nodes/relationships so density gains reflect real structure.
+- **Weight & filter:** maintain relationship weights (co-change frequency, import strength, semantic score) to support UI sliders and avoid noise.
+
+Metric Feedback Loop
+- Instrument /api/v1/dev-graph/quality to capture these metrics after each unified run; persist a history for regression tracking.
+- Alert when clustering drops >10% or path length grows >15% relative to a trailing three-run average.
+- Expose an admin endpoint to recompute modularity/density on demand after schema changes.
 
 Performance Improvement Ideas (Legacy Reference)
 -----------------------------------------------

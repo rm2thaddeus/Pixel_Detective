@@ -107,6 +107,7 @@ class MarkdownChunker:
             'file_path': file_path,
             'span': f"1:{line_num}",
             'text': text,
+            'content': text,
             'length': len(text),
             'uid': chunk_id,
             'requirements': requirements,
@@ -225,6 +226,7 @@ class CodeChunker:
                         'file_path': file_path,
                         'span': f"{start_line}:{end_line}",
                         'text': text,
+                        'content': text,
                         'length': len(text),
                         'uid': chunk_id,
                         'symbol': match_text.strip(),
@@ -324,6 +326,7 @@ class CodeChunker:
                         'file_path': file_path,
                         'span': f"{i}:{end}",
                         'text': text,
+                        'content': text,
                         'length': len(text),
                         'uid': chunk_id,
                         'symbol': None,
@@ -390,6 +393,10 @@ class ChunkIngester:
                         'uid': normalized_path
                     }
                     session.execute_write(self._merge_document, document)
+                    session.execute_write(
+                        self._merge_file,
+                        {'path': normalized_path, 'language': 'markdown'}
+                    )
                     stats['documents'] += 1
 
                     chunks = self.markdown_chunker.chunk_document(normalized_path, content)
@@ -402,6 +409,11 @@ class ChunkIngester:
                             self._relate_document_contains_chunk,
                             normalized_path,
                             chunk['id']
+                        )
+                        session.execute_write(
+                            self._relate_chunk_part_of_file,
+                            chunk['id'],
+                            normalized_path
                         )
 
                         for req_id in chunk.get('requirements', []):
@@ -461,6 +473,11 @@ class ChunkIngester:
         from .schema.temporal_schema import merge_document
         merge_document(tx, document)
     
+    def _merge_file(self, tx, file_info: Dict[str, Any]):
+        """Merge file node referenced by chunks."""
+        from .schema.temporal_schema import merge_file
+        merge_file(tx, file_info)
+
     def _merge_chunk(self, tx, chunk: Dict[str, Any]):
         """Merge chunk node."""
         from .schema.temporal_schema import merge_chunk
@@ -498,7 +515,4 @@ class ChunkIngester:
             path=file_path,
             language=language
         )
-
-
-
 

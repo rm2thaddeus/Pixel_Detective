@@ -309,7 +309,7 @@ def merge_document(tx, document: Dict[str, object]):
 def merge_chunk(tx, chunk: Dict[str, object]):
     """Merge a Chunk node for temporal semantic graph.
     
-    Expected keys: id, kind, heading, section, file_path, span, text, length, embedding, uid
+    Expected keys: id, kind, heading, section, file_path, span, text, content, length, embedding, uid
     """
     tx.run(
         """
@@ -320,6 +320,7 @@ def merge_chunk(tx, chunk: Dict[str, object]):
                       ch.file_path = $file_path,
                       ch.span = $span,
                       ch.text = $text,
+                      ch.content = $content,
                       ch.length = $length,
                       ch.embedding = $embedding,
                       ch.uid = $uid
@@ -329,6 +330,7 @@ def merge_chunk(tx, chunk: Dict[str, object]):
                      ch.file_path = coalesce($file_path, ch.file_path),
                      ch.span = coalesce($span, ch.span),
                      ch.text = coalesce($text, ch.text),
+                     ch.content = coalesce($content, ch.content),
                      ch.length = coalesce($length, ch.length),
                      ch.embedding = coalesce($embedding, ch.embedding),
                      ch.uid = coalesce(ch.uid, $uid)
@@ -341,6 +343,7 @@ def merge_chunk(tx, chunk: Dict[str, object]):
         span=chunk.get("span"),
         text=chunk.get("text"),
         length=chunk.get("length"),
+        content=chunk.get("content") or chunk.get("text"),
         embedding=chunk.get("embedding"),
         uid=chunk.get("uid") or str(chunk["id"]),
     )
@@ -706,4 +709,5 @@ def get_commit_timeline(tx, from_timestamp: str, to_timestamp: str, limit: int =
     
     result = tx.run(query, from_ts=from_timestamp, to_ts=to_timestamp, limit=limit)
     return [dict(record) for record in result]
+
 

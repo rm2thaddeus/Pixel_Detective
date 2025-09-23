@@ -22,7 +22,7 @@ class RelationshipDeriver:
         self.driver = driver
         self.watermarks = self._load_watermarks()
 
-    def derive_all(self, since_timestamp: Optional[str] = None) -> Dict[str, Any]:
+    def derive_all(self, since_timestamp: Optional[str] = None, last_commit: Optional[str] = None) -> Dict[str, Any]:
         """Derive all relationship types with evidence-based confidence scoring."""
         results = {
             "implements": 0,
@@ -52,6 +52,8 @@ class RelationshipDeriver:
             # DEPENDS_ON (best-effort)
             depends_result = session.execute_write(self._derive_depends_on_relationships)
             results["depends_on"] = depends_result.get("count", 0)
+            if depends_result.get("skipped"):
+                results["depends_on_skipped"] = True
 
             # Confidence stats
             confidence_stats = session.execute_write(self._calculate_confidence_stats)
@@ -252,6 +254,10 @@ class RelationshipDeriver:
     @staticmethod
     def _derive_depends_on_relationships(tx) -> Dict[str, Any]:
         """Derive DEPENDS_ON relationships using import graph analysis (best-effort)."""
+        check = tx.run("MATCH ()-[r:IMPORTS]->() RETURN count(r) AS count").single()
+        if not check or (check.get('count') or 0) == 0:
+            return {"count": 0, "skipped": True}
+
         tx.run(
             """
             MATCH (f1:File)-[:IMPORTS]->(f2:File)
@@ -306,20 +312,22 @@ class RelationshipDeriver:
         }
 
     @staticmethod
-    def _update_watermarks(tx, since_timestamp: Optional[str] = None):
+    def _update_watermarks(tx, since_timestamp: Optional[str] = None, last_commit: Optional[str] = None):
         """Update derivation watermarks for incremental updates."""
         if since_timestamp:
             for k in ("implements", "evolves_from", "depends_on"):
                 tx.run(
-                    "MERGE (w:DerivationWatermark {key: $k}) SET w.last_ts = $ts",
+                    "MERGE (w:DerivationWatermark {key: $k}) SET w.last_ts = $ts, w.last_commit = coalesce($last_commit, w.last_commit)",
                     k=k,
                     ts=since_timestamp,
+                    last_commit=last_commit,
                 )
         else:
             for k in ("implements", "evolves_from", "depends_on"):
                 tx.run(
-                    "MERGE (w:DerivationWatermark {key: $k}) SET w.last_ts = datetime()",
+                    "MERGE (w:DerivationWatermark {key: $k}) SET w.last_ts = datetime(), w.last_commit = coalesce($last_commit, w.last_commit)",
                     k=k,
+                    last_commit=last_commit,
                 )
 
     @staticmethod

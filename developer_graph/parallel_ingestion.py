@@ -108,10 +108,16 @@ class ParallelIngestionPipeline:
         total_duration = time.time() - start_time
         logger.info(f"Parallel ingestion completed: {commits_written} commits in {total_duration:.2f}s")
         
+        # Get the latest commit (most recent by timestamp)
+        latest_commit = None
+        if processed_commits:
+            latest_commit = max(processed_commits, key=lambda c: c.timestamp if hasattr(c, 'timestamp') else '')
+        
         return {
             "commits_ingested": commits_written,
             "files_processed": sum(len(c.files) for c in processed_commits),
-            "duration": total_duration
+            "duration": total_duration,
+            "last_commit": latest_commit.hash if latest_commit and hasattr(latest_commit, 'hash') else None
         }
     
     def _extract_commits_batched(self, limit: int) -> List[Dict[str, Any]]:
