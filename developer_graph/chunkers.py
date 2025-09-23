@@ -3,11 +3,14 @@
 Phase 2: Document and code chunking for semantic linking.
 """
 
+import logging
 import os
 import re
 import hashlib
 from typing import List, Dict, Any, Optional, Tuple
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 
 class MarkdownChunker:
@@ -349,96 +352,110 @@ class ChunkIngester:
         self.repo_path = repo_path
         self.markdown_chunker = MarkdownChunker()
         self.code_chunker = CodeChunker()
+        self._repo_root = Path(self.repo_path).resolve()
+
+    def _resolve_path(self, file_path: str) -> Path:
+        """Return absolute Path for a repository-relative or absolute path."""
+        path = Path(file_path)
+        if not path.is_absolute():
+            path = (self._repo_root / path).resolve()
+        else:
+            path = path.resolve()
+        return path
+
+    def _normalize_repo_path(self, path: Path) -> str:
+        """Return repository-relative POSIX path for storage in Neo4j."""
+        try:
+            return path.resolve().relative_to(self._repo_root).as_posix()
+        except ValueError:
+            return path.resolve().as_posix()
     
     def ingest_documents(self, doc_paths: List[str]) -> Dict[str, int]:
         """Ingest markdown documents and create chunks."""
-        stats = {'documents': 0, 'chunks': 0, 'errors': 0}
-        
+        stats = {'documents': 0, 'chunks': 0, 'errors': 0, 'failures': []}
+
         with self.driver.session() as session:
             for doc_path in doc_paths:
                 try:
-                    # Read document
-                    with open(doc_path, 'r', encoding='utf-8') as f:
-                        content = f.read()
-                    
-                    # Create document node
+                    abs_path = self._resolve_path(doc_path)
+                    with abs_path.open('r', encoding='utf-8') as stream:
+                        content = stream.read()
+
+                    normalized_path = self._normalize_repo_path(abs_path)
+
                     document = {
-                        'path': doc_path,
-                        'title': Path(doc_path).stem,
+                        'path': normalized_path,
+                        'title': Path(normalized_path).stem,
                         'type': 'markdown',
-                        'uid': doc_path
+                        'uid': normalized_path
                     }
                     session.execute_write(self._merge_document, document)
                     stats['documents'] += 1
-                    
-                    # Chunk document
-                    chunks = self.markdown_chunker.chunk_document(doc_path, content)
-                    
+
+                    chunks = self.markdown_chunker.chunk_document(normalized_path, content)
+
                     for chunk in chunks:
-                        # Create chunk node
                         session.execute_write(self._merge_chunk, chunk)
                         stats['chunks'] += 1
-                        
-                        # Create CONTAINS_CHUNK relationship
+
                         session.execute_write(
                             self._relate_document_contains_chunk,
-                            doc_path, chunk['id']
+                            normalized_path,
+                            chunk['id']
                         )
-                        
-                        # Create MENTIONS relationships for requirements
+
                         for req_id in chunk.get('requirements', []):
                             session.execute_write(
                                 self._relate_chunk_mentions_requirement,
-                                chunk['id'], req_id
+                                chunk['id'],
+                                req_id
                             )
-                
-                except Exception as e:
-                    print(f"Error processing document {doc_path}: {e}")
+                except Exception as exc:
+                    logger.warning("Error processing document %s: %s", doc_path, exc)
                     stats['errors'] += 1
-        
+                    stats['failures'].append({'path': str(doc_path), 'error': str(exc)})
+
         return stats
-    
+
     def ingest_code_files(self, file_paths: List[str]) -> Dict[str, int]:
         """Ingest code files and create chunks."""
-        stats = {'files': 0, 'chunks': 0, 'errors': 0}
-        
+        stats = {'files': 0, 'chunks': 0, 'errors': 0, 'failures': []}
+
         with self.driver.session() as session:
             for file_path in file_paths:
                 try:
-                    # Read file
-                    with open(file_path, 'r', encoding='utf-8') as f:
-                        content = f.read()
-                    
-                    # Detect language
-                    language = self.code_chunker._detect_language(file_path)
-                    
-                    # Update file node with language info
+                    abs_path = self._resolve_path(file_path)
+                    with abs_path.open('r', encoding='utf-8') as stream:
+                        content = stream.read()
+
+                    normalized_path = self._normalize_repo_path(abs_path)
+                    language = self.code_chunker._detect_language(normalized_path)
+
                     session.execute_write(
                         self._update_file_language,
-                        file_path, language
+                        normalized_path,
+                        language
                     )
                     stats['files'] += 1
-                    
-                    # Chunk file
-                    chunks = self.code_chunker.chunk_file(file_path, content, language)
-                    
+
+                    chunks = self.code_chunker.chunk_file(normalized_path, content, language)
+
                     for chunk in chunks:
-                        # Create chunk node
                         session.execute_write(self._merge_chunk, chunk)
                         stats['chunks'] += 1
-                        
-                        # Create PART_OF relationship
+
                         session.execute_write(
                             self._relate_chunk_part_of_file,
-                            chunk['id'], file_path
+                            chunk['id'],
+                            normalized_path
                         )
-                
-                except Exception as e:
-                    print(f"Error processing file {file_path}: {e}")
+                except Exception as exc:
+                    logger.warning("Error processing file %s: %s", file_path, exc)
                     stats['errors'] += 1
-        
+                    stats['failures'].append({'path': str(file_path), 'error': str(exc)})
+
         return stats
-    
+
     def _merge_document(self, tx, document: Dict[str, Any]):
         """Merge document node."""
         from .schema.temporal_schema import merge_document
@@ -481,3 +498,7 @@ class ChunkIngester:
             path=file_path,
             language=language
         )
+
+
+
+

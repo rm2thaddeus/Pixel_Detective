@@ -62,6 +62,7 @@ class UnifiedIngestionPipeline:
         """Run complete unified ingestion pipeline."""
         
         self.start_time = time.time()
+        self.chunk_stats = None
         logger.info("Starting Unified Parallel Ingestion Pipeline")
         
         try:
@@ -72,7 +73,7 @@ class UnifiedIngestionPipeline:
             self._stage_2_parallel_commits(commit_limit, max_workers)
             
             # Stage 3: Parallel Document Ingestion
-            self._stage_3_parallel_documents(doc_limit, max_workers)
+            self._stage_3_parallel_documents(doc_limit, code_limit, max_workers)
             
             # Stage 4: Parallel Code Chunking
             self._stage_4_parallel_code_chunking(code_limit, max_workers)
@@ -132,52 +133,94 @@ class UnifiedIngestionPipeline:
         }
         logger.info(f"Ingested {commit_results.get('commits_ingested', 0)} commits")
     
-    def _stage_3_parallel_documents(self, doc_limit: int, max_workers: int):
-        """Stage 3: Parallel document ingestion."""
-        logger.info("Stage 3/7: Parallel Document Ingestion")
-        
+    def _stage_3_parallel_documents(self, doc_limit: int, code_limit: int, max_workers: int):
+        """Stage 3: Discover files and create chunks."""
+        logger.info("Stage 3/7: Repository Discovery & Chunking")
+
         start_time = time.time()
-        
-        # Use chunk service for document ingestion - no limits by default
-        doc_stats = chunk_service.ingest_all_chunks(
-            include_docs=True,
-            include_code=False,
-            doc_limit=doc_limit,  # None means no limit
-            code_limit=0
+        should_process_docs = doc_limit is None or doc_limit > 0
+        should_process_code = code_limit is None or code_limit > 0
+
+        self.chunk_stats = chunk_service.ingest_all_chunks(
+            include_docs=should_process_docs,
+            include_code=should_process_code,
+            doc_limit=doc_limit,
+            code_limit=code_limit,
         )
-        
+
+        doc_info = self.chunk_stats.get("documents", {})
+        discovery = self.chunk_stats.get("discovery", {})
+        samples = self.chunk_stats.get("samples", {})
+        stage_duration = time.time() - start_time
+
         self.stages_completed += 1
         self.results["stage_3"] = {
-            "documents_processed": doc_stats.get("documents", {}).get("processed", 0),
-            "doc_chunks_created": doc_stats.get("documents", {}).get("chunks", 0),
-            "doc_errors": doc_stats.get("documents", {}).get("errors", 0),
-            "duration": time.time() - start_time
+            "documents_discovered": doc_info.get("discovered", 0),
+            "documents_selected": doc_info.get("selected", 0),
+            "documents_processed": doc_info.get("processed", 0),
+            "doc_chunks_created": doc_info.get("chunks", 0),
+            "doc_errors": doc_info.get("errors", 0),
+            "doc_skipped": doc_info.get("skipped_due_to_limit", 0),
+            "doc_failures": doc_info.get("failures", [])[:10],
+            "doc_duration": doc_info.get("duration", stage_duration),
+            "discovery_summary": discovery,
+            "discovery_samples": samples,
+            "duration": stage_duration,
+            "max_workers": max_workers,
         }
-        logger.info(f"Processed {doc_stats.get('documents', {}).get('processed', 0)} documents")
-    
-    def _stage_4_parallel_code_chunking(self, code_limit: int, max_workers: int):
-        """Stage 4: Parallel code chunking."""
-        logger.info("Stage 4/7: Parallel Code Chunking")
-        
-        start_time = time.time()
-        
-        # Use chunk service for code chunking - no limits by default
-        code_stats = chunk_service.ingest_all_chunks(
-            include_docs=False,
-            include_code=True,
-            doc_limit=0,
-            code_limit=code_limit  # None means no limit
+
+        logger.info(
+            "Processed %d documents (%d chunks, %d errors)",
+            self.results["stage_3"].get("documents_processed", 0),
+            self.results["stage_3"].get("doc_chunks_created", 0),
+            self.results["stage_3"].get("doc_errors", 0),
         )
-        
+
+    def _stage_4_parallel_code_chunking(self, code_limit: int, max_workers: int):
+        """Stage 4: Summarize code chunking results."""
+        logger.info("Stage 4/7: Code Chunk Summary")
+
+        if not self.chunk_stats:
+            logger.warning("Skipping code chunk summary because no chunk stats are available")
+            self.stages_completed += 1
+            self.results["stage_4"] = {
+                "code_files_discovered": 0,
+                "code_files_selected": 0,
+                "code_files_processed": 0,
+                "code_chunks_created": 0,
+                "code_errors": 0,
+                "code_skipped": 0,
+                "code_failures": [],
+                "duration": 0.0,
+                "max_workers": max_workers,
+            }
+            return
+
+        code_info = self.chunk_stats.get("code_files", {})
+        samples = self.chunk_stats.get("samples", {})
+
         self.stages_completed += 1
         self.results["stage_4"] = {
-            "code_files_processed": code_stats.get("code_files", {}).get("processed", 0),
-            "code_chunks_created": code_stats.get("code_files", {}).get("chunks", 0),
-            "code_errors": code_stats.get("code_files", {}).get("errors", 0),
-            "duration": time.time() - start_time
+            "code_files_discovered": code_info.get("discovered", 0),
+            "code_files_selected": code_info.get("selected", 0),
+            "code_files_processed": code_info.get("processed", 0),
+            "code_chunks_created": code_info.get("chunks", 0),
+            "code_errors": code_info.get("errors", 0),
+            "code_skipped": code_info.get("skipped_due_to_limit", 0),
+            "code_failures": code_info.get("failures", [])[:10],
+            "code_samples": samples.get("code", []),
+            "duration": code_info.get("duration", 0.0),
+            "limit": code_limit,
+            "max_workers": max_workers,
         }
-        logger.info(f"Processed {code_stats.get('code_files', {}).get('processed', 0)} code files")
-    
+
+        logger.info(
+            "Processed %d code files (%d chunks, %d errors)",
+            self.results["stage_4"].get("code_files_processed", 0),
+            self.results["stage_4"].get("code_chunks_created", 0),
+            self.results["stage_4"].get("code_errors", 0),
+        )
+
     def _stage_5_sprint_mapping(self):
         """Stage 5: Sprint mapping."""
         logger.info("Stage 5/7: Sprint Mapping")
@@ -487,3 +530,5 @@ def get_ingestion_report():
         "report": report_data,
         "generated_at": datetime.utcnow().isoformat() + "Z"
     }
+
+

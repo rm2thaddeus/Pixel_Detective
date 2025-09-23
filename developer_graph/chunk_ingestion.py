@@ -3,241 +3,334 @@
 Phase 2: Ingests documents and code files, creating chunks for semantic linking.
 """
 
+import logging
 import os
-import glob
-import fnmatch
+import time
 from pathlib import Path
-from typing import List, Dict, Any, Generator
+from typing import Any, Dict, List, Optional, Tuple
+
 from neo4j import Driver
 
-from .chunkers import ChunkIngester, MarkdownChunker, CodeChunker
+from .chunkers import ChunkIngester
+
+logger = logging.getLogger(__name__)
 
 
 class ChunkIngestionService:
     """Service for ingesting chunks into the temporal semantic graph."""
-    
+
     def __init__(self, driver: Driver, repo_path: str):
         self.driver = driver
-        self.repo_path = repo_path
+        self.repo_root = Path(repo_path).resolve()
         self.ingester = ChunkIngester(driver, repo_path)
-        
-        # Configuration - Phase 0: Use extensions instead of glob patterns
-        self.doc_extensions = ['.md', '.rst']
-        self.code_extensions = ['.py', '.ts', '.tsx', '.js', '.jsx']
-        self.exclude_patterns = [
-            '**/node_modules/**',
-            '**/__pycache__/**',
-            '**/.git/**',
-            '**/venv/**',
-            '**/.venv/**',
-            '**/env/**',
-            '**/build/**',
-            '**/dist/**',
-            '**/target/**'
-        ]
-    
-    def discover_documents(self) -> List[str]:
-        """Discover markdown documents in the repository using streaming approach."""
-        documents = list(self._stream_file_discovery(self.doc_extensions))
-        return sorted(documents)
-    
-    def discover_code_files(self) -> List[str]:
-        """Discover code files in the repository using streaming approach."""
-        code_files = list(self._stream_file_discovery(self.code_extensions))
-        return sorted(code_files)
-    
-    def _stream_file_discovery(self, extensions: List[str]) -> Generator[str, None, None]:
-        """Stream file discovery to reduce memory footprint for large repositories.
-        
-        Phase 0 Performance Fix: Replace multiple recursive glob passes with 
-        streaming os.walk approach.
-        """
-        for root, dirs, files in os.walk(self.repo_path):
-            # Filter directories to exclude based on patterns
-            dirs[:] = [d for d in dirs if not self._should_exclude_directory(d)]
-            
-            for file in files:
-                file_path = os.path.join(root, file)
-                
-                # Check if file has matching extension
-                if any(file.endswith(ext) for ext in extensions):
-                    if self._should_include_file(file_path):
-                        yield file_path
-    
-    def _should_include_file(self, file_path: str) -> bool:
-        """Check if file should be included based on exclude patterns."""
-        rel_path = os.path.relpath(file_path, self.repo_path)
-        
-        for exclude_pattern in self.exclude_patterns:
-            if self._matches_pattern(rel_path, exclude_pattern):
-                return False
-        
-        # Check file size (skip very large files)
-        try:
-            if os.path.getsize(file_path) > 1024 * 1024:  # 1MB
-                return False
-        except OSError:
-            return False
-        
-        return True
-    
-    def _should_exclude_directory(self, dir_name: str) -> bool:
-        """Check if directory should be excluded based on exclude patterns."""
-        for exclude_pattern in self.exclude_patterns:
-            # Extract the directory name part from the pattern
-            # e.g., "**/node_modules/**" -> "node_modules"
-            pattern_parts = exclude_pattern.split('/')
-            for part in pattern_parts:
-                if part and '*' not in part:  # Found a literal directory name
-                    if dir_name == part:
-                        return True
-                # Skip glob patterns like "**" as they match everything
-        return False
-    
-    def _matches_pattern(self, path: str, pattern: str) -> bool:
-        """Simple pattern matching for exclude patterns."""
-        return fnmatch.fnmatch(path, pattern)
-    
-    def ingest_all_chunks(self, 
-                         include_docs: bool = True, 
-                         include_code: bool = True,
-                         doc_limit: int = None,
-                         code_limit: int = None) -> Dict[str, Any]:
-        """Ingest all documents and code files, creating chunks.
-        
-        Args:
-            include_docs: Whether to ingest documents
-            include_code: Whether to ingest code files
-            doc_limit: Maximum number of documents to process
-            code_limit: Maximum number of code files to process
-            
-        Returns:
-            Dictionary with ingestion statistics
-        """
-        stats = {
-            'documents': {'processed': 0, 'chunks': 0, 'errors': 0},
-            'code_files': {'processed': 0, 'chunks': 0, 'errors': 0},
-            'total_chunks': 0,
-            'total_errors': 0
+
+        self.category_extensions = {
+            'documents': {'.md', '.rst', '.mdx', '.txt', '.adoc'},
+            'code': {'.py', '.ts', '.tsx', '.js', '.jsx', '.java', '.kt', '.go', '.rs', '.rb', '.php', '.c', '.cpp', '.cs', '.swift'},
+            'config': {'.json', '.yaml', '.yml', '.toml', '.ini', '.cfg', '.conf'},
+            'data': {'.csv', '.tsv', '.jsonl', '.parquet', '.xlsx', '.xls'},
         }
-        
+        self.doc_extensions = sorted(self.category_extensions['documents'])
+        self.code_extensions = sorted(self.category_extensions['code'])
+        self.excluded_dir_names = {
+            '.git', '__pycache__', 'node_modules', 'venv', '.venv', 'env',
+            'build', 'dist', 'target', '.mypy_cache', '.pytest_cache', '.cursor', '.vscode', '.idea'
+        }
+        self.max_file_size_bytes = 2 * 1024 * 1024  # keep ingestion performant
+
+    def discover_documents(self) -> List[str]:
+        """Discover document files within the repository."""
+        return self.discover_all_files()['documents']
+
+    def discover_code_files(self) -> List[str]:
+        """Discover code files within the repository."""
+        return self.discover_all_files()['code']
+
+    def discover_all_files(self) -> Dict[str, List[str]]:
+        """Discover all candidate files grouped by category."""
+        inventory: Dict[str, List[str]] = {key: [] for key in self.category_extensions}
+        inventory['other'] = []
+
+        for root, dirs, files in os.walk(self.repo_root):
+            dirs[:] = [d for d in dirs if not self._should_skip_directory(d)]
+
+            for name in files:
+                abs_path = Path(root) / name
+                relative = self._normalize_repo_relative_path(abs_path)
+                if not relative:
+                    continue
+                if not self._should_include_file(abs_path):
+                    continue
+
+                category = self._categorize_file(abs_path)
+                inventory.setdefault(category, []).append(relative)
+
+        for key in inventory:
+            inventory[key].sort()
+
+        return inventory
+
+    def ingest_all_chunks(
+        self,
+        include_docs: bool = True,
+        include_code: bool = True,
+        doc_limit: Optional[int] = None,
+        code_limit: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        """Ingest all documents and code files, creating chunks."""
+        stats: Dict[str, Any] = {
+            'documents': self._build_empty_ingestion_stats(),
+            'code_files': self._build_empty_ingestion_stats(),
+            'discovery': {},
+            'limits': {'doc_limit': doc_limit, 'code_limit': code_limit},
+            'samples': {},
+            'total_chunks': 0,
+            'total_errors': 0,
+        }
+
+        inventory = self.discover_all_files()
+        stats['discovery'] = {category: len(paths) for category, paths in inventory.items()}
+        stats['samples'] = {
+            'documents': inventory.get('documents', [])[:5],
+            'code': inventory.get('code', [])[:5],
+            'config': inventory.get('config', [])[:3],
+            'data': inventory.get('data', [])[:3],
+        }
+
+        doc_candidates = inventory.get('documents', [])
+        code_candidates = inventory.get('code', [])
+
+        stats['documents']['discovered'] = len(doc_candidates)
+        stats['code_files']['discovered'] = len(code_candidates)
+
         if include_docs:
-            print("Discovering documents...")
-            documents = self.discover_documents()
-            # Remove artificial limits - process ALL documents
-            print(f"Found {len(documents)} documents to process")
-            
-            if documents:
-                print("Ingesting documents...")
-                doc_stats = self.ingester.ingest_documents(documents)
-                stats['documents'] = doc_stats
-                stats['total_chunks'] += doc_stats['chunks']
-                stats['total_errors'] += doc_stats['errors']
-        
+            doc_selection, doc_skipped = self._apply_limit(doc_candidates, doc_limit)
+        else:
+            doc_selection, doc_skipped = [], len(doc_candidates)
+
         if include_code:
-            print("Discovering code files...")
-            code_files = self.discover_code_files()
-            # Remove artificial limits - process ALL code files
-            print(f"Found {len(code_files)} code files to process")
-            
-            if code_files:
-                print("Ingesting code files...")
-                code_stats = self.ingester.ingest_code_files(code_files)
-                stats['code_files'] = code_stats
-                stats['total_chunks'] += code_stats['chunks']
-                stats['total_errors'] += code_stats['errors']
-        
+            code_selection, code_skipped = self._apply_limit(code_candidates, code_limit)
+        else:
+            code_selection, code_skipped = [], len(code_candidates)
+
+        stats['documents']['selected'] = len(doc_selection)
+        stats['documents']['skipped_due_to_limit'] = doc_skipped
+        stats['code_files']['selected'] = len(code_selection)
+        stats['code_files']['skipped_due_to_limit'] = code_skipped
+
+        if include_docs and doc_selection:
+            logger.info("Ingesting %d/%d documents (limit=%s)", len(doc_selection), len(doc_candidates), doc_limit)
+            doc_start = time.time()
+            doc_result = self.ingester.ingest_documents(doc_selection)
+            stats['documents'].update({
+                'processed': doc_result.get('documents', 0),
+                'chunks': doc_result.get('chunks', 0),
+                'errors': doc_result.get('errors', 0),
+                'failures': doc_result.get('failures', []),
+                'duration': time.time() - doc_start,
+            })
+        else:
+            stats['documents']['duration'] = 0.0
+
+        if include_code and code_selection:
+            logger.info("Ingesting %d/%d code files (limit=%s)", len(code_selection), len(code_candidates), code_limit)
+            code_start = time.time()
+            code_result = self.ingester.ingest_code_files(code_selection)
+            stats['code_files'].update({
+                'processed': code_result.get('files', 0),
+                'chunks': code_result.get('chunks', 0),
+                'errors': code_result.get('errors', 0),
+                'failures': code_result.get('failures', []),
+                'duration': time.time() - code_start,
+            })
+        else:
+            stats['code_files']['duration'] = 0.0
+
+        stats['total_chunks'] = stats['documents']['chunks'] + stats['code_files']['chunks']
+        stats['total_errors'] = stats['documents']['errors'] + stats['code_files']['errors']
+
         return stats
-    
+
     def ingest_specific_files(self, file_paths: List[str]) -> Dict[str, Any]:
         """Ingest specific files, auto-detecting document vs code."""
-        stats = {
-            'documents': {'processed': 0, 'chunks': 0, 'errors': 0},
-            'code_files': {'processed': 0, 'chunks': 0, 'errors': 0},
+        normalized_paths = [self._prepare_ingest_path(path) for path in file_paths]
+        normalized_paths = [path for path in normalized_paths if path]
+
+        documents: List[str] = []
+        code_files: List[str] = []
+
+        for path in normalized_paths:
+            category = self._categorize_file(Path(path))
+            if category == 'documents':
+                documents.append(path)
+            elif category == 'code':
+                code_files.append(path)
+            else:
+                logger.info("Skipping %s (unsupported ingestion category: %s)", path, category)
+
+        stats: Dict[str, Any] = {
+            'documents': self._build_empty_ingestion_stats(),
+            'code_files': self._build_empty_ingestion_stats(),
+            'discovery': {'documents': len(documents), 'code': len(code_files)},
+            'limits': {'doc_limit': None, 'code_limit': None},
+            'samples': {
+                'documents': documents[:5],
+                'code': code_files[:5],
+            },
             'total_chunks': 0,
-            'total_errors': 0
+            'total_errors': 0,
         }
-        
-        documents = []
-        code_files = []
-        
-        for file_path in file_paths:
-            if self._is_document(file_path):
-                documents.append(file_path)
-            elif self._is_code_file(file_path):
-                code_files.append(file_path)
-        
+
         if documents:
-            print(f"Ingesting {len(documents)} documents...")
-            doc_stats = self.ingester.ingest_documents(documents)
-            stats['documents'] = doc_stats
-            stats['total_chunks'] += doc_stats['chunks']
-            stats['total_errors'] += doc_stats['errors']
-        
+            logger.info("Ingesting %d specific documents", len(documents))
+            doc_start = time.time()
+            doc_result = self.ingester.ingest_documents(documents)
+            stats['documents'].update({
+                'discovered': len(documents),
+                'selected': len(documents),
+                'processed': doc_result.get('documents', 0),
+                'chunks': doc_result.get('chunks', 0),
+                'errors': doc_result.get('errors', 0),
+                'failures': doc_result.get('failures', []),
+                'duration': time.time() - doc_start,
+            })
+
         if code_files:
-            print(f"Ingesting {len(code_files)} code files...")
-            code_stats = self.ingester.ingest_code_files(code_files)
-            stats['code_files'] = code_stats
-            stats['total_chunks'] += code_stats['chunks']
-            stats['total_errors'] += code_stats['errors']
-        
+            logger.info("Ingesting %d specific code files", len(code_files))
+            code_start = time.time()
+            code_result = self.ingester.ingest_code_files(code_files)
+            stats['code_files'].update({
+                'discovered': len(code_files),
+                'selected': len(code_files),
+                'processed': code_result.get('files', 0),
+                'chunks': code_result.get('chunks', 0),
+                'errors': code_result.get('errors', 0),
+                'failures': code_result.get('failures', []),
+                'duration': time.time() - code_start,
+            })
+
+        stats['total_chunks'] = stats['documents']['chunks'] + stats['code_files']['chunks']
+        stats['total_errors'] = stats['documents']['errors'] + stats['code_files']['errors']
+
         return stats
-    
-    def _is_document(self, file_path: str) -> bool:
-        """Check if file is a document based on extension."""
-        doc_extensions = {'.md', '.rst', '.txt'}
-        return Path(file_path).suffix.lower() in doc_extensions
-    
-    def _is_code_file(self, file_path: str) -> bool:
-        """Check if file is a code file based on extension."""
-        code_extensions = {'.py', '.ts', '.tsx', '.js', '.jsx', '.java', '.cpp', '.c', '.h'}
-        return Path(file_path).suffix.lower() in code_extensions
-    
+
     def get_chunk_statistics(self) -> Dict[str, Any]:
         """Get statistics about existing chunks in the database."""
         with self.driver.session() as session:
-            # Total chunks
             total_chunks = session.run("MATCH (ch:Chunk) RETURN count(ch) AS c").single()["c"]
-            
-            # Chunks by kind
+
             doc_chunks = session.run("MATCH (ch:Chunk {kind: 'doc'}) RETURN count(ch) AS c").single()["c"]
             code_chunks = session.run("MATCH (ch:Chunk {kind: 'code'}) RETURN count(ch) AS c").single()["c"]
-            
-            # Chunks with embeddings
+
             chunks_with_embeddings = session.run(
                 "MATCH (ch:Chunk) WHERE ch.embedding IS NOT NULL RETURN count(ch) AS c"
             ).single()["c"]
-            
-            # Chunks by language (for code chunks)
+
             language_stats = session.run("""
                 MATCH (ch:Chunk {kind: 'code'})-[:PART_OF]->(f:File)
                 WHERE f.language IS NOT NULL
                 RETURN f.language AS language, count(ch) AS count
                 ORDER BY count DESC
             """).data()
-            
-            # Chunks by file type
+
             file_type_stats = session.run("""
                 MATCH (ch:Chunk {kind: 'doc'})-[:CONTAINS_CHUNK]->(d:Document)
                 RETURN d.type AS type, count(ch) AS count
                 ORDER BY count DESC
             """).data()
-            
+
             return {
                 'total_chunks': total_chunks,
                 'doc_chunks': doc_chunks,
                 'code_chunks': code_chunks,
                 'chunks_with_embeddings': chunks_with_embeddings,
                 'language_distribution': language_stats,
-                'file_type_distribution': file_type_stats
+                'file_type_distribution': file_type_stats,
             }
+
+    def _build_empty_ingestion_stats(self) -> Dict[str, Any]:
+        return {
+            'discovered': 0,
+            'selected': 0,
+            'processed': 0,
+            'chunks': 0,
+            'errors': 0,
+            'failures': [],
+            'skipped_due_to_limit': 0,
+            'duration': 0.0,
+        }
+
+    def _apply_limit(self, paths: List[str], limit: Optional[int]) -> Tuple[List[str], int]:
+        if limit is None:
+            return list(paths), 0
+        if limit <= 0:
+            return [], len(paths)
+        trimmed = list(paths[:limit])
+        return trimmed, max(len(paths) - limit, 0)
+
+    def _should_skip_directory(self, dirname: str) -> bool:
+        return dirname.lower() in self.excluded_dir_names
+
+    def _should_include_file(self, path: Path) -> bool:
+        if not path.is_file():
+            return False
+        try:
+            if path.stat().st_size > self.max_file_size_bytes:
+                logger.debug(
+                    "Skipping %s because it exceeds %s bytes",
+                    path,
+                    self.max_file_size_bytes,
+                )
+                return False
+        except OSError as exc:
+            logger.debug("Skipping %s: %s", path, exc)
+            return False
+        return True
+
+    def _categorize_file(self, file_ref: Path) -> str:
+        path = file_ref if isinstance(file_ref, Path) else Path(file_ref)
+        ext = path.suffix.lower()
+        for category, extensions in self.category_extensions.items():
+            if ext in extensions:
+                return category
+        return 'other'
+
+    def _normalize_repo_relative_path(self, path: Path) -> str:
+        try:
+            return path.resolve().relative_to(self.repo_root).as_posix()
+        except (ValueError, RuntimeError):
+            logger.debug("Skipping %s because it is outside the repository", path)
+            return ''
+
+    def _prepare_ingest_path(self, raw_path: str) -> Optional[str]:
+        candidate = Path(raw_path)
+        if not candidate.is_absolute():
+            candidate = (self.repo_root / candidate).resolve()
+        else:
+            candidate = candidate.resolve()
+
+        if not candidate.exists() or not candidate.is_file():
+            logger.warning("Skipping %s because it does not exist or is not a file", raw_path)
+            return None
+
+        try:
+            return candidate.relative_to(self.repo_root).as_posix()
+        except ValueError:
+            logger.warning("Skipping %s because it is outside the repository", raw_path)
+            return None
+
+    def _is_document(self, file_path: str) -> bool:
+        return Path(file_path).suffix.lower() in self.category_extensions['documents']
+
+    def _is_code_file(self, file_path: str) -> bool:
+        return Path(file_path).suffix.lower() in self.category_extensions['code']
 
 
 def main():
     """CLI for chunk ingestion."""
     import argparse
     from neo4j import GraphDatabase
-    
+
     parser = argparse.ArgumentParser(description='Ingest chunks for temporal semantic graph')
     parser.add_argument('--repo-path', required=True, help='Path to repository')
     parser.add_argument('--neo4j-uri', default='bolt://localhost:7687', help='Neo4j URI')
@@ -248,55 +341,76 @@ def main():
     parser.add_argument('--docs-only', action='store_true', help='Only ingest documents')
     parser.add_argument('--code-only', action='store_true', help='Only ingest code files')
     parser.add_argument('--files', nargs='+', help='Specific files to ingest')
-    
+
     args = parser.parse_args()
-    
-    # Connect to Neo4j
+
     driver = GraphDatabase.driver(
         args.neo4j_uri,
         auth=(args.neo4j_user, args.neo4j_password)
     )
-    
+
     try:
-        # Create ingestion service
         service = ChunkIngestionService(driver, args.repo_path)
-        
+
         if args.files:
-            # Ingest specific files
             stats = service.ingest_specific_files(args.files)
         else:
-            # Ingest all files
             stats = service.ingest_all_chunks(
                 include_docs=not args.code_only,
                 include_code=not args.docs_only,
                 doc_limit=args.doc_limit,
                 code_limit=args.code_limit
             )
-        
-        print("\nIngestion completed!")
+
+        print()
+        print("Ingestion completed!")
+        print(f"Documents discovered: {stats['documents']['discovered']}")
         print(f"Documents processed: {stats['documents']['processed']}")
         print(f"Document chunks created: {stats['documents']['chunks']}")
+        print(f"Document errors: {stats['documents']['errors']}")
+        if stats['documents']['failures']:
+            print("  Sample document failures:")
+            for failure in stats['documents']['failures'][:5]:
+                print(f"    {failure['path']}: {failure['error']}")
+
+        print()
+        print(f"Code files discovered: {stats['code_files']['discovered']}")
         print(f"Code files processed: {stats['code_files']['processed']}")
         print(f"Code chunks created: {stats['code_files']['chunks']}")
+        print(f"Code errors: {stats['code_files']['errors']}")
+        if stats['code_files']['failures']:
+            print("  Sample code failures:")
+            for failure in stats['code_files']['failures'][:5]:
+                print(f"    {failure['path']}: {failure['error']}")
+
+        print()
+        print("Other discoveries: "
+              f"config={stats['discovery'].get('config', 0)}, "
+              f"data={stats['discovery'].get('data', 0)}, "
+              f"other={stats['discovery'].get('other', 0)}")
         print(f"Total chunks: {stats['total_chunks']}")
         print(f"Errors: {stats['total_errors']}")
-        
-        # Show chunk statistics
+
         chunk_stats = service.get_chunk_statistics()
-        print(f"\nChunk Statistics:")
+        print()
+        print("Chunk Statistics:")
         print(f"Total chunks in database: {chunk_stats['total_chunks']}")
         print(f"Document chunks: {chunk_stats['doc_chunks']}")
         print(f"Code chunks: {chunk_stats['code_chunks']}")
         print(f"Chunks with embeddings: {chunk_stats['chunks_with_embeddings']}")
-        
+
         if chunk_stats['language_distribution']:
-            print(f"\nCode chunks by language:")
+            print("Code chunks by language:")
             for lang in chunk_stats['language_distribution']:
                 print(f"  {lang['language']}: {lang['count']}")
-    
+
+
     finally:
         driver.close()
 
 
 if __name__ == '__main__':
     main()
+
+
+
