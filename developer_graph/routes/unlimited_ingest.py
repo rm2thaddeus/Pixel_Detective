@@ -732,7 +732,7 @@ class UnlimitedIngestionPipeline:
             result = session.run("""
                 MATCH (f1:File)-[:CONTAINS_CHUNK]->(c1:Chunk)
                 MATCH (f2:File)-[:CONTAINS_CHUNK]->(c2:Chunk)
-                WHERE f1 <> f2 AND c1-[:RELATES_TO]-c2
+                WHERE f1 <> f2 AND (c1)-[:RELATES_TO]-(c2)
                 MERGE (f1)-[:RELATES_TO]->(f2)
                 RETURN count(*) as connections
             """)
