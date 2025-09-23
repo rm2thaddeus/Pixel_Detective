@@ -262,3 +262,22 @@ Change Log
 - 2025-09-24: Integrated architecture addendum (original final 2025-09-23) into main doc; added API surface and streamlining plan with phased rollout.
 - 2025-09-23: Documented unified ingestion architecture, updated performance metrics with 43.5-minute pipeline run, and recorded optimisation backlog.
 - 2025-09-15: Initial Sprint 11 biological evolution UI architecture review (superseded).
+
+Reality Check — Latest Run
+--------------------------
+
+- Full reset performed prior to validation run:
+  - Removed 18,840 nodes and 21,254 relationships.
+- Unified ingestion (no overrides) completed all 7 stages with high quality:
+  - Stage 3 (documents): 172 documents processed; 2,620–2,627 chunks; 0 errors.
+  - Stage 4 (code): 440+ code files processed; 14,089 total chunks; 0 errors.
+  - Commits: 274 total; Sprints mapped: 12; Derived relationships: 482.
+  - Final graph: 17,042 nodes, 21,062 relationships. Quality score: 99.9/100.
+  - End-to-end duration: ~104 seconds on this repo.
+- Fixes applied during validation:
+  - Added missing pipeline helpers in `UnifiedIngestionPipeline`:
+    - `_check_for_stop`, `_enter_stage`, `_publish_stage`.
+  - Resolved `latest_commit` reference by surfacing most-recent commit from
+    parallel commit ingestion and threading it into later stages (delta +
+    derivation watermarks).
+  - Restarted API, re‑ran unified ingestion, confirmed expected totals.
