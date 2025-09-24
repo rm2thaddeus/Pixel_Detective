@@ -50,8 +50,18 @@ class SymbolRecord:
 
 
 def _batched(items: Sequence, batch_size: int) -> Iterable[Sequence]:
-    for start in range(0, len(items), batch_size):
-        yield items[start:start + batch_size]
+    for i in range(0, len(items), batch_size):
+        yield items[i:i + batch_size]
+
+
+def _escape_fulltext_term(term: str) -> str:
+    """Escape special characters in fulltext search terms."""
+    # Escape Lucene special characters
+    special_chars = ['+', '-', '&', '|', '!', '(', ')', '{', '}', '[', ']', '^', '"', '~', '*', '?', ':', '\\', '/']
+    escaped = term
+    for char in special_chars:
+        escaped = escaped.replace(char, f'\\{char}')
+    return escaped
 
 
 class CodeSymbolExtractor:
@@ -604,21 +614,26 @@ class CodeSymbolExtractor:
         total = 0
         with self.driver.session() as session:
             for batch in _batched(symbol_terms, self.batch_size):
+                # Escape terms for fulltext search
+                escaped_batch = [
+                    {**symbol, "escaped_term": _escape_fulltext_term(symbol["term"])}
+                    for symbol in batch
+                ]
                 result = session.run(
                     """
                     UNWIND $symbols AS symbol
                     MATCH (s:Symbol {symbol_id: symbol.symbol_id})
-                    CALL db.index.fulltext.queryNodes('chunk_fulltext', symbol.term) YIELD node, score
+                    CALL db.index.fulltext.queryNodes('chunk_fulltext', symbol.escaped_term) YIELD node, score
                     WHERE coalesce(node.kind, 'doc') IN ['doc', 'document', 'markdown']
-                    WITH node, s, score
+                    WITH node, s, score, symbol.term AS term
                     ORDER BY score DESC
-                    WITH DISTINCT node, s, collect(score)[0] AS best_score
+                    WITH DISTINCT node, s, collect(score)[0] AS best_score, term
                     MERGE (node)-[rel:MENTIONS_SYMBOL]->(s)
-                    ON CREATE SET rel.created_at = datetime(), rel.term = symbol.term
+                    ON CREATE SET rel.created_at = datetime(), rel.term = term
                     SET rel.last_seen = datetime(), rel.score = best_score
                     RETURN count(rel) AS relationships
                     """,
-                    batch=list(batch),
+                    symbols=escaped_batch,
                 )
                 record = result.single()
                 if record and record["relationships"]:
@@ -722,22 +737,27 @@ class CodeSymbolExtractor:
                     for term in terms
                 ]
                 if doc_terms:
+                    # Escape terms for fulltext search
+                    escaped_terms = [
+                        {**term, "escaped_term": _escape_fulltext_term(term["term"])}
+                        for term in doc_terms
+                    ]
                     result = session.run(
                         """
                         UNWIND $terms AS item
-                        CALL db.index.fulltext.queryNodes('chunk_fulltext', item.term) YIELD node, score
+                        CALL db.index.fulltext.queryNodes('chunk_fulltext', item.escaped_term) YIELD node, score
                         WHERE coalesce(node.kind, 'doc') IN ['doc', 'document', 'markdown']
-                        WITH node, item.library AS library, score
+                        WITH node, item.library AS library, score, item.term AS term
                         ORDER BY score DESC
-                        WITH DISTINCT node, library, collect(score)[0] AS best_score
+                        WITH DISTINCT node, library, collect(score)[0] AS best_score, term
                         MERGE (lib:Library {name: library})
                         ON CREATE SET lib.created_at = datetime()
                         MERGE (node)-[rel:MENTIONS_LIBRARY]->(lib)
-                        ON CREATE SET rel.created_at = datetime(), rel.term = item.term
+                        ON CREATE SET rel.created_at = datetime(), rel.term = term
                         SET rel.last_seen = datetime(), rel.score = best_score
                         RETURN count(rel) AS relationships
                         """,
-                        terms=doc_terms,
+                        terms=escaped_terms,
                     )
                     record = result.single()
                     if record and record["relationships"]:
