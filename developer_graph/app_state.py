@@ -14,6 +14,7 @@ from .data_validator import DataValidator
 from .chunk_ingestion import ChunkIngestionService
 from .embedding_service import EmbeddingService
 from .parallel_ingestion import ParallelIngestionPipeline
+from .import_graph_extractor import ImportGraphExtractor
 
 
 # Configure logging once
@@ -54,6 +55,7 @@ deriver = RelationshipDeriver(driver)
 validator = DataValidator(driver)
 chunk_service = ChunkIngestionService(driver, REPO_PATH)
 embedding_service = EmbeddingService(driver)
+import_extractor = ImportGraphExtractor(driver, REPO_PATH)
 parallel_pipeline = ParallelIngestionPipeline(driver, REPO_PATH, max_workers=8)
 
 
@@ -71,6 +73,7 @@ __all__ = [
     "validator",
     "chunk_service",
     "embedding_service",
+    "import_extractor",
     "parallel_pipeline",
 ]
 

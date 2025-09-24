@@ -474,7 +474,16 @@ class CodeSymbolExtractor:
         libraries: Counter[str] = Counter()
 
         for match in self.ts_import_pattern.finditer(source):
-            module = match.group("module") or match.group("require")
+            module = None
+            try:
+                module = match.group("module")
+            except IndexError:
+                pass
+            if not module:
+                try:
+                    module = match.group("require")
+                except IndexError:
+                    pass
             if not module:
                 continue
             library = self._map_library(module)

@@ -709,27 +709,42 @@ class TemporalEngine:
                 MATCH (n)
                 RETURN count(n) AS node_count
             """
+            edge_count_cypher = """
+                MATCH ()-[r]->()
+                RETURN count(r) AS edge_count
+            """
             print(f"Executing count query: {count_cypher}")
         
         with self.driver.session() as session:
             if include_counts:
                 print(f"include_counts is True, executing count query")
+                # Get node count
                 count_result_cursor = session.run(count_cypher)
-                # consume to collect timings/summary
-                try:
-                    summary = count_result_cursor.consume()
-                    self._last_query_metrics["windowed_subgraph"]["count_ms"] = getattr(summary, "result_available_after", 0)
-                except Exception:
-                    self._last_query_metrics["windowed_subgraph"]["count_ms"] = 0
                 count_record = None
                 try:
                     count_record = count_result_cursor.single()
                     print(f"Count query result: {count_record}")
+                    # consume to collect timings/summary after getting the data
+                    summary = count_result_cursor.consume()
+                    self._last_query_metrics["windowed_subgraph"]["count_ms"] = getattr(summary, "result_available_after", 0)
                 except Exception as e:
                     print(f"Count query error: {e}")
                     count_record = None
+                    self._last_query_metrics["windowed_subgraph"]["count_ms"] = 0
                 total_nodes = count_record["node_count"] if count_record else 0
-                total_edges = 0  # Will fix this later
+                
+                # Get edge count
+                edge_count_record = None
+                try:
+                    edge_count_cursor = session.run(edge_count_cypher)
+                    edge_count_record = edge_count_cursor.single()
+                    print(f"Edge count query result: {edge_count_record}")
+                    edge_count_cursor.consume()
+                except Exception as e:
+                    print(f"Edge count query error: {e}")
+                    edge_count_record = None
+                total_edges = edge_count_record["edge_count"] if edge_count_record else 0
+                
                 print(f"Final counts - total_nodes: {total_nodes}, total_edges: {total_edges}")
             else:
                 print(f"include_counts is False")
@@ -907,6 +922,8 @@ class TemporalEngine:
             
             # Add counts only if include_counts is True
             if include_counts:
+                result["total_nodes"] = total_nodes
+                result["total_edges"] = total_edges
                 result["pagination"]["total_nodes"] = total_nodes
                 result["pagination"]["total_edges"] = total_edges
             

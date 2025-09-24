@@ -13,6 +13,7 @@ from __future__ import annotations
 from typing import Dict, List, Optional, Any, Tuple
 from neo4j import Driver
 import re
+import uuid
 
 
 class RelationshipDeriver:
@@ -49,9 +50,11 @@ class RelationshipDeriver:
             )
             results["evolves_from"] = evolves_result.get("count", 0)
 
-            # DEPENDS_ON (best-effort)
-            depends_result = session.execute_write(self._derive_depends_on_relationships)
+            # DEPENDS_ON (import graph assisted)
+            depends_run_id = str(uuid.uuid4())
+            depends_result = session.execute_write(self._derive_depends_on_relationships, depends_run_id)
             results["depends_on"] = depends_result.get("count", 0)
+            results["depends_on_details"] = depends_result
             if depends_result.get("skipped"):
                 results["depends_on_skipped"] = True
 
@@ -252,28 +255,102 @@ class RelationshipDeriver:
         return {"count": total}
 
     @staticmethod
-    def _derive_depends_on_relationships(tx) -> Dict[str, Any]:
-        """Derive DEPENDS_ON relationships using import graph analysis (best-effort)."""
+    def _derive_depends_on_relationships(tx, run_id: str) -> Dict[str, Any]:
+        """Derive DEPENDS_ON relationships using import graph evidence."""
         check = tx.run("MATCH ()-[r:IMPORTS]->() RETURN count(r) AS count").single()
         if not check or (check.get('count') or 0) == 0:
             return {"count": 0, "skipped": True}
 
-        tx.run(
+        file_result = tx.run(
             """
-            MATCH (f1:File)-[:IMPORTS]->(f2:File)
-            WHERE f1.is_code = true AND f2.is_code = true
-            WITH f1, f2
-            MATCH (r1:Requirement)-[:IMPLEMENTS]->(f1)
-            MATCH (r2:Requirement)-[:IMPLEMENTS]->(f2)
-            WITH r1, r2, count(*) as shared
-            WHERE shared >= 2
-            MERGE (r1)-[rel:DEPENDS_ON]->(r2)
-            ON CREATE SET rel.confidence = 0.8, rel.sources = ['import-graph'], rel.first_seen_ts = datetime(), rel.last_seen_ts = datetime()
-            ON MATCH SET rel.sources = coalesce(rel.sources, []) + ['import-graph'], rel.confidence = CASE WHEN rel.confidence IS NULL THEN 0.8 ELSE 1 - (1 - rel.confidence) * (1 - 0.8) END
+            MATCH (src:File)-[imp:IMPORTS]->(dst:File)
+            WHERE coalesce(src.is_code, false) AND coalesce(dst.is_code, false)
+            MERGE (src)-[dep:DEPENDS_ON {scope: 'file'}]->(dst)
+            ON CREATE SET
+                dep.confidence = 0.9,
+                dep.sources = ['import-graph'],
+                dep.derivation = 'import-graph',
+                dep.created_at = datetime()
+            SET dep.last_seen = datetime(),
+                dep.run_id = $run_id,
+                dep.weight = coalesce(imp.count, 1),
+                dep.import_modules = coalesce(imp.modules, []),
+                dep.import_symbols = coalesce(imp.symbols, []),
+                dep.import_lines = coalesce(imp.lines, []),
+                dep.sources = CASE
+                    WHEN dep.sources IS NULL THEN ['import-graph']
+                    WHEN 'import-graph' IN dep.sources THEN dep.sources
+                    ELSE dep.sources + ['import-graph']
+                END,
+                dep.confidence = CASE
+                    WHEN dep.confidence IS NULL THEN 0.9
+                    ELSE 1 - (1 - dep.confidence) * (1 - 0.9)
+                END
+            RETURN count(dep) AS relationships
+            """,
+            run_id=run_id,
+        ).single()
+        file_count = int(file_result.get("relationships", 0)) if file_result else 0
+
+        removed_files_result = tx.run(
             """
-        )
-        result = tx.run("MATCH ()-[r:DEPENDS_ON]->() RETURN count(r) as count")
-        return {"count": result.single()["count"] or 0}
+            MATCH (src:File)-[dep:DEPENDS_ON {scope: 'file', derivation: 'import-graph'}]->(dst:File)
+            WHERE NOT (src)-[:IMPORTS]->(dst)
+            WITH dep
+            DELETE dep
+            RETURN count(dep) AS removed
+            """
+        ).single()
+        removed_file_dependencies = int(removed_files_result.get("removed", 0)) if removed_files_result else 0
+
+        requirement_result = tx.run(
+            """
+            MATCH (src:File)-[dep:DEPENDS_ON {scope: 'file', derivation: 'import-graph'}]->(dst:File)
+            MATCH (r1:Requirement)-[:IMPLEMENTS]->(src)
+            MATCH (r2:Requirement)-[:IMPLEMENTS]->(dst)
+            WHERE r1 <> r2
+            MERGE (r1)-[rdep:DEPENDS_ON {scope: 'requirement'}]->(r2)
+            ON CREATE SET
+                rdep.confidence = 0.7,
+                rdep.sources = ['import-graph'],
+                rdep.derivation = 'import-graph',
+                rdep.created_at = datetime()
+            SET rdep.last_seen = datetime(),
+                rdep.sources = CASE
+                    WHEN rdep.sources IS NULL THEN ['import-graph']
+                    WHEN 'import-graph' IN rdep.sources THEN rdep.sources
+                    ELSE rdep.sources + ['import-graph']
+                END,
+                rdep.confidence = CASE
+                    WHEN rdep.confidence IS NULL THEN 0.7
+                    ELSE 1 - (1 - rdep.confidence) * (1 - 0.7)
+                END
+            RETURN count(rdep) AS relationships
+            """
+        ).single()
+        requirement_count = int(requirement_result.get("relationships", 0)) if requirement_result else 0
+
+        requirement_removed_result = tx.run(
+            """
+            MATCH (r1:Requirement)-[dep:DEPENDS_ON {scope: 'requirement', derivation: 'import-graph'}]->(r2:Requirement)
+            WHERE NOT EXISTS {
+                MATCH (r1)-[:IMPLEMENTS]->(src:File)-[:DEPENDS_ON {scope: 'file', derivation: 'import-graph'}]->(:File)<-[:IMPLEMENTS]-(r2)
+            }
+            WITH dep
+            DELETE dep
+            RETURN count(dep) AS removed
+            """
+        ).single()
+        removed_requirement_dependencies = int(requirement_removed_result.get("removed", 0)) if requirement_removed_result else 0
+
+        total = file_count + requirement_count
+        return {
+            "file_dependencies": file_count,
+            "requirement_dependencies": requirement_count,
+            "removed_file_dependencies": removed_file_dependencies,
+            "removed_requirement_dependencies": removed_requirement_dependencies,
+            "count": total,
+        }
 
     @staticmethod
     def _calculate_confidence_stats(tx) -> Dict[str, Any]:

@@ -6,7 +6,7 @@ import { FaDownload } from 'react-icons/fa';
 import ProgressiveStructureGraph from '../components/ProgressiveStructureGraph';
 import SimpleWebGLTimeline from '../components/SimpleWebGLTimeline';
 
-const DEV_GRAPH_API_URL = process.env.NEXT_PUBLIC_DEV_GRAPH_API_URL || 'http://localhost:8080';
+const DEV_GRAPH_API_URL = process.env.NEXT_PUBLIC_DEV_GRAPH_API_URL || 'http://localhost:8000';
 
 interface Commit {
   hash: string;

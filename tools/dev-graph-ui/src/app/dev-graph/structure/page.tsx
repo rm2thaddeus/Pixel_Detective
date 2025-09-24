@@ -10,7 +10,7 @@ import dynamic from 'next/dynamic';
 const StructureAnalysisGraph = dynamic(() => import('../components/StructureAnalysisGraph'), { ssr: false });
 
 // Developer Graph API base URL
-const DEV_GRAPH_API_URL = process.env.NEXT_PUBLIC_DEV_GRAPH_API_URL || 'http://localhost:8080';
+const DEV_GRAPH_API_URL = process.env.NEXT_PUBLIC_DEV_GRAPH_API_URL || 'http://localhost:8000';
 
 interface NodeType {
   type: string;

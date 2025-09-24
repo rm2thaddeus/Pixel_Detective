@@ -125,7 +125,7 @@ export function useWindowedSubgraph(params: WindowedSubgraphParams = {}) {
         searchParams.set('cursor', JSON.stringify(cursor));
       }
       
-      const url = `${process.env.NEXT_PUBLIC_DEV_GRAPH_API_URL || 'http://localhost:8080'}/api/v1/dev-graph/graph/subgraph?${searchParams.toString()}`;
+      const url = `${process.env.NEXT_PUBLIC_DEV_GRAPH_API_URL || 'http://localhost:8000'}/api/v1/dev-graph/graph/subgraph?${searchParams.toString()}`;
       
       const response = await fetch(url);
       if (!response.ok) {
@@ -163,7 +163,7 @@ export function useCommitsBuckets(
       if (limit) searchParams.set('limit', limit.toString());
       if (pageParam) searchParams.set('offset', pageParam.toString());
       
-      const url = `${process.env.NEXT_PUBLIC_DEV_GRAPH_API_URL || 'http://localhost:8080'}/api/v1/dev-graph/commits/buckets?${searchParams.toString()}`;
+      const url = `${process.env.NEXT_PUBLIC_DEV_GRAPH_API_URL || 'http://localhost:8000'}/api/v1/dev-graph/commits/buckets?${searchParams.toString()}`;
       
       const response = await fetch(url);
       if (!response.ok) {
@@ -192,7 +192,7 @@ export function useSprintSubgraph(number?: string) {
     queryKey: ['dev-graph', 'sprint-subgraph', number],
     queryFn: async ({ pageParam = 0 }) => {
       if (!number) return { nodes: [], edges: [] };
-      const url = `${process.env.NEXT_PUBLIC_DEV_GRAPH_API_URL || 'http://localhost:8080'}/api/v1/dev-graph/sprints/${number}/subgraph`;
+      const url = `${process.env.NEXT_PUBLIC_DEV_GRAPH_API_URL || 'http://localhost:8000'}/api/v1/dev-graph/sprints/${number}/subgraph`;
       const res = await fetch(url);
       if (!res.ok) throw new Error('Failed to fetch sprint subgraph');
       return res.json();
@@ -213,7 +213,7 @@ export function useAnalytics(fromTimestamp?: string, toTimestamp?: string) {
       if (fromTimestamp) searchParams.set('from_timestamp', fromTimestamp);
       if (toTimestamp) searchParams.set('to_timestamp', toTimestamp);
       
-      const url = `${process.env.NEXT_PUBLIC_DEV_GRAPH_API_URL || 'http://localhost:8080'}/api/v1/dev-graph/analytics?${searchParams.toString()}`;
+      const url = `${process.env.NEXT_PUBLIC_DEV_GRAPH_API_URL || 'http://localhost:8000'}/api/v1/dev-graph/analytics?${searchParams.toString()}`;
       const response = await fetch(url);
       if (!response.ok) {
         throw new Error(`Failed to fetch analytics: ${response.statusText}`);
@@ -233,7 +233,7 @@ export function useActivityAnalytics(fromTimestamp?: string, toTimestamp?: strin
       if (fromTimestamp) searchParams.set('from_timestamp', fromTimestamp);
       if (toTimestamp) searchParams.set('to_timestamp', toTimestamp);
       
-      const url = `${process.env.NEXT_PUBLIC_DEV_GRAPH_API_URL || 'http://localhost:8080'}/api/v1/dev-graph/analytics/activity?${searchParams.toString()}`;
+      const url = `${process.env.NEXT_PUBLIC_DEV_GRAPH_API_URL || 'http://localhost:8000'}/api/v1/dev-graph/analytics/activity?${searchParams.toString()}`;
       const response = await fetch(url);
       if (!response.ok) {
         throw new Error(`Failed to fetch activity analytics: ${response.statusText}`);
@@ -252,7 +252,7 @@ export function useGraphAnalytics(timestamp?: string) {
       const searchParams = new URLSearchParams();
       if (timestamp) searchParams.set('timestamp', timestamp);
       
-      const url = `${process.env.NEXT_PUBLIC_DEV_GRAPH_API_URL || 'http://localhost:8080'}/api/v1/dev-graph/analytics/graph?${searchParams.toString()}`;
+      const url = `${process.env.NEXT_PUBLIC_DEV_GRAPH_API_URL || 'http://localhost:8000'}/api/v1/dev-graph/analytics/graph?${searchParams.toString()}`;
       const response = await fetch(url);
       if (!response.ok) {
         throw new Error(`Failed to fetch graph analytics: ${response.statusText}`);
@@ -272,7 +272,7 @@ export function useTraceabilityAnalytics(fromTimestamp?: string, toTimestamp?: s
       if (fromTimestamp) searchParams.set('from_timestamp', fromTimestamp);
       if (toTimestamp) searchParams.set('to_timestamp', toTimestamp);
       
-      const url = `${process.env.NEXT_PUBLIC_DEV_GRAPH_API_URL || 'http://localhost:8080'}/api/v1/dev-graph/analytics/traceability?${searchParams.toString()}`;
+      const url = `${process.env.NEXT_PUBLIC_DEV_GRAPH_API_URL || 'http://localhost:8000'}/api/v1/dev-graph/analytics/traceability?${searchParams.toString()}`;
       const response = await fetch(url);
       if (!response.ok) {
         throw new Error(`Failed to fetch traceability analytics: ${response.statusText}`);
@@ -301,7 +301,7 @@ export function useTelemetry() {
       };
 
       try {
-        const url = `${process.env.NEXT_PUBLIC_DEV_GRAPH_API_URL || 'http://localhost:8080'}/api/v1/dev-graph/stats`;
+        const url = `${process.env.NEXT_PUBLIC_DEV_GRAPH_API_URL || 'http://localhost:8000'}/api/v1/dev-graph/stats`;
         const response = await fetch(url);
         if (!response.ok) {
           return defaultResponse;
@@ -344,7 +344,7 @@ export function useDataQuality() {
   return useQuery({
     queryKey: ['dev-graph', 'analytics', 'data-quality'],
     queryFn: async () => {
-      const url = `${process.env.NEXT_PUBLIC_DEV_GRAPH_API_URL || 'http://localhost:8080'}/api/v1/dev-graph/analytics/data-quality`;
+      const url = `${process.env.NEXT_PUBLIC_DEV_GRAPH_API_URL || 'http://localhost:8000'}/api/v1/dev-graph/analytics/data-quality`;
       const response = await fetch(url);
       if (!response.ok) {
         throw new Error(`Failed to fetch data quality metrics: ${response.statusText}`);
@@ -365,7 +365,7 @@ export function useFullTextSearch(query: string, label?: string) {
       searchParams.set('q', query);
       if (label) searchParams.set('label', label);
       
-      const url = `${process.env.NEXT_PUBLIC_DEV_GRAPH_API_URL || 'http://localhost:8080'}/api/v1/dev-graph/search?${searchParams.toString()}`;
+      const url = `${process.env.NEXT_PUBLIC_DEV_GRAPH_API_URL || 'http://localhost:8000'}/api/v1/dev-graph/search?${searchParams.toString()}`;
       const response = await fetch(url);
       if (!response.ok) {
         throw new Error(`Failed to search: ${response.statusText}`);

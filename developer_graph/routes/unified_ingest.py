@@ -19,6 +19,7 @@ from ..app_state import (
     sprint_mapper,
     deriver,
     embedding_service,
+    import_extractor,
     parallel_pipeline,
     chunk_service,
     NEO4J_URI,
@@ -26,6 +27,8 @@ from ..app_state import (
     NEO4J_PASSWORD,
     REPO_PATH,
 )
+from ..code_symbol_extractor import CodeSymbolExtractor
+from ..document_code_linker import DocumentCodeLinker
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -152,6 +155,9 @@ class UnifiedIngestionPipeline:
         self.total_stages = 8
         self.results = {}
         self.last_commit_ingested = None
+        self.doc_chunks_processed = 0
+        self.subpath = None
+        self.delta = False
         if self.job_id:
             _set_job_total_stages(self.job_id, self.total_stages)
     
@@ -184,6 +190,8 @@ class UnifiedIngestionPipeline:
 
         self.start_time = time.time()
         self.chunk_stats = None
+        self.subpath = subpath
+        self.delta = delta
         logger.info("Starting Unified Parallel Ingestion Pipeline")
 
         try:
@@ -430,16 +438,35 @@ class UnifiedIngestionPipeline:
         logger.info("Stage 6/8: Relationship Derivation")
 
         start_time = time.time()
+        import_start = time.time()
+        import_stats = import_extractor.refresh_import_graph()
+        import_stats["duration"] = time.time() - import_start
+        logger.info(
+            "Stage 6: Import graph upserted %d edges (created %d, deleted %d)",
+            import_stats.get("relationships_upserted", 0),
+            import_stats.get("relationships_created", 0),
+            import_stats.get("relationships_deleted", 0),
+        )
+
         derivation_results = deriver.derive_all(last_commit=self.last_commit_ingested)
 
+        total_relationships = (
+            import_stats.get("relationships_upserted", 0)
+            + derivation_results.get("implements", 0)
+            + derivation_results.get("evolves_from", 0)
+            + derivation_results.get("depends_on", 0)
+        )
+
         stage_payload = {
+            "import_graph": import_stats,
             "implements": derivation_results.get("implements", 0),
             "evolves_from": derivation_results.get("evolves_from", 0),
             "depends_on": derivation_results.get("depends_on", 0),
             "depends_on_skipped": derivation_results.get("depends_on_skipped", False),
             "confidence_stats": derivation_results.get("confidence_stats", {}),
             "duration": time.time() - start_time,
-            "last_commit": self.last_commit_ingested
+            "total_relationships": total_relationships,
+            "last_commit": self.last_commit_ingested,
         }
         self.stages_completed += 1
         self._publish_stage("stage_6", stage_payload)
@@ -507,9 +534,8 @@ class UnifiedIngestionPipeline:
         start_time = time.time()
 
         try:
-            from ..code_symbol_extractor import CodeSymbolExtractor
-
             extractor = CodeSymbolExtractor(self.driver, self.repo_path)
+            doc_linker = DocumentCodeLinker(self.driver, self.repo_path)
 
             with self.driver.session() as session:
                 query = (
@@ -532,13 +558,28 @@ class UnifiedIngestionPipeline:
                 ]
 
             force_doc_refresh = bool(self.doc_chunks_processed)
-            results = extractor.run_enhanced_connectivity(
-                code_files,
-                force_doc_refresh=force_doc_refresh,
-            )
+            logger.info(f"Stage 8: Processing {len(code_files)} code files")
+            
+            try:
+                symbol_results = extractor.run_enhanced_connectivity(
+                    code_files,
+                    force_doc_refresh=force_doc_refresh,
+                )
+                logger.info(f"Stage 8: Symbol extraction completed: {symbol_results}")
+            except Exception as symbol_exc:
+                logger.exception("Symbol extraction failed: %s", symbol_exc)
+                symbol_results = {"symbol_error": str(symbol_exc)}
+            
+            try:
+                doc_results = doc_linker.link_documents_to_code()
+                logger.info(f"Stage 8: Document linking completed: {doc_results}")
+            except Exception as doc_exc:
+                logger.exception("Document/code linking failed: %s", doc_exc)
+                doc_results = {"doc_link_error": str(doc_exc)}
 
             stage_payload = {
-                **results,
+                **symbol_results,
+                **doc_results,
                 "duration": time.time() - start_time,
                 "candidates": len(code_files),
                 "force_doc_refresh": force_doc_refresh,
@@ -552,7 +593,6 @@ class UnifiedIngestionPipeline:
 
         self.stages_completed += 1
         self._publish_stage("stage_8", stage_payload)
-
     def _generate_final_report(self) -> Dict[str, Any]:
         """Generate comprehensive final report."""
         end_time = time.time()

@@ -8,7 +8,7 @@ import { useAnalytics, useTelemetry, useWindowedSubgraph, useDataQuality } from 
 import { useQuery } from '@tanstack/react-query';
 
 // Developer Graph API base URL
-const DEV_GRAPH_API_URL = process.env.NEXT_PUBLIC_DEV_GRAPH_API_URL || 'http://localhost:8080';
+const DEV_GRAPH_API_URL = process.env.NEXT_PUBLIC_DEV_GRAPH_API_URL || 'http://localhost:8000';
 
 interface SystemHealth {
   api_connected: boolean;
