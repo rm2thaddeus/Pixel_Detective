@@ -1,4 +1,4 @@
-﻿"""
+"""
 Unified Parallel Ingestion Pipeline
 Single robust endpoint that handles all ingestion in one go with comprehensive reporting.
 """

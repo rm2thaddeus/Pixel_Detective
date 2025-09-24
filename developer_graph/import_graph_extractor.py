@@ -1,4 +1,4 @@
-﻿"""Import graph extraction service for Developer Graph."""
+"""Import graph extraction service for Developer Graph."""
 
 from __future__ import annotations
 

@@ -514,7 +514,7 @@ class CodeSymbolExtractor:
                     continue
                 seen.add(key)
                 extends = match.group("extends")
-                implements_raw = match.group("implements")
+                implements_raw = match.group("implements") if "implements" in match.groupdict() and match.group("implements") else None
                 implements = [item.strip() for item in implements_raw.split(",")] if implements_raw else []
                 bases = [extends.strip()] if extends else []
                 record = SymbolRecord(

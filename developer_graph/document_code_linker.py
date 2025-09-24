@@ -1,4 +1,4 @@
-﻿"""Document to code linking utilities.
+"""Document to code linking utilities.
 
 Creates relationships between sprint documentation chunks and code artifacts
 (files, commits) by scanning chunk text for inline mentions and correlating
