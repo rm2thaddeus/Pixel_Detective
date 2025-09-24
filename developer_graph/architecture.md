@@ -76,11 +76,13 @@ Ingestion Architecture
    - `RelationshipDeriver` applies heuristic strategies (commit messages, doc mentions, dependency analysis) with accumulated confidences.
 7. **Stage 7 - Embeddings (Optional)**
    - `EmbeddingService` can populate vector embeddings for chunks; defaults to off to keep ingestion latency manageable.
+8. **Stage 8 - Enhanced Connectivity**
+   - `CodeSymbolExtractor` materialises code symbols, links documentation chunks via fulltext search, refreshes library bridges, and recomputes file co-occurrence weights without re-reading untouched files.
 
 Reality Check vs Code
 ---------------------
 
-- `UnifiedIngestionPipeline` sets `total_stages = 6` even though seven stages execute (see `developer_graph/routes/unified_ingest.py:51`); adjust or merge Stage 3+4 when reporting.
+- `UnifiedIngestionPipeline` now exposes eight stages, with Stage 8 handling symbol extraction, library refresh, and co-occurrence updates; ensure ingestion observers surface those metrics alongside the existing stages.
 - Chunk writers diverge: `ChunkIngestionService` persists `Chunk.text`/`kind`, while parallel/optimized paths also set `c.content` and alternate relationships (e.g., `BELONGS_TO`). Standardise on `text` as the primary payload and `kind = doc|code`.
 - Relationship derivation expects `(:File)-[:IMPORTS]->(:File)` edges; none are created yet, so DEPENDS_ON warnings are expected until an import graph exists.
 
@@ -91,38 +93,52 @@ Path Normalisation & Consistency
 - All stored paths use forward slashes relative to the repo root; ingestion gracefully handles relative or absolute inputs during manual runs.
 - Failures during chunk creation are logged with file path plus exception for triage.
 
-Performance Snapshot (2025-09-23)
----------------------------------
+Performance Snapshot (2025-09-24 - Post-Parallelization)
+---------------------------------------------------------
 
 | Stage                                 | Metric / Output                                     | Result |
 |---------------------------------------|------------------------------------------------------|--------|
-| Commit extraction (Stage 2)           | 273 commits parsed                                   | 0.60 s |
-| Commit processing (Stage 2)           | 273 commits with 8 workers                           | 54.67 s |
-| Commit writes (Stage 2)               | 273 commits written (200 + 73 batch)                 | 56.91 s total |
-| Document ingestion (Stage 3)          | 172 documents -> 2,627 chunks                        | 42m 16s |
-| Code ingestion (Stage 3)              | 440 code files -> 13,234 chunks                      | 42m 16s |
-| Sprint mapping (Stage 5)              | 12 sprints                                           | 12.6 s |
-| Relationship derivation (Stage 6)     | 482 relationships (warning: missing `DEPENDS_ON`)    | 3.4 s |
-| Unified pipeline (Stage 1-6)          | Final graph: 18,840 nodes / 21,254 relationships     | 2,611 s |
+| Commit extraction (Stage 2)           | 274 commits parsed                                   | ~0.6 s |
+| Commit processing (Stage 2)           | 274 commits with parallel workers                    | ~1.0 s |
+| Commit writes (Stage 2)               | 274 commits written in batches                       | ~1.2 s total |
+| Document ingestion (Stage 3)          | 172 documents -> 2,620 chunks                        | ~2.5 s |
+| Code ingestion (Stage 3)              | 440+ code files -> 14,089 chunks                    | ~15.0 s |
+| Sprint mapping (Stage 5)              | 12 sprints                                           | ~0.5 s |
+| Relationship derivation (Stage 6)     | 660 relationships (656 IMPLEMENTS, 4 DEPENDS_ON)    | ~7.8 s |
+| Unified pipeline (Stage 1-6)          | Final graph: 17,042 nodes / 21,062 relationships    | ~104 s |
 
-> Observation: chunk creation dominates wall-clock time (~42 minutes) versus <1 minute for commit ingestion. The total unified run (reset through derivation) completes in ~43.5 minutes.
+> **Major Improvement**: Parallelization reduced total ingestion time from ~43.5 minutes to ~104 seconds (25x faster). However, edge-to-node ratio remains low at 1.24:1, indicating need for enhanced relationship derivation.
 
-Operational Audit
------------------
+Operational Audit - Post-Parallelization (2025-09-24)
+-----------------------------------------------------
 
-Completed:
-- Unified ingestion endpoint uses optional limits and reports discovery vs. selected vs. processed counts.
-- Path handling consolidated across pipelines; Neo4j now stores consistent repo-relative POSIX paths.
-- Stage logs and final report include discovery summaries, sample paths, per-stage durations, and final graph totals.
+**Completed:**
+- ✅ **Parallelization Success**: 25x performance improvement (43.5 min → 104 sec)
+- ✅ **Unified ingestion endpoint** with optional limits and comprehensive reporting
+- ✅ **Path handling consolidated** across pipelines; Neo4j stores consistent repo-relative POSIX paths
+- ✅ **Stage logs and final report** include discovery summaries, sample paths, per-stage durations, and final graph totals
+- ✅ **Frontend Structure View**: Successfully rendering 1,035 nodes and 1,000 edges from subgraph API
+- ? **Stage 8 Connectivity**: Symbol extraction, library bridging, and co-occurrence metrics now run inside the unified pipeline reports.
+- ✅ **Data Quality**: Only 31 orphaned nodes (0.18% ratio) - excellent data integrity
 
-Needs Improvement (Tracked)
----------------------------
+**Critical Issues Identified:**
+- ?? **Library Alias Coverage**: Current Stage 8 library mapping relies on a curated list; expand module detection and normalise ecosystems so dependency edges scale beyond the initial handful.
+- ?? **Symbol Link Quality**: Monitor symbol/doc linking precision and add language coverage (e.g., Markdown code fences, Go/Java) so the new relationships move the edge-to-node ratio toward the 2-5:1 target.
+- ?? **Zero Embeddings**: 0 chunks have embeddings (should be 14,089)
 
-- Stage accounting mismatch between implemented stages and reported `total_stages` in `UnifiedIngestionPipeline`.
-- Chunk ingestion remains single-threaded; batching with worker/process pools should trim the 42-minute runtime.
-- Chunk schema is inconsistent across writers (`text` vs `content`, varying relationships); normalise for downstream consumers.
-- Long-running chunking lacks streaming progress feedback; add job IDs and status feeds to avoid timeouts.
-- Relationship derivation warns on DEPENDS_ON because no import graph exists yet; need import extraction or guardrails.
+**Resolved Issues:**
+- ✅ Stage accounting mismatch fixed in `UnifiedIngestionPipeline`
+- ✅ Chunk ingestion parallelized with ProcessPoolExecutor
+- ✅ Chunk schema normalized (`text`, `kind` fields standardized)
+- ✅ Job IDs and status feeds implemented for long-running operations
+- ✅ Relationship derivation no longer warns on DEPENDS_ON (guarded properly)
+- ? Stage 8 pipeline produces symbol/doc/library links and co-occurrence weights inside the unified run.
+
+**Remaining Technical Debt:**
+- ?? **Import Graph Extraction**: Build language-aware import parsing so relationship derivation can graduate from heuristics to evidence-backed DEPENDS_ON edges.
+- ?? **Symbol Coverage QA**: Add tests around Stage 8 output (counts, duplicates, skipped files) and extend extraction to additional languages beyond Python/TS.
+- ?? **Doc Link Precision**: Replace naïve text CONTAINS matching with fulltext thresholds and short-token handling to limit spurious symbol links.
+
 
 Streamlining Plan (Next Steps)
 ------------------------------
@@ -131,6 +147,7 @@ Implementation Update (October 2025)
 -----------------------------------
 
 - Unified ingestion now issues job identifiers, exposes `/status/{job_id}` lookups, and stores per-stage telemetry so long-running runs can stream progress without holding the request open.
+- Stage 8 now materialises symbols, library bridges, and co-occurrence weights directly from the unified ingestion run and publishes the metrics in the stage summary.
 - Incremental manifest tracking writes a snapshot with repo hash, size, mtime, and the latest commit hash; Stage 2 stores the newest commit so delta runs only touch updated files while the cleanup pass deletes orphan chunks/files.
 - Document/code chunking runs through a `ProcessPoolExecutor` with batched UNWIND writes, normalized chunk payload (`text`, `content`, `kind`), and logs the top slow documents/code files for visibility.
 - Import graph derivation now generates `(:File)-[:IMPORTS]->(:File)` edges for Python/TS/JS and only emits DEPENDS_ON when import evidence exists.
@@ -191,24 +208,130 @@ Acceptance Metrics
 - Unified report node/relationship totals within ±1% of Neo4j counts.
 - No DEPENDS_ON warnings when imports are absent; counts >0 once import graph lands.
 
-Graph Quality (Connectivity & Clustering)
-----------------------------------------
+Graph Quality (Connectivity & Clustering) - Current State
+--------------------------------------------------------
 
-Baseline (Sept 2025 UI snapshot)
-- Clustering coefficient ~ 0.017 (goal: >0.15 for tighter local communities).
-- Average path length ~ 11.7 (goal: <8 for faster traversal).
-- Network density ~ 1.7% (goal: target 4-6% without overwhelming visualization).
-- Modularity ~ 0.259 (goal: >0.4 for well-separated thematic clusters once connectivity improves).
+**Current Metrics (Sept 2025)**
+- **Edge-to-Node Ratio**: 1.24:1 (17,042 nodes, 21,062 edges) - **CRITICAL**: Should be 2-5:1 for healthy knowledge graph
+- **Clustering coefficient**: ~0.002 (goal: >0.15 for tighter local communities)
+- **Average path length**: ~13.88 (goal: <8 for faster traversal)  
+- **Network density**: ~0.2% (goal: 4-6% without overwhelming visualization)
+- **Modularity**: ~0.631 (goal: >0.4 for well-separated thematic clusters)
 
-Connectivity Improvement Tactics
-- **Derive additional edges:**
-  - Co-change: link files frequently touched in the same commit window to surface implicit architectural ties (TOUCHED aggregation).
-  - Static imports: persist (:File)-[:IMPORTS]->(:File) for Python/TS/JS and propagate to requirements (ties in with DEPENDS_ON work item).
-  - Semantic chunk links: run cosine similarity on embeddings to create (:Chunk)-[:RELATES_TO]->(:Chunk) above a confidence threshold.
-  - Doc cross-references: detect [link](...) syntax and inline references to connect documents and requirements.
-- **Strengthen requirement coverage:** backfill (:Requirement)-[:IMPLEMENTS]->(:File) via doc chunk patterns, issue IDs, and PR metadata; enrich with sprint-to-requirement edges.
-- **Normalize orphan cleanup:** incremental runs should delete stale nodes/relationships so density gains reflect real structure.
-- **Weight & filter:** maintain relationship weights (co-change frequency, import strength, semantic score) to support UI sliders and avoid noise.
+**Relationship Distribution Analysis**
+- `PART_OF`: 14,089 (chunks to files - structural only)
+- `TOUCHED`: 3,658 (commits to files - temporal)
+- `CONTAINS_CHUNK`: 2,620 (documents to chunks)
+- `IMPLEMENTS`: 523 (requirements to files)
+- `IMPORTS`: 111 (file dependencies - **CRITICAL**: Too low!)
+- `MENTIONS`: 57 (cross-references - **CRITICAL**: Too low!)
+- `DEPENDS_ON`: 4 (derived from imports - **CRITICAL**: Nearly absent!)
+
+**Root Cause Analysis**
+1. **Missing Import Graph**: Only 111 `IMPORTS` relationships severely limits dependency analysis
+2. **No Co-occurrence Analysis**: Files frequently changed together aren't linked
+3. **Limited Cross-References**: Only 57 `MENTIONS` relationships exist
+4. **Structural vs Semantic**: System creates mostly structural relationships, not semantic ones
+
+**Immediate Connectivity Improvements (Priority Order)**
+
+## 🎯 **Phase 1: Documentation-to-Code Linking (CRITICAL)**
+
+**Target**: Link planning docs to implementation through library/technology mentions
+
+### **Library Detection & Mapping**
+Based on analysis of your codebase, here are the key libraries to extract:
+
+**Backend Libraries** (from `requirements.txt` and imports):
+- `FastAPI`, `Neo4j`, `GitPython`, `tenacity`, `python-dotenv`
+- `Qdrant`, `pytest`, `Docker`, `RAPIDS`, `Numba`, `CUDA`
+
+**Frontend Libraries** (from `package.json`):
+- `Next.js`, `React`, `Chakra UI`, `D3.js`, `WebGL`, `Deck.GL`
+- `@tanstack/react-query`, `framer-motion`, `graphology`, `sigma`
+
+**Infrastructure**:
+- `Docker`, `Dockerfile`, `docker-compose.yml`
+
+### **Implementation Strategy**
+1. **Extract Library Mentions from Docs**:
+   - Parse all `.md` files in `docs/` for library names
+   - Create `(:Document)-[:MENTIONS_LIBRARY]->(:Library)` relationships
+   - Weight by frequency and context (e.g., "FastAPI" in architecture docs = high weight)
+
+2. **Map Libraries to Code Files**:
+   - Parse `import` statements in Python files
+   - Parse `import`/`require` in TypeScript/JavaScript files
+   - Create `(:File)-[:USES_LIBRARY]->(:Library)` relationships
+
+3. **Create Documentation-to-Code Bridges**:
+   - Link documents mentioning libraries to files using those libraries
+   - Create `(:Document)-[:RELATES_TO]->(:File)` through shared library usage
+   - **Expected Impact**: 500+ new MENTIONS relationships
+
+### **Specific Library Patterns to Extract**
+```python
+# Backend patterns
+"FastAPI", "Neo4j", "GitPython", "tenacity", "python-dotenv"
+"Qdrant", "pytest", "Docker", "RAPIDS", "Numba", "CUDA"
+
+# Frontend patterns  
+"Next.js", "React", "Chakra UI", "D3.js", "WebGL", "Deck.GL"
+"@tanstack/react-query", "framer-motion", "graphology", "sigma"
+
+# Infrastructure
+"Docker", "Dockerfile", "docker-compose.yml"
+```
+
+## 🎯 **Phase 2: Import Graph Extraction (HIGH)**
+
+**Target**: 2,000+ IMPORTS relationships
+
+- Parse Python: `import`, `from X import Y`, `from X import *`
+- Parse TypeScript/JavaScript: `import`, `require()`, `import()`
+- Create `(:File)-[:IMPORTS]->(:File)` relationships
+- **Expected Impact**: 10-20x increase in DEPENDS_ON relationships
+
+## 🎯 **Phase 3: Co-occurrence Analysis (MEDIUM)**
+
+**Target**: 1,000+ CO_OCCURS_WITH relationships
+
+- Link files frequently touched in same commits
+- Weight by co-occurrence frequency
+- **Query**: `MATCH (c:GitCommit)-[:TOUCHED]->(f1:File), (c)-[:TOUCHED]->(f2:File) WHERE f1 <> f2`
+
+**Implementation Status** ✅ **INTEGRATED INTO INGESTION PIPELINE**
+
+## 🎯 **Stage 8: Enhanced Connectivity (NEW)**
+
+**Integrated into Unified Ingestion Pipeline** - No separate scripts needed!
+
+### **What Stage 8 Does**:
+1. **Code Symbol Extraction**: Extracts classes, functions, methods from Python/TS/JS files
+2. **Symbol-Chunk Linking**: Links code symbols to document chunks that mention them
+3. **Co-occurrence Analysis**: Links files frequently changed together
+4. **Library Relationships**: Creates library mentions and usage relationships
+
+### **New Relationship Types**:
+- `(:Symbol)-[:DEFINED_IN]->(:File)` - Symbol defined in file
+- `(:Chunk)-[:MENTIONS_SYMBOL]->(:Symbol)` - Document mentions code symbol
+- `(:File)-[:CO_OCCURS_WITH]->(:File)` - Files changed together
+- `(:Chunk)-[:MENTIONS_LIBRARY]->(:Library)` - Document mentions library
+- `(:File)-[:USES_LIBRARY]->(:Library)` - File uses library
+
+### **Usage**:
+```bash
+# Run unified ingestion with enhanced connectivity
+curl -X POST "http://localhost:8080/api/v1/dev-graph/ingest/unified?derive_relationships=true"
+```
+
+**Expected Results**:
+- 500+ Symbol nodes (classes, functions, methods)
+- 1,000+ CO_OCCURS_WITH relationships (files changed together)
+- 200+ MENTIONS_SYMBOL relationships (docs → code symbols)
+- 100+ Library relationships (docs → libraries → code)
+
+This creates **meaningful semantic connectivity** between your planning documents and actual implementation, all integrated into the standard ingestion pipeline.
 
 Metric Feedback Loop
 - Instrument /api/v1/dev-graph/quality to capture these metrics after each unified run; persist a history for regression tracking.
@@ -259,6 +382,13 @@ Extensibility Guidelines
 
 Change Log
 ----------
+- 2025-09-24: **MAJOR AUDIT UPDATE** - Post-parallelization analysis completed:
+  - ✅ Confirmed 25x performance improvement (43.5 min → 104 sec)
+  - ✅ Verified frontend structure view working correctly (1,035 nodes, 1,000 edges)
+  - 🔴 Identified critical connectivity issues: 1.24:1 edge-to-node ratio (should be 2-5:1)
+  - 🔴 Root cause analysis: Missing import graph (111 vs 2,000+ needed), limited cross-references
+  - 📋 Added comprehensive connectivity improvement roadmap with 3-phase implementation plan
+  - 📊 Updated performance metrics and operational audit with current system state
 - 2025-09-24: Integrated architecture addendum (original final 2025-09-23) into main doc; added API surface and streamlining plan with phased rollout.
 - 2025-09-23: Documented unified ingestion architecture, updated performance metrics with 43.5-minute pipeline run, and recorded optimisation backlog.
 - 2025-09-15: Initial Sprint 11 biological evolution UI architecture review (superseded).

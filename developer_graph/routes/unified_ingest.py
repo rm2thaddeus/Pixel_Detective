@@ -1,4 +1,4 @@
-"""
+﻿"""
 Unified Parallel Ingestion Pipeline
 Single robust endpoint that handles all ingestion in one go with comprehensive reporting.
 """
@@ -149,7 +149,7 @@ class UnifiedIngestionPipeline:
         self.job_id = job_id
         self.start_time = None
         self.stages_completed = 0
-        self.total_stages = 7
+        self.total_stages = 8
         self.results = {}
         self.last_commit_ingested = None
         if self.job_id:
@@ -220,6 +220,9 @@ class UnifiedIngestionPipeline:
                 self.stages_completed += 1
                 self._publish_stage("stage_7", stage_payload)
 
+            # Stage 8: Enhanced Connectivity (Code Symbols & Co-occurrence)
+            self._stage_8_enhanced_connectivity()
+
             final_report = self._generate_final_report()
             if self.job_id:
                 _finalize_job(self.job_id, 'completed', result=final_report)
@@ -246,7 +249,7 @@ class UnifiedIngestionPipeline:
         """Stage 1: Reset database and apply schema."""
         self._check_for_stop()
         self._enter_stage(1, "Reset and Schema")
-        logger.info("Stage 1/7: Reset and Schema")
+        logger.info("Stage 1/8: Reset and Schema")
 
         if reset_graph:
             with self.driver.session() as session:
@@ -268,7 +271,7 @@ class UnifiedIngestionPipeline:
         """Stage 2: Parallel commit ingestion."""
         self._check_for_stop()
         self._enter_stage(2, "Parallel Commit Ingestion")
-        logger.info("Stage 2/7: Parallel Commit Ingestion")
+        logger.info("Stage 2/8: Parallel Commit Ingestion")
 
         start_time = time.time()
         commit_results = parallel_pipeline.ingest_commits_parallel(limit=commit_limit)
@@ -288,7 +291,7 @@ class UnifiedIngestionPipeline:
         """Stage 3: Discover files and create chunks."""
         self._check_for_stop()
         self._enter_stage(3, "Repository Discovery & Chunking")
-        logger.info("Stage 3/7: Repository Discovery & Chunking")
+        logger.info("Stage 3/8: Repository Discovery & Chunking")
 
         start_time = time.time()
         should_process_docs = doc_limit is None or doc_limit > 0
@@ -351,6 +354,8 @@ class UnifiedIngestionPipeline:
             "delta_mode": delta,
             "subpath": subpath,
         }
+        self.doc_chunks_processed = doc_info.get("processed", 0)
+        self.code_files_processed = code_info.get("processed", 0)
         self.stages_completed += 1
         if stage_payload.get('slow_documents'):
             logger.info("Top slow documents: %s", stage_payload['slow_documents'])
@@ -362,7 +367,7 @@ class UnifiedIngestionPipeline:
         """Stage 4: Summarize code chunking results."""
         self._check_for_stop()
         self._enter_stage(4, "Code Chunk Summary")
-        logger.info("Stage 4/7: Code Chunk Summary")
+        logger.info("Stage 4/8: Code Chunk Summary")
 
         if not self.chunk_stats:
             stage_payload = {
@@ -404,7 +409,7 @@ class UnifiedIngestionPipeline:
         """Stage 5: Sprint Mapping."""
         self._check_for_stop()
         self._enter_stage(5, "Sprint Mapping")
-        logger.info("Stage 5/7: Sprint Mapping")
+        logger.info("Stage 5/8: Sprint Mapping")
 
         start_time = time.time()
         sprint_results = sprint_mapper.map_all_sprints()
@@ -422,7 +427,7 @@ class UnifiedIngestionPipeline:
         """Stage 6: Relationship derivation."""
         self._check_for_stop()
         self._enter_stage(6, "Relationship Derivation")
-        logger.info("Stage 6/7: Relationship Derivation")
+        logger.info("Stage 6/8: Relationship Derivation")
 
         start_time = time.time()
         derivation_results = deriver.derive_all(last_commit=self.last_commit_ingested)
@@ -443,7 +448,7 @@ class UnifiedIngestionPipeline:
         """Stage 7: Generate embeddings for chunks."""
         self._check_for_stop()
         self._enter_stage(7, "Embeddings")
-        logger.info("Stage 7/7: Embeddings Generation")
+        logger.info("Stage 7/8: Embeddings Generation")
 
         start_time = time.time()
         embedded_count = 0
@@ -492,6 +497,61 @@ class UnifiedIngestionPipeline:
         }
         self.stages_completed += 1
         self._publish_stage("stage_7", stage_payload)
+
+    def _stage_8_enhanced_connectivity(self):
+        """Stage 8: Enhanced connectivity through code symbols and co-occurrence analysis."""
+        self._check_for_stop()
+        self._enter_stage(8, "Enhanced Connectivity")
+        logger.info("Stage 8/8: Enhanced Connectivity")
+
+        start_time = time.time()
+
+        try:
+            from ..code_symbol_extractor import CodeSymbolExtractor
+
+            extractor = CodeSymbolExtractor(self.driver, self.repo_path)
+
+            with self.driver.session() as session:
+                query = (
+                    """
+                    MATCH (f:File)
+                    WHERE NOT coalesce(f.is_doc, false)
+                      AND f.path =~ $pattern
+                    """
+                )
+                params = {"pattern": "(?i).*\.(py|ts|tsx|js|jsx)$"}
+                if self.subpath:
+                    query += " AND f.path STARTS WITH $subpath"
+                    params["subpath"] = self.subpath
+                query += " RETURN f.path AS path, f.symbol_hash AS symbol_hash ORDER BY f.path"
+
+                records = session.run(query, **params)
+                code_files = [
+                    {"path": record["path"], "symbol_hash": record.get("symbol_hash")}
+                    for record in records
+                ]
+
+            force_doc_refresh = bool(self.doc_chunks_processed)
+            results = extractor.run_enhanced_connectivity(
+                code_files,
+                force_doc_refresh=force_doc_refresh,
+            )
+
+            stage_payload = {
+                **results,
+                "duration": time.time() - start_time,
+                "candidates": len(code_files),
+                "force_doc_refresh": force_doc_refresh,
+            }
+        except Exception as exc:
+            logger.exception("Enhanced connectivity failed: %s", exc)
+            stage_payload = {
+                "error": str(exc),
+                "duration": time.time() - start_time,
+            }
+
+        self.stages_completed += 1
+        self._publish_stage("stage_8", stage_payload)
 
     def _generate_final_report(self) -> Dict[str, Any]:
         """Generate comprehensive final report."""
@@ -707,6 +767,9 @@ def get_ingestion_report():
         "job_id": job_id,
         "generated_at": datetime.utcnow().isoformat() + "Z"
     }
+
+
+
 
 
 
