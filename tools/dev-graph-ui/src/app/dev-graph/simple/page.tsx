@@ -5,7 +5,7 @@ import { useAnalytics, useWindowedSubgraph } from '../hooks/useWindowedSubgraph'
 import { useQuery } from '@tanstack/react-query';
 
 // Developer Graph API base URL (configurable via env)
-const DEV_GRAPH_API_URL = process.env.NEXT_PUBLIC_DEV_GRAPH_API_URL || 'http://localhost:8000';
+const DEV_GRAPH_API_URL = process.env.NEXT_PUBLIC_DEV_GRAPH_API_URL || 'http://localhost:8080';
 
 export default function DevGraphPage() {
   // Use new hooks for data fetching

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Drawer, DrawerBody, DrawerCloseButton, DrawerContent, DrawerHeader, DrawerOverlay, Heading, Text, VStack, Badge, Divider, Spinner, Box } from '@chakra-ui/react';
 
-const DEV_GRAPH_API_URL = process.env.NEXT_PUBLIC_DEV_GRAPH_API_URL || 'http://localhost:8000';
+const DEV_GRAPH_API_URL = process.env.NEXT_PUBLIC_DEV_GRAPH_API_URL || 'http://localhost:8080';
 
 export function NodeDetailDrawer({ isOpen, onClose, node }: { isOpen: boolean; onClose: () => void; node: any | null }) {
   const entries = node ? Object.entries(node).filter(([k]) => k !== 'id') : [];

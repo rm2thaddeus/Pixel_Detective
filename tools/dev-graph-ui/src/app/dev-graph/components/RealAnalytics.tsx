@@ -6,7 +6,7 @@ import { useQuery } from '@tanstack/react-query';
 export function RealAnalytics({ fromTimestamp, toTimestamp }: { fromTimestamp?: string; toTimestamp?: string }) {
   const bg = useColorModeValue('white', 'gray.800');
   const border = useColorModeValue('gray.200', 'gray.600');
-  const base = process.env.NEXT_PUBLIC_DEV_GRAPH_API_URL || 'http://localhost:8000';
+  const base = process.env.NEXT_PUBLIC_DEV_GRAPH_API_URL || 'http://localhost:8080';
 
   const { data: activity, isLoading: loadingA, error: errorA } = useQuery({
     queryKey: ['analytics', 'activity', fromTimestamp, toTimestamp],

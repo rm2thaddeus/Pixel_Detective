@@ -12,6 +12,11 @@ export const mlApi = axios.create({
   timeout: 10000,
 });
 
+export const devGraphApi = axios.create({
+  baseURL: process.env.NEXT_PUBLIC_DEV_GRAPH_API_URL || 'http://localhost:8080',
+  timeout: 10000,
+});
+
 api.interceptors.response.use(
   (response) => response,
   (error) => {
@@ -188,7 +193,7 @@ export async function fetchFeatureEvolution(feature: string): Promise<FeatureEvo
   const isReq = /^(FR-|NFR-)/i.test(feature);
   try {
     if (isReq) {
-      const { data } = await api.get(`/api/v1/dev-graph/evolution/requirement/${encodeURIComponent(feature)}`);
+      const { data } = await devGraphApi.get(`/api/v1/dev-graph/evolution/requirement/${encodeURIComponent(feature)}`);
       // Expect data to contain a list of events with timestamps or commits; normalize
       const events: EvolutionEvent[] = (data?.events || data || []).map((e: any, i: number) => ({
         id: String(e.id ?? e.hash ?? i),
@@ -200,7 +205,7 @@ export async function fetchFeatureEvolution(feature: string): Promise<FeatureEvo
     }
 
     // Otherwise, build a generic timeline from commit buckets for context
-    const { data: buckets } = await api.get(`/api/v1/dev-graph/commits/buckets`, { params: { granularity: 'day', limit: 60 } });
+    const { data: buckets } = await devGraphApi.get(`/api/v1/dev-graph/commits/buckets`, { params: { granularity: 'day', limit: 60 } });
     const events: EvolutionEvent[] = (buckets?.buckets || buckets || []).map((b: any, i: number) => ({
       id: `bucket-${i}`,
       type: 'commit',
@@ -256,7 +261,7 @@ export interface ArchitectureInsightsResponse {
 
 export async function generateArchitectureInsights(): Promise<ArchitectureInsightsResponse> {
   const [rels, metrics] = await Promise.all([
-    api.get(`/api/v1/dev-graph/relations`, { params: { limit: 200 } }).then(r => r.data).catch(() => []),
+    devGraphApi.get(`/api/v1/dev-graph/relations`, { params: { limit: 200 } }).then(r => r.data).catch(() => []),
     api.get(`/api/v1/analytics/graph`).then(r => r.data).catch(() => null),
   ]);
   const dependencies = (rels as any[]).slice(0, 200).map((r) => ({ source: r.from, target: r.to, weight: 1 }));
@@ -275,7 +280,7 @@ export interface KnowledgeSearchResult {
 
 export async function searchKnowledge(query: string): Promise<KnowledgeSearchResult[]> {
   try {
-    const { data } = await api.get(`/api/v1/dev-graph/search`, { params: { q: query } });
+    const { data } = await devGraphApi.get(`/api/v1/dev-graph/search`, { params: { q: query } });
     return data as KnowledgeSearchResult[];
   } catch (err) {
     // Simple mock results

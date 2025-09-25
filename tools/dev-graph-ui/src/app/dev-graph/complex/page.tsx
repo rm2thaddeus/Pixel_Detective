@@ -22,7 +22,7 @@ const TelemetryDisplay = dynamic(() => import('../components/TelemetryDisplay').
 // Removed react-force-graph usage in favor of Sigma.js (see EvolutionGraph)
 
 // Developer Graph API base URL (configurable via env)
-const DEV_GRAPH_API_URL = process.env.NEXT_PUBLIC_DEV_GRAPH_API_URL || 'http://localhost:8000';
+const DEV_GRAPH_API_URL = process.env.NEXT_PUBLIC_DEV_GRAPH_API_URL || 'http://localhost:8080';
 
 export default function DevGraphPage() {
 	const PAGE_SIZE = 250; // Increased for better performance

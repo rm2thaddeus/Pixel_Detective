@@ -73,7 +73,7 @@ export default function StructureAnalysisGraph({
     if (useRealData && mounted) {
       const fetchRealData = async () => {
         try {
-          const response = await fetch(`${process.env.NEXT_PUBLIC_DEV_GRAPH_API_URL || 'http://localhost:8000'}/api/v1/dev-graph/graph/subgraph?limit=${maxNodes}&include_counts=true`);
+          const response = await fetch(`${process.env.NEXT_PUBLIC_DEV_GRAPH_API_URL || 'http://localhost:8080'}/api/v1/dev-graph/graph/subgraph?limit=${maxNodes}&include_counts=true`);
           const data = await response.json();
           setRealData({
             nodes: data.nodes || [],

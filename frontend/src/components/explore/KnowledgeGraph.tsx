@@ -4,7 +4,7 @@ import React, { useEffect, useMemo, useRef } from 'react';
 import Graph from 'graphology';
 import Sigma from 'sigma';
 import { Box, useColorModeValue } from '@chakra-ui/react';
-import { api } from '@/lib/api';
+import { api, devGraphApi } from '@/lib/api';
 import { workerManager } from '@/utils/workerManager';
 
 export function KnowledgeGraph({ clustering, focusMode }: { clustering: boolean; focusMode: boolean }) {
@@ -19,7 +19,7 @@ export function KnowledgeGraph({ clustering, focusMode }: { clustering: boolean;
       try {
         // Progressive hydration with smaller initial page
         const initialLimit = 250;
-        let sub = await api
+        let sub = await devGraphApi
           .get('/api/v1/dev-graph/graph/subgraph', {
             params: {
               limit: initialLimit,
@@ -115,7 +115,7 @@ export function KnowledgeGraph({ clustering, focusMode }: { clustering: boolean;
         
         // Continue with pagination if there are more pages
         while (sub?.pagination?.has_more && mounted) {
-          sub = await api
+          sub = await devGraphApi
             .get('/api/v1/dev-graph/graph/subgraph', {
               params: {
                 limit: initialLimit,
