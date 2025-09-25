@@ -46,14 +46,17 @@ def health_check():
 def get_stats():
     try:
         with driver.session() as session:
+            # Optimized query: Only count recent data to avoid full database scans
             record = session.run(
                 """
                 CALL {
                     MATCH (n)
+                    WHERE (n.timestamp IS NULL OR n.timestamp >= datetime() - duration('P30D'))
                     RETURN count(n) AS total_nodes
                 }
                 CALL {
                     MATCH ()-[r]->()
+                    WHERE (r.timestamp IS NULL OR r.timestamp >= datetime() - duration('P30D'))
                     RETURN count(r) AS total_relationships
                 }
                 CALL {
@@ -63,12 +66,14 @@ def get_stats():
                 }
                 CALL {
                     MATCH (n)
+                    WHERE (n.timestamp IS NULL OR n.timestamp >= datetime() - duration('P30D'))
                     UNWIND labels(n) AS label
                     RETURN label, count(*) AS cnt
                 }
                 WITH total_nodes, total_relationships, recent_commits_7d, collect({type: label, count: cnt}) AS node_type_list
                 CALL {
                     MATCH ()-[r]->()
+                    WHERE (r.timestamp IS NULL OR r.timestamp >= datetime() - duration('P30D'))
                     RETURN type(r) AS rel_type, count(r) AS cnt
                 }
                 RETURN total_nodes, total_relationships, recent_commits_7d,

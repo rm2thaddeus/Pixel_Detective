@@ -684,6 +684,14 @@ class TemporalEngine:
         where_clauses = ["(r.timestamp IS NOT NULL OR type(r) IN ['INCLUDES', 'CONTAINS_DOC', 'CONTAINS_CHUNK', 'PART_OF', 'IMPLEMENTS', 'MENTIONS', 'EVOLVES_FROM', 'REFACTORED_TO'])"]
         params = {"limit": max(1, min(limit, 5000))}
         
+        # Performance optimization: If no time bounds specified, limit to last 7 days
+        # This prevents scanning the entire graph when no time filter is provided
+        if not from_timestamp and not to_timestamp:
+            from datetime import datetime, timedelta
+            seven_days_ago = (datetime.now() - timedelta(days=7)).isoformat()
+            where_clauses.append("(r.timestamp IS NULL OR r.timestamp >= $default_from_ts)")
+            params["default_from_ts"] = seven_days_ago
+        
         if from_timestamp:
             where_clauses.append("(r.timestamp IS NULL OR r.timestamp >= $from_ts)")
             params["from_ts"] = from_timestamp
@@ -705,12 +713,15 @@ class TemporalEngine:
         total_edges = None
         if include_counts:
             # Count all nodes and edges, not just those with temporal relationships
+            # Optimized count queries - only count recent data for performance
             count_cypher = """
                 MATCH (n)
+                WHERE (n.timestamp IS NULL OR n.timestamp >= $default_from_ts)
                 RETURN count(n) AS node_count
             """
             edge_count_cypher = """
                 MATCH ()-[r]->()
+                WHERE (r.timestamp IS NULL OR r.timestamp >= $default_from_ts)
                 RETURN count(r) AS edge_count
             """
             print(f"Executing count query: {count_cypher}")
@@ -776,15 +787,29 @@ class TemporalEngine:
                 params["c_rid"] = keyset[1]
                 extra_clause = " AND (r.timestamp < $c_ts OR (r.timestamp = $c_ts AND elementId(r) < $c_rid))"
 
-            # Main query with pagination/keyset ordering
-            main_cypher = (
-                "MATCH (a)-[r]->(b) " + where_clause
-                + (extra_clause if keyset is not None else "")
-                + " RETURN DISTINCT a, labels(a) AS a_labels, b, labels(b) AS b_labels, r, type(r) AS rel_type, r.timestamp AS ts, elementId(r) AS rid"
-                + " ORDER BY ts DESC, rid DESC"
-                + (" SKIP $offset" if is_legacy_offset else "")
-                + " LIMIT $limit"
-            )
+            # Ultra-optimized query: Start with recent commits and their immediate relationships
+            # This avoids the expensive full graph scan
+            if not from_timestamp and not to_timestamp and limit <= 100:
+                # For small requests without time bounds, use a much faster approach
+                main_cypher = (
+                    "MATCH (c:GitCommit)-[r:TOUCHED]->(f:File) "
+                    "WHERE c.timestamp >= $default_from_ts "
+                    "WITH c, f, r, c.timestamp AS ts, elementId(r) AS rid "
+                    "ORDER BY ts DESC, rid DESC "
+                    "LIMIT $limit "
+                    "RETURN DISTINCT c AS a, labels(c) AS a_labels, f AS b, labels(f) AS b_labels, r, type(r) AS rel_type, ts, rid"
+                )
+            else:
+                # Original optimized query for larger requests or with time bounds
+                main_cypher = (
+                    "MATCH (a)-[r]->(b) " + where_clause
+                    + (extra_clause if keyset is not None else "")
+                    + " WITH a, b, r, type(r) AS rel_type, r.timestamp AS ts, elementId(r) AS rid"
+                    + " ORDER BY ts DESC, rid DESC"
+                    + (" SKIP $offset" if is_legacy_offset else "")
+                    + " LIMIT $limit"
+                    + " RETURN DISTINCT a, labels(a) AS a_labels, b, labels(b) AS b_labels, r, rel_type, ts, rid"
+                )
             
             result_cursor = session.run(main_cypher, params)
             
