@@ -63,6 +63,7 @@ export default function StructureAnalysisGraph({
   const [mounted, setMounted] = useState(false);
   const [realData, setRealData] = useState<{nodes: any[], edges: any[]} | null>(null);
   const [showEdges, setShowEdges] = useState(true);
+  const [localShowClusters, setLocalShowClusters] = useState(showClusters);
 
   useEffect(() => {
     setMounted(true);
@@ -70,21 +71,26 @@ export default function StructureAnalysisGraph({
 
   // Fetch real data when useRealData is true
   useEffect(() => {
-    if (useRealData && mounted) {
-      const fetchRealData = async () => {
-        try {
-          const response = await fetch(`${process.env.NEXT_PUBLIC_DEV_GRAPH_API_URL || 'http://localhost:8080'}/api/v1/dev-graph/graph/subgraph?limit=${maxNodes}&include_counts=true`);
-          const data = await response.json();
-          setRealData({
-            nodes: data.nodes || [],
-            edges: data.edges || []
-          });
-        } catch (error) {
-          console.error('Failed to fetch real graph data:', error);
-        }
-      };
-      fetchRealData();
-    }
+    if (!(useRealData && mounted)) return;
+    const controller = new AbortController();
+    // Use direct API URL to avoid Next.js rewrite issues
+    const apiUrl = process.env.NEXT_PUBLIC_DEV_GRAPH_API_URL || 'http://localhost:8080';
+    const url = `${apiUrl}/api/v1/dev-graph/graph/subgraph?limit=${maxNodes}&include_counts=true`;
+    (async () => {
+      try {
+        const response = await fetch(url, { signal: controller.signal });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+        setRealData({
+          nodes: (data?.nodes ?? []).map((n: any) => ({ ...n, id: String(n.id) })),
+          edges: data?.edges ?? []
+        });
+      } catch (error: any) {
+        if (error?.name === 'AbortError') return;
+        console.error('Failed to fetch real graph data:', error);
+      }
+    })();
+    return () => controller.abort();
   }, [useRealData, mounted, maxNodes]);
 
   useEffect(() => {
@@ -167,10 +173,8 @@ export default function StructureAnalysisGraph({
     // Final safety pass to guarantee endpoints exist in node set
     const nodeIdSet = new Set(nodes.map((n: any) => String(n.id)));
     const safeLinks = filteredLinks.filter((l: any) => nodeIdSet.has(String(l.source)) && nodeIdSet.has(String(l.target)));
-    // Keep nodes that participate in at least one safe link (or keep all if no links)
-    const keepIds = new Set<string>();
-    safeLinks.forEach((l: any) => { keepIds.add(String(l.source)); keepIds.add(String(l.target)); });
-    const filteredNodes = nodes.filter((n: any) => keepIds.size === 0 || keepIds.has(String(n.id)));
+    // Keep all nodes for now to debug edge rendering
+    const filteredNodes = nodes;
 
     // Debug logging
     try {
@@ -199,9 +203,19 @@ export default function StructureAnalysisGraph({
         nodeCount: nodes.length,
         filteredNodes: filteredNodes.length,
         totalLinks: links.length,
+        filteredLinks: filteredLinks.length,
+        safeLinks: safeLinks.length,
         selectedRelationType,
         selectedSourceType,
         selectedTargetType,
+        sampleLinks: links.slice(0, 3),
+        sampleNodes: nodes.slice(0, 3)
+      });
+    } else {
+      console.log('StructureAnalysisGraph: edges found', {
+        safeLinks: safeLinks.length,
+        sampleLinks: safeLinks.slice(0, 3),
+        showEdges: showEdges
       });
     }
 
@@ -221,7 +235,9 @@ export default function StructureAnalysisGraph({
     const simulation = d3.forceSimulation(filteredNodes)
       .force("charge", d3.forceManyBody().strength(-300))
       .force("center", d3.forceCenter(innerWidth / 2, innerHeight / 2))
-      .force("collision", d3.forceCollide().radius(20));
+      .force("collision", d3.forceCollide().radius(20))
+      .force("x", d3.forceX(innerWidth / 2).strength(0.1))
+      .force("y", d3.forceY(innerHeight / 2).strength(0.1));
 
     // Only add link force if there are valid links
     if (safeLinks.length > 0) {
@@ -237,6 +253,13 @@ export default function StructureAnalysisGraph({
       .domain(metrics.relation_types.map(rt => rt.type))
       .range(metrics.relation_types.map(rt => rt.color));
 
+    // Debug: Log color scale information
+    console.log('Color scales created', {
+      nodeTypes: metrics.node_types.map(nt => nt.type),
+      relationTypes: metrics.relation_types.map(rt => rt.type),
+      linkColorScaleDomain: linkColorScale.domain()
+    });
+
     // Create links
     const link = g.append("g")
       .attr("class", "links")
@@ -244,8 +267,8 @@ export default function StructureAnalysisGraph({
       .data(safeLinks)
       .enter().append("line")
       .attr("stroke", (d: any) => linkColorScale(d.type) || '#999')
-      .attr("stroke-opacity", 0.6)
-      .attr("stroke-width", 1)
+      .attr("stroke-opacity", 0.8)
+      .attr("stroke-width", 2)
       .style("display", showEdges ? "block" : "none");
 
     // Create nodes
@@ -254,28 +277,36 @@ export default function StructureAnalysisGraph({
       .selectAll("circle")
       .data(filteredNodes)
       .enter().append("circle")
-      .attr("r", (d: any) => Math.max(5, Math.min(20, (d.degree || 1) * 2 + 5)))
+      .attr("r", (d: any) => Math.max(8, Math.min(25, (d.degree || 1) * 3 + 8)))
       .attr("fill", (d: any) => nodeColorScale(d.type) || "#999")
       .attr("stroke", (d: any) => d.isCentral ? "#ff6b6b" : "#fff")
-      .attr("stroke-width", (d: any) => d.isCentral ? 3 : 1)
-      .attr("opacity", 0.8)
+      .attr("stroke-width", (d: any) => d.isCentral ? 4 : 2)
+      .attr("opacity", 0.9)
       .call(d3.drag()
         .on("start", dragstarted)
         .on("drag", dragged)
         .on("end", dragended));
 
-    // Add labels if enabled
+    // Add labels if enabled (always show for important nodes)
     let labels: any = null;
-    if (showLabels) {
+    if (showLabels || true) { // Always show labels for debugging
       labels = g.append("g")
         .attr("class", "labels")
         .selectAll("text")
         .data(filteredNodes)
         .enter().append("text")
-        .text((d: any) => d.id.length > 15 ? d.id.substring(0, 15) + "..." : d.id)
-        .attr("font-size", "10px")
+        .text((d: any) => {
+          // Show node type and a shortened ID
+          const type = d.type || 'Unknown';
+          const shortId = d.id.length > 8 ? d.id.substring(0, 8) + "..." : d.id;
+          return `${type}: ${shortId}`;
+        })
+        .attr("font-size", "8px")
         .attr("text-anchor", "middle")
-        .attr("dy", "0.35em");
+        .attr("dy", "0.35em")
+        .attr("fill", "#333")
+        .attr("stroke", "white")
+        .attr("stroke-width", 0.5);
     }
 
     // Add tooltips
@@ -362,8 +393,21 @@ export default function StructureAnalysisGraph({
       }
     });
 
-    // Start the simulation
+    // Start the simulation with higher alpha for better spreading
     simulation.alpha(1).restart();
+    
+    // Let the simulation run longer to spread nodes better
+    setTimeout(() => {
+      simulation.alpha(0.3).restart();
+    }, 2000);
+    
+    // Debug: Log simulation state
+    console.log('Force simulation started', {
+      nodeCount: filteredNodes.length,
+      edgeCount: safeLinks.length,
+      simulationAlpha: simulation.alpha(),
+      nodePositions: filteredNodes.slice(0, 3).map(n => ({ id: n.id, x: n.x, y: n.y }))
+    });
 
     // Drag functions
     function dragstarted(event: any, d: any) {
@@ -390,7 +434,7 @@ export default function StructureAnalysisGraph({
 
     statusGroup.append("rect")
       .attr("width", 200)
-      .attr("height", 40)
+      .attr("height", 60)
       .attr("fill", "rgba(255,255,255,0.9)")
       .attr("stroke", "#ddd")
       .attr("rx", 4);
@@ -400,7 +444,7 @@ export default function StructureAnalysisGraph({
       .attr("y", 20)
       .attr("font-size", "12px")
       .attr("fill", "#333")
-      .text(`Nodes: ${filteredNodes.length} | Links: ${filteredLinks.length}`);
+      .text(`Nodes: ${filteredNodes.length} | Links: ${safeLinks.length} (${showEdges ? 'visible' : 'hidden'})`);
 
     statusGroup.append("text")
       .attr("x", 10)
@@ -408,6 +452,50 @@ export default function StructureAnalysisGraph({
       .attr("font-size", "10px")
       .attr("fill", "#666")
       .text(`From: ${selectedSourceType || 'All'} | To: ${selectedTargetType || 'All'} | Relation: ${selectedRelationType || 'All'}`);
+
+    // Add edge toggle button
+    const toggleButton = statusGroup.append("rect")
+      .attr("x", 10)
+      .attr("y", 45)
+      .attr("width", 80)
+      .attr("height", 12)
+      .attr("fill", showEdges ? "#4CAF50" : "#f44336")
+      .attr("rx", 2)
+      .style("cursor", "pointer")
+      .on("click", function() {
+        setShowEdges(!showEdges);
+        link.style("display", showEdges ? "block" : "none");
+        statusGroup.select("text").text(`Nodes: ${filteredNodes.length} | Links: ${safeLinks.length} (${showEdges ? 'visible' : 'hidden'})`);
+      });
+
+    statusGroup.append("text")
+      .attr("x", 50)
+      .attr("y", 54)
+      .attr("font-size", "8px")
+      .attr("fill", "white")
+      .attr("text-anchor", "middle")
+      .text(showEdges ? "Hide Edges" : "Show Edges");
+
+    // Add cluster toggle button
+    const clusterToggleButton = statusGroup.append("rect")
+      .attr("x", 100)
+      .attr("y", 45)
+      .attr("width", 80)
+      .attr("height", 12)
+      .attr("fill", localShowClusters ? "#4CAF50" : "#f44336")
+      .attr("rx", 2)
+      .style("cursor", "pointer")
+      .on("click", function() {
+        setLocalShowClusters(!localShowClusters);
+      });
+
+    statusGroup.append("text")
+      .attr("x", 140)
+      .attr("y", 54)
+      .attr("font-size", "8px")
+      .attr("fill", "white")
+      .attr("text-anchor", "middle")
+      .text(localShowClusters ? "Hide Clusters" : "Show Clusters");
 
     // Add legend
     const legend = g.append("g")
@@ -431,16 +519,16 @@ export default function StructureAnalysisGraph({
         .text(`${nodeType.type} (${nodeType.count})`);
     });
 
-    // Add clustering visualization if enabled
-    if (showClusters && filteredNodes.length > 0) {
-      // Simple clustering visualization - draw circles around dense areas
+    // Add clustering visualization if enabled (much more subtle)
+    if (localShowClusters && filteredNodes.length > 0) {
+      // Simple clustering visualization - draw very subtle circles around dense areas
       const clusters = identifyClusters(filteredNodes, filteredLinks);
       
       clusters.forEach((cluster, index) => {
-        if (cluster.length > 1) { // Only show clusters with more than 1 node
+        if (cluster.length > 3) { // Only show clusters with more than 3 nodes
           const clusterGroup = g.append("g")
             .attr("class", "cluster")
-            .attr("opacity", 0.3);
+            .attr("opacity", 0.1); // Much more subtle
 
           const centerX = d3.mean(cluster, (d: any) => d.x) || 0;
           const centerY = d3.mean(cluster, (d: any) => d.y) || 0;
@@ -452,22 +540,26 @@ export default function StructureAnalysisGraph({
             .attr("cy", centerY)
             .attr("r", radius)
             .attr("fill", "none")
-            .attr("stroke", `hsl(${index * 60}, 70%, 50%)`)
-            .attr("stroke-width", 2)
-            .attr("stroke-dasharray", "5,5");
+            .attr("stroke", `hsl(${index * 60}, 30%, 70%)`)
+            .attr("stroke-width", 1)
+            .attr("stroke-dasharray", "10,10");
 
-          clusterGroup.append("text")
-            .attr("x", centerX)
-            .attr("y", centerY - radius - 10)
-            .attr("text-anchor", "middle")
-            .attr("font-size", "12px")
-            .attr("fill", `hsl(${index * 60}, 70%, 50%)`)
-            .text(`Cluster ${index + 1}`);
+          // Only show cluster labels for very large clusters
+          if (cluster.length > 5) {
+            clusterGroup.append("text")
+              .attr("x", centerX)
+              .attr("y", centerY - radius - 5)
+              .attr("text-anchor", "middle")
+              .attr("font-size", "10px")
+              .attr("fill", `hsl(${index * 60}, 30%, 70%)`)
+              .attr("opacity", 0.7)
+              .text(`Cluster ${index + 1}`);
+          }
         }
       });
     }
 
-  }, [mounted, metrics, height, width, selectedSourceType, selectedTargetType, selectedRelationType, showClusters, showLabels, maxNodes, useRealData, realData, showEdges]);
+  }, [mounted, metrics, height, width, selectedSourceType, selectedTargetType, selectedRelationType, localShowClusters, showLabels, maxNodes, useRealData, realData, showEdges]);
 
   useEffect(() => {
     if (!svgRef.current) return;

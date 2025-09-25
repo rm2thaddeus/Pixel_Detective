@@ -102,6 +102,8 @@ export default function StructureAnalysisPage() {
   const [selectedTargetType, setSelectedTargetType] = useState<string>('');
   const [selectedRelationType, setSelectedRelationType] = useState<string>('');
   const [availableRelationTypes, setAvailableRelationTypes] = useState<string[]>([]);
+  const [availableTargetTypes, setAvailableTargetTypes] = useState<string[]>([]);
+  const [availableSourceTypes, setAvailableSourceTypes] = useState<string[]>([]);
   const [showClusters, setShowClusters] = useState(true);
   const [showLabels, setShowLabels] = useState(false);
   const [maxNodes, setMaxNodes] = useState(1000);
@@ -125,9 +127,15 @@ export default function StructureAnalysisPage() {
         setError(null);
 
         // Fetch comprehensive structure analysis with graceful error handling
+        const typesParam = [selectedSourceType, selectedTargetType]
+          .filter(Boolean)
+          .join(',');
+        const subgraphUrl = `${DEV_GRAPH_API_URL}/api/v1/dev-graph/graph/subgraph?limit=${maxNodes}&include_counts=true` +
+          (typesParam ? `&types=${encodeURIComponent(typesParam)}` : '');
+
         const [statsRes, subgraphRes] = await Promise.all([
           fetch(`${DEV_GRAPH_API_URL}/api/v1/dev-graph/stats`).catch(() => null),
-          fetch(`${DEV_GRAPH_API_URL}/api/v1/dev-graph/graph/subgraph?limit=1000&include_counts=true`).catch(() => null)
+          fetch(subgraphUrl).catch(() => null)
         ]);
 
         const [stats, subgraph] = await Promise.all([
@@ -136,20 +144,142 @@ export default function StructureAnalysisPage() {
         ]);
 
         // Use real graph data from subgraph API
-        const nodes = subgraph?.nodes || [];
-        const edges = subgraph?.edges || [];
+        const nodes = (subgraph?.nodes || []).map((n: any) => ({ ...n, id: String(n.id) }));
+        const edges = (subgraph?.edges || []).map((e: any) => ({
+          from: String(e.from ?? e.source),
+          to: String(e.to ?? e.target),
+          type: e.type || 'RELATES_TO'
+        }));
+
+        // Apply client-side filtering consistent with graph component
+        const nodeById = new Map<string, any>();
+        nodes.forEach((n: any) => nodeById.set(String(n.id), n));
+        
+        // Debug: Log filtering parameters
+        console.log('Filtering with:', {
+          selectedRelationType,
+          selectedSourceType,
+          selectedTargetType,
+          totalEdges: edges.length,
+          availableRelationTypes: [...new Set(edges.map(e => e.type))]
+        });
+        
+        const filteredEdges = edges.filter((edge: any) => {
+          const s = nodeById.get(edge.from);
+          const t = nodeById.get(edge.to);
+          if (!s || !t) return false;
+          
+          // Filter by relationship type
+          if (selectedRelationType && String(edge.type) !== selectedRelationType) return false;
+          
+          // Filter by source type
+          if (selectedSourceType && String(s.type || (Array.isArray(s.labels) ? s.labels[0] : s.labels)) !== selectedSourceType) return false;
+          
+          // Filter by target type
+          if (selectedTargetType && String(t.type || (Array.isArray(t.labels) ? t.labels[0] : t.labels)) !== selectedTargetType) return false;
+          
+          return true;
+        });
+        
+        // If no edges found with strict filtering, try more flexible filtering
+        if (filteredEdges.length === 0 && (selectedSourceType || selectedTargetType)) {
+          console.log('No edges found with strict filtering, trying flexible approach...');
+          
+          // Try filtering by just source type if target type is selected but no matches
+          if (selectedSourceType && selectedTargetType) {
+            const flexibleEdges = edges.filter((edge: any) => {
+              const s = nodeById.get(edge.from);
+              const t = nodeById.get(edge.to);
+              if (!s || !t) return false;
+              
+              if (selectedRelationType && String(edge.type) !== selectedRelationType) return false;
+              
+              // Only filter by source type, ignore target type for now
+              if (selectedSourceType && String(s.type || (Array.isArray(s.labels) ? s.labels[0] : s.labels)) !== selectedSourceType) return false;
+              
+              return true;
+            });
+            
+            if (flexibleEdges.length > 0) {
+              console.log('Found edges with flexible filtering (source only):', flexibleEdges.length);
+              // Update the filteredEdges variable instead of returning
+              filteredEdges.splice(0, filteredEdges.length, ...flexibleEdges);
+            }
+          }
+        }
+        
+        console.log('Filtered edges:', {
+          original: edges.length,
+          filtered: filteredEdges.length,
+          relationTypes: [...new Set(filteredEdges.map(e => e.type))]
+        });
+        
+        // Update available target types based on selected source type
+        if (selectedSourceType) {
+          const sourceNodeIds = nodes
+            .filter(n => {
+              const nodeType = n.type || (Array.isArray(n.labels) ? n.labels[0] : n.labels);
+              return String(nodeType) === selectedSourceType;
+            })
+            .map(n => String(n.id));
+          
+          const targetTypes = edges
+            .filter(e => sourceNodeIds.includes(String(e.from)))
+            .map(e => {
+              const targetNode = nodeById.get(String(e.to));
+              return targetNode ? (targetNode.type || (Array.isArray(targetNode.labels) ? targetNode.labels[0] : targetNode.labels)) : null;
+            })
+            .filter(Boolean)
+            .map(String);
+          
+          const uniqueTargetTypes = [...new Set(targetTypes)];
+          setAvailableTargetTypes(uniqueTargetTypes);
+          console.log('Available target types for source', selectedSourceType, ':', uniqueTargetTypes);
+        } else {
+          setAvailableTargetTypes([]);
+        }
+        
+        // Update available source types based on selected target type
+        if (selectedTargetType) {
+          const targetNodeIds = nodes
+            .filter(n => {
+              const nodeType = n.type || (Array.isArray(n.labels) ? n.labels[0] : n.labels);
+              return String(nodeType) === selectedTargetType;
+            })
+            .map(n => String(n.id));
+          
+          const sourceTypes = edges
+            .filter(e => targetNodeIds.includes(String(e.to)))
+            .map(e => {
+              const sourceNode = nodeById.get(String(e.from));
+              return sourceNode ? (sourceNode.type || (Array.isArray(sourceNode.labels) ? sourceNode.labels[0] : sourceNode.labels)) : null;
+            })
+            .filter(Boolean)
+            .map(String);
+          
+          const uniqueSourceTypes = [...new Set(sourceTypes)];
+          setAvailableSourceTypes(uniqueSourceTypes);
+          console.log('Available source types for target', selectedTargetType, ':', uniqueSourceTypes);
+        } else {
+          setAvailableSourceTypes([]);
+        }
+        
+        const keepIds = new Set<string>();
+        filteredEdges.forEach((e: any) => { keepIds.add(e.from); keepIds.add(e.to); });
+        const filteredNodes = nodes.filter((n: any) => keepIds.size === 0 || keepIds.has(String(n.id)));
 
         // Calculate structure metrics with real data
         const structureMetrics: StructureMetrics = {
-          total_nodes: stats?.summary?.total_nodes || nodes.length,
-          total_relations: stats?.summary?.total_relations || edges.length,
+          // Show real counts if available, otherwise reflect filtered data to keep UI reactive
+          total_nodes: stats?.summary?.total_nodes ?? filteredNodes.length,
+          total_relations: stats?.summary?.total_relations ?? filteredEdges.length,
           node_types: stats?.node_types || [],
           relation_types: stats?.relationship_types || [],
-          clustering_coefficient: calculateClusteringCoefficient(nodes, edges),
-          average_path_length: calculateAveragePathLength(nodes, edges),
-          density: calculateDensity(nodes, edges),
-          modularity: calculateModularity(nodes, edges),
-          central_nodes: calculateCentralNodes(nodes, edges)
+          clustering_coefficient: calculateClusteringCoefficient(filteredNodes as any[], filteredEdges as any[]),
+          average_path_length: calculateAveragePathLength(filteredNodes as any[], filteredEdges as any[]),
+          density: calculateDensity(filteredNodes as any[], filteredEdges as any[]),
+          modularity: calculateModularity(filteredNodes as any[], filteredEdges as any[]),
+          central_nodes: calculateCentralNodes(filteredNodes as any[], filteredEdges as any[])
         };
 
         setMetrics(structureMetrics);
@@ -175,18 +305,18 @@ export default function StructureAnalysisPage() {
     };
 
     fetchStructureMetrics();
-  }, []);
+  }, [selectedSourceType, selectedTargetType, selectedRelationType, maxNodes]);
 
-  // Fetch real relation types from graph data
+  // Fetch real relation types from stats API
   useEffect(() => {
     const fetchRelationTypes = async () => {
       try {
-        const response = await fetch(`${DEV_GRAPH_API_URL}/api/v1/dev-graph/graph/subgraph?limit=200&include_counts=true`);
-        if (response.ok) {
-          const data = await response.json();
-          const relationTypes = [...new Set(data.edges.map((edge: any) => edge.type))];
-          setAvailableRelationTypes(relationTypes);
-        }
+        const response = await fetch(`${DEV_GRAPH_API_URL}/api/v1/dev-graph/stats`);
+        if (!response.ok) return;
+        const data = await response.json();
+        const relationTypes = (data?.relationship_types || []).map((rt: any) => rt.type);
+        setAvailableRelationTypes(relationTypes);
+        console.log('Fetched relationship types:', relationTypes);
       } catch (err) {
         console.error('Failed to fetch relation types:', err);
       }
@@ -425,11 +555,15 @@ export default function StructureAnalysisPage() {
                   size="sm"
                   maxW="200px"
                   value={selectedSourceType}
-                  onChange={(e) => setSelectedSourceType(e.target.value)}
+                  onChange={(e) => {
+                    setSelectedSourceType(e.target.value);
+                    setSelectedTargetType(''); // Reset target when source changes
+                    setSelectedRelationType(''); // Reset relation when source changes
+                  }}
                 >
                   <option value="">Any</option>
                   {metrics?.node_types.map(nt => (
-                    <option key={'from-'+nt.type} value={nt.type}>{nt.type}</option>
+                    <option key={'from-'+nt.type} value={nt.type}>{nt.type} ({nt.count})</option>
                   ))}
                 </Select>
               </HStack>
@@ -440,12 +574,29 @@ export default function StructureAnalysisPage() {
                   size="sm"
                   maxW="200px"
                   value={selectedTargetType}
-                  onChange={(e) => setSelectedTargetType(e.target.value)}
+                  onChange={(e) => {
+                    setSelectedTargetType(e.target.value);
+                    setSelectedRelationType(''); // Reset relation when target changes
+                  }}
+                  disabled={selectedSourceType && availableTargetTypes.length === 0}
                 >
-                  <option value="">Any</option>
-                  {metrics?.node_types.map(nt => (
-                    <option key={'to-'+nt.type} value={nt.type}>{nt.type}</option>
-                  ))}
+                  <option value="">
+                    {selectedSourceType 
+                      ? availableTargetTypes.length === 0 
+                        ? "No valid targets" 
+                        : "Any valid target"
+                      : "Any"
+                    }
+                  </option>
+                  {(selectedSourceType ? availableTargetTypes : metrics?.node_types?.map(nt => nt.type) || [])
+                    .map(type => {
+                      const nodeType = metrics?.node_types?.find(nt => nt.type === type);
+                      return (
+                        <option key={'to-'+type} value={type}>
+                          {type} {nodeType ? `(${nodeType.count})` : ''}
+                        </option>
+                      );
+                    })}
                 </Select>
               </HStack>
 
@@ -453,13 +604,21 @@ export default function StructureAnalysisPage() {
                 <Text fontSize="sm">Relation Type:</Text>
                 <Select
                   size="sm"
-                  maxW="220px"
+                  maxW="250px"
                   value={selectedRelationType}
                   onChange={(e) => setSelectedRelationType(e.target.value)}
+                  disabled={selectedSourceType && selectedTargetType && availableTargetTypes.length === 0}
                 >
-                  <option value="">All Relations</option>
-                  {availableRelationTypes.map(rt => (
-                    <option key={'rel-'+rt} value={rt}>{rt}</option>
+                  <option value="">
+                    {selectedSourceType && selectedTargetType && availableTargetTypes.length === 0
+                      ? "No valid relations"
+                      : `All Relations (${metrics?.relation_types?.reduce((sum, rt) => sum + rt.count, 0) || 0})`
+                    }
+                  </option>
+                  {metrics?.relation_types?.map(rt => (
+                    <option key={'rel-'+rt.type} value={rt.type}>
+                      {rt.type} ({rt.count})
+                    </option>
                   ))}
                 </Select>
               </HStack>
@@ -650,10 +809,37 @@ export default function StructureAnalysisPage() {
         </Card>
 
         <Box h="600px" bg={bgColor} borderRadius="md" borderColor={borderColor} p={4}>
+          {/* Filter Status Indicator */}
+          {metrics && (
+            <Box mb={4} p={3} bg={useColorModeValue('gray.50', 'gray.700')} borderRadius="md">
+              <HStack spacing={4} wrap="wrap">
+                <Badge colorScheme="blue" variant="subtle">
+                  {selectedRelationType || 'All Relations'} 
+                  {selectedRelationType && metrics.relation_types?.find(rt => rt.type === selectedRelationType) && 
+                    ` (${metrics.relation_types.find(rt => rt.type === selectedRelationType)?.count} edges)`
+                  }
+                </Badge>
+                {selectedSourceType && (
+                  <Badge colorScheme="green" variant="subtle">
+                    From: {selectedSourceType}
+                  </Badge>
+                )}
+                {selectedTargetType && (
+                  <Badge colorScheme="purple" variant="subtle">
+                    To: {selectedTargetType}
+                  </Badge>
+                )}
+                <Text fontSize="sm" color={mutedTextColor}>
+                  Showing {metrics.total_relations} relationships
+                </Text>
+              </HStack>
+            </Box>
+          )}
+          
           {metrics ? (
             <StructureAnalysisGraph
               metrics={metrics}
-              height={560}
+              height={520}
               selectedRelationType={selectedRelationType}
               selectedSourceType={selectedSourceType}
               selectedTargetType={selectedTargetType}

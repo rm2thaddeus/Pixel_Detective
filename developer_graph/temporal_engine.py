@@ -730,7 +730,7 @@ class TemporalEngine:
             if include_counts:
                 print(f"include_counts is True, executing count query")
                 # Get node count
-                count_result_cursor = session.run(count_cypher)
+                count_result_cursor = session.run(count_cypher, params)
                 count_record = None
                 try:
                     count_record = count_result_cursor.single()
@@ -747,7 +747,7 @@ class TemporalEngine:
                 # Get edge count
                 edge_count_record = None
                 try:
-                    edge_count_cursor = session.run(edge_count_cypher)
+                    edge_count_cursor = session.run(edge_count_cypher, params)
                     edge_count_record = edge_count_cursor.single()
                     print(f"Edge count query result: {edge_count_record}")
                     edge_count_cursor.consume()
