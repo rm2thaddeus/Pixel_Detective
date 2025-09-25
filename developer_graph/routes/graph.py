@@ -16,7 +16,7 @@ def get_windowed_subgraph(
     from_timestamp: Optional[str] = Query(None, description="Start timestamp (ISO format)"),
     to_timestamp: Optional[str] = Query(None, description="End timestamp (ISO format)"),
     types: Optional[str] = Query(None, description="Comma-separated node types to filter"),
-    limit: int = Query(1000, ge=1, le=5000, description="Maximum number of edges to return"),
+    limit: int = Query(1000, ge=1, le=50000, description="Maximum number of edges to return"),
     cursor: Optional[str] = Query(None, description="Pagination cursor"),
     include_counts: bool = Query(True, description="Include total node/edge counts in response")
 ):

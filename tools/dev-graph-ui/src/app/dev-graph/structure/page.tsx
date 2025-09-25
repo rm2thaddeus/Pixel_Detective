@@ -106,7 +106,7 @@ export default function StructureAnalysisPage() {
   const [availableSourceTypes, setAvailableSourceTypes] = useState<string[]>([]);
   const [showClusters, setShowClusters] = useState(true);
   const [showLabels, setShowLabels] = useState(false);
-  const [maxNodes, setMaxNodes] = useState(1000);
+  const [maxNodes, setMaxNodes] = useState(20000);
 
   const [cypherQuery, setCypherQuery] = useState<string>(DEFAULT_CYPHER_QUERY);
   const [cypherResult, setCypherResult] = useState<CypherQueryResult | null>(null);
@@ -119,6 +119,7 @@ export default function StructureAnalysisPage() {
   const borderColor = useColorModeValue('gray.200', 'gray.600');
   const pageBgColor = useColorModeValue('gray.50', 'gray.900');
   const mutedTextColor = useColorModeValue('gray.600', 'gray.400');
+  const filterStatusBg = useColorModeValue('gray.50', 'gray.700');
 
   useEffect(() => {
     const fetchStructureMetrics = async () => {
@@ -811,7 +812,7 @@ export default function StructureAnalysisPage() {
         <Box h="600px" bg={bgColor} borderRadius="md" borderColor={borderColor} p={4}>
           {/* Filter Status Indicator */}
           {metrics && (
-            <Box mb={4} p={3} bg={useColorModeValue('gray.50', 'gray.700')} borderRadius="md">
+            <Box mb={4} p={3} bg={filterStatusBg} borderRadius="md">
               <HStack spacing={4} wrap="wrap">
                 <Badge colorScheme="blue" variant="subtle">
                   {selectedRelationType || 'All Relations'} 

@@ -682,7 +682,7 @@ class TemporalEngine:
         # Build WHERE clause for time bounds
         # Include both temporal relationships and non-temporal relationships (like Sprint nodes)
         where_clauses = ["(r.timestamp IS NOT NULL OR type(r) IN ['INCLUDES', 'CONTAINS_DOC', 'CONTAINS_CHUNK', 'PART_OF', 'IMPLEMENTS', 'MENTIONS', 'EVOLVES_FROM', 'REFACTORED_TO'])"]
-        params = {"limit": max(1, min(limit, 5000))}
+        params = {"limit": max(1, min(limit, 50000))}
         
         # Performance optimization: If no time bounds specified, limit to last 7 days
         # This prevents scanning the entire graph when no time filter is provided
@@ -791,13 +791,14 @@ class TemporalEngine:
             # This avoids the expensive full graph scan
             if not from_timestamp and not to_timestamp and limit <= 100:
                 # For small requests without time bounds, use a much faster approach
+                # Include all relationship types, not just TOUCHED
                 main_cypher = (
-                    "MATCH (c:GitCommit)-[r:TOUCHED]->(f:File) "
-                    "WHERE c.timestamp >= $default_from_ts "
-                    "WITH c, f, r, c.timestamp AS ts, elementId(r) AS rid "
+                    "MATCH (a)-[r]->(b) "
+                    "WHERE (r.timestamp IS NULL OR r.timestamp >= $default_from_ts) "
+                    "WITH a, b, r, type(r) AS rel_type, COALESCE(r.timestamp, datetime()) AS ts, elementId(r) AS rid "
                     "ORDER BY ts DESC, rid DESC "
                     "LIMIT $limit "
-                    "RETURN DISTINCT c AS a, labels(c) AS a_labels, f AS b, labels(f) AS b_labels, r, type(r) AS rel_type, ts, rid"
+                    "RETURN DISTINCT a, labels(a) AS a_labels, b, labels(b) AS b_labels, r, rel_type, ts, rid"
                 )
             else:
                 # Original optimized query for larger requests or with time bounds
