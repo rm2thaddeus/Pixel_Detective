@@ -1,6 +1,6 @@
 'use client';
 import { Box, Heading, Text, VStack, HStack, Grid, GridItem, Card, CardBody, CardHeader, Badge, Button, Spinner, Alert, AlertIcon, useColorModeValue, Stat, StatLabel, StatNumber, StatHelpText, StatArrow, Progress, Divider, Icon, Flex, Select, useToast, AlertDialog, AlertDialogOverlay, AlertDialogContent, AlertDialogHeader, AlertDialogBody, AlertDialogFooter } from '@chakra-ui/react';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { Header } from '@/components/Header';
 import { Link as ChakraLink } from '@chakra-ui/react';
 import { FaCode, FaGitAlt, FaFileAlt, FaProjectDiagram, FaClock, FaUsers, FaChartLine, FaExclamationTriangle, FaCheckCircle, FaTimesCircle } from 'react-icons/fa';
@@ -63,7 +63,7 @@ export default function WelcomeDashboard() {
   const toast = useToast();
   const queryClient = useQueryClient();
   const [isResetOpen, setIsResetOpen] = useState(false);
-  const cancelRef = (typeof window !== 'undefined') ? (document.createElement('div') as any) : null;
+  const cancelRef = useRef<HTMLButtonElement>(null);
 
   // Use new hooks for data fetching
   const { data: analyticsData, isLoading: analyticsLoading, error: analyticsError } = useAnalytics();
@@ -108,7 +108,8 @@ export default function WelcomeDashboard() {
     mutationFn: async () => {
       const res = await fetch(`${DEV_GRAPH_API_URL}/api/v1/dev-graph/ingest/full-reset`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        cache: 'no-store',
+        // Intentionally omit Content-Type/body to avoid unnecessary CORS preflight
       });
       if (!res.ok) {
         const detail = await res.text().catch(() => '');
@@ -773,10 +774,10 @@ export default function WelcomeDashboard() {
                 This will reset the developer graph database and run a fresh ingestion. Existing graph data will be replaced. Do you want to continue?
               </AlertDialogBody>
               <AlertDialogFooter>
-                <Button ref={cancelRef as any} onClick={() => setIsResetOpen(false)}>
+                <Button ref={cancelRef} onClick={() => setIsResetOpen(false)}>
                   Cancel
                 </Button>
-                <Button colorScheme="red" ml={3} isLoading={fullResetMutation.isPending} loadingText="Rebuilding..." onClick={() => { fullResetMutation.mutate(); setIsResetOpen(false); }}>
+                <Button colorScheme="red" ml={3} isLoading={fullResetMutation.isPending} loadingText="Rebuilding..." onClick={async () => { try { await (fullResetMutation as any).mutateAsync(); } finally { setIsResetOpen(false); } }}>
                   Yes, Rebuild
                 </Button>
               </AlertDialogFooter>
