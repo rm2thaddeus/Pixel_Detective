@@ -45,6 +45,9 @@ interface StructureAnalysisGraphProps {
   showLabels?: boolean;
   maxNodes?: number;
   useRealData?: boolean;
+  onSvgReady?: (svg: SVGSVGElement | null) => void;
+  overrideData?: { nodes: any[]; edges: any[] } | null;
+  highlightFilter?: { kind: 'future-nodes' | 'future-relationships' | 'by-type'; value?: string } | null;
 }
 
 export default function StructureAnalysisGraph({
@@ -57,7 +60,10 @@ export default function StructureAnalysisGraph({
   showClusters = true,
   showLabels = false,
   maxNodes = 1000,
-  useRealData = false
+  useRealData = false,
+  onSvgReady,
+  overrideData = null,
+  highlightFilter = null
 }: StructureAnalysisGraphProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [mounted, setMounted] = useState(false);
@@ -117,9 +123,35 @@ export default function StructureAnalysisGraph({
       .append("g")
       .attr("transform", `translate(${margin.left},${margin.top})`);
 
-    // Use real data if available, otherwise generate synthetic data
+    // Use override data first, then real data if available, otherwise generate synthetic data
     let nodes, links;
-    if (useRealData && realData) {
+    if (overrideData && Array.isArray(overrideData.nodes) && Array.isArray(overrideData.edges)) {
+      nodes = (overrideData.nodes as any[]).map((node: any) => ({
+        id: String(node.id),
+        type: node.type || (Array.isArray(node.labels) ? node.labels[0] : node.labels) || 'Unknown',
+        degree: 0,
+        centrality: 0,
+        isCentral: false,
+        x: node.x || Math.random() * innerWidth,
+        y: node.y || Math.random() * innerHeight
+      }));
+      const edges = (overrideData.edges as any[]);
+      links = edges.map((edge: any) => ({
+        source: String(edge.from ?? edge.source),
+        target: String(edge.to ?? edge.target),
+        type: edge.type || 'RELATES_TO'
+      }));
+      const nodeDegrees = new Map<string, number>();
+      links.forEach((l: any) => {
+        nodeDegrees.set(l.source, (nodeDegrees.get(l.source) || 0) + 1);
+        nodeDegrees.set(l.target, (nodeDegrees.get(l.target) || 0) + 1);
+      });
+      nodes.forEach((n: any) => {
+        n.degree = nodeDegrees.get(n.id) || 0;
+        n.centrality = n.degree / Math.max(1, nodes.length - 1);
+        n.isCentral = n.degree > 5;
+      });
+    } else if (useRealData && realData) {
       nodes = realData.nodes.map((node: any) => ({
         id: String(node.id),
         // Prefer explicit type, otherwise use first label, fallback to 'Unknown'
@@ -279,8 +311,18 @@ export default function StructureAnalysisGraph({
       .enter().append("circle")
       .attr("r", (d: any) => Math.max(8, Math.min(25, (d.degree || 1) * 3 + 8)))
       .attr("fill", (d: any) => nodeColorScale(d.type) || "#999")
-      .attr("stroke", (d: any) => d.isCentral ? "#ff6b6b" : "#fff")
-      .attr("stroke-width", (d: any) => d.isCentral ? 4 : 2)
+      .attr("stroke", (d: any) => {
+        if (highlightFilter?.kind === 'by-type' && highlightFilter.value) {
+          return String(d.type) === String(highlightFilter.value) ? "#f6e05e" : (d.isCentral ? "#ff6b6b" : "#fff");
+        }
+        return d.isCentral ? "#ff6b6b" : "#fff";
+      })
+      .attr("stroke-width", (d: any) => {
+        if (highlightFilter?.kind === 'by-type' && highlightFilter.value) {
+          return String(d.type) === String(highlightFilter.value) ? 4 : (d.isCentral ? 4 : 2);
+        }
+        return d.isCentral ? 4 : 2;
+      })
       .attr("opacity", 0.9)
       .call(d3.drag()
         .on("start", dragstarted)
@@ -559,7 +601,12 @@ export default function StructureAnalysisGraph({
       });
     }
 
-  }, [mounted, metrics, height, width, selectedSourceType, selectedTargetType, selectedRelationType, localShowClusters, showLabels, maxNodes, useRealData, realData, showEdges]);
+    // Notify parent with SVG element
+    if (onSvgReady) {
+      onSvgReady(svgRef.current);
+    }
+
+  }, [mounted, metrics, height, width, selectedSourceType, selectedTargetType, selectedRelationType, localShowClusters, showLabels, maxNodes, useRealData, realData, showEdges, overrideData, highlightFilter, onSvgReady]);
 
   useEffect(() => {
     if (!svgRef.current) return;

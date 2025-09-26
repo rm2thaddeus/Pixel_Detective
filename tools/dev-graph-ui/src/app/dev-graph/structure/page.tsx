@@ -110,6 +110,10 @@ export default function StructureAnalysisPage() {
 
   const [cypherQuery, setCypherQuery] = useState<string>(DEFAULT_CYPHER_QUERY);
   const [cypherResult, setCypherResult] = useState<CypherQueryResult | null>(null);
+  const [graphOverride, setGraphOverride] = useState<{nodes: any[]; edges: any[]} | null>(null);
+  const [highlightKind, setHighlightKind] = useState<'none' | 'by-type' | 'future-nodes' | 'future-relationships'>('none');
+  const [highlightValue, setHighlightValue] = useState<string>('');
+  const [svgEl, setSvgEl] = useState<SVGSVGElement | null>(null);
   const [cypherWarnings, setCypherWarnings] = useState<string[]>([]);
   const [cypherLoading, setCypherLoading] = useState(false);
   const [cypherError, setCypherError] = useState<string | null>(null);
@@ -402,6 +406,10 @@ export default function StructureAnalysisPage() {
       }
       const payload: CypherQueryResult = await response.json();
       setCypherResult(payload);
+      // Prepare override data for graph rendering
+      const nodes = (payload.nodes || []).map((n: any) => ({ id: String(n.id), type: n.type || (Array.isArray(n.labels) ? n.labels[0] : n.labels) || 'Unknown' }));
+      const edges = (payload.relationships || []).map((r: any) => ({ from: String(r.from), to: String(r.to), type: r.type }));
+      setGraphOverride({ nodes, edges });
       setCypherWarnings(payload.warnings || []);
       toast({
         title: 'Query executed',
@@ -810,6 +818,54 @@ export default function StructureAnalysisPage() {
         </Card>
 
         <Box h="600px" bg={bgColor} borderRadius="md" borderColor={borderColor} p={4}>
+          {/* Secondary Highlight Filter */}
+          <HStack spacing={3} mb={3}>
+            <Text fontSize="sm">Highlight:</Text>
+            <Select size="sm" maxW="220px" value={highlightKind} onChange={(e)=> setHighlightKind(e.target.value as any)}>
+              <option value="none">None</option>
+              <option value="by-type">By Node Type</option>
+              <option value="future-nodes">Future Nodes (placeholder)</option>
+              <option value="future-relationships">Future Relationships (placeholder)</option>
+            </Select>
+            {highlightKind === 'by-type' && (
+              <Select size="sm" maxW="220px" value={highlightValue} onChange={(e)=> setHighlightValue(e.target.value)}>
+                <option value="">Select type…</option>
+                {metrics?.node_types.map(nt => (
+                  <option key={'h-'+nt.type} value={nt.type}>{nt.type}</option>
+                ))}
+              </Select>
+            )}
+            <Button size="sm" variant="outline" leftIcon={<FaDownload />} onClick={() => {
+              if (!svgEl) return;
+              const serialized = new XMLSerializer().serializeToString(svgEl);
+              const blob = new Blob([serialized], { type: 'image/svg+xml;charset=utf-8' });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = 'structure-graph.svg';
+              document.body.appendChild(a);
+              a.click();
+              document.body.removeChild(a);
+              setTimeout(()=> URL.revokeObjectURL(url), 1000);
+            }}>
+              Export SVG
+            </Button>
+            {graphOverride && (
+              <Button size="sm" variant="outline" onClick={() => {
+                const blob = new Blob([JSON.stringify(graphOverride, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'subgraph.json';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                setTimeout(()=> URL.revokeObjectURL(url), 1000);
+              }}>
+                Export JSON
+              </Button>
+            )}
+          </HStack>
           {/* Filter Status Indicator */}
           {metrics && (
             <Box mb={4} p={3} bg={filterStatusBg} borderRadius="md">
@@ -848,6 +904,9 @@ export default function StructureAnalysisPage() {
               showLabels={showLabels}
               maxNodes={maxNodes}
               useRealData={true}
+              onSvgReady={setSvgEl}
+              overrideData={graphOverride}
+              highlightFilter={highlightKind === 'none' ? null : { kind: highlightKind === 'by-type' ? 'by-type' : (highlightKind as any), value: highlightValue }}
             />
           ) : (
             <VStack align="center" justify="center" h="full">

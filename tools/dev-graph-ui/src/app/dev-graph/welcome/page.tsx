@@ -1,11 +1,11 @@
 'use client';
-import { Box, Heading, Text, VStack, HStack, Grid, GridItem, Card, CardBody, CardHeader, Badge, Button, Spinner, Alert, AlertIcon, useColorModeValue, Stat, StatLabel, StatNumber, StatHelpText, StatArrow, Progress, Divider, Icon, Flex, Select } from '@chakra-ui/react';
+import { Box, Heading, Text, VStack, HStack, Grid, GridItem, Card, CardBody, CardHeader, Badge, Button, Spinner, Alert, AlertIcon, useColorModeValue, Stat, StatLabel, StatNumber, StatHelpText, StatArrow, Progress, Divider, Icon, Flex, Select, useToast } from '@chakra-ui/react';
 import { useState, useEffect, useMemo } from 'react';
 import { Header } from '@/components/Header';
 import { Link as ChakraLink } from '@chakra-ui/react';
 import { FaCode, FaGitAlt, FaFileAlt, FaProjectDiagram, FaClock, FaUsers, FaChartLine, FaExclamationTriangle, FaCheckCircle, FaTimesCircle } from 'react-icons/fa';
 import { useAnalytics, useTelemetry, useWindowedSubgraph, useDataQuality } from '../hooks/useWindowedSubgraph';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 // Developer Graph API base URL
 const DEV_GRAPH_API_URL = process.env.NEXT_PUBLIC_DEV_GRAPH_API_URL || 'http://localhost:8080';
@@ -60,6 +60,8 @@ export default function WelcomeDashboard() {
   const borderColor = useColorModeValue('gray.200', 'gray.600');
   const pageBgColor = useColorModeValue('gray.50', 'gray.900');
   const indicatorBgColor = useColorModeValue('gray.100', 'gray.700');
+  const toast = useToast();
+  const queryClient = useQueryClient();
 
   // Use new hooks for data fetching
   const { data: analyticsData, isLoading: analyticsLoading, error: analyticsError } = useAnalytics();
@@ -97,6 +99,29 @@ export default function WelcomeDashboard() {
       return res.json();
     },
     staleTime: 60_000,
+  });
+
+  // Build/Update Database (Full Reset + Ingest)
+  const fullResetMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`${DEV_GRAPH_API_URL}/api/v1/dev-graph/ingest/full-reset`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      if (!res.ok) {
+        const detail = await res.text().catch(() => '');
+        throw new Error(detail || 'Failed to run full reset');
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: 'Database rebuilt', description: 'Graph has been reset and ingested.', status: 'success', duration: 5000 });
+      // Invalidate all cached data to refresh UI
+      queryClient.invalidateQueries({ predicate: () => true });
+    },
+    onError: (err: any) => {
+      toast({ title: 'Full reset failed', description: err?.message || 'Unknown error', status: 'error', duration: 6000 });
+    }
   });
 
   // Calculate loading and error states
@@ -719,6 +744,15 @@ export default function WelcomeDashboard() {
                 size="sm"
               >
                 API Documentation
+              </Button>
+              <Button 
+                colorScheme="blue" 
+                size="sm"
+                isLoading={fullResetMutation.isPending}
+                loadingText="Rebuilding..."
+                onClick={() => fullResetMutation.mutate()}
+              >
+                Build/Update Database
               </Button>
             </HStack>
           </CardBody>

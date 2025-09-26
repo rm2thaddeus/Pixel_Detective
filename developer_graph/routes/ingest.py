@@ -3,7 +3,10 @@ from __future__ import annotations
 import os
 import time
 import logging
-from typing import Optional, List
+from typing import Optional, List, Dict
+import os
+import json
+from datetime import datetime
 from fastapi import APIRouter, Query, HTTPException
 
 from ..app_state import (
@@ -20,6 +23,7 @@ from ..app_state import (
     REPO_PATH,
 )
 from ..enhanced_ingest import EnhancedDevGraphIngester
+from ..code_symbol_extractor import CodeSymbolExtractor
 
 
 router = APIRouter()
@@ -168,6 +172,8 @@ def bootstrap_complete(
     commit_limit: int = Query(1000, ge=1, le=5000),
     derive_relationships: bool = True,
     dry_run: bool = False,
+    run_symbol_extractor: bool = True,
+    symbol_file_limit: int = Query(50000, ge=1000, le=200000),
 ):
     """Complete bootstrap endpoint that does everything properly.
     
@@ -211,6 +217,18 @@ def bootstrap_complete(
             enhanced_ingester.ingest()
             progress["enhanced_ingest_completed"] = True
         
+        # Optional: symbol/library extraction to improve Library coverage
+        symbol_stats: Dict[str, object] = {}
+        if run_symbol_extractor and not dry_run:
+            try:
+                logger.info("Running CodeSymbolExtractor to enhance library relationships…")
+                code_files = _discover_code_files_from_graph(symbol_file_limit)
+                extractor = CodeSymbolExtractor(driver, REPO_PATH)
+                symbol_stats = extractor.run_enhanced_connectivity(code_files, force_doc_refresh=True)
+                logger.info(f"Symbol extraction stats: {symbol_stats}")
+            except Exception as e:
+                logger.warning(f"Symbol extraction failed: {e}")
+
         # Stage 4: Derive relationships
         derived_counts = {"implements": 0, "evolves_from": 0, "depends_on": 0}
         if derive_relationships and not dry_run:
@@ -253,12 +271,102 @@ def bootstrap_complete(
             "node_stats": node_stats,
             "relationship_stats": rel_stats,
             "derived": derived_counts,
+            "symbol_stats": symbol_stats,
             "duration_seconds": round(duration, 2),
             "commits_per_second": round(node_stats.get("GitCommit", 0) / max(duration, 0.001), 2),
             "message": f"Complete bootstrap finished: {node_stats.get('GitCommit', 0)} commits, {sum(rel_stats.values())} relationships"
         }
     except Exception as e:
         logger.exception("Complete bootstrap failed")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+def _discover_code_files_from_graph(limit: int) -> List[str]:
+    """Return repository-relative code file paths already present as File nodes.
+
+    This leverages previously ingested File nodes to avoid re-scanning the filesystem.
+    """
+    ends = [".py", ".ts", ".tsx", ".js", ".jsx"]
+    where_clause = " OR ".join([f"endsWith(toLower(f.path), '{ext}')" for ext in ends])
+    query = f"""
+        MATCH (f:File)
+        WHERE {where_clause}
+        RETURN f.path AS path
+        LIMIT $limit
+    """
+    with driver.session() as session:
+        records = session.run(query, limit=limit).data()
+    return [r["path"] for r in records]
+
+
+def _compute_audit(driver) -> Dict[str, object]:
+    """Compute node/edge counts and common integrity checks, including orphans."""
+    with driver.session() as session:
+        node_counts = session.run(
+            """
+            MATCH (n)
+            UNWIND labels(n) AS label
+            RETURN label AS type, count(*) AS count
+            ORDER BY count DESC
+            """
+        ).data()
+        rel_counts = session.run(
+            """
+            MATCH ()-[r]->()
+            RETURN type(r) AS type, count(*) AS count
+            ORDER BY count DESC
+            """
+        ).data()
+        orphans = session.run(
+            """
+            MATCH (n)
+            WHERE degree(n) = 0
+            RETURN head(labels(n)) AS type, count(n) AS count
+            ORDER BY count DESC
+            """
+        ).data()
+        checks = {
+            "requirements_without_part_of": session.run(
+                "MATCH (r:Requirement) WHERE NOT (r)-[:PART_OF]->() RETURN count(r) AS c"
+            ).single()["c"],
+            "documents_without_chunks": session.run(
+                "MATCH (d:Document) WHERE NOT (d)-[:CONTAINS_CHUNK]->() RETURN count(d) AS c"
+            ).single()["c"],
+            "chunks_without_links": session.run(
+                "MATCH (c:Chunk) WHERE NOT ()-[:CONTAINS_CHUNK]->(c) AND NOT (c)-[:MENTIONS]->() RETURN count(c) AS c"
+            ).single()["c"],
+            "files_without_touches": session.run(
+                "MATCH (f:File) WHERE NOT ()-[:TOUCHED]->(f) RETURN count(f) AS c"
+            ).single()["c"],
+            "libraries_without_links": session.run(
+                "MATCH (l:Library) WHERE NOT ()-[:USES_LIBRARY]->(l) AND NOT ()-[:MENTIONS_LIBRARY]->(l) RETURN count(l) AS c"
+            ).single()["c"],
+            "commits_without_touches": session.run(
+                "MATCH (c:GitCommit) WHERE NOT (c)-[:TOUCHED]->() RETURN count(c) AS c"
+            ).single()["c"],
+        }
+    return {
+        "node_counts": node_counts,
+        "relationship_counts": rel_counts,
+        "orphans": orphans,
+        "checks": checks,
+    }
+
+
+@router.post("/api/v1/dev-graph/audit")
+def generate_audit(write_to_disk: bool = True, output_dir: str = "dev_graph_audit"):
+    try:
+        report = _compute_audit(driver)
+        path = None
+        if write_to_disk:
+            os.makedirs(output_dir, exist_ok=True)
+            ts = datetime.utcnow().strftime("%Y%m%d-%H%M%S")
+            path = os.path.join(output_dir, f"audit-{ts}.json")
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(report, f, ensure_ascii=False, indent=2)
+        return {"success": True, "report_path": path, **report}
+    except Exception as e:
+        logger.exception("Audit generation failed")
         raise HTTPException(status_code=500, detail=str(e))
 
 

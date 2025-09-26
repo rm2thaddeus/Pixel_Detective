@@ -294,7 +294,8 @@ class EnhancedDevGraphIngester:
                 "path": self._normalize_repo_relative_path(file_path),
                 "name": file_path.name,
                 "title": title,
-                "content": content[:500],  # First 500 chars
+                # Use content_preview to match batch upsert expectations
+                "content_preview": content[:500],
                 "references": list(set(references)),
                 "type": "document"
             }
@@ -383,6 +384,9 @@ class EnhancedDevGraphIngester:
                 # Mentions of requirements inside the chunk
                 mentions = list({m.group(0) for m in REQ_REF_PATTERN.finditer(content)})
                 current['content_preview'] = content[:400]
+                # Store chunk text for downstream linkers (document_code_linker)
+                # Keep bounded to avoid oversized properties
+                current['text'] = content[:4000]
                 current['length'] = len(content)
                 current['mentions'] = mentions
                 chunks.append(current)
@@ -405,6 +409,8 @@ class EnhancedDevGraphIngester:
                     'heading': heading,
                     'level': level,
                     'ordinal': ordinals[level],
+                    # Mark as documentation chunk for UI/type filters
+                    'kind': 'doc',
                 }
             else:
                 buffer.append(line)
@@ -681,7 +687,8 @@ class EnhancedDevGraphIngester:
             MATCH (d:Document {path: rel.doc_path})
             WITH d, rel
             WHERE rel.ref STARTS WITH 'sprint-'
-            MATCH (s:Sprint {number: rel.ref})
+            // rel.ref is like "sprint-12"; extract the numeric part for Sprint.number
+            MERGE (s:Sprint {number: replace(rel.ref, 'sprint-', '')})
             MERGE (d)-[:REFERENCES]->(s)
         """, relationships=relationships)
         

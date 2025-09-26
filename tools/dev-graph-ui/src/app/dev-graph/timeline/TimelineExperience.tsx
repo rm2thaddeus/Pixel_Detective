@@ -559,6 +559,13 @@ export function TimelineExperience({ initialEngine, allowEngineSwitch = false, a
 
   return (
     <Box p={8} bg={bgColor} minH="100vh">
+      <HStack spacing={3} mb={2}>
+        <Button as={ChakraLink} href="/dev-graph/welcome" size="xs" variant="outline">Dashboard</Button>
+        <Button as={ChakraLink} href="/dev-graph/structure" size="xs" variant="outline">Structure View</Button>
+        {alternateEngineHref && alternateEngineLabel && (
+          <Button as={ChakraLink} href={alternateEngineHref} size="xs" variant="ghost">{alternateEngineLabel}</Button>
+        )}
+      </HStack>
       <VStack spacing={6} align="stretch">
         <Box>
           <Heading size="lg" mb={2} color={textColor}>Timeline Evolution</Heading>
