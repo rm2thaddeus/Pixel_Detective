@@ -106,6 +106,7 @@ export default function StructureAnalysisPage() {
   const [availableSourceTypes, setAvailableSourceTypes] = useState<string[]>([]);
   const [showClusters, setShowClusters] = useState(true);
   const [showLabels, setShowLabels] = useState(false);
+  const [includeTypes, setIncludeTypes] = useState<string[]>([]);
   const [maxNodes, setMaxNodes] = useState(20000);
 
   const [cypherQuery, setCypherQuery] = useState<string>(DEFAULT_CYPHER_QUERY);
@@ -132,7 +133,8 @@ export default function StructureAnalysisPage() {
         setError(null);
 
         // Fetch comprehensive structure analysis with graceful error handling
-        const typesParam = [selectedSourceType, selectedTargetType]
+        const initialTypes = includeTypes.length > 0 ? includeTypes : (metrics?.node_types?.slice(0,3).map(nt => nt.type) || []);
+        const typesParam = [selectedSourceType, selectedTargetType, ...initialTypes]
           .filter(Boolean)
           .join(',');
         const subgraphUrl = `${DEV_GRAPH_API_URL}/api/v1/dev-graph/graph/subgraph?limit=${maxNodes}&include_counts=true` +
@@ -169,6 +171,7 @@ export default function StructureAnalysisPage() {
           availableRelationTypes: [...new Set(edges.map(e => e.type))]
         });
         
+        const allowedTypes = new Set(initialTypes);
         const filteredEdges = edges.filter((edge: any) => {
           const s = nodeById.get(edge.from);
           const t = nodeById.get(edge.to);
@@ -178,10 +181,15 @@ export default function StructureAnalysisPage() {
           if (selectedRelationType && String(edge.type) !== selectedRelationType) return false;
           
           // Filter by source type
-          if (selectedSourceType && String(s.type || (Array.isArray(s.labels) ? s.labels[0] : s.labels)) !== selectedSourceType) return false;
+          const sType = String(s.type || (Array.isArray(s.labels) ? s.labels[0] : s.labels));
+          const tType = String(t.type || (Array.isArray(t.labels) ? t.labels[0] : t.labels));
+          if (selectedSourceType && sType !== selectedSourceType) return false;
           
           // Filter by target type
-          if (selectedTargetType && String(t.type || (Array.isArray(t.labels) ? t.labels[0] : t.labels)) !== selectedTargetType) return false;
+          if (selectedTargetType && tType !== selectedTargetType) return false;
+
+          // Multi-include types gate (default to at least three types)
+          if (allowedTypes.size > 0 && !(allowedTypes.has(sType) && allowedTypes.has(tType))) return false;
           
           return true;
         });
@@ -310,7 +318,7 @@ export default function StructureAnalysisPage() {
     };
 
     fetchStructureMetrics();
-  }, [selectedSourceType, selectedTargetType, selectedRelationType, maxNodes]);
+  }, [selectedSourceType, selectedTargetType, selectedRelationType, maxNodes, includeTypes]);
 
   // Fetch real relation types from stats API
   useEffect(() => {
@@ -632,6 +640,44 @@ export default function StructureAnalysisPage() {
                 </Select>
               </HStack>
 
+              {/* Multi-include types (at least 3) */}
+              <HStack align="center">
+                <Text fontSize="sm">Include Types:</Text>
+                <Select
+                  size="sm"
+                  maxW="260px"
+                  value={includeTypes[0] || ''}
+                  onChange={(e)=> setIncludeTypes((prev)=> [e.target.value, prev?.[1] || '', prev?.[2] || ''].filter(Boolean))}
+                >
+                  <option value="">Any</option>
+                  {metrics?.node_types.map(nt => (
+                    <option key={'inc1-'+nt.type} value={nt.type}>{nt.type}</option>
+                  ))}
+                </Select>
+                <Select
+                  size="sm"
+                  maxW="260px"
+                  value={includeTypes[1] || ''}
+                  onChange={(e)=> setIncludeTypes((prev)=> [prev?.[0] || '', e.target.value, prev?.[2] || ''].filter(Boolean))}
+                >
+                  <option value="">Any</option>
+                  {metrics?.node_types.map(nt => (
+                    <option key={'inc2-'+nt.type} value={nt.type}>{nt.type}</option>
+                  ))}
+                </Select>
+                <Select
+                  size="sm"
+                  maxW="260px"
+                  value={includeTypes[2] || ''}
+                  onChange={(e)=> setIncludeTypes((prev)=> [prev?.[0] || '', prev?.[1] || '', e.target.value].filter(Boolean))}
+                >
+                  <option value="">Any</option>
+                  {metrics?.node_types.map(nt => (
+                    <option key={'inc3-'+nt.type} value={nt.type}>{nt.type}</option>
+                  ))}
+                </Select>
+              </HStack>
+
               <HStack>
                 <Text fontSize="sm">Max Nodes:</Text>
                 <input 
@@ -674,6 +720,7 @@ export default function StructureAnalysisPage() {
                     setSelectedSourceType('');
                     setSelectedTargetType('');
                     setSelectedRelationType('');
+                    setIncludeTypes([]);
                   }}
                 >
                   Reset Filters
@@ -886,6 +933,11 @@ export default function StructureAnalysisPage() {
                     To: {selectedTargetType}
                   </Badge>
                 )}
+                    {includeTypes.length > 0 && (
+                      <Badge colorScheme="cyan" variant="subtle">
+                        Types: {includeTypes.join(', ')}
+                      </Badge>
+                    )}
                 <Text fontSize="sm" color={mutedTextColor}>
                   Showing {metrics.total_relations} relationships
                 </Text>

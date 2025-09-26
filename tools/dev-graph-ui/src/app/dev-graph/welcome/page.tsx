@@ -1,5 +1,5 @@
 'use client';
-import { Box, Heading, Text, VStack, HStack, Grid, GridItem, Card, CardBody, CardHeader, Badge, Button, Spinner, Alert, AlertIcon, useColorModeValue, Stat, StatLabel, StatNumber, StatHelpText, StatArrow, Progress, Divider, Icon, Flex, Select, useToast } from '@chakra-ui/react';
+import { Box, Heading, Text, VStack, HStack, Grid, GridItem, Card, CardBody, CardHeader, Badge, Button, Spinner, Alert, AlertIcon, useColorModeValue, Stat, StatLabel, StatNumber, StatHelpText, StatArrow, Progress, Divider, Icon, Flex, Select, useToast, AlertDialog, AlertDialogOverlay, AlertDialogContent, AlertDialogHeader, AlertDialogBody, AlertDialogFooter } from '@chakra-ui/react';
 import { useState, useEffect, useMemo } from 'react';
 import { Header } from '@/components/Header';
 import { Link as ChakraLink } from '@chakra-ui/react';
@@ -62,6 +62,8 @@ export default function WelcomeDashboard() {
   const indicatorBgColor = useColorModeValue('gray.100', 'gray.700');
   const toast = useToast();
   const queryClient = useQueryClient();
+  const [isResetOpen, setIsResetOpen] = useState(false);
+  const cancelRef = (typeof window !== 'undefined') ? (document.createElement('div') as any) : null;
 
   // Use new hooks for data fetching
   const { data: analyticsData, isLoading: analyticsLoading, error: analyticsError } = useAnalytics();
@@ -748,15 +750,39 @@ export default function WelcomeDashboard() {
               <Button 
                 colorScheme="blue" 
                 size="sm"
-                isLoading={fullResetMutation.isPending}
-                loadingText="Rebuilding..."
-                onClick={() => fullResetMutation.mutate()}
+                onClick={() => setIsResetOpen(true)}
               >
                 Build/Update Database
               </Button>
             </HStack>
           </CardBody>
         </Card>
+
+        {/* Confirm Full Reset Dialog */}
+        <AlertDialog
+          isOpen={isResetOpen}
+          leastDestructiveRef={cancelRef}
+          onClose={() => setIsResetOpen(false)}
+        >
+          <AlertDialogOverlay>
+            <AlertDialogContent>
+              <AlertDialogHeader fontSize="lg" fontWeight="bold">
+                Confirm Rebuild
+              </AlertDialogHeader>
+              <AlertDialogBody>
+                This will reset the developer graph database and run a fresh ingestion. Existing graph data will be replaced. Do you want to continue?
+              </AlertDialogBody>
+              <AlertDialogFooter>
+                <Button ref={cancelRef as any} onClick={() => setIsResetOpen(false)}>
+                  Cancel
+                </Button>
+                <Button colorScheme="red" ml={3} isLoading={fullResetMutation.isPending} loadingText="Rebuilding..." onClick={() => { fullResetMutation.mutate(); setIsResetOpen(false); }}>
+                  Yes, Rebuild
+                </Button>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialogOverlay>
+        </AlertDialog>
       </VStack>
     </Box>
   );

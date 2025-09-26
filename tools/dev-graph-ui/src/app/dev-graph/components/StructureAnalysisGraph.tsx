@@ -329,9 +329,9 @@ export default function StructureAnalysisGraph({
         .on("drag", dragged)
         .on("end", dragended));
 
-    // Add labels if enabled (always show for important nodes)
+    // Add labels only when enabled (default off). Otherwise, show on hover.
     let labels: any = null;
-    if (showLabels || true) { // Always show labels for debugging
+    if (showLabels) {
       labels = g.append("g")
         .attr("class", "labels")
         .selectAll("text")
@@ -406,6 +406,24 @@ export default function StructureAnalysisGraph({
           .attr("fill", "white")
           .attr("font-size", "10px")
           .text(`Centrality: ${d.centrality?.toFixed(2) || 'N/A'}`);
+
+        // On-demand label when labels are off
+        if (!showLabels) {
+          const hover = g.append('text')
+            .attr('class', 'hover-label')
+            .attr('x', (d as any).x)
+            .attr('y', (d as any).y - 12)
+            .attr('text-anchor', 'middle')
+            .attr('font-size', '10px')
+            .attr('fill', '#2d3748')
+            .attr('stroke', 'white')
+            .attr('stroke-width', 0.8)
+            .text(() => {
+              const type = (d as any).type || 'Unknown';
+              const shortId = String((d as any).id).length > 12 ? String((d as any).id).substring(0, 12) + '…' : String((d as any).id);
+              return `${type}: ${shortId}`;
+            });
+        }
       })
       .on("mouseout", function() {
         // Reset opacity
@@ -414,6 +432,7 @@ export default function StructureAnalysisGraph({
         
         // Remove tooltip
         g.selectAll(".tooltip").remove();
+        g.selectAll('.hover-label').remove();
       });
 
     // Update positions on simulation tick
@@ -433,6 +452,10 @@ export default function StructureAnalysisGraph({
           .attr("x", (d: any) => d.x)
           .attr("y", (d: any) => d.y);
       }
+      // Keep hover label near node on tick
+      g.selectAll('text.hover-label')
+        .attr('x', (d: any) => d?.x)
+        .attr('y', (d: any) => (d?.y ?? 0) - 12);
     });
 
     // Start the simulation with higher alpha for better spreading
