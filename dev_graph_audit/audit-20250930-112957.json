@@ -1,0 +1,85 @@
+{
+  "node_counts": [
+    {
+      "type": "Chunk",
+      "count": 12319
+    },
+    {
+      "type": "File",
+      "count": 2393
+    },
+    {
+      "type": "GitCommit",
+      "count": 289
+    },
+    {
+      "type": "Document",
+      "count": 173
+    },
+    {
+      "type": "Requirement",
+      "count": 35
+    },
+    {
+      "type": "Sprint",
+      "count": 12
+    }
+  ],
+  "relationship_counts": [
+    {
+      "type": "CONTAINS_CHUNK",
+      "count": 14984
+    },
+    {
+      "type": "PART_OF",
+      "count": 12319
+    },
+    {
+      "type": "TOUCHED",
+      "count": 3731
+    },
+    {
+      "type": "IMPORTS",
+      "count": 114
+    },
+    {
+      "type": "MENTIONS",
+      "count": 57
+    }
+  ],
+  "orphans": [
+    {
+      "type": "GitCommit",
+      "count": 25
+    },
+    {
+      "type": "Sprint",
+      "count": 12
+    },
+    {
+      "type": "File",
+      "count": 3
+    },
+    {
+      "type": "Document",
+      "count": 1
+    }
+  ],
+  "checks": {
+    "requirements_without_part_of": 35,
+    "documents_without_chunks": 1,
+    "chunks_without_links": 0,
+    "files_without_touches": 161,
+    "libraries_without_links": 0,
+    "commits_without_touches": 25
+  },
+  "library_summary": {
+    "sources": [],
+    "languages": [],
+    "top_usage": []
+  },
+  "decode_stats": {
+    "by_encoding": [],
+    "fallback_samples": []
+  }
+}

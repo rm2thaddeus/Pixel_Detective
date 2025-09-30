@@ -98,13 +98,7 @@ export function Header() {
           >
             Explore
           </Button>
-          <Button
-            variant="ghost"
-            leftIcon={<Icon as={FiGitBranch} />}
-            onClick={() => window.open('http://localhost:3001', '_blank')}
-          >
-            Dev Graph
-          </Button>
+          {/* Dev Graph entry removed to decouple main app from Dev Graph UI */}
           <Button
             variant="ghost"
             leftIcon={<Icon as={FiFolder} />}

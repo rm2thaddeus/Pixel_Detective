@@ -337,6 +337,7 @@ class UnifiedIngestionPipeline:
             "doc_skipped": doc_info.get("skipped_due_to_limit", 0),
             "doc_failures": doc_info.get("failures", []),
             "doc_duration": doc_info.get("duration", stage_duration),
+            "doc_encoding_summary": doc_info.get("encoding_summary", {}),
             "doc_limit": doc_limit,
             "code_files_discovered": code_info.get("discovered", 0),
             "code_files_selected": code_info.get("selected", 0),
@@ -347,6 +348,7 @@ class UnifiedIngestionPipeline:
             "code_skipped": code_info.get("skipped_due_to_limit", 0),
             "code_failures": code_info.get("failures", []),
             "code_duration": code_info.get("duration", 0.0),
+            "code_encoding_summary": code_info.get("encoding_summary", {}),
             "code_limit": code_limit,
             "discovery_summary": discovery,
             "discovery_samples": samples,
@@ -406,6 +408,7 @@ class UnifiedIngestionPipeline:
             "code_skipped": code_info.get("skipped_due_to_limit", 0),
             "code_failures": code_info.get("failures", []),
             "code_duration": code_info.get("duration", 0.0),
+            "code_encoding_summary": code_info.get("encoding_summary", {}),
             "code_limit": code_limit,
             "duration": code_info.get("duration", 0.0),
             "max_workers": max_workers
@@ -422,10 +425,86 @@ class UnifiedIngestionPipeline:
         start_time = time.time()
         sprint_results = sprint_mapper.map_all_sprints()
 
+        # Normalize return shape and upsert Sprint nodes + commit links for consistency
+        windows = sprint_results.get("windows", []) if isinstance(sprint_results, dict) else []
+        sprints_payload = []
+        for w in windows:
+            try:
+                number = str(w.get("number")) if w.get("number") is not None else None
+                if not number:
+                    continue
+                sprints_payload.append({
+                    "number": number,
+                    "name": w.get("name"),
+                    "start": w.get("start"),
+                    "end": w.get("end"),
+                })
+            except Exception:
+                continue
+
+        commits_linked = 0
+        documents_linked = 0
+        with self.driver.session() as session:
+            if sprints_payload:
+                # Upsert Sprint nodes
+                session.run(
+                    """
+                    UNWIND $sprints AS s
+                    MERGE (sp:Sprint {number: s.number})
+                    ON CREATE SET sp.created_at = datetime()
+                    SET sp.name = s.name,
+                        sp.start_date = s.start,
+                        sp.end_date = s.end,
+                        sp.uid = s.number,
+                        sp.updated_at = datetime()
+                    """,
+                    sprints=sprints_payload,
+                )
+
+                # Link sprints to commits within window
+                rec = session.run(
+                    """
+                    UNWIND $sprints AS s
+                    MATCH (sp:Sprint {number: s.number})
+                    WITH sp, s
+                    MATCH (c:GitCommit)
+                    WHERE s.start IS NOT NULL AND s.end IS NOT NULL
+                      AND datetime(c.timestamp) >= datetime(s.start)
+                      AND datetime(c.timestamp) <= datetime(s.end)
+                    MERGE (sp)-[:INCLUDES]->(c)
+                    RETURN count(c) AS cnt
+                    """,
+                    sprints=sprints_payload,
+                ).single()
+                if rec and rec.get("cnt"):
+                    commits_linked = int(rec["cnt"]) or 0
+
+                # Opportunistically link sprint to documents in expected folder layout
+                # Assumes docs are under docs/sprints/sprint-XX
+                rec2 = session.run(
+                    """
+                    UNWIND $sprints AS s
+                    WITH s, toString(toInteger(s.number)) AS n
+                    WITH s, CASE WHEN size(n) = 1 THEN '0' + n ELSE n END AS nn
+                    WITH s, 'docs/sprints/sprint-' + nn + '/' AS prefix
+                    MATCH (d:Document)
+                    WHERE d.path STARTS WITH prefix
+                    WITH collect(DISTINCT d) AS docs, s
+                    MATCH (sp:Sprint {number: s.number})
+                    WITH sp, docs
+                    UNWIND docs AS d
+                    MERGE (sp)-[:CONTAINS_DOC]->(d)
+                    RETURN count(d) AS cnt
+                    """,
+                    sprints=sprints_payload,
+                ).single()
+                if rec2 and rec2.get("cnt"):
+                    documents_linked = int(rec2["cnt"]) or 0
+
         stage_payload = {
-            "sprints_mapped": sprint_results.get("sprints_mapped", 0),
-            "documents_linked": sprint_results.get("documents_linked", 0),
-            "commits_linked": sprint_results.get("commits_linked", 0),
+            "sprints_mapped": len(sprints_payload) if sprints_payload else (sprint_results.get("count", 0) if isinstance(sprint_results, dict) else 0),
+            "documents_linked": documents_linked,
+            "commits_linked": commits_linked,
             "duration": time.time() - start_time
         }
         self.stages_completed += 1
@@ -525,6 +604,71 @@ class UnifiedIngestionPipeline:
         self.stages_completed += 1
         self._publish_stage("stage_7", stage_payload)
 
+    def _normalize_chunk_relationships(self) -> Dict[str, int]:
+        stats = {
+            "text_backfilled": 0,
+            "kind_backfilled": 0,
+            "part_of_created": 0,
+            "contains_chunk_created": 0,
+            "chunks_without_contains": 0,
+        }
+        with self.driver.session() as session:
+            record = session.run(
+                """
+                MATCH (ch:Chunk)
+                WHERE ch.text IS NULL AND ch.content IS NOT NULL
+                SET ch.text = ch.content
+                RETURN count(ch) AS updated
+                """
+            ).single()
+            if record:
+                stats["text_backfilled"] = int(record["updated"] or 0)
+
+            record = session.run(
+                """
+                MATCH (ch:Chunk)
+                WHERE ch.kind IS NULL AND ch.chunk_type IS NOT NULL
+                SET ch.kind = ch.chunk_type
+                RETURN count(ch) AS updated
+                """
+            ).single()
+            if record:
+                stats["kind_backfilled"] = int(record["updated"] or 0)
+
+            record = session.run(
+                """
+                MATCH (ch:Chunk)
+                WHERE ch.file_path IS NOT NULL AND NOT (ch)-[:PART_OF]->(:File)
+                WITH ch
+                MERGE (f:File {path: ch.file_path})
+                MERGE (ch)-[:PART_OF]->(f)
+                RETURN count(DISTINCT ch) AS linked
+                """
+            ).single()
+            if record:
+                stats["part_of_created"] = int(record["linked"] or 0)
+
+            result = session.run(
+                """
+                MATCH (ch:Chunk)-[:PART_OF]->(f:File)
+                MERGE (f)-[rel:CONTAINS_CHUNK]->(ch)
+                RETURN count(rel) AS total
+                """
+            )
+            summary = result.consume()
+            stats["contains_chunk_created"] = summary.counters.relationships_created
+
+            leftover = session.run(
+                """
+                MATCH (c:Chunk)
+                WHERE NOT ()-[:CONTAINS_CHUNK]->(c)
+                RETURN count(c) AS total
+                """
+            ).single()
+            if leftover:
+                stats["chunks_without_contains"] = int(leftover["total"] or 0)
+        return stats
+
     def _stage_8_enhanced_connectivity(self):
         """Stage 8: Enhanced connectivity through code symbols and co-occurrence analysis."""
         self._check_for_stop()
@@ -532,8 +676,10 @@ class UnifiedIngestionPipeline:
         logger.info("Stage 8/8: Enhanced Connectivity")
 
         start_time = time.time()
+        normalization_stats: Dict[str, int] = {}
 
         try:
+            normalization_stats = self._normalize_chunk_relationships()
             extractor = CodeSymbolExtractor(self.driver, self.repo_path)
             doc_linker = DocumentCodeLinker(self.driver, self.repo_path)
 
@@ -556,6 +702,19 @@ class UnifiedIngestionPipeline:
                     {"path": record["path"], "symbol_hash": record.get("symbol_hash")}
                     for record in records
                 ]
+                if not code_files:
+                    logger.info("Stage 8: No code files matched extension filter, using fallback set")
+                    fallback = session.run(
+                        """
+                        MATCH (f:File)
+                        WHERE NOT coalesce(f.is_doc, false)
+                        RETURN f.path AS path, f.symbol_hash AS symbol_hash ORDER BY f.path
+                        """
+                    )
+                    code_files = [
+                        {"path": rec["path"], "symbol_hash": rec.get("symbol_hash")}
+                        for rec in fallback
+                    ]
 
             force_doc_refresh = bool(self.doc_chunks_processed)
             logger.info(f"Stage 8: Processing {len(code_files)} code files")
@@ -583,12 +742,15 @@ class UnifiedIngestionPipeline:
                 "duration": time.time() - start_time,
                 "candidates": len(code_files),
                 "force_doc_refresh": force_doc_refresh,
+                "doc_refresh_requested": symbol_results.get("doc_library_refresh"),
+                "chunk_normalization": normalization_stats,
             }
         except Exception as exc:
             logger.exception("Enhanced connectivity failed: %s", exc)
             stage_payload = {
                 "error": str(exc),
                 "duration": time.time() - start_time,
+                "chunk_normalization": normalization_stats,
             }
 
         self.stages_completed += 1
@@ -740,6 +902,83 @@ def unified_parallel_ingestion(
         else:
             ingestion_state["is_running"] = False
             ingestion_state["error"] = str(e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/api/v1/dev-graph/ingest/unified/start")
+def start_unified_ingestion_background(
+    reset_graph: bool = Query(True, description="Reset database before ingestion"),
+    commit_limit: int = Query(1000, ge=1, le=10000, description="Maximum commits to ingest"),
+    doc_limit: Optional[int] = Query(None, ge=1, le=1000, description="Maximum documents to process (omit for all)"),
+    code_limit: Optional[int] = Query(None, ge=1, le=5000, description="Maximum code files to process (omit for all)"),
+    derive_relationships: bool = Query(True, description="Derive semantic relationships"),
+    include_embeddings: bool = Query(False, description="Generate embeddings for chunks"),
+    max_workers: int = Query(4, ge=1, le=8, description="Maximum parallel workers"),
+    profile: str = Query("full", regex="^(full|delta|quick)$", description="Ingestion profile"),
+    subpath: Optional[str] = Query(None, description="Limit ingestion to files under this repo-relative path"),
+):
+    """Kick off unified ingestion in the background and return immediately with job info.
+
+    This prevents long-running requests from being interrupted by client refreshes and
+    enables the UI to poll progress via the status endpoints.
+    """
+    try:
+        if ingestion_state["is_running"]:
+            current_job_id = ingestion_state.get("ingestion_job_id")
+            return {
+                "success": False,
+                "error": "Ingestion already in progress",
+                "job_id": current_job_id,
+                "job": _get_job(current_job_id),
+            }
+
+        profile_value = profile.strip().lower() if profile else "full"
+        normalized_subpath = subpath.replace('\\', '/').strip('/') if subpath else None
+
+        delta_flag = profile_value == "delta"
+        if profile_value == "quick":
+            delta_flag = False
+            if doc_limit is None:
+                doc_limit = 50
+            if code_limit is None:
+                code_limit = 100
+
+        job_id = _create_ingestion_job(profile_value, delta_flag, normalized_subpath)
+
+        # Run the pipeline in a background daemon thread
+        import threading
+
+        def _run_pipeline_job():
+            try:
+                pipeline = UnifiedIngestionPipeline(driver, REPO_PATH, job_id=job_id)
+                results = pipeline.run_complete_ingestion(
+                    reset_graph=reset_graph,
+                    commit_limit=commit_limit,
+                    doc_limit=doc_limit,
+                    code_limit=code_limit,
+                    derive_relationships=derive_relationships,
+                    include_embeddings=include_embeddings,
+                    max_workers=max_workers,
+                    delta=delta_flag,
+                    subpath=normalized_subpath,
+                )
+                status = 'completed' if results.get('success') else 'failed'
+                _finalize_job(job_id, status, result=results, error=results.get('error'))
+            except Exception as e:  # pragma: no cover - execution path depends on live DB
+                logger.exception("Background unified ingestion failed: %s", e)
+                _finalize_job(job_id, 'failed', error=str(e))
+
+        thread = threading.Thread(target=_run_pipeline_job, daemon=True)
+        thread.start()
+
+        return {
+            "success": True,
+            "message": "Unified ingestion started",
+            "job_id": job_id,
+            "job": _get_job(job_id),
+        }
+    except Exception as e:
+        logger.error(f"Failed to start unified ingestion: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/api/v1/dev-graph/ingest/status")

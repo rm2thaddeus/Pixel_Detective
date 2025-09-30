@@ -5,7 +5,7 @@ import { Header } from '@/components/Header';
 import { Link as ChakraLink } from '@chakra-ui/react';
 import { FaCode, FaGitAlt, FaFileAlt, FaProjectDiagram, FaClock, FaUsers, FaChartLine, FaExclamationTriangle, FaCheckCircle, FaTimesCircle } from 'react-icons/fa';
 import { useAnalytics, useTelemetry, useWindowedSubgraph, useDataQuality } from '../hooks/useWindowedSubgraph';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, onlineManager } from '@tanstack/react-query';
 
 // Developer Graph API base URL
 const DEV_GRAPH_API_URL = process.env.NEXT_PUBLIC_DEV_GRAPH_API_URL || 'http://localhost:8080';
@@ -103,27 +103,54 @@ export default function WelcomeDashboard() {
     staleTime: 60_000,
   });
 
-  // Build/Update Database (Full Reset + Ingest)
+  // Build/Update Database via background unified ingestion
   const fullResetMutation = useMutation({
     mutationFn: async () => {
-      const res = await fetch(`${DEV_GRAPH_API_URL}/api/v1/dev-graph/ingest/full-reset`, {
-        method: 'POST',
-        cache: 'no-store',
-        // Intentionally omit Content-Type/body to avoid unnecessary CORS preflight
-      });
+      // Start background unified ingestion with reset
+      const startUrl = `${DEV_GRAPH_API_URL}/api/v1/dev-graph/ingest/unified/start?reset_graph=true&derive_relationships=true&max_workers=4`;
+      const res = await fetch(startUrl, { method: 'POST', cache: 'no-store' });
       if (!res.ok) {
         const detail = await res.text().catch(() => '');
-        throw new Error(detail || 'Failed to run full reset');
+        throw new Error(detail || 'Failed to start unified ingestion');
       }
-      return res.json();
+      const payload = await res.json();
+      const jobId = payload?.job_id;
+      if (!jobId) return payload;
+
+      // Poll status until completion without blocking UI
+      const statusUrl = `${DEV_GRAPH_API_URL}/api/v1/dev-graph/ingest/status/${jobId}`;
+      let attempts = 0;
+      const maxAttempts = 600; // ~10 minutes at 1s interval
+      while (attempts < maxAttempts) {
+        attempts += 1;
+        try {
+          const s = await fetch(statusUrl, { cache: 'no-store' });
+          if (s.ok) {
+            const js = await s.json();
+            const status = js?.job?.status;
+            if (status === 'completed' || status === 'failed' || status === 'stopped') {
+              return js;
+            }
+          }
+        } catch {}
+        await new Promise(r => setTimeout(r, 1000));
+      }
+      return payload;
     },
-    onSuccess: () => {
-      toast({ title: 'Database rebuilt', description: 'Graph has been reset and ingested.', status: 'success', duration: 5000 });
-      // Invalidate all cached data to refresh UI
+    onSuccess: (result: any) => {
+      const status = result?.job?.status;
+      const ok = status === 'completed';
+      toast({
+        title: ok ? 'Database rebuilt' : 'Ingestion finished with issues',
+        description: ok ? 'Graph has been reset and ingested.' : (result?.job?.error || 'See status for details'),
+        status: ok ? 'success' : 'warning',
+        duration: 6000
+      });
+      // Refresh UI data
       queryClient.invalidateQueries({ predicate: () => true });
     },
     onError: (err: any) => {
-      toast({ title: 'Full reset failed', description: err?.message || 'Unknown error', status: 'error', duration: 6000 });
+      toast({ title: 'Rebuild start failed', description: err?.message || 'Unknown error', status: 'error', duration: 6000 });
     }
   });
 

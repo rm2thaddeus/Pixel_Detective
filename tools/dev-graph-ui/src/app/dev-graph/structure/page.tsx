@@ -756,7 +756,7 @@ export default function StructureAnalysisPage() {
                 </Button>
               </HStack>
               <Text fontSize="sm" color={mutedTextColor}>
-                Compose a Cypher query to explore targeted subgraphs. Suggestions adapt as you type.
+                Compose a Cypher query to explore targeted subgraphs. Suggestions adapt as you type. Tip: select two core types and we’ll suggest attached types.
               </Text>
             </VStack>
           </CardHeader>

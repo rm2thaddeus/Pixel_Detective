@@ -895,12 +895,21 @@ class TemporalEngine:
 
                         nodes_seen[node_id] = {"id": node_id, **clean_data}
                 
-                # Store edge
+                # Store edge (ensure JSON-serializable timestamp)
+                try:
+                    if ts is None:
+                        ts_str = None
+                    else:
+                        iso = getattr(ts, "isoformat", None)
+                        ts_str = iso() if callable(iso) else str(ts)
+                except Exception:
+                    ts_str = str(ts) if ts is not None else None
+
                 edges.append({
                     "from": a_id,
                     "to": b_id,
                     "type": rel_type,
-                    "timestamp": ts,
+                    "timestamp": ts_str,
                     "rid": rec.get("rid"),
                     "properties": {k: v for k, v in r.items() if v is not None} if isinstance(r, dict) else {}
                 })

@@ -97,10 +97,9 @@ if (-not $SkipContainers) {
     docker compose up -d neo4j
     Write-Done "Neo4j is (re)started."
 
-    # 3.4  Start Developer Graph API service via root docker-compose
-    Write-Info "Starting Developer Graph API service (root docker-compose)..."
-    docker compose up -d dev_graph_api
-    Write-Done "Developer Graph API is (re)started."
+    # 3.4  Developer Graph API service is now optional and not started by default
+    Write-Warn "Developer Graph API will not be auto-started to avoid interfering with ingestion pipelines."
+    Write-Warn "Start it manually when needed: docker compose up -d dev_graph_api"
 
     # 3.5  Start GPU UMAP service via its own compose file
     $umapCompose = Join-Path $RepoRoot "backend/gpu_umap_service/docker-compose.dev.yml"
@@ -199,7 +198,7 @@ Start-Sleep -Seconds 3
 $services = @(
     @{Name="Qdrant"; URL="http://localhost:6333"; Port="6333"},
     @{Name="Neo4j"; URL="http://localhost:7474"; Port="7474"},
-    @{Name="Developer Graph API"; URL="http://localhost:8080"; Port="8080"},
+    # Developer Graph API intentionally omitted from auto health check
     @{Name="GPU UMAP API"; URL="http://localhost:8003"; Port="8003"},
     @{Name="ML Inference Service"; URL="http://localhost:8001"; Port="8001"},
     @{Name="Ingestion Orchestrator"; URL="http://localhost:8002"; Port="8002"}

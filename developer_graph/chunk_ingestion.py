@@ -7,8 +7,10 @@ import logging
 import os
 import time
 import re
+import unicodedata
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Set
+from collections import Counter
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
 from neo4j import Driver
@@ -17,6 +19,107 @@ from .chunkers import ChunkIngester, MarkdownChunker, CodeChunker
 from .ingestion_manifest import ManifestDiff, ManifestManager, ManifestSnapshot
 
 logger = logging.getLogger(__name__)
+
+
+def _read_text_with_fallback(path: Path) -> Tuple[str, Dict[str, Any]]:
+    """Read file content with UTF-8 preference and graceful fallbacks."""
+    raw = path.read_bytes()
+    attempts: List[str] = []
+    for encoding in ("utf-8-sig", "utf-8"):
+        try:
+            text_value = raw.decode(encoding)
+            return unicodedata.normalize("NFC", text_value), {
+                "encoding": encoding,
+                "errors": "strict",
+                "fallback_used": bool(attempts),
+                "replaced_chars": 0,
+            }
+        except UnicodeDecodeError as exc:
+            attempts.append(f"{encoding}: {exc}")
+
+    detected_encoding: Optional[str] = None
+    detector: Optional[str] = None
+    confidence: Optional[float] = None
+    decoded: Optional[str] = None
+
+    try:
+        from charset_normalizer import from_bytes as charset_from_bytes  # type: ignore
+    except ImportError:  # pragma: no cover - optional dependency
+        charset_from_bytes = None  # type: ignore
+
+    if charset_from_bytes:
+        result = charset_from_bytes(raw).best()
+        if result and result.encoding:
+            try:
+                decoded = result.str()
+                detected_encoding = result.encoding
+                detector = "charset_normalizer"
+                confidence = getattr(result, "confidence", None)
+            except Exception as exc:  # pragma: no cover - defensive
+                attempts.append(f"charset_normalizer: {exc}")
+
+    if decoded is None:
+        try:
+            import chardet  # type: ignore
+        except ImportError:  # pragma: no cover - optional dependency
+            chardet = None  # type: ignore
+        if chardet:
+            detection = chardet.detect(raw)
+            candidate = detection.get("encoding")
+            if candidate:
+                try:
+                    decoded = raw.decode(candidate)
+                    detected_encoding = candidate
+                    detector = "chardet"
+                    confidence = detection.get("confidence")
+                except UnicodeDecodeError as exc:
+                    attempts.append(f"chardet({candidate}): {exc}")
+                    decoded = None
+                    detected_encoding = None
+
+    if decoded is None:
+        decoded = raw.decode("utf-8", errors="replace")
+        detected_encoding = "utf-8"
+        errors_mode = "replace"
+    else:
+        errors_mode = "strict"
+
+    normalized = unicodedata.normalize("NFC", decoded)
+    replaced = normalized.count("\ufffd")
+    meta: Dict[str, Any] = {
+        "encoding": detected_encoding,
+        "errors": errors_mode,
+        "fallback_used": True,
+        "replaced_chars": replaced,
+    }
+    if not attempts and errors_mode == "strict":
+        meta["fallback_used"] = False
+    if detector:
+        meta["detector"] = detector
+    if confidence is not None:
+        try:
+            meta["confidence"] = float(confidence)
+        except (TypeError, ValueError):
+            pass
+
+    if meta["fallback_used"] and replaced:
+        logger.warning(
+            "Decoded %s with fallback encoding=%s (detector=%s, replaced=%d)",
+            path,
+            meta.get("encoding"),
+            meta.get("detector"),
+            replaced,
+        )
+    elif meta["fallback_used"]:
+        logger.debug(
+            "Decoded %s with fallback encoding=%s (detector=%s)",
+            path,
+            meta.get("encoding"),
+            meta.get("detector"),
+        )
+
+    return normalized, meta
+
 def _render_document_chunks(task: Tuple[str, str]) -> Dict[str, Any]:
     """Worker helper to chunk a markdown document off the main process."""
     start_time = time.time()
@@ -24,7 +127,7 @@ def _render_document_chunks(task: Tuple[str, str]) -> Dict[str, Any]:
     normalized_path = Path(relative_path).as_posix()
     absolute = (Path(repo_root) / relative_path).resolve()
     try:
-        content = absolute.read_text(encoding='utf-8')
+        content, decoding = _read_text_with_fallback(absolute)
     except Exception as exc:
         return {'document': None, 'error': str(exc), 'path': normalized_path}
 
@@ -44,6 +147,7 @@ def _render_document_chunks(task: Tuple[str, str]) -> Dict[str, Any]:
         'extension': Path(normalized_path).suffix.lower(),
         'chunks': chunks,
         'duration': time.time() - start_time,
+        'decoding': decoding,
     }
     return {'document': document, 'error': None, 'path': normalized_path}
 
@@ -55,7 +159,7 @@ def _render_code_chunks(task: Tuple[str, str]) -> Dict[str, Any]:
     normalized_path = Path(relative_path).as_posix()
     absolute = (Path(repo_root) / relative_path).resolve()
     try:
-        content = absolute.read_text(encoding='utf-8', errors='ignore')
+        content, decoding = _read_text_with_fallback(absolute)
     except Exception as exc:
         return {'file': None, 'error': str(exc), 'path': normalized_path}
 
@@ -77,6 +181,7 @@ def _render_code_chunks(task: Tuple[str, str]) -> Dict[str, Any]:
         'chunks': chunks,
         'imports': imports,
         'duration': time.time() - start_time,
+        'decoding': decoding,
     }
     return {'file': payload, 'error': None, 'path': normalized_path}
 
@@ -378,6 +483,13 @@ class ChunkIngestionService:
                 {'path': doc.get('path'), 'duration': doc.get('duration', 0.0)}
                 for doc in sorted(doc_payloads, key=lambda item: item.get('duration', 0.0), reverse=True)[:5]
             ]
+            encoding_summary = self._summarize_decoding_metadata(doc_payloads, 'decoding')
+            stats['documents']['encoding_summary'] = encoding_summary
+            if encoding_summary.get('fallbacks'):
+                logger.warning(
+                    "Document decoding fallbacks detected for %d files",
+                    encoding_summary['fallbacks'],
+                )
         else:
             stats['documents']['duration'] = 0.0
             if include_docs:
@@ -397,6 +509,13 @@ class ChunkIngestionService:
                 'failures': code_failures,
                 'duration': time.time() - code_start,
             })
+            encoding_summary = self._summarize_decoding_metadata(code_payloads, 'decoding')
+            stats['code_files']['encoding_summary'] = encoding_summary
+            if encoding_summary.get('fallbacks'):
+                logger.warning(
+                    "Code decoding fallbacks detected for %d files",
+                    encoding_summary['fallbacks'],
+                )
         else:
             stats['code_files']['duration'] = 0.0
             if include_code:
@@ -575,7 +694,13 @@ class ChunkIngestionService:
         MERGE (f:File {path: doc.path})
         SET f.is_doc = true,
             f.language = 'markdown',
-            f.extension = doc.extension
+            f.extension = doc.extension,
+            f.decode_encoding = coalesce(doc.decoding.encoding, f.decode_encoding),
+            f.decode_errors = coalesce(doc.decoding.errors, f.decode_errors),
+            f.decode_fallback_used = coalesce(doc.decoding.fallback_used, f.decode_fallback_used),
+            f.decode_replaced_chars = coalesce(doc.decoding.replaced_chars, f.decode_replaced_chars),
+            f.decode_detector = coalesce(doc.decoding.detector, f.decode_detector),
+            f.decode_confidence = coalesce(doc.decoding.confidence, f.decode_confidence)
         WITH doc, d, f
         UNWIND doc.chunks AS ch
         MERGE (c:Chunk {id: ch.id})
@@ -603,6 +728,7 @@ class ChunkIngestionService:
             c.embedding = coalesce(c.embedding, ch.embedding)
         MERGE (d)-[:CONTAINS_CHUNK]->(c)
         MERGE (c)-[:PART_OF]->(f)
+        MERGE (f)-[:CONTAINS_CHUNK]->(c)
         WITH c, ch
         FOREACH (req IN ch.requirements |
             MERGE (r:Requirement {id: req})
@@ -665,7 +791,13 @@ class ChunkIngestionService:
         MERGE (f:File {path: file.path})
         SET f.language = file.language,
             f.is_code = true,
-            f.extension = file.extension
+            f.extension = file.extension,
+            f.decode_encoding = coalesce(file.decoding.encoding, f.decode_encoding),
+            f.decode_errors = coalesce(file.decoding.errors, f.decode_errors),
+            f.decode_fallback_used = coalesce(file.decoding.fallback_used, f.decode_fallback_used),
+            f.decode_replaced_chars = coalesce(file.decoding.replaced_chars, f.decode_replaced_chars),
+            f.decode_detector = coalesce(file.decoding.detector, f.decode_detector),
+            f.decode_confidence = coalesce(file.decoding.confidence, f.decode_confidence)
         WITH file, f
         UNWIND file.chunks AS ch
         MERGE (c:Chunk {id: ch.id})
@@ -696,6 +828,7 @@ class ChunkIngestionService:
             c.symbol_type = coalesce(ch.symbol_type, c.symbol_type),
             c.embedding = coalesce(c.embedding, ch.embedding)
         MERGE (c)-[:PART_OF]->(f)
+        MERGE (f)-[:CONTAINS_CHUNK]->(c)
         WITH DISTINCT file, f
         UNWIND coalesce(file.imports, []) AS import_path
         MERGE (target:File {path: import_path})
@@ -704,6 +837,48 @@ class ChunkIngestionService:
 
         with self.driver.session() as session:
             session.execute_write(lambda tx: tx.run(query, files=files))
+
+    @staticmethod
+    def _summarize_decoding_metadata(payloads: List[Dict[str, Any]], key: str) -> Dict[str, Any]:
+        summary: Dict[str, Any] = {
+            'fallbacks': 0,
+            'encodings': {},
+            'detectors': {},
+            'replaced_chars': 0,
+            'samples': [],
+        }
+        if not payloads:
+            return summary
+
+        encoding_counter: Counter[str] = Counter()
+        detector_counter: Counter[str] = Counter()
+        samples: List[Dict[str, Any]] = []
+
+        for item in payloads:
+            info = item.get(key) or {}
+            if not info:
+                continue
+            encoding = info.get('encoding') or 'unknown'
+            encoding_counter[encoding] += 1
+            if info.get('fallback_used'):
+                summary['fallbacks'] += 1
+            replaced = int(info.get('replaced_chars') or 0)
+            summary['replaced_chars'] += replaced
+            detector = info.get('detector')
+            if detector:
+                detector_counter[detector] += 1
+            if (info.get('fallback_used') or replaced) and len(samples) < 5:
+                samples.append({
+                    'path': item.get('path'),
+                    'encoding': encoding,
+                    'detector': detector,
+                    'replaced_chars': replaced,
+                })
+
+        summary['encodings'] = dict(encoding_counter)
+        summary['detectors'] = dict(detector_counter)
+        summary['samples'] = samples
+        return summary
 
     def _cleanup_removed_paths(self, removed_paths: List[str]) -> Dict[str, int]:
         summary = {

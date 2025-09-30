@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import ast
 import hashlib
+import json
 import logging
 import re
 from collections import Counter, defaultdict
@@ -81,7 +82,7 @@ class CodeSymbolExtractor:
         self.batch_size = batch_size
         self.logger = logger
 
-        self.library_aliases: Dict[str, str] = {
+        base_aliases = {
             "fastapi": "FastAPI",
             "starlette": "FastAPI",
             "neo4j": "Neo4j",
@@ -108,8 +109,9 @@ class CodeSymbolExtractor:
             "axios": "Axios",
             "lodash": "Lodash",
         }
+        self.library_aliases: Dict[str, str] = {alias.lower(): canonical for alias, canonical in base_aliases.items()}
 
-        self.doc_library_terms: Dict[str, Sequence[str]] = {
+        base_doc_terms = {
             "FastAPI": ["FastAPI", "Fast API"],
             "Neo4j": ["Neo4j", "Neo4j Aura"],
             "Pydantic": ["Pydantic"],
@@ -126,9 +128,15 @@ class CodeSymbolExtractor:
             "Axios": ["Axios"],
             "Lodash": ["Lodash"],
         }
+        self.doc_library_terms: Dict[str, Set[str]] = {name: set(terms) for name, terms in base_doc_terms.items()}
+        self.manifest_aliases: Dict[str, str] = {}
+        self._manifest_alias_signature: Optional[int] = None
+        self._doc_terms_signature: Optional[int] = None
 
         self.ts_import_pattern = re.compile(
-            r"import\s+(?:.+?\s+from\s+)?['\"](?P<module>[^'\"]+)['\"]|require\(\s*['\"](?P<require>[^'\"]+)['\"]\s*\)",
+            r"import\s+(?:.+?\s+from\s+)?['\"](?P<module>[^'\"]+)['\"]|"
+            r"require\(\s*['\"](?P<require>[^'\"]+)['\"]\s*\)|"
+            r"import\(\s*['\"](?P<dynamic>[^'\"]+)['\"]\s*\)",
             re.MULTILINE,
         )
         self.ts_class_pattern = re.compile(
@@ -151,14 +159,209 @@ class CodeSymbolExtractor:
             r"export\s+default\s+function\s+(?P<name>[A-Za-z_][\w]*)?\s*(?P<signature>\([^\)]*\))",
             re.MULTILINE,
         )
+
+    def _collect_manifest_entries(self) -> List[Dict[str, Any]]:
+        entries: List[Dict[str, Any]] = []
+        package_json = self.repo_root / "package.json"
+        if package_json.exists():
+            try:
+                data = json.loads(package_json.read_text(encoding="utf-8"))
+            except Exception as exc:
+                self.logger.warning("Failed to parse package.json: %s", exc)
+            else:
+                for section in ("dependencies", "devDependencies", "peerDependencies", "optionalDependencies"):
+                    section_data = data.get(section) or {}
+                    if isinstance(section_data, dict):
+                        for name, version in section_data.items():
+                            if not isinstance(name, str):
+                                continue
+                            entries.append({
+                                "package": name,
+                                "version": str(version) if version is not None else None,
+                                "source": "package.json",
+                                "section": section,
+                                "language": "javascript",
+                            })
+        requirements = self.repo_root / "requirements.txt"
+        if requirements.exists():
+            try:
+                for raw_line in requirements.read_text(encoding="utf-8").splitlines():
+                    line = raw_line.strip()
+                    if not line or line.startswith('#'):
+                        continue
+                    match = re.match(r"([A-Za-z0-9_.-]+)", line)
+                    if not match:
+                        continue
+                    name = match.group(1)
+                    remainder = line[len(name):].strip()
+                    version = remainder or None
+                    entries.append({
+                        "package": name,
+                        "version": version,
+                        "source": "requirements.txt",
+                        "section": "default",
+                        "language": "python",
+                    })
+            except Exception as exc:
+                self.logger.warning("Failed to parse requirements.txt: %s", exc)
+        return entries
+
+    def _generate_module_candidates(self, module: str) -> List[str]:
+        if not module:
+            return []
+        module = module.strip()
+        lowered = module.lower()
+        if not lowered or lowered.startswith(('.', '/', '#')):
+            return []
+        candidates: List[str] = []
+
+        def add(value: str) -> None:
+            value = value.strip()
+            if value and value not in candidates:
+                candidates.append(value)
+
+        add(lowered)
+        if lowered.startswith('@'):
+            parts = lowered.split('/')
+            if len(parts) >= 2:
+                add('/'.join(parts[:2]))
+        else:
+            if '/' in lowered:
+                add(lowered.split('/')[0])
+        if '.' in lowered:
+            add(lowered.split('.')[0])
+        return candidates
+
+    def _canonicalize_library_name(self, package: str) -> Tuple[str, str]:
+        slug = package.strip()
+        slug_lower = slug.lower()
+        canonical = self.library_aliases.get(slug_lower)
+        if not canonical:
+            if slug_lower.startswith('@'):
+                canonical = slug
+            elif '-' in slug or '_' in slug:
+                canonical = slug.replace('-', ' ').replace('_', ' ').title()
+            else:
+                canonical = slug.capitalize()
+        return canonical, slug_lower
+
+    @staticmethod
+    def _build_doc_terms(package: str, canonical: str) -> Set[str]:
+        terms: Set[str] = {canonical}
+        candidates = {
+            package,
+            package.replace('-', ' '),
+            package.replace('_', ' '),
+            package.replace('@', ''),
+        }
+        for value in candidates:
+            value = value.strip()
+            if value:
+                terms.add(value)
+        return terms
+
+    def _enrich_manifest_entries(self, entries: List[Dict[str, Any]]) -> Dict[str, Any]:
+        alias_map: Dict[str, str] = {}
+        doc_terms = {name: set(terms) for name, terms in self.doc_library_terms.items()}
+        source_counter: Counter[str] = Counter()
+        language_counter: Counter[str] = Counter()
+
+        for entry in entries:
+            canonical, slug = self._canonicalize_library_name(entry["package"])
+            entry["display_name"] = canonical
+            entry["slug"] = slug
+            for candidate in self._generate_module_candidates(entry["package"]) + [slug]:
+                alias_map[candidate] = canonical
+            doc_terms.setdefault(canonical, set()).update(self._build_doc_terms(entry["package"], canonical))
+            source_counter[entry["source"]] += 1
+            if entry.get("language"):
+                language_counter[entry["language"]] += 1
+
+        alias_signature = hash(tuple(sorted(alias_map.items())))
+        doc_signature = hash(tuple(sorted((library, tuple(sorted(terms))) for library, terms in doc_terms.items())))
+
+        manifest_alias_changed = alias_signature != self._manifest_alias_signature
+        doc_terms_changed = doc_signature != self._doc_terms_signature
+
+        self._manifest_alias_signature = alias_signature
+        self._doc_terms_signature = doc_signature
+        self.manifest_aliases = alias_map
+        self.doc_library_terms = doc_terms
+
+        return {
+            "manifest_entries": len(entries),
+            "manifest_sources": dict(source_counter),
+            "manifest_languages": dict(language_counter),
+            "manifest_alias_changed": manifest_alias_changed,
+            "doc_terms_changed": doc_terms_changed,
+        }
+
+    def _upsert_manifest_libraries(self, entries: List[Dict[str, Any]]) -> Dict[str, int]:
+        if not entries:
+            return {"manifest_libraries_seeded": 0, "manifest_entries": 0, "manifest_aliases_tracked": len(self.manifest_aliases)}
+        stats = {"manifest_libraries_seeded": 0}
+        payload = [
+            {
+                "name": entry["display_name"],
+                "slug": entry["slug"],
+                "version": entry.get("version"),
+                "source": entry.get("source"),
+                "section": entry.get("section"),
+                "language": entry.get("language"),
+            }
+            for entry in entries
+        ]
+        with self.driver.session() as session:
+            for batch in _batched(payload, self.batch_size):
+                result = session.run(
+                    """
+                    UNWIND $batch AS library
+                    MERGE (lib:Library {name: library.name})
+                    ON CREATE SET
+                        lib.created_at = datetime(),
+                        lib.slug = library.slug,
+                        lib.language = library.language,
+                        lib.latest_version = library.version,
+                        lib.manifest_sources = CASE WHEN library.source IS NULL THEN [] ELSE [library.source] END,
+                        lib.manifest_sections = CASE WHEN library.section IS NULL THEN [] ELSE [library.section] END
+                    WITH lib, library, coalesce(lib.manifest_sources, []) AS existing_sources, coalesce(lib.manifest_sections, []) AS existing_sections
+                    SET lib.slug = coalesce(lib.slug, library.slug),
+                        lib.language = coalesce(lib.language, library.language),
+                        lib.latest_version = CASE WHEN library.version IS NOT NULL THEN library.version ELSE lib.latest_version END,
+                        lib.manifest_sources = CASE
+                            WHEN library.source IS NULL OR library.source IN existing_sources THEN existing_sources
+                            ELSE existing_sources + library.source
+                        END,
+                        lib.manifest_sections = CASE
+                            WHEN library.section IS NULL OR library.section IN existing_sections THEN existing_sections
+                            ELSE existing_sections + library.section
+                        END,
+                        lib.last_manifest_seen = datetime()
+                    RETURN count(lib) AS upserts
+                    """,
+                    batch=list(batch),
+                )
+                record = result.single()
+                if record:
+                    stats["manifest_libraries_seeded"] += int(record["upserts"] or 0)
+        stats["manifest_entries"] = len(entries)
+        stats["manifest_aliases_tracked"] = len(self.manifest_aliases)
+        return stats
+
     def run_enhanced_connectivity(
         self,
         code_files: List[Union[str, Dict[str, Optional[str]]]],
         force_doc_refresh: bool = False,
     ) -> Dict[str, object]:
+        manifest_entries = self._collect_manifest_entries()
+        manifest_summary = self._enrich_manifest_entries(manifest_entries)
+        manifest_stats = self._upsert_manifest_libraries(manifest_entries)
+        manifest_stats.setdefault("manifest_aliases_tracked", len(self.manifest_aliases))
+        doc_refresh_needed = force_doc_refresh or manifest_summary.get("doc_terms_changed", False)
+
         if not code_files:
             self.logger.info("No code files available for symbol extraction")
-            return {
+            result = {
                 "files_processed": 0,
                 "files_skipped": 0,
                 "total_candidates": 0,
@@ -178,6 +381,11 @@ class CodeSymbolExtractor:
                 "files_with_symbol_updates": 0,
                 "errors": [],
             }
+            result.update(manifest_summary)
+            result.update(manifest_stats)
+            result.setdefault("manifest_aliases_tracked", len(self.manifest_aliases))
+            result["doc_library_refresh"] = doc_refresh_needed
+            return result
 
         seen_paths: Set[str] = set()
         processed_symbols: List[SymbolRecord] = []
@@ -259,7 +467,7 @@ class CodeSymbolExtractor:
             doc_rollup = self._rollup_document_symbol_links()
 
         co_occurrence_edges = self._create_co_occurrence_relationships()
-        library_stats = self._create_library_relationships(library_usage, force_doc_refresh)
+        library_stats = self._create_library_relationships(library_usage, doc_refresh_needed)
 
         self.logger.info(
             "Enhanced connectivity processed %d/%d files, extracted %d symbols",
@@ -268,7 +476,7 @@ class CodeSymbolExtractor:
             len(processed_symbols),
         )
 
-        return {
+        result = {
             "files_processed": files_processed,
             "files_skipped": files_skipped,
             "total_candidates": len(seen_paths),
@@ -288,6 +496,11 @@ class CodeSymbolExtractor:
             "files_with_symbol_updates": len(file_symbol_map),
             "errors": errors[:20],
         }
+        result.update(manifest_summary)
+        result.update(manifest_stats)
+        result.setdefault("manifest_aliases_tracked", len(self.manifest_aliases))
+        result["doc_library_refresh"] = doc_refresh_needed
+        return result
     def _upsert_symbols(
         self,
         symbols: List[SymbolRecord],
@@ -829,10 +1042,11 @@ class CodeSymbolExtractor:
         return terms
 
     def _map_library(self, module: str) -> Optional[str]:
-        module_lower = module.lower()
-        for alias, canonical in self.library_aliases.items():
-            if module_lower == alias or module_lower.startswith(f"{alias}.") or module_lower.startswith(f"{alias}/"):
-                return canonical
+        for candidate in self._generate_module_candidates(module):
+            if candidate in self.library_aliases:
+                return self.library_aliases[candidate]
+            if candidate in self.manifest_aliases:
+                return self.manifest_aliases[candidate]
         return None
 
     def _format_python_signature(self, args: ast.arguments) -> str:

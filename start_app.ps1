@@ -25,10 +25,10 @@ if (-not (Test-Path $BackendScript)) {
     throw "Fatal: start_backend.ps1 not found at root. Cannot proceed."
 }
 
-Write-Info "Starting all backend services using start_backend.ps1 with background jobs..."
+Write-Info "Starting core backend services using start_backend.ps1 with background jobs (Dev Graph API excluded)..."
 & $BackendScript -UseJobs
-Write-Done "Backend services are starting in the background."
-Write-Info "You can check their status with 'Get-Job'."
+Write-Done "Core backend services are starting in the background."
+Write-Info "Dev Graph API is not started automatically to avoid ingestion interference. Start manually if needed."
 
 # --- 2. Start Frontend Service ---
 $FrontendDir = Join-Path $RepoRoot "frontend"

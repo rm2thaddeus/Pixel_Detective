@@ -317,12 +317,63 @@ def _compute_audit(driver) -> Dict[str, object]:
             ORDER BY count DESC
             """
         ).data()
+        # Neo4j 5+ may not expose degree(); use OPTIONAL MATCH to detect isolated nodes
         orphans = session.run(
             """
             MATCH (n)
-            WHERE degree(n) = 0
+            OPTIONAL MATCH (n)-[r]-()
+            WITH n, count(r) AS deg
+            WHERE deg = 0
             RETURN head(labels(n)) AS type, count(n) AS count
             ORDER BY count DESC
+            """
+        ).data()
+        library_sources = session.run(
+            """
+            MATCH (l:Library)
+            UNWIND coalesce(l.manifest_sources, []) AS source
+            RETURN source, count(*) AS total
+            ORDER BY total DESC
+            """
+        ).data()
+        library_languages = session.run(
+            """
+            MATCH (l:Library)
+            RETURN coalesce(l.language, 'unknown') AS language, count(*) AS total
+            ORDER BY total DESC
+            """
+        ).data()
+        library_usage_top = session.run(
+            """
+            MATCH (:File)-[:USES_LIBRARY]->(l:Library)
+            RETURN l.name AS library, count(*) AS files
+            ORDER BY files DESC
+            LIMIT 20
+            """
+        ).data()
+        decode_summary = session.run(
+            """
+            MATCH (f:File)
+            WHERE f.decoding IS NOT NULL
+            WITH f.decoding AS decoding
+            RETURN
+                coalesce(decoding.encoding, 'unknown') AS encoding,
+                count(*) AS files,
+                sum(CASE WHEN coalesce(decoding.fallback_used, false) THEN 1 ELSE 0 END) AS fallbacks,
+                sum(coalesce(decoding.replaced_chars, 0)) AS replaced_chars
+            ORDER BY files DESC
+            """
+        ).data()
+        decode_fallbacks = session.run(
+            """
+            MATCH (f:File)
+            WHERE f.decoding IS NOT NULL AND coalesce(f.decoding.fallback_used, false)
+            RETURN f.path AS path,
+                   coalesce(f.decoding.encoding, 'unknown') AS encoding,
+                   coalesce(f.decoding.detector, 'manual') AS detector,
+                   coalesce(f.decoding.replaced_chars, 0) AS replaced_chars
+            ORDER BY replaced_chars DESC, path
+            LIMIT 20
             """
         ).data()
         checks = {
@@ -350,6 +401,15 @@ def _compute_audit(driver) -> Dict[str, object]:
         "relationship_counts": rel_counts,
         "orphans": orphans,
         "checks": checks,
+        "library_summary": {
+            "sources": library_sources,
+            "languages": library_languages,
+            "top_usage": library_usage_top,
+        },
+        "decode_stats": {
+            "by_encoding": decode_summary,
+            "fallback_samples": decode_fallbacks,
+        },
     }
 
 
