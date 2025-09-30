@@ -611,6 +611,7 @@ class UnifiedIngestionPipeline:
             "part_of_created": 0,
             "contains_chunk_created": 0,
             "chunks_without_contains": 0,
+            "requirements_linked": 0,
         }
         with self.driver.session() as session:
             record = session.run(
@@ -667,6 +668,46 @@ class UnifiedIngestionPipeline:
             ).single()
             if leftover:
                 stats["chunks_without_contains"] = int(leftover["total"] or 0)
+            
+            # Link Requirements to Documents/Sprints via PART_OF
+            # Strategy: Link requirements to documents that mention them
+            req_link_record = session.run(
+                """
+                MATCH (req:Requirement)
+                WHERE NOT (req)-[:PART_OF]->()
+                WITH req
+                // Link requirement to document via chunks that mention it
+                OPTIONAL MATCH (doc:Document)-[:CONTAINS_CHUNK]->(ch:Chunk)-[:MENTIONS]->(req)
+                WITH req, doc
+                WHERE doc IS NOT NULL
+                MERGE (req)-[:PART_OF]->(doc)
+                RETURN count(DISTINCT req) AS doc_linked
+                """
+            ).single()
+            if req_link_record:
+                stats["requirements_linked"] += int(req_link_record["doc_linked"] or 0)
+            
+            # Also try FR-XX-XXX pattern matching to sprints for structured requirements
+            req_sprint_link = session.run(
+                """
+                MATCH (req:Requirement)
+                WHERE NOT (req)-[:PART_OF]->()
+                WITH req
+                // Try to infer sprint from requirement ID pattern (e.g., FR-12-001 -> Sprint 12)
+                WITH req, 
+                     CASE 
+                        WHEN req.id =~ 'FR-\\\\d+.*' THEN toInteger(substring(req.id, 3, 2))
+                        WHEN req.id =~ 'NFR-\\\\d+.*' THEN toInteger(substring(req.id, 4, 2))
+                        ELSE null
+                     END AS sprint_num
+                WHERE sprint_num IS NOT NULL
+                MATCH (s:Sprint {number: toString(sprint_num)})
+                MERGE (req)-[:PART_OF]->(s)
+                RETURN count(DISTINCT req) AS sprint_linked
+                """
+            ).single()
+            if req_sprint_link:
+                stats["requirements_linked"] += int(req_sprint_link["sprint_linked"] or 0)
         return stats
 
     def _stage_8_enhanced_connectivity(self):
