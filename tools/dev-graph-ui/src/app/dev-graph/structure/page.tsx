@@ -3,7 +3,7 @@ import { Box, Heading, Text, VStack, HStack, Button, Spinner, Alert, AlertIcon, 
 import { useState, useEffect, useMemo } from 'react';
 import { Header } from '@/components/Header';
 import { Link as ChakraLink } from '@chakra-ui/react';
-import { FaArrowLeft, FaProjectDiagram, FaSitemap, FaNetworkWired, FaSearch, FaFilter, FaDownload, FaShare, FaPlay } from 'react-icons/fa';
+import { FaArrowLeft, FaProjectDiagram, FaSitemap, FaNetworkWired, FaSearch, FaFilter, FaDownload, FaShare, FaPlay, FaPlus } from 'react-icons/fa';
 import dynamic from 'next/dynamic';
 
 // Dynamic import to avoid SSR issues
@@ -105,6 +105,10 @@ export default function StructureAnalysisPage() {
   const [availableRelationTypes, setAvailableRelationTypes] = useState<string[]>([]);
   const [availableTargetTypes, setAvailableTargetTypes] = useState<string[]>([]);
   const [availableSourceTypes, setAvailableSourceTypes] = useState<string[]>([]);
+  
+  // Progressive subgraph expansion
+  const [selectedNodeTypes, setSelectedNodeTypes] = useState<string[]>([]);
+  const [availableExpansionTypes, setAvailableExpansionTypes] = useState<string[]>([]);
   const [showClusters, setShowClusters] = useState(true);
   const [showLabels, setShowLabels] = useState(false);
   const [includeTypes, setIncludeTypes] = useState<string[]>([]);
@@ -127,6 +131,82 @@ export default function StructureAnalysisPage() {
   const mutedTextColor = useColorModeValue('gray.600', 'gray.400');
   const filterStatusBg = useColorModeValue('gray.50', 'gray.700');
   const activeFilterBg = useColorModeValue('blue.50', 'blue.900');
+
+  // Update selectedNodeTypes when From/To types change
+  useEffect(() => {
+    const types: string[] = [];
+    if (selectedSourceType) types.push(selectedSourceType);
+    if (selectedTargetType && selectedTargetType !== selectedSourceType) types.push(selectedTargetType);
+    setSelectedNodeTypes(types);
+  }, [selectedSourceType, selectedTargetType]);
+
+  // Fetch available expansion types when selectedNodeTypes changes
+  useEffect(() => {
+    const fetchExpansionTypes = async () => {
+      if (selectedNodeTypes.length < 2) {
+        setAvailableExpansionTypes([]);
+        return;
+      }
+
+      try {
+        // Query for types connected to ANY of the selected types (bidirectional)
+        // MUST return actual nodes, not scalars
+        const typesStr = selectedNodeTypes.map(t => `'${t}'`).join(', ');
+        const query = `
+          MATCH (selected)-[r]-(expansion)
+          WHERE labels(selected)[0] IN [${typesStr}]
+            AND NOT labels(expansion)[0] IN [${typesStr}]
+          RETURN DISTINCT expansion
+          LIMIT 500
+        `;
+        
+        console.log('Fetching expansion types for:', selectedNodeTypes);
+        
+        const response = await fetch(`${DEV_GRAPH_API_URL}/api/v1/dev-graph/graph/cypher`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query, max_nodes: 500 })
+        });
+
+        if (response.ok) {
+          const result = await response.json();
+          
+          // Extract unique types from returned nodes
+          const expansionTypesSet = new Set<string>();
+          result.nodes?.forEach((node: any) => {
+            const label = Array.isArray(node.labels) ? node.labels[0] : node.labels;
+            if (label) expansionTypesSet.add(String(label));
+          });
+          
+          // Count connections per type for sorting
+          const typeConnectionCounts = new Map<string, number>();
+          result.nodes?.forEach((node: any) => {
+            const label = Array.isArray(node.labels) ? node.labels[0] : node.labels;
+            if (label) {
+              typeConnectionCounts.set(String(label), (typeConnectionCounts.get(String(label)) || 0) + 1);
+            }
+          });
+          
+          // Sort by connection count (most connected first)
+          const expansionTypes = Array.from(expansionTypesSet).sort((a, b) => {
+            return (typeConnectionCounts.get(b) || 0) - (typeConnectionCounts.get(a) || 0);
+          });
+          
+          setAvailableExpansionTypes(expansionTypes);
+          
+          console.log(`Found ${expansionTypes.length} expansion types:`, expansionTypes);
+        } else {
+          console.warn('Failed to fetch expansion types');
+          setAvailableExpansionTypes([]);
+        }
+      } catch (err) {
+        console.error('Error fetching expansion types:', err);
+        setAvailableExpansionTypes([]);
+      }
+    };
+
+    fetchExpansionTypes();
+  }, [selectedNodeTypes]);
 
   // Fetch available target types from backend when source type changes
   useEffect(() => {
@@ -206,13 +286,29 @@ export default function StructureAnalysisPage() {
 
         // If filters are applied, use targeted Cypher query
         if (selectedSourceType || selectedTargetType || selectedRelationType) {
-          let query = 'MATCH (source)-[r]->(target)\nWHERE 1=1';
-          if (selectedSourceType) query += `\nAND source:${selectedSourceType}`;
-          if (selectedTargetType) query += `\nAND target:${selectedTargetType}`;
-          if (selectedRelationType) query += `\nAND type(r) = '${selectedRelationType}'`;
-          query += `\nRETURN source, r, target\nLIMIT ${maxNodes}`;
-
-          console.log('Executing targeted query:', query);
+          let query: string;
+          
+          // Use selectedNodeTypes for progressive expansion if available
+          if (selectedNodeTypes.length >= 2) {
+            // Build subgraph query for all selected types (bidirectional)
+            const typesStr = selectedNodeTypes.map(t => `'${t}'`).join(', ');
+            query = `
+              MATCH (a)-[r]-(b)
+              WHERE labels(a)[0] IN [${typesStr}]
+                AND labels(b)[0] IN [${typesStr}]
+              RETURN a as source, r, b as target
+              LIMIT ${maxNodes}
+            `;
+            console.log('Executing progressive subgraph query for types:', selectedNodeTypes);
+          } else {
+            // Fallback to original two-type filter
+            query = 'MATCH (source)-[r]->(target)\nWHERE 1=1';
+            if (selectedSourceType) query += `\nAND source:${selectedSourceType}`;
+            if (selectedTargetType) query += `\nAND target:${selectedTargetType}`;
+            if (selectedRelationType) query += `\nAND type(r) = '${selectedRelationType}'`;
+            query += `\nRETURN source, r, target\nLIMIT ${maxNodes}`;
+            console.log('Executing targeted query:', query);
+          }
           
           const cypherRes = await fetch(`${DEV_GRAPH_API_URL}/api/v1/dev-graph/graph/cypher`, {
             method: 'POST',
@@ -662,6 +758,73 @@ export default function StructureAnalysisPage() {
                 </VStack>
               </Grid>
 
+              {/* Progressive Subgraph Expansion */}
+              {selectedNodeTypes.length >= 2 && (
+                <VStack align="stretch" spacing={3} mt={4} p={4} bg={activeFilterBg} borderRadius="md" borderWidth="2px" borderColor="purple.500">
+                  <HStack justify="space-between">
+                    <HStack spacing={2}>
+                      <Icon as={FaPlus} color="purple.500" />
+                      <Text fontSize="sm" fontWeight="bold" color="purple.600">
+                        🚀 Progressive Subgraph Builder
+                      </Text>
+                    </HStack>
+                    <Badge colorScheme="purple">{selectedNodeTypes.length} types selected</Badge>
+                  </HStack>
+                  
+                  <HStack spacing={2} wrap="wrap">
+                    <Text fontSize="xs" color={mutedTextColor}>Current subgraph:</Text>
+                    {selectedNodeTypes.map((type, idx) => (
+                      <Badge key={type} colorScheme="green" fontSize="xs">
+                        {type}
+                        {idx < selectedNodeTypes.length - 1 && <Icon as={FaPlus} ml={1} boxSize={2} />}
+                      </Badge>
+                    ))}
+                  </HStack>
+
+                  {availableExpansionTypes.length > 0 && (
+                    <VStack align="stretch">
+                      <Text fontSize="sm" fontWeight="semibold">
+                        Add Connected Type:
+                        <Badge ml={2} colorScheme="purple" fontSize="xs">
+                          {availableExpansionTypes.length} available
+                        </Badge>
+                      </Text>
+                      <Select
+                        placeholder="Select a type to add to subgraph..."
+                        onChange={(e) => {
+                          if (e.target.value) {
+                            setSelectedNodeTypes(prev => [...prev, e.target.value]);
+                            toast({
+                              title: 'Type added to subgraph!',
+                              description: `Now showing ${selectedNodeTypes.length + 1} node types`,
+                              status: 'success',
+                              duration: 2000
+                            });
+                            e.target.value = ''; // Reset dropdown
+                          }
+                        }}
+                        size="sm"
+                      >
+                        {availableExpansionTypes.map(type => (
+                          <option key={'expand-'+type} value={type}>
+                            {type}
+                          </option>
+                        ))}
+                      </Select>
+                      <Text fontSize="xs" color={mutedTextColor} fontStyle="italic">
+                        💡 Tip: These types are connected to your current subgraph
+                      </Text>
+                    </VStack>
+                  )}
+                  
+                  {availableExpansionTypes.length === 0 && (
+                    <Text fontSize="xs" color={mutedTextColor} fontStyle="italic">
+                      🔍 Searching for connected types...
+                    </Text>
+                  )}
+                </VStack>
+              )}
+
               <HStack spacing={4} wrap="wrap">
                 <HStack flex={1}>
                   <Text fontSize="sm" fontWeight="semibold">Max Nodes:</Text>
@@ -669,7 +832,7 @@ export default function StructureAnalysisPage() {
                     value={maxNodes}
                     onChange={(value) => setMaxNodes(value)}
                     min={50}
-                    max={500}
+                    max={2000}
                     step={50}
                     flex={1}
                   >
@@ -678,7 +841,10 @@ export default function StructureAnalysisPage() {
                     </SliderTrack>
                     <SliderThumb />
                   </Slider>
-                  <Text fontSize="sm" minW="50px">{maxNodes}</Text>
+                  <Text fontSize="sm" minW="60px" fontWeight="bold" color={maxNodes > 500 ? "orange.500" : "inherit"}>
+                    {maxNodes}
+                    {maxNodes > 500 && " 🚀"}
+                  </Text>
                 </HStack>
 
                 <HStack spacing={3}>

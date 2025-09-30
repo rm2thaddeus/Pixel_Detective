@@ -264,16 +264,30 @@ export default function StructureAnalysisGraph({
     }
 
     // Create force simulation
+    // Performance optimization: scale force strength based on node count
+    const nodeCount = filteredNodes.length;
+    const isLargeGraph = nodeCount > 500;
+    const chargeStrength = isLargeGraph ? -50 : -300;
+    const linkDistance = isLargeGraph ? 30 : 50;
+    
+    console.log(`Rendering ${nodeCount} nodes with ${safeLinks.length} edges. Large graph optimization: ${isLargeGraph}`);
+
     const simulation = d3.forceSimulation(filteredNodes)
-      .force("charge", d3.forceManyBody().strength(-300))
+      .force("charge", d3.forceManyBody().strength(chargeStrength))
       .force("center", d3.forceCenter(innerWidth / 2, innerHeight / 2))
-      .force("collision", d3.forceCollide().radius(20))
+      .force("collision", d3.forceCollide().radius(isLargeGraph ? 10 : 20))
       .force("x", d3.forceX(innerWidth / 2).strength(0.1))
       .force("y", d3.forceY(innerHeight / 2).strength(0.1));
 
     // Only add link force if there are valid links
     if (safeLinks.length > 0) {
-      simulation.force("link", d3.forceLink(safeLinks).id((d: any) => String(d.id)).distance(50));
+      simulation.force("link", d3.forceLink(safeLinks).id((d: any) => String(d.id)).distance(linkDistance));
+    }
+    
+    // For very large graphs, limit iterations to prevent browser freeze
+    if (isLargeGraph) {
+      simulation.alphaDecay(0.05); // Faster cooldown
+      simulation.velocityDecay(0.8); // More damping
     }
 
     // Color scales
@@ -299,8 +313,8 @@ export default function StructureAnalysisGraph({
       .data(safeLinks)
       .enter().append("line")
       .attr("stroke", (d: any) => linkColorScale(d.type) || '#999')
-      .attr("stroke-opacity", 0.8)
-      .attr("stroke-width", 2)
+      .attr("stroke-opacity", isLargeGraph ? 0.5 : 0.8)
+      .attr("stroke-width", isLargeGraph ? 1 : 2)
       .style("display", showEdges ? "block" : "none");
 
     // Create nodes
@@ -309,7 +323,13 @@ export default function StructureAnalysisGraph({
       .selectAll("circle")
       .data(filteredNodes)
       .enter().append("circle")
-      .attr("r", (d: any) => Math.max(8, Math.min(25, (d.degree || 1) * 3 + 8)))
+      .attr("r", (d: any) => {
+        // Scale node size based on graph size for better performance
+        if (isLargeGraph) {
+          return Math.max(4, Math.min(12, (d.degree || 1) * 2 + 4));
+        }
+        return Math.max(8, Math.min(25, (d.degree || 1) * 3 + 8));
+      })
       .attr("fill", (d: any) => nodeColorScale(d.type) || "#999")
       .attr("stroke", (d: any) => {
         if (highlightFilter?.kind === 'by-type' && highlightFilter.value) {
@@ -459,97 +479,7 @@ export default function StructureAnalysisGraph({
       d.fy = null;
     }
 
-    // Add status indicator
-    const statusGroup = g.append("g")
-      .attr("class", "status")
-      .attr("transform", `translate(20, 20)`);
-
-    statusGroup.append("rect")
-      .attr("width", 200)
-      .attr("height", 60)
-      .attr("fill", "rgba(255,255,255,0.9)")
-      .attr("stroke", "#ddd")
-      .attr("rx", 4);
-
-    statusGroup.append("text")
-      .attr("x", 10)
-      .attr("y", 20)
-      .attr("font-size", "12px")
-      .attr("fill", "#333")
-      .text(`Nodes: ${filteredNodes.length} | Links: ${safeLinks.length} (${showEdges ? 'visible' : 'hidden'})`);
-
-    statusGroup.append("text")
-      .attr("x", 10)
-      .attr("y", 35)
-      .attr("font-size", "10px")
-      .attr("fill", "#666")
-      .text(`From: ${selectedSourceType || 'All'} | To: ${selectedTargetType || 'All'} | Relation: ${selectedRelationType || 'All'}`);
-
-    // Add edge toggle button
-    const toggleButton = statusGroup.append("rect")
-      .attr("x", 10)
-      .attr("y", 45)
-      .attr("width", 80)
-      .attr("height", 12)
-      .attr("fill", showEdges ? "#4CAF50" : "#f44336")
-      .attr("rx", 2)
-      .style("cursor", "pointer")
-      .on("click", function() {
-        setShowEdges(!showEdges);
-        link.style("display", showEdges ? "block" : "none");
-        statusGroup.select("text").text(`Nodes: ${filteredNodes.length} | Links: ${safeLinks.length} (${showEdges ? 'visible' : 'hidden'})`);
-      });
-
-    statusGroup.append("text")
-      .attr("x", 50)
-      .attr("y", 54)
-      .attr("font-size", "8px")
-      .attr("fill", "white")
-      .attr("text-anchor", "middle")
-      .text(showEdges ? "Hide Edges" : "Show Edges");
-
-    // Add cluster toggle button
-    const clusterToggleButton = statusGroup.append("rect")
-      .attr("x", 100)
-      .attr("y", 45)
-      .attr("width", 80)
-      .attr("height", 12)
-      .attr("fill", localShowClusters ? "#4CAF50" : "#f44336")
-      .attr("rx", 2)
-      .style("cursor", "pointer")
-      .on("click", function() {
-        setLocalShowClusters(!localShowClusters);
-      });
-
-    statusGroup.append("text")
-      .attr("x", 140)
-      .attr("y", 54)
-      .attr("font-size", "8px")
-      .attr("fill", "white")
-      .attr("text-anchor", "middle")
-      .text(localShowClusters ? "Hide Clusters" : "Show Clusters");
-
-    // Add legend
-    const legend = g.append("g")
-      .attr("class", "legend")
-      .attr("transform", `translate(${innerWidth - 150}, 20)`);
-
-    // Node type legend
-    metrics.node_types.forEach((nodeType, index) => {
-      const legendItem = legend.append("g")
-        .attr("transform", `translate(0, ${index * 20})`);
-
-      legendItem.append("circle")
-        .attr("r", 6)
-        .attr("fill", nodeColorScale(nodeType.type));
-
-      legendItem.append("text")
-        .attr("x", 15)
-        .attr("y", 5)
-        .attr("font-size", "12px")
-        .attr("fill", "#2d3748")
-        .text(`${nodeType.type} (${nodeType.count})`);
-    });
+    // Status overlay and legend removed - clean canvas, hover nodes to see details
 
     // Add clustering visualization if enabled (much more subtle)
     if (localShowClusters && filteredNodes.length > 0) {
