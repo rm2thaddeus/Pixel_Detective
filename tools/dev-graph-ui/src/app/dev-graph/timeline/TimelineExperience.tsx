@@ -63,11 +63,7 @@ export function TimelineExperience({ initialEngine, allowEngineSwitch = false, a
   const [activeFolders, setActiveFolders] = useState<string[]>([]);
   const [filterMode, setFilterMode] = useState<'dim' | 'hide'>('dim');
   const [patternInput, setPatternInput] = useState<string>("");
-  // Phase A WebGL controls
-  const [autoFit, setAutoFit] = useState(true);
   const [alwaysShowEdges, setAlwaysShowEdges] = useState(false);
-  const [labelThreshold, setLabelThreshold] = useState(0.85);
-  const [qualityLevel, setQualityLevel] = useState(0.6);
 
   useEffect(() => {
     setRenderEngine(initialEngine);
@@ -702,25 +698,8 @@ export function TimelineExperience({ initialEngine, allowEngineSwitch = false, a
               </Text>
             </VStack>
 
-            {/* Encodings & Interactions */}
+            {/* Visualization Options */}
             <VStack align="stretch" spacing={3}>
-              {/*
-              <Button size="sm" variant={sizeByLOC ? 'solid' : 'outline'} colorScheme="orange" onClick={() => setSizeByLOC(!sizeByLOC)}>
-                📏 Size by LOC {sizeByLOC ? 'On' : 'Off'}
-              </Button>
-              <Button size="sm" variant={colorByLOC ? 'solid' : 'outline'} colorScheme="pink" onClick={() => setColorByLOC(!colorByLOC)}>
-                🎨 Color by LOC {colorByLOC ? 'On' : 'Off'}
-              </Button>
-              <Button size="sm" variant={showFolderGroups ? 'solid' : 'outline'} colorScheme="green" onClick={() => setShowFolderGroups(!showFolderGroups)}>
-                📁 Folders {showFolderGroups ? 'On' : 'Off'}
-              </Button>
-              <Button size="sm" variant={focusedView ? 'solid' : 'outline'} colorScheme="blue" onClick={() => setFocusedView(!focusedView)}>
-                🔍 Focus {focusedView ? 'On' : 'Off'}
-              </Button>
-              <Button size="sm" variant={enableZoom ? 'solid' : 'outline'} colorScheme="teal" onClick={() => setEnableZoom(!enableZoom)}>
-                🔍 Zoom {enableZoom ? 'On' : 'Off'}
-              </Button>
-              */}
               <HStack spacing={3} wrap="wrap">
                 <Button size="sm" variant={sizeByLOC ? 'solid' : 'outline'} colorScheme="orange" onClick={() => setSizeByLOC(!sizeByLOC)}>
                   Size by LOC {sizeByLOC ? 'On' : 'Off'}
@@ -737,6 +716,11 @@ export function TimelineExperience({ initialEngine, allowEngineSwitch = false, a
                 <Button size="sm" variant={highlightDocs ? 'solid' : 'outline'} colorScheme="purple" onClick={() => setHighlightDocs(!highlightDocs)}>
                   Highlight Docs {highlightDocs ? 'On' : 'Off'}
                 </Button>
+                {renderEngine === 'webgl' && (
+                  <Button size="sm" variant={alwaysShowEdges ? 'solid' : 'outline'} onClick={() => setAlwaysShowEdges(!alwaysShowEdges)}>
+                    Always Show Edges {alwaysShowEdges ? 'On' : 'Off'}
+                  </Button>
+                )}
               </HStack>
               <HStack spacing={3} align="center">
                 <Text fontSize="sm" fontWeight="medium" color={textColor}>Color Mode:</Text>
@@ -756,29 +740,6 @@ export function TimelineExperience({ initialEngine, allowEngineSwitch = false, a
                   <SliderTrack bg={borderColor}><SliderFilledTrack bg="gray.400" /></SliderTrack>
                   <SliderThumb bg="gray.400" />
                 </Slider>
-              </HStack>
-
-              {/* Phase A — Parity polish toggles */}
-              <HStack spacing={3} align="center">
-                <Button size="sm" variant={autoFit ? 'solid' : 'outline'} onClick={() => setAutoFit(!autoFit)}>Auto‑fit {autoFit ? 'On' : 'Off'}</Button>
-                <Button size="sm" variant={alwaysShowEdges ? 'solid' : 'outline'} onClick={() => setAlwaysShowEdges(!alwaysShowEdges)}>Always show edges {alwaysShowEdges ? 'On' : 'Off'}</Button>
-                <HStack spacing={2} align="center">
-                  <Text fontSize="sm" color={textColor}>Label threshold</Text>
-                  <Slider value={Math.round(labelThreshold * 100)} onChange={(v)=> setLabelThreshold(v/100)} min={20} max={200} step={5} width="180px">
-                    <SliderTrack bg={borderColor}><SliderFilledTrack bg="purple.400" /></SliderTrack>
-                    <SliderThumb bg="purple.400" />
-                  </Slider>
-                </HStack>
-              </HStack>
-
-              {/* Phase B — Quality vs Speed */}
-              <HStack spacing={3} align="center">
-                <Text fontSize="sm" fontWeight="medium" color={textColor}>Quality vs Speed</Text>
-                <Slider value={Math.round(qualityLevel * 100)} onChange={(v)=> setQualityLevel(v/100)} min={10} max={100} step={5} width="240px">
-                  <SliderTrack bg={borderColor}><SliderFilledTrack bg="teal.400" /></SliderTrack>
-                  <SliderThumb bg="teal.400" />
-                </Slider>
-                <Text fontSize="xs" color={mutedTextColor}>{qualityLevel < 0.45 ? 'Speed' : qualityLevel > 0.7 ? 'Quality' : 'Balanced'}</Text>
               </HStack>
 
               {allowEngineSwitch ? (

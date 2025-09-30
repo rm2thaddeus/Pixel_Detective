@@ -375,63 +375,30 @@ export default function StructureAnalysisGraph({
             return sourceId === d.id || targetId === d.id ? 1 : 0.1;
           });
 
-        // Show tooltip
-        const tooltip = g.append("g")
-          .attr("class", "tooltip")
-          .attr("transform", `translate(${event.x + 10}, ${event.y - 10})`);
-
-        tooltip.append("rect")
-          .attr("width", 200)
-          .attr("height", 60)
-          .attr("fill", "rgba(0,0,0,0.8)")
-          .attr("rx", 4);
-
-        tooltip.append("text")
-          .attr("x", 10)
-          .attr("y", 20)
-          .attr("fill", "white")
-          .attr("font-size", "12px")
-          .text(`Node: ${d.id}`);
-
-        tooltip.append("text")
-          .attr("x", 10)
-          .attr("y", 35)
-          .attr("fill", "white")
-          .attr("font-size", "10px")
-          .text(`Type: ${d.type} | Degree: ${d.degree}`);
-
-        tooltip.append("text")
-          .attr("x", 10)
-          .attr("y", 50)
-          .attr("fill", "white")
-          .attr("font-size", "10px")
-          .text(`Centrality: ${d.centrality?.toFixed(2) || 'N/A'}`);
-
-        // On-demand label when labels are off
-        if (!showLabels) {
-          const hover = g.append('text')
-            .attr('class', 'hover-label')
-            .attr('x', (d as any).x)
-            .attr('y', (d as any).y - 12)
-            .attr('text-anchor', 'middle')
-            .attr('font-size', '10px')
-            .attr('fill', '#2d3748')
-            .attr('stroke', 'white')
-            .attr('stroke-width', 0.8)
-            .text(() => {
-              const type = (d as any).type || 'Unknown';
-              const shortId = String((d as any).id).length > 12 ? String((d as any).id).substring(0, 12) + '…' : String((d as any).id);
-              return `${type}: ${shortId}`;
-            });
-        }
+        // Show simple label on hover (no ugly tooltip box)
+        const hover = g.append('text')
+          .attr('class', 'hover-label')
+          .attr('x', (d as any).x)
+          .attr('y', (d as any).y - 15)
+          .attr('text-anchor', 'middle')
+          .attr('font-size', '11px')
+          .attr('font-weight', 'bold')
+          .attr('fill', '#1a202c')
+          .attr('stroke', 'white')
+          .attr('stroke-width', 2)
+          .attr('paint-order', 'stroke')
+          .text(() => {
+            const type = (d as any).type || 'Unknown';
+            const shortId = String((d as any).id).length > 20 ? String((d as any).id).substring(0, 20) + '…' : String((d as any).id);
+            return `${type}: ${shortId}`;
+          });
       })
       .on("mouseout", function() {
         // Reset opacity
         node.attr("opacity", 1);
         link.attr("opacity", 0.6);
         
-        // Remove tooltip
-        g.selectAll(".tooltip").remove();
+        // Remove hover label
         g.selectAll('.hover-label').remove();
       });
 

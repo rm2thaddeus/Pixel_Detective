@@ -458,91 +458,19 @@ export default function WelcomeDashboard() {
           <CardBody>
             <Grid templateColumns={{ base: "1fr", md: "repeat(3, 1fr)" }} gap={6}>
               <Stat>
-                <StatLabel>{selectedCategory ? selectedCategory.label + ' Score' : 'Data Quality Score'}</StatLabel>
-                {qualityCategories.length > 1 && (
-                  <Select
-                    size="xs"
-                    value={selectedQualityCategory}
-                    onChange={(event) => setSelectedQualityCategory(event.target.value)}
-                    maxW="180px"
-                    mt={1}
-                  >
-                    {qualityCategories.map(category => (
-                      <option key={category.key} value={category.key}>
-                        {category.label}
-                      </option>
-                    ))}
-                  </Select>
-                )}
-                <StatNumber color={(selectedHealth.color || 'gray') + '.500'}>
-                  {activeScore}%
+                <StatLabel>Data Quality Score</StatLabel>
+                <StatNumber color={(baselineHealth.color || 'gray') + '.500'}>
+                  {baselineScore}%
                 </StatNumber>
                 <Progress
-                  value={selectedPercent}
-                  colorScheme={selectedHealth.color}
+                  value={baselineScore}
+                  colorScheme={baselineHealth.color}
                   size="sm"
                   mt={2}
                 />
-                {selectedCategory && (
-                  <Box mt={3} fontSize="xs" color="gray.600">
-                    {selectedCategory.summary && (
-                      <Text mb={2}>{selectedCategory.summary}</Text>
-                    )}
-                    <VStack align="stretch" spacing={3}>
-                      {selectedSections.map(section => (
-                        <Box key={section.key} borderWidth="1px" borderColor={borderColor} borderRadius="md" p={2}>
-                          <HStack justify="space-between" align="center" mb={1}>
-                            <Text fontWeight="semibold">{section.label}</Text>
-                            <Text>{section.score.toFixed(1)} / {section.max_score}</Text>
-                          </HStack>
-                          <Progress value={Math.min(100, (section.score / section.max_score) * 100)} size="xs" colorScheme={selectedHealth.color} />
-                          {section.indicators && section.indicators.length > 0 && (
-                            <VStack align="stretch" spacing={1} mt={2}>
-                              {section.indicators.slice(0, 4).map(indicator => (
-                                <Box key={section.key + '-' + indicator.label} p={1} borderRadius="sm" bg={indicatorBgColor}>
-                                  <HStack justify="space-between" align="flex-start">
-                                    <VStack align="flex-start" spacing={0}>
-                                      <HStack spacing={2}>
-                                        <Text fontSize="xs" fontWeight="semibold">{indicator.label}</Text>
-                                        {indicator.status && (
-                                          <Badge size="xs" colorScheme={indicatorStatusColor[indicator.status] || 'gray'}>
-                                            {indicator.status.toUpperCase()}
-                                          </Badge>
-                                        )}
-                                      </HStack>
-                                      {indicator.description && (
-                                        <Text fontSize="xs" color="gray.500">{indicator.description}</Text>
-                                      )}
-                                    </VStack>
-                                    <VStack align="flex-end" spacing={0}>
-                                      <Text fontSize="sm" fontWeight="semibold">{formatIndicatorValue(indicator.value, indicator.unit)}</Text>
-                                      {indicator.target !== undefined && indicator.target !== null && (
-                                        <Text fontSize="xs" color="gray.500">
-                                          Target: {formatIndicatorValue(indicator.target, indicator.unit)}
-                                        </Text>
-                                      )}
-                                    </VStack>
-                                  </HStack>
-                                </Box>
-                              ))}
-                              {section.indicators.length > 4 && (
-                                <Text fontSize="xs" color="gray.500">
-                                  +{section.indicators.length - 4} more indicators
-                                </Text>
-                              )}
-                            </VStack>
-                          )}
-                        </Box>
-                      ))}
-                    </VStack>
-                  </Box>
-                )}
-                {dataQualityError && (
-                  <Alert status="warning" variant="left-accent" mt={3} fontSize="xs">
-                    <AlertIcon />
-                    <Text>Unable to refresh quality overview. Showing last loaded data.</Text>
-                  </Alert>
-                )}
+                <StatHelpText mt={2}>
+                  {baselineScore >= 90 ? 'Excellent data quality' : baselineScore >= 70 ? 'Good data quality' : 'Needs improvement'}
+                </StatHelpText>
               </Stat>
               
               <Stat>
@@ -613,97 +541,6 @@ export default function WelcomeDashboard() {
           </Card>
         </Grid>
 
-        {/* Data Type Breakdown */}
-        <Grid templateColumns={{ base: "1fr", lg: "1fr 1fr" }} gap={6}>
-          <Card bg={bgColor} borderColor={borderColor}>
-            <CardHeader>
-              <HStack>
-                <Icon as={FaFileAlt} color="blue.500" />
-                <Heading size="md">Node Types</Heading>
-              </HStack>
-            </CardHeader>
-            <CardBody>
-              <VStack align="stretch" spacing={3}>
-                {nodeTypeSummary.length > 0 ? (
-                  nodeTypeSummary.map((nodeType, index) => (
-                    <HStack key={`node-${nodeType.type}-${index}`} justify="space-between">
-                      <HStack>
-                        <Box w={3} h={3} bg={`${nodeType.color}.500`} borderRadius="full" />
-                        <Text fontSize="sm">{nodeType.type}</Text>
-                      </HStack>
-                      <Badge colorScheme={nodeType.color} variant="subtle">
-                        {nodeType.count}
-                      </Badge>
-                    </HStack>
-                  ))
-                ) : (
-                  <Text color="gray.500">No node type data available</Text>
-                )}
-              </VStack>
-            </CardBody>
-          </Card>
-
-          <Card bg={bgColor} borderColor={borderColor}>
-            <CardHeader>
-              <HStack>
-                <Icon as={FaChartLine} color="green.500" />
-                <Heading size="md">Relation Types</Heading>
-              </HStack>
-            </CardHeader>
-            <CardBody>
-              <VStack align="stretch" spacing={3}>
-                {relationTypeSummary.length > 0 ? (
-                  relationTypeSummary.map((relationType, index) => (
-                    <HStack key={`relation-${relationType.type}-${index}`} justify="space-between">
-                      <HStack>
-                        <Box w={3} h={3} bg={`${relationType.color}.500`} borderRadius="full" />
-                        <Text fontSize="sm">{relationType.type}</Text>
-                      </HStack>
-                      <Badge colorScheme={relationType.color} variant="subtle">
-                        {relationType.count}
-                      </Badge>
-                    </HStack>
-                  ))
-                ) : (
-                  <Text color="gray.500">No relation type data available</Text>
-                )}
-              </VStack>
-            </CardBody>
-          </Card>
-        </Grid>
-
-        {/* Performance Metrics */}
-        {health?.performance_metrics && (
-          <Card bg={bgColor} borderColor={borderColor}>
-            <CardHeader>
-              <Heading size="md">Performance Metrics</Heading>
-            </CardHeader>
-            <CardBody>
-              <Grid templateColumns={{ base: "1fr", md: "repeat(3, 1fr)" }} gap={6}>
-                <Stat>
-                  <StatLabel>Avg Query Time</StatLabel>
-                  <StatNumber color="blue.500">
-                    {health.performance_metrics.avg_query_time_ms}ms
-                  </StatNumber>
-                </Stat>
-                
-                <Stat>
-                  <StatLabel>Cache Hit Rate</StatLabel>
-                  <StatNumber color="green.500">
-                    {Math.round(health.performance_metrics.cache_hit_rate * 100)}%
-                  </StatNumber>
-                </Stat>
-                
-                <Stat>
-                  <StatLabel>Memory Usage</StatLabel>
-                  <StatNumber color="purple.500">
-                    {health.performance_metrics.memory_usage_mb}MB
-                  </StatNumber>
-                </Stat>
-              </Grid>
-            </CardBody>
-          </Card>
-        )}
 
         {/* Navigation to Advanced Features */}
         <Card bg={bgColor} borderColor={borderColor}>

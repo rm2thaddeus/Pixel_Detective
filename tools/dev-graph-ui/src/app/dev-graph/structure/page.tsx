@@ -1,5 +1,5 @@
 'use client';
-import { Box, Heading, Text, VStack, HStack, Button, Spinner, Alert, AlertIcon, useColorModeValue, Badge, Icon, Flex, Divider, Grid, GridItem, Card, CardBody, CardHeader, Stat, StatLabel, StatNumber, StatHelpText, useToast, Textarea, Code, Select } from '@chakra-ui/react';
+import { Box, Heading, Text, VStack, HStack, Button, Spinner, Alert, AlertIcon, useColorModeValue, Badge, Icon, Flex, Divider, Grid, GridItem, Card, CardBody, CardHeader, Stat, StatLabel, StatNumber, StatHelpText, useToast, Textarea, Code, Select, Slider, SliderTrack, SliderFilledTrack, SliderThumb } from '@chakra-ui/react';
 import { useState, useEffect, useMemo } from 'react';
 import { Header } from '@/components/Header';
 import { Link as ChakraLink } from '@chakra-ui/react';
@@ -75,6 +75,7 @@ const CYPHER_PRESETS: Array<{ label: string; query: string; keywords: string[] }
   }
 ];
 
+// Start with a more manageable default query
 const DEFAULT_CYPHER_QUERY = CYPHER_PRESETS[0].query;
 
 interface StructureMetrics {
@@ -107,7 +108,7 @@ export default function StructureAnalysisPage() {
   const [showClusters, setShowClusters] = useState(true);
   const [showLabels, setShowLabels] = useState(false);
   const [includeTypes, setIncludeTypes] = useState<string[]>([]);
-  const [maxNodes, setMaxNodes] = useState(20000);
+  const [maxNodes, setMaxNodes] = useState(100); // Start with more manageable limit
 
   const [cypherQuery, setCypherQuery] = useState<string>(DEFAULT_CYPHER_QUERY);
   const [cypherResult, setCypherResult] = useState<CypherQueryResult | null>(null);
@@ -125,6 +126,69 @@ export default function StructureAnalysisPage() {
   const pageBgColor = useColorModeValue('gray.50', 'gray.900');
   const mutedTextColor = useColorModeValue('gray.600', 'gray.400');
   const filterStatusBg = useColorModeValue('gray.50', 'gray.700');
+  const activeFilterBg = useColorModeValue('blue.50', 'blue.900');
+
+  // Fetch available target types from backend when source type changes
+  useEffect(() => {
+    const fetchConnectedTypes = async () => {
+      if (!selectedSourceType) {
+        setAvailableTargetTypes([]);
+        return;
+      }
+
+      try {
+        // Query backend for actual relationship patterns from full database
+        // RETURN the actual nodes so they get collected in the response
+        const query = `
+          MATCH (source:${selectedSourceType})-[r]->(target)
+          RETURN DISTINCT source, r, target
+          LIMIT 1000
+        `;
+        
+        const response = await fetch(`${DEV_GRAPH_API_URL}/api/v1/dev-graph/graph/cypher`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query, max_nodes: 1000, max_relationships: 1000 })
+        });
+
+        if (response.ok) {
+          const result = await response.json();
+          const targetTypes = new Set<string>();
+          const relationTypes = new Set<string>();
+          
+          // Extract unique target types from nodes (excluding source types)
+          result.nodes?.forEach((node: any) => {
+            const label = Array.isArray(node.labels) ? node.labels[0] : node.labels;
+            if (label && String(label) !== selectedSourceType) {
+              targetTypes.add(String(label));
+            }
+          });
+          
+          // Extract available relationship types
+          result.relationships?.forEach((rel: any) => {
+            if (rel.type) relationTypes.add(String(rel.type));
+          });
+
+          const uniqueTypes = Array.from(targetTypes);
+          setAvailableTargetTypes(uniqueTypes);
+          
+          // Also update available relation types based on actual connections
+          const uniqueRelations = Array.from(relationTypes);
+          
+          console.log(`Found ${uniqueTypes.length} connected target types for ${selectedSourceType}:`, uniqueTypes);
+          console.log(`Found ${uniqueRelations.length} relationship types:`, uniqueRelations);
+        } else {
+          console.warn('Failed to fetch connected types, falling back to all types');
+          setAvailableTargetTypes([]);
+        }
+      } catch (err) {
+        console.error('Error fetching connected types:', err);
+        setAvailableTargetTypes([]);
+      }
+    };
+
+    fetchConnectedTypes();
+  }, [selectedSourceType]);
 
   useEffect(() => {
     const fetchStructureMetrics = async () => {
@@ -132,154 +196,86 @@ export default function StructureAnalysisPage() {
         setLoading(true);
         setError(null);
 
-        // Fetch comprehensive structure analysis with graceful error handling
-        const initialTypes = includeTypes.length > 0 ? includeTypes : (metrics?.node_types?.slice(0,3).map(nt => nt.type) || []);
-        const typesParam = [selectedSourceType, selectedTargetType, ...initialTypes]
-          .filter(Boolean)
-          .join(',');
-        const subgraphUrl = `${DEV_GRAPH_API_URL}/api/v1/dev-graph/graph/subgraph?limit=${maxNodes}&include_counts=true` +
-          (typesParam ? `&types=${encodeURIComponent(typesParam)}` : '');
+        let nodes: any[] = [];
+        let edges: any[] = [];
+        let stats: any = null;
 
-        const [statsRes, subgraphRes] = await Promise.all([
-          fetch(`${DEV_GRAPH_API_URL}/api/v1/dev-graph/stats`).catch(() => null),
-          fetch(subgraphUrl).catch(() => null)
-        ]);
+        // Fetch stats first
+        const statsRes = await fetch(`${DEV_GRAPH_API_URL}/api/v1/dev-graph/stats`).catch(() => null);
+        stats = await statsRes?.json().catch(() => null);
 
-        const [stats, subgraph] = await Promise.all([
-          statsRes?.json().catch(() => null),
-          subgraphRes?.json().catch(() => null)
-        ]);
+        // If filters are applied, use targeted Cypher query
+        if (selectedSourceType || selectedTargetType || selectedRelationType) {
+          let query = 'MATCH (source)-[r]->(target)\nWHERE 1=1';
+          if (selectedSourceType) query += `\nAND source:${selectedSourceType}`;
+          if (selectedTargetType) query += `\nAND target:${selectedTargetType}`;
+          if (selectedRelationType) query += `\nAND type(r) = '${selectedRelationType}'`;
+          query += `\nRETURN source, r, target\nLIMIT ${maxNodes}`;
 
-        // Use real graph data from subgraph API
-        const nodes = (subgraph?.nodes || []).map((n: any) => ({ ...n, id: String(n.id) }));
-        const edges = (subgraph?.edges || []).map((e: any) => ({
-          from: String(e.from ?? e.source),
-          to: String(e.to ?? e.target),
-          type: e.type || 'RELATES_TO'
-        }));
+          console.log('Executing targeted query:', query);
+          
+          const cypherRes = await fetch(`${DEV_GRAPH_API_URL}/api/v1/dev-graph/graph/cypher`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ query, max_nodes: maxNodes, max_relationships: maxNodes * 2 })
+          });
 
-        // Apply client-side filtering consistent with graph component
-        const nodeById = new Map<string, any>();
-        nodes.forEach((n: any) => nodeById.set(String(n.id), n));
-        
-        // Debug: Log filtering parameters
-        console.log('Filtering with:', {
-          selectedRelationType,
-          selectedSourceType,
-          selectedTargetType,
-          totalEdges: edges.length,
-          availableRelationTypes: [...new Set(edges.map(e => e.type))]
-        });
-        
-        const allowedTypes = new Set(initialTypes);
-        const filteredEdges = edges.filter((edge: any) => {
-          const s = nodeById.get(edge.from);
-          const t = nodeById.get(edge.to);
-          if (!s || !t) return false;
-          
-          // Filter by relationship type
-          if (selectedRelationType && String(edge.type) !== selectedRelationType) return false;
-          
-          // Filter by source type
-          const sType = String(s.type || (Array.isArray(s.labels) ? s.labels[0] : s.labels));
-          const tType = String(t.type || (Array.isArray(t.labels) ? t.labels[0] : t.labels));
-          if (selectedSourceType && sType !== selectedSourceType) return false;
-          
-          // Filter by target type
-          if (selectedTargetType && tType !== selectedTargetType) return false;
-
-          // Multi-include types gate (default to at least three types)
-          if (allowedTypes.size > 0 && !(allowedTypes.has(sType) && allowedTypes.has(tType))) return false;
-          
-          return true;
-        });
-        
-        // If no edges found with strict filtering, try more flexible filtering
-        if (filteredEdges.length === 0 && (selectedSourceType || selectedTargetType)) {
-          console.log('No edges found with strict filtering, trying flexible approach...');
-          
-          // Try filtering by just source type if target type is selected but no matches
-          if (selectedSourceType && selectedTargetType) {
-            const flexibleEdges = edges.filter((edge: any) => {
-              const s = nodeById.get(edge.from);
-              const t = nodeById.get(edge.to);
-              if (!s || !t) return false;
-              
-              if (selectedRelationType && String(edge.type) !== selectedRelationType) return false;
-              
-              // Only filter by source type, ignore target type for now
-              if (selectedSourceType && String(s.type || (Array.isArray(s.labels) ? s.labels[0] : s.labels)) !== selectedSourceType) return false;
-              
-              return true;
-            });
+          if (cypherRes.ok) {
+            const result = await cypherRes.json();
+            nodes = (result.nodes || []).map((n: any) => ({ ...n, id: String(n.id) }));
+            edges = (result.relationships || []).map((e: any) => ({
+              from: String(e.from ?? e.source),
+              to: String(e.to ?? e.target),
+              type: e.type || 'RELATES_TO'
+            }));
             
-            if (flexibleEdges.length > 0) {
-              console.log('Found edges with flexible filtering (source only):', flexibleEdges.length);
-              // Update the filteredEdges variable instead of returning
-              filteredEdges.splice(0, filteredEdges.length, ...flexibleEdges);
-            }
+            console.log(`Cypher query returned ${nodes.length} nodes and ${edges.length} edges`);
           }
-        }
-        
-        console.log('Filtered edges:', {
-          original: edges.length,
-          filtered: filteredEdges.length,
-          relationTypes: [...new Set(filteredEdges.map(e => e.type))]
-        });
-        
-        // Update available target types based on selected source type
-        if (selectedSourceType) {
-          const sourceNodeIds = nodes
-            .filter(n => {
-              const nodeType = n.type || (Array.isArray(n.labels) ? n.labels[0] : n.labels);
-              return String(nodeType) === selectedSourceType;
-            })
-            .map(n => String(n.id));
-          
-          const targetTypes = edges
-            .filter(e => sourceNodeIds.includes(String(e.from)))
-            .map(e => {
-              const targetNode = nodeById.get(String(e.to));
-              return targetNode ? (targetNode.type || (Array.isArray(targetNode.labels) ? targetNode.labels[0] : targetNode.labels)) : null;
-            })
-            .filter(Boolean)
-            .map(String);
-          
-          const uniqueTargetTypes = [...new Set(targetTypes)];
-          setAvailableTargetTypes(uniqueTargetTypes);
-          console.log('Available target types for source', selectedSourceType, ':', uniqueTargetTypes);
         } else {
-          setAvailableTargetTypes([]);
+          // No filters - use subgraph API with default types
+          const initialTypes = includeTypes.length > 0 ? includeTypes : (stats?.node_types?.slice(0,3).map(nt => nt.type) || []);
+          const typesParam = initialTypes.join(',');
+          const subgraphUrl = `${DEV_GRAPH_API_URL}/api/v1/dev-graph/graph/subgraph?limit=${maxNodes}&include_counts=true` +
+            (typesParam ? `&types=${encodeURIComponent(typesParam)}` : '');
+
+          const subgraphRes = await fetch(subgraphUrl).catch(() => null);
+          const subgraph = await subgraphRes?.json().catch(() => null);
+
+          nodes = (subgraph?.nodes || []).map((n: any) => ({ ...n, id: String(n.id) }));
+          edges = (subgraph?.edges || []).map((e: any) => ({
+            from: String(e.from ?? e.source),
+            to: String(e.to ?? e.target),
+            type: e.type || 'RELATES_TO'
+          }));
         }
-        
-        // Update available source types based on selected target type
-        if (selectedTargetType) {
-          const targetNodeIds = nodes
-            .filter(n => {
-              const nodeType = n.type || (Array.isArray(n.labels) ? n.labels[0] : n.labels);
-              return String(nodeType) === selectedTargetType;
-            })
-            .map(n => String(n.id));
-          
-          const sourceTypes = edges
-            .filter(e => targetNodeIds.includes(String(e.to)))
-            .map(e => {
-              const sourceNode = nodeById.get(String(e.from));
-              return sourceNode ? (sourceNode.type || (Array.isArray(sourceNode.labels) ? sourceNode.labels[0] : sourceNode.labels)) : null;
-            })
-            .filter(Boolean)
-            .map(String);
-          
-          const uniqueSourceTypes = [...new Set(sourceTypes)];
-          setAvailableSourceTypes(uniqueSourceTypes);
-          console.log('Available source types for target', selectedTargetType, ':', uniqueSourceTypes);
-        } else {
-          setAvailableSourceTypes([]);
-        }
-        
+
+        // Since we're querying directly with filters, edges already match our criteria
+        // Just ensure nodes are connected by edges
         const keepIds = new Set<string>();
-        filteredEdges.forEach((e: any) => { keepIds.add(e.from); keepIds.add(e.to); });
+        edges.forEach((e: any) => { 
+          keepIds.add(String(e.from)); 
+          keepIds.add(String(e.to)); 
+        });
         const filteredNodes = nodes.filter((n: any) => keepIds.size === 0 || keepIds.has(String(n.id)));
+        const filteredEdges = edges;
+        
+        console.log('Query results:', {
+          totalNodes: nodes.length,
+          totalEdges: edges.length,
+          filteredNodes: filteredNodes.length,
+          filteredEdges: filteredEdges.length,
+          edgeTypes: [...new Set(edges.map(e => e.type))]
+        });
+
+        // Set override data so graph uses our filtered results instead of fetching its own
+        if (selectedSourceType || selectedTargetType || selectedRelationType) {
+          setGraphOverride({ 
+            nodes: filteredNodes, 
+            edges: filteredEdges 
+          });
+        } else {
+          setGraphOverride(null); // Let graph fetch default data
+        }
 
         // Calculate structure metrics with real data
         const structureMetrics: StructureMetrics = {
@@ -414,14 +410,29 @@ export default function StructureAnalysisPage() {
       }
       const payload: CypherQueryResult = await response.json();
       setCypherResult(payload);
-      // Prepare override data for graph rendering
-      const nodes = (payload.nodes || []).map((n: any) => ({ id: String(n.id), type: n.type || (Array.isArray(n.labels) ? n.labels[0] : n.labels) || 'Unknown' }));
-      const edges = (payload.relationships || []).map((r: any) => ({ from: String(r.from), to: String(r.to), type: r.type }));
+      // Prepare override data for graph rendering - ACTUALLY DISPLAY THE QUERY RESULTS
+      const nodes = (payload.nodes || []).map((n: any) => ({ 
+        id: String(n.id), 
+        type: n.type || (Array.isArray(n.labels) ? n.labels[0] : n.labels) || 'Unknown',
+        label: n.display || String(n.id)
+      }));
+      const edges = (payload.relationships || []).map((r: any) => ({ 
+        from: String(r.from), 
+        to: String(r.to), 
+        type: r.type 
+      }));
       setGraphOverride({ nodes, edges });
+      
+      // Clear filters to show the query results clearly
+      setSelectedRelationType('');
+      setSelectedSourceType('');
+      setSelectedTargetType('');
+      setIncludeTypes([]);
+      
       setCypherWarnings(payload.warnings || []);
       toast({
-        title: 'Query executed',
-        description: 'Returned ' + payload.nodes.length + ' nodes and ' + payload.relationships.length + ' relationships',
+        title: 'Query executed - Graph updated',
+        description: `Displaying ${payload.nodes.length} nodes and ${payload.relationships.length} relationships from your query`,
         status: 'success',
         duration: 4000
       });
@@ -557,215 +568,247 @@ export default function StructureAnalysisPage() {
           </Grid>
         )}
 
-        {/* Controls */}
-        <Box p={4} bg={bgColor} borderRadius="md" borderColor={borderColor}>
-          <VStack spacing={4}>
-            <HStack spacing={6} wrap="wrap" w="full">
-              <HStack>
-                <Icon as={FaFilter} color="blue.500" />
-                <Text fontSize="sm" fontWeight="semibold">Filters:</Text>
-              </HStack>
+        {/* Graph Filters - Simplified and Intuitive */}
+        <Card bg={bgColor} borderColor={borderColor}>
+          <CardHeader>
+            <HStack>
+              <Icon as={FaFilter} color="blue.500" />
+              <Heading size="md">Build Your Subgraph</Heading>
+            </HStack>
+          </CardHeader>
+          <CardBody>
+            <VStack spacing={4} align="stretch">
+              <Text fontSize="sm" color={mutedTextColor}>
+                Select node types to explore their relationships. The "To Type" dropdown will update to show only connected nodes.
+              </Text>
               
-              <HStack>
-                <Text fontSize="sm">From Type:</Text>
-                <Select
-                  size="sm"
-                  maxW="200px"
-                  value={selectedSourceType}
-                  onChange={(e) => {
-                    setSelectedSourceType(e.target.value);
-                    setSelectedTargetType(''); // Reset target when source changes
-                    setSelectedRelationType(''); // Reset relation when source changes
-                  }}
-                >
-                  <option value="">Any</option>
-                  {metrics?.node_types.map(nt => (
-                    <option key={'from-'+nt.type} value={nt.type}>{nt.type} ({nt.count})</option>
-                  ))}
-                </Select>
-              </HStack>
+              <Grid templateColumns={{ base: "1fr", md: "repeat(3, 1fr)" }} gap={4}>
+                <VStack align="stretch">
+                  <Text fontSize="sm" fontWeight="semibold">From Type:</Text>
+                  <Select
+                    value={selectedSourceType}
+                    onChange={(e) => {
+                      const newSource = e.target.value;
+                      setSelectedSourceType(newSource);
+                      setSelectedTargetType(''); // Reset target
+                      setSelectedRelationType(''); // Reset relation
+                      if (newSource) {
+                        toast({ 
+                          title: 'Source selected', 
+                          description: 'Target types updated to show connected nodes only',
+                          status: 'info',
+                          duration: 2000
+                        });
+                      }
+                    }}
+                  >
+                    <option value="">Select a source type...</option>
+                    {metrics?.node_types.map(nt => (
+                      <option key={'from-'+nt.type} value={nt.type}>
+                        {nt.type} ({nt.count} nodes)
+                      </option>
+                    ))}
+                  </Select>
+                </VStack>
 
-              <HStack>
-                <Text fontSize="sm">To Type:</Text>
-                <Select
-                  size="sm"
-                  maxW="200px"
-                  value={selectedTargetType}
-                  onChange={(e) => {
-                    setSelectedTargetType(e.target.value);
-                    setSelectedRelationType(''); // Reset relation when target changes
-                  }}
-                  disabled={selectedSourceType && availableTargetTypes.length === 0}
-                >
-                  <option value="">
-                    {selectedSourceType 
-                      ? availableTargetTypes.length === 0 
-                        ? "No valid targets" 
-                        : "Any valid target"
-                      : "Any"
-                    }
-                  </option>
-                  {(selectedSourceType ? availableTargetTypes : metrics?.node_types?.map(nt => nt.type) || [])
-                    .map(type => {
+                <VStack align="stretch">
+                  <Text fontSize="sm" fontWeight="semibold">
+                    To Type: 
+                    {selectedSourceType && (
+                      <Badge ml={2} colorScheme="green" fontSize="xs">
+                        {availableTargetTypes.length} connected
+                      </Badge>
+                    )}
+                  </Text>
+                  <Select
+                    value={selectedTargetType}
+                    onChange={(e) => {
+                      setSelectedTargetType(e.target.value);
+                      setSelectedRelationType(''); // Reset relation
+                    }}
+                    isDisabled={!selectedSourceType}
+                  >
+                    <option value="">
+                      {!selectedSourceType 
+                        ? "Select source type first"
+                        : availableTargetTypes.length === 0 
+                          ? "No connected targets" 
+                          : "All connected targets"}
+                    </option>
+                    {availableTargetTypes.map(type => {
                       const nodeType = metrics?.node_types?.find(nt => nt.type === type);
                       return (
                         <option key={'to-'+type} value={type}>
-                          {type} {nodeType ? `(${nodeType.count})` : ''}
+                          {type} {nodeType ? `(${nodeType.count} nodes)` : ''}
                         </option>
                       );
                     })}
-                </Select>
+                  </Select>
+                </VStack>
+
+                <VStack align="stretch">
+                  <Text fontSize="sm" fontWeight="semibold">Relation Type:</Text>
+                  <Select
+                    value={selectedRelationType}
+                    onChange={(e) => setSelectedRelationType(e.target.value)}
+                  >
+                    <option value="">All Relations</option>
+                    {availableRelationTypes.map(rt => (
+                      <option key={'rel-'+rt} value={rt}>
+                        {rt}
+                      </option>
+                    ))}
+                  </Select>
+                </VStack>
+              </Grid>
+
+              <HStack spacing={4} wrap="wrap">
+                <HStack flex={1}>
+                  <Text fontSize="sm" fontWeight="semibold">Max Nodes:</Text>
+                  <Slider 
+                    value={maxNodes}
+                    onChange={(value) => setMaxNodes(value)}
+                    min={50}
+                    max={500}
+                    step={50}
+                    flex={1}
+                  >
+                    <SliderTrack>
+                      <SliderFilledTrack bg="blue.500" />
+                    </SliderTrack>
+                    <SliderThumb />
+                  </Slider>
+                  <Text fontSize="sm" minW="50px">{maxNodes}</Text>
+                </HStack>
+
+                <HStack spacing={3}>
+                  <Button 
+                    size="sm" 
+                    variant="outline" 
+                    onClick={() => {
+                      setSelectedSourceType('');
+                      setSelectedTargetType('');
+                      setSelectedRelationType('');
+                      setAvailableTargetTypes([]);
+                      toast({ title: 'Filters cleared', status: 'info', duration: 2000 });
+                    }}
+                  >
+                    Reset Filters
+                  </Button>
+                </HStack>
               </HStack>
 
-              <HStack>
-                <Text fontSize="sm">Relation Type:</Text>
-                <Select
-                  size="sm"
-                  maxW="250px"
-                  value={selectedRelationType}
-                  onChange={(e) => setSelectedRelationType(e.target.value)}
-                  disabled={selectedSourceType && selectedTargetType && availableTargetTypes.length === 0}
-                >
-                  <option value="">
-                    {selectedSourceType && selectedTargetType && availableTargetTypes.length === 0
-                      ? "No valid relations"
-                      : `All Relations (${metrics?.relation_types?.reduce((sum, rt) => sum + rt.count, 0) || 0})`
-                    }
-                  </option>
-                  {metrics?.relation_types?.map(rt => (
-                    <option key={'rel-'+rt.type} value={rt.type}>
-                      {rt.type} ({rt.count})
-                    </option>
-                  ))}
-                </Select>
-              </HStack>
+              {/* Status Badge */}
+              {(selectedSourceType || selectedTargetType || selectedRelationType) && (
+                <Box p={3} bg={activeFilterBg} borderRadius="md">
+                  <HStack spacing={2} wrap="wrap">
+                    <Badge colorScheme="blue">Active Filters:</Badge>
+                    {selectedSourceType && <Badge colorScheme="green">From: {selectedSourceType}</Badge>}
+                    {selectedTargetType && <Badge colorScheme="purple">To: {selectedTargetType}</Badge>}
+                    {selectedRelationType && <Badge colorScheme="orange">Via: {selectedRelationType}</Badge>}
+                  </HStack>
+                </Box>
+              )}
+            </VStack>
+          </CardBody>
+        </Card>
 
-              {/* Multi-include types (at least 3) */}
-              <HStack align="center">
-                <Text fontSize="sm">Include Types:</Text>
-                <Select
-                  size="sm"
-                  maxW="260px"
-                  value={includeTypes[0] || ''}
-                  onChange={(e)=> setIncludeTypes((prev)=> [e.target.value, prev?.[1] || '', prev?.[2] || ''].filter(Boolean))}
-                >
-                  <option value="">Any</option>
-                  {metrics?.node_types.map(nt => (
-                    <option key={'inc1-'+nt.type} value={nt.type}>{nt.type}</option>
-                  ))}
-                </Select>
-                <Select
-                  size="sm"
-                  maxW="260px"
-                  value={includeTypes[1] || ''}
-                  onChange={(e)=> setIncludeTypes((prev)=> [prev?.[0] || '', e.target.value, prev?.[2] || ''].filter(Boolean))}
-                >
-                  <option value="">Any</option>
-                  {metrics?.node_types.map(nt => (
-                    <option key={'inc2-'+nt.type} value={nt.type}>{nt.type}</option>
-                  ))}
-                </Select>
-                <Select
-                  size="sm"
-                  maxW="260px"
-                  value={includeTypes[2] || ''}
-                  onChange={(e)=> setIncludeTypes((prev)=> [prev?.[0] || '', prev?.[1] || '', e.target.value].filter(Boolean))}
-                >
-                  <option value="">Any</option>
-                  {metrics?.node_types.map(nt => (
-                    <option key={'inc3-'+nt.type} value={nt.type}>{nt.type}</option>
-                  ))}
-                </Select>
-              </HStack>
-
-              <HStack>
-                <Text fontSize="sm">Max Nodes:</Text>
-                <input 
-                  type="range" 
-                  min="100" 
-                  max="5000" 
-                  step="100"
-                  value={maxNodes}
-                  onChange={(e) => setMaxNodes(Number(e.target.value))}
-                  style={{ width: '100px' }}
-                />
-                <Text fontSize="sm" minW="50px">{maxNodes}</Text>
-              </HStack>
-            </HStack>
-
-            <HStack spacing={6} wrap="wrap" w="full">
-              <HStack>
-                <input 
-                  type="checkbox" 
-                  checked={showClusters}
-                  onChange={(e) => setShowClusters(e.target.checked)}
-                />
-                <Text fontSize="sm">Show Clusters</Text>
-              </HStack>
-
-              <HStack>
-                <input 
-                  type="checkbox" 
-                  checked={showLabels}
-                  onChange={(e) => setShowLabels(e.target.checked)}
-                />
-                <Text fontSize="sm">Show Labels</Text>
-              </HStack>
-
-              <HStack spacing={2}>
-                <Button 
-                  size="sm" 
-                  variant="outline" 
-                  onClick={() => {
-                    setSelectedSourceType('');
-                    setSelectedTargetType('');
-                    setSelectedRelationType('');
-                    setIncludeTypes([]);
-                  }}
-                >
-                  Reset Filters
-                </Button>
-                <Button size="sm" variant="outline" leftIcon={<FaDownload />}>
-                  Export
-                </Button>
-                <Button size="sm" variant="outline" leftIcon={<FaShare />}>
-                  Share
-                </Button>
-              </HStack>
-            </HStack>
-          </VStack>
-        </Box>
-
-        {/* Structure Graph */}
+        {/* Structure Graph - MAIN FEATURE AT TOP */}
         <Card bg={bgColor} borderColor={borderColor}>
           <CardHeader>
-            <VStack align="stretch" spacing={2}>
-              <HStack justify="space-between" align="center">
-                <HStack spacing={3}>
-                  <Icon as={FaSearch} color="purple.500" />
-                  <Heading size="md">Cypher Playground</Heading>
-                </HStack>
-                <Button
-                  size="sm"
-                  colorScheme="purple"
-                  leftIcon={<FaPlay />}
-                  isLoading={cypherLoading}
-                  onClick={handleRunCypher}
-                >
-                  Run Query
+            <HStack justify="space-between">
+              <HStack>
+                <Icon as={FaProjectDiagram} color="green.500" />
+                <Heading size="md">Graph Visualization</Heading>
+                {graphOverride && (
+                  <Badge colorScheme="purple">Cypher Query Results</Badge>
+                )}
+              </HStack>
+              <HStack spacing={2}>
+                {graphOverride && (
+                  <Button size="sm" variant="solid" colorScheme="blue" onClick={() => {
+                    setGraphOverride(null);
+                    setCypherResult(null);
+                    toast({ title: 'Cleared query results', description: 'Showing main filtered view', status: 'info', duration: 2000 });
+                  }}>
+                    Clear Query Results
+                  </Button>
+                )}
+                <Button size="sm" variant="outline" leftIcon={<FaDownload />} onClick={() => {
+                  if (!svgEl) return;
+                  const serialized = new XMLSerializer().serializeToString(svgEl);
+                  const blob = new Blob([serialized], { type: 'image/svg+xml;charset=utf-8' });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = 'structure-graph.svg';
+                  document.body.appendChild(a);
+                  a.click();
+                  document.body.removeChild(a);
+                  setTimeout(()=> URL.revokeObjectURL(url), 1000);
+                }}>
+                  Export SVG
                 </Button>
               </HStack>
-              <Text fontSize="sm" color={mutedTextColor}>
-                Compose a Cypher query to explore targeted subgraphs. Suggestions adapt as you type. Tip: select two core types and we’ll suggest attached types.
-              </Text>
-            </VStack>
+            </HStack>
+          </CardHeader>
+          <CardBody>
+            <Box h="600px" position="relative">
+              {metrics ? (
+                <StructureAnalysisGraph
+                  metrics={metrics}
+                  height={600}
+                  width={1200}
+                  selectedRelationType={graphOverride ? '' : selectedRelationType}
+                  selectedSourceType={graphOverride ? '' : selectedSourceType}
+                  selectedTargetType={graphOverride ? '' : selectedTargetType}
+                  showClusters={false}
+                  showLabels={false}
+                  maxNodes={maxNodes}
+                  useRealData={!graphOverride}
+                  onSvgReady={setSvgEl}
+                  overrideData={graphOverride}
+                  highlightFilter={null}
+                />
+              ) : (
+                <VStack align="center" justify="center" h="full">
+                  <Spinner size="xl" color="green.500" />
+                  <Text>Loading graph...</Text>
+                </VStack>
+              )}
+            </Box>
+          </CardBody>
+        </Card>
+
+        {/* Cypher Playground - Collapsible Advanced Tool */}
+        <Card bg={bgColor} borderColor={borderColor}>
+          <CardHeader>
+            <HStack justify="space-between">
+              <HStack>
+                <Icon as={FaSearch} color="purple.500" />
+                <Heading size="md">Advanced: Cypher Playground</Heading>
+                <Badge colorScheme="purple">Optional</Badge>
+              </HStack>
+              <Button
+                size="sm"
+                colorScheme="purple"
+                leftIcon={<FaPlay />}
+                isLoading={cypherLoading}
+                onClick={handleRunCypher}
+              >
+                Run Query
+              </Button>
+            </HStack>
           </CardHeader>
           <CardBody>
             <VStack align="stretch" spacing={4}>
+              <Text fontSize="sm" color={mutedTextColor}>
+                Write custom Cypher queries to explore specific subgraphs. Results will appear in the graph above.
+              </Text>
               <Textarea
                 value={cypherQuery}
                 onChange={(event) => setCypherQuery(event.target.value)}
-                minH="120px"
+                minH="100px"
                 fontFamily="mono"
                 placeholder="MATCH (n) RETURN n LIMIT 25"
                 onKeyDown={(event) => {
@@ -775,6 +818,7 @@ export default function StructureAnalysisPage() {
                 }}
               />
               <HStack spacing={2} wrap="wrap">
+                <Text fontSize="xs" color={mutedTextColor}>Quick examples:</Text>
                 {suggestedExamples.map((example) => (
                   <Button
                     key={example.label}
@@ -792,181 +836,18 @@ export default function StructureAnalysisPage() {
                   <Text fontSize="sm">{cypherError}</Text>
                 </Alert>
               )}
-              {cypherWarnings.length > 0 && (
-                <Alert status="warning" borderRadius="md">
-                  <AlertIcon />
-                  <VStack align="start" spacing={1}>
-                    {cypherWarnings.map((warning, index) => (
-                      <Text key={'warning-' + index} fontSize="xs">{warning}</Text>
-                    ))}
-                  </VStack>
-                </Alert>
-              )}
               {cypherResult && (
-                <VStack align="stretch" spacing={4}>
-                  <Box>
-                    <Heading size="sm" mb={2}>Summary</Heading>
-                    <Code display="block" whiteSpace="pre-wrap" borderRadius="md" p={3} fontSize="xs">
-                      {JSON.stringify(cypherResult.summary, null, 2)}
-                    </Code>
-                  </Box>
-                  <Grid templateColumns={{ base: '1fr', md: 'repeat(2, 1fr)' }} gap={4}>
-                    <Box>
-                      <Heading size="sm" mb={2}>Nodes ({cypherResult.nodes.length})</Heading>
-                      <VStack align="stretch" spacing={2}>
-                        {cypherResult.nodes.slice(0, 10).map((node) => (
-                          <Box key={node.id} border="1px solid" borderColor={borderColor} borderRadius="md" p={2}>
-                            <Text fontWeight="semibold">{node.display || node.id}</Text>
-                            <Text fontSize="xs" color={mutedTextColor}>
-                              {(node.labels || []).join(', ') || node.type || 'Node'}
-                            </Text>
-                            {node.properties && Object.keys(node.properties).length > 0 && (
-                              <Code display="block" whiteSpace="pre-wrap" fontSize="xs">
-                                {JSON.stringify(node.properties, null, 2)}
-                              </Code>
-                            )}
-                          </Box>
-                        ))}
-                        {cypherResult.nodes.length > 10 && (
-                          <Text fontSize="xs" color={mutedTextColor}>
-                            Showing first 10 of {cypherResult.nodes.length} nodes.
-                          </Text>
-                        )}
-                      </VStack>
-                    </Box>
-                    <Box>
-                      <Heading size="sm" mb={2}>Relationships ({cypherResult.relationships.length})</Heading>
-                      <VStack align="stretch" spacing={2}>
-                        {cypherResult.relationships.slice(0, 10).map((relationship) => (
-                          <Box key={relationship.id} border="1px solid" borderColor={borderColor} borderRadius="md" p={2}>
-                            <Text fontWeight="semibold">{relationship.type}</Text>
-                            <Text fontSize="xs" color={mutedTextColor}>
-                              {relationship.from} → {relationship.to}
-                            </Text>
-                            {relationship.properties && Object.keys(relationship.properties).length > 0 && (
-                              <Code display="block" whiteSpace="pre-wrap" fontSize="xs">
-                                {JSON.stringify(relationship.properties, null, 2)}
-                              </Code>
-                            )}
-                          </Box>
-                        ))}
-                        {cypherResult.relationships.length > 10 && (
-                          <Text fontSize="xs" color={mutedTextColor}>
-                            Showing first 10 of {cypherResult.relationships.length} relationships.
-                          </Text>
-                        )}
-                      </VStack>
-                    </Box>
-                  </Grid>
-                </VStack>
+                <Alert status="success" borderRadius="md">
+                  <AlertIcon />
+                  <Text fontSize="sm">
+                    Query returned {cypherResult.nodes.length} nodes and {cypherResult.relationships.length} relationships. 
+                    Results are displayed in the graph above.
+                  </Text>
+                </Alert>
               )}
             </VStack>
           </CardBody>
         </Card>
-
-        <Box h="600px" bg={bgColor} borderRadius="md" borderColor={borderColor} p={4}>
-          {/* Secondary Highlight Filter */}
-          <HStack spacing={3} mb={3}>
-            <Text fontSize="sm">Highlight:</Text>
-            <Select size="sm" maxW="220px" value={highlightKind} onChange={(e)=> setHighlightKind(e.target.value as any)}>
-              <option value="none">None</option>
-              <option value="by-type">By Node Type</option>
-              <option value="future-nodes">Future Nodes (placeholder)</option>
-              <option value="future-relationships">Future Relationships (placeholder)</option>
-            </Select>
-            {highlightKind === 'by-type' && (
-              <Select size="sm" maxW="220px" value={highlightValue} onChange={(e)=> setHighlightValue(e.target.value)}>
-                <option value="">Select type…</option>
-                {metrics?.node_types.map(nt => (
-                  <option key={'h-'+nt.type} value={nt.type}>{nt.type}</option>
-                ))}
-              </Select>
-            )}
-            <Button size="sm" variant="outline" leftIcon={<FaDownload />} onClick={() => {
-              if (!svgEl) return;
-              const serialized = new XMLSerializer().serializeToString(svgEl);
-              const blob = new Blob([serialized], { type: 'image/svg+xml;charset=utf-8' });
-              const url = URL.createObjectURL(blob);
-              const a = document.createElement('a');
-              a.href = url;
-              a.download = 'structure-graph.svg';
-              document.body.appendChild(a);
-              a.click();
-              document.body.removeChild(a);
-              setTimeout(()=> URL.revokeObjectURL(url), 1000);
-            }}>
-              Export SVG
-            </Button>
-            {graphOverride && (
-              <Button size="sm" variant="outline" onClick={() => {
-                const blob = new Blob([JSON.stringify(graphOverride, null, 2)], { type: 'application/json' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = 'subgraph.json';
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                setTimeout(()=> URL.revokeObjectURL(url), 1000);
-              }}>
-                Export JSON
-              </Button>
-            )}
-          </HStack>
-          {/* Filter Status Indicator */}
-          {metrics && (
-            <Box mb={4} p={3} bg={filterStatusBg} borderRadius="md">
-              <HStack spacing={4} wrap="wrap">
-                <Badge colorScheme="blue" variant="subtle">
-                  {selectedRelationType || 'All Relations'} 
-                  {selectedRelationType && metrics.relation_types?.find(rt => rt.type === selectedRelationType) && 
-                    ` (${metrics.relation_types.find(rt => rt.type === selectedRelationType)?.count} edges)`
-                  }
-                </Badge>
-                {selectedSourceType && (
-                  <Badge colorScheme="green" variant="subtle">
-                    From: {selectedSourceType}
-                  </Badge>
-                )}
-                {selectedTargetType && (
-                  <Badge colorScheme="purple" variant="subtle">
-                    To: {selectedTargetType}
-                  </Badge>
-                )}
-                    {includeTypes.length > 0 && (
-                      <Badge colorScheme="cyan" variant="subtle">
-                        Types: {includeTypes.join(', ')}
-                      </Badge>
-                    )}
-                <Text fontSize="sm" color={mutedTextColor}>
-                  Showing {metrics.total_relations} relationships
-                </Text>
-              </HStack>
-            </Box>
-          )}
-          
-          {metrics ? (
-            <StructureAnalysisGraph
-              metrics={metrics}
-              height={520}
-              selectedRelationType={selectedRelationType}
-              selectedSourceType={selectedSourceType}
-              selectedTargetType={selectedTargetType}
-              showClusters={showClusters}
-              showLabels={showLabels}
-              maxNodes={maxNodes}
-              useRealData={true}
-              onSvgReady={setSvgEl}
-              overrideData={graphOverride}
-              highlightFilter={highlightKind === 'none' ? null : { kind: highlightKind === 'by-type' ? 'by-type' : (highlightKind as any), value: highlightValue }}
-            />
-          ) : (
-            <VStack align="center" justify="center" h="full">
-              <Spinner size="lg" color="green.500" />
-              <Text>Loading structure analysis...</Text>
-            </VStack>
-          )}
-        </Box>
 
         {/* Central Nodes Analysis */}
         {metrics?.central_nodes && metrics.central_nodes.length > 0 && (
