@@ -160,6 +160,9 @@ export function TimelineExperience({ initialEngine, allowEngineSwitch = false, a
   const [resetToken, setResetToken] = useState(0);
   const [isExporting, setIsExporting] = useState(false);
   const svgElementRef = useRef<SVGSVGElement>(null);
+  const ffmpegRef = useRef<any>(null);  // FFmpeg instance for video conversion
+  const canvasElementRef = useRef<HTMLCanvasElement>(null);
+  
   // Compute adaptive node budget based on device/browser capabilities and viewport
   useEffect(() => {
     const computeAdaptiveMaxNodes = () => {
@@ -436,7 +439,17 @@ export function TimelineExperience({ initialEngine, allowEngineSwitch = false, a
       const previousIndex = currentTimeIndex;
       for (let step = safeStart; step <= safeEnd; step += 1) {
         setCurrentTimeIndex(step);
-        await wait(240);
+        
+        // Adaptive wait time: longer for early frames to let force simulation equilibrate
+        // Early frames need more time for nodes to settle into position
+        const progress = (step - safeStart) / Math.max(1, frameCount - 1);
+        const baseWait = 1200; // Base wait time for equilibration
+        const minWait = 600;   // Minimum wait for later frames
+        const waitTime = Math.round(baseWait - (baseWait - minWait) * Math.pow(progress, 2));
+        
+        console.log(`Exporting frame ${step - safeStart + 1}/${frameCount}, wait: ${waitTime}ms (progress: ${(progress * 100).toFixed(1)}%)`);
+        await wait(waitTime);
+        
         if (renderEngine === 'svg') {
           await drawSvgToCanvas(svgElementRef.current, ctx, captureCanvas.width, captureCanvas.height);
         } else {
