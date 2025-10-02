@@ -159,8 +159,8 @@ start_dev_graph.bat
 ## 📁 **Repository Structure**
 
 ```
-vibe-coding/
-├── 🎨 Pixel Detective
+pixel-detective/
+├── 🎨 Pixel Detective (Media Search)
 │   ├── frontend/                    # Next.js UI (port 3000)
 │   ├── backend/
 │   │   ├── ingestion_orchestration_fastapi_app/  # Port 8002
@@ -200,8 +200,8 @@ vibe-coding/
 
 ```bash
 # 1. Clone repository
-git clone https://github.com/yourusername/vibe-coding.git
-cd vibe-coding
+git clone https://github.com/yourusername/pixel-detective.git
+cd pixel-detective
 
 # 2. Install Python dependencies
 pip install -r requirements.txt
