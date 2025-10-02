@@ -12,10 +12,13 @@ export const mlApi = axios.create({
   timeout: 10000,
 });
 
-export const devGraphApi = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_DEV_GRAPH_API_URL || 'http://localhost:8080',
-  timeout: 10000,
-});
+// Dev Graph API client removed - Dev Graph is now a separate application
+// If Dev Graph integration is needed, use the standalone Dev Graph UI at port 3001
+
+// export const devGraphApi = axios.create({
+//   baseURL: process.env.NEXT_PUBLIC_DEV_GRAPH_API_URL || 'http://localhost:8080',
+//   timeout: 10000,
+// });
 
 api.interceptors.response.use(
   (response) => response,
@@ -188,35 +191,10 @@ export interface FeatureEvolutionResponse {
   snapshots?: Record<string, EvolutionSnapshot>;
 }
 
+// Dev Graph integration removed - use standalone Dev Graph app at port 3001
 export async function fetchFeatureEvolution(feature: string): Promise<FeatureEvolutionResponse> {
-  // If it looks like a requirement ID, use the dedicated evolution endpoint
-  const isReq = /^(FR-|NFR-)/i.test(feature);
-  try {
-    if (isReq) {
-      const { data } = await devGraphApi.get(`/api/v1/dev-graph/evolution/requirement/${encodeURIComponent(feature)}`);
-      // Expect data to contain a list of events with timestamps or commits; normalize
-      const events: EvolutionEvent[] = (data?.events || data || []).map((e: any, i: number) => ({
-        id: String(e.id ?? e.hash ?? i),
-        type: (e.type ?? 'commit') as EvolutionEvent['type'],
-        timestamp: String(e.timestamp ?? e.date ?? new Date().toISOString()),
-        label: String(e.label ?? e.message ?? e.summary ?? 'Event'),
-      }));
-      return { feature, events };
-    }
-
-    // Otherwise, build a generic timeline from commit buckets for context
-    const { data: buckets } = await devGraphApi.get(`/api/v1/dev-graph/commits/buckets`, { params: { granularity: 'day', limit: 60 } });
-    const events: EvolutionEvent[] = (buckets?.buckets || buckets || []).map((b: any, i: number) => ({
-      id: `bucket-${i}`,
-      type: 'commit',
-      timestamp: String(b.timestamp ?? b.date ?? new Date().toISOString()),
-      label: `Commits: ${b.count ?? b.commits ?? 0}`,
-    }));
-    return { feature, events };
-  } catch (err) {
-    // As a last resort, return an empty, valid shape
-    return { feature, events: [] };
-  }
+  // This functionality is available in the Dev Graph standalone application
+  return { feature, events: [] };
 }
 
 export interface FailureAnalysisResponse {
@@ -259,16 +237,10 @@ export interface ArchitectureInsightsResponse {
   overview?: Record<string, unknown>;
 }
 
+// Dev Graph integration removed - use standalone Dev Graph app at port 3001
 export async function generateArchitectureInsights(): Promise<ArchitectureInsightsResponse> {
-  const [rels, metrics] = await Promise.all([
-    devGraphApi.get(`/api/v1/dev-graph/relations`, { params: { limit: 200 } }).then(r => r.data).catch(() => []),
-    api.get(`/api/v1/analytics/graph`).then(r => r.data).catch(() => null),
-  ]);
-  const dependencies = (rels as any[]).slice(0, 200).map((r) => ({ source: r.from, target: r.to, weight: 1 }));
-  const bottlenecks: ArchitectureInsightsResponse['bottlenecks'] = [];
-  if (metrics?.edges?.TOUCHED != null) bottlenecks.push({ id: 'b-touched', label: 'File changes', metric: 'count', value: metrics.edges.TOUCHED });
-  if (metrics?.nodes?.commits != null) bottlenecks.push({ id: 'b-commits', label: 'Commits', metric: 'count', value: metrics.nodes.commits });
-  return { dependencies, bottlenecks, overview: metrics ?? {} };
+  // This functionality is available in the Dev Graph standalone application
+  return { dependencies: [], bottlenecks: [], overview: {} };
 }
 
 export interface KnowledgeSearchResult {
@@ -278,15 +250,8 @@ export interface KnowledgeSearchResult {
   snippet?: string;
 }
 
+// Dev Graph integration removed - use standalone Dev Graph app at port 3001
 export async function searchKnowledge(query: string): Promise<KnowledgeSearchResult[]> {
-  try {
-    const { data } = await devGraphApi.get(`/api/v1/dev-graph/search`, { params: { q: query } });
-    return data as KnowledgeSearchResult[];
-  } catch (err) {
-    // Simple mock results
-    return [
-      { id: 'k1', type: 'requirement', title: `Spec related to ${query}`, snippet: 'High-level description...' },
-      { id: 'k2', type: 'commit', title: `Commit touching ${query}`, snippet: 'Refactor and fixes...' },
-    ];
-  }
+  // This functionality is available in the Dev Graph standalone application
+  return [];
 }

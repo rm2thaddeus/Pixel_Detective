@@ -93,14 +93,6 @@ export function Header() {
           </Button>
           <Button
             variant="ghost"
-            leftIcon={<Icon as={FiCompass} />}
-            onClick={() => router.push('/explore')}
-          >
-            Explore
-          </Button>
-          {/* Dev Graph entry removed to decouple main app from Dev Graph UI */}
-          <Button
-            variant="ghost"
             leftIcon={<Icon as={FiFolder} />}
             onClick={() => router.push('/collections')}
           >

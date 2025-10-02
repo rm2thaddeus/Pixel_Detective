@@ -1,3 +1,15 @@
+/**
+ * NOTE: This "Explore" section is deprecated and disabled.
+ * 
+ * Dev Graph functionality has been moved to a standalone application:
+ * - Dev Graph UI: tools/dev-graph-ui (port 3001)
+ * - Dev Graph API: developer_graph/api.py (port 8080)
+ * 
+ * To use Dev Graph features, run: .\start_dev_graph.ps1
+ * 
+ * This page is kept for reference but is not accessible in the UI.
+ */
+
 'use client';
 
 import { Box, Heading, Text, SimpleGrid, Card, CardBody, Button, VStack } from '@chakra-ui/react';
