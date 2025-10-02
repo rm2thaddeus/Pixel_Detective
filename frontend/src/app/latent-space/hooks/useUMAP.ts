@@ -53,19 +53,23 @@ async function ensureGpuServiceHealthy(): Promise<boolean> {
   return false;
 }
 
-const fetchUMAPProjection = async (
+export const fetchUMAPProjection = async (
   collection: string | null,
-  sampleSize: number = 500
+  sampleSize: number = 500,
+  bbox?: [number, number, number, number],
+  full: boolean = false
 ): Promise<UMAPProjectionResponse> => {
-  console.log(`🔍 fetchUMAPProjection called with collection: ${collection}, sampleSize: ${sampleSize}`);
+  console.log(`🔍 fetchUMAPProjection called with collection: ${collection}, sampleSize: ${sampleSize}, bbox: ${bbox}`);
   
   if (!collection) {
     throw new Error("A collection must be selected to compute UMAP projections.");
   }
   
   console.log(`🌐 Requesting UMAP projection from main backend, sample_size: ${sampleSize}`);
-  const params = { sample_size: sampleSize };
-  const response = await api.get(`/umap/projection`, { params });
+  const params: Record<string, any> = { sample_size: sampleSize };
+  if (bbox) params.bbox = bbox.join(',');
+  if (full) params.full = 'true';
+  const response = await api.get(`/umap/projection`, { params, timeout: 30000 });
   console.log(`✅ UMAP projection response received:`, {
     status: response.status,
     pointsCount: response.data?.points?.length,
@@ -122,12 +126,12 @@ const performClustering = async (
       };
     } catch (err: any) {
       if (err?.response) {
-        console.error('❌ GPU clustering failed:', {
+        console.warn('❌ GPU clustering failed:', {
           status: err.response.status,
           data: err.response.data,
         });
       } else {
-        console.error('❌ GPU clustering failed (no response object):', err);
+        console.warn('❌ GPU clustering failed (no response object):', err);
       }
       console.info('🔁 Falling back to main backend clustering endpoint...');
       // Fall back to main backend clustering endpoint
@@ -137,11 +141,18 @@ const performClustering = async (
   // ---------- Fallback to main backend --------------
   const { points, ...clusteringRequest } = variables;
   console.log(`🌐 Requesting clustering from main backend with algorithm: ${clusteringRequest.algorithm}`);
-  const response = await api.post('/umap/projection_with_clustering', clusteringRequest, {
-    params: { sample_size: points.length }
-  });
-  console.log(`✅ Clustering response received from fallback:`, response.data);
-  return response.data;
+  try {
+    const response = await api.post('/umap/projection_with_clustering', clusteringRequest, {
+      params: { sample_size: points.length },
+      timeout: 30000
+    });
+    console.log(`✅ Clustering response received from fallback:`, response.data);
+    return response.data;
+  } catch (err: any) {
+    console.warn('[useUMAP] Clustering fallback failed:', err);
+    // Fallback to projection-only data so the UI can render without clustering
+    return { points: variables.points, collection: collection || 'unknown', clustering_info: undefined };
+  }
 };
 
 const postClusterLabel = async (
@@ -189,6 +200,21 @@ export function useUMAP(sampleSize: number = 500) {
     clusteringMutation,
     labelMutation,
     isLoading: basicProjection.isLoading && basicProjection.isFetching,
-    error: basicProjection.error || clusteringMutation.error,
+    error: basicProjection.error,
   };
-} 
+}
+
+export function useUMAPZoom(
+  bbox: [number, number, number, number] | null,
+  sampleSize: number = 500,
+  full: boolean = false,
+) {
+  const { collection } = useStore();
+  return useQuery({
+    queryKey: ['umap', 'zoom', collection, bbox, sampleSize, full],
+    queryFn: () => fetchUMAPProjection(collection, sampleSize, bbox ?? undefined, full),
+    enabled: !!collection && !!bbox,
+    staleTime: 5 * 60 * 1000,
+    retry: 1,
+  });
+}

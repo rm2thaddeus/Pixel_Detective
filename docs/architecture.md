@@ -1,533 +1,464 @@
-# Vibe Coding - System Architecture
+# Pixel Detective - System Architecture
 
-**Current Version:** Post-Sprint 10 (December 2024)  
-**Status:** Production-Ready Microservices Architecture  
-**Last Updated:** December 2024
+**Current Version:** Post-Sprint 11 (October 2025)  
+**Status:** Production-Ready Dual Application Platform  
+**Last Updated:** October 2025
 
 ---
 
 ## 🎯 **Executive Summary**
 
-Vibe Coding implements a modern, scalable microservices architecture featuring a Next.js frontend, FastAPI backend services, and Qdrant vector database. The system provides AI-powered media search capabilities with semantic similarity and metadata filtering.
+Pixel Detective is a dual-application platform featuring two distinct, production-ready systems:
 
-### **🏗️ High-Level Architecture**
+1. **Pixel Detective (Media Search)**: AI-powered media search engine using CLIP/BLIP models, Qdrant vector database, and GPU-accelerated processing
+2. **Dev Graph**: Temporal knowledge graph for tracking code evolution using Neo4j, git history analysis, and semantic linking
 
-# Architecture Overview
+Both applications share a modern microservices architecture with Next.js frontends and FastAPI backends, demonstrating advanced full-stack development capabilities.
 
-This document describes the high-level architecture of the Pixel Detective application, including core modules, data flow, and key components.
-
-## 🎯 **Sprint 01 Complete**: Unified 3-Screen Architecture ✅
-
-**Status**: Successfully transformed fragmented dual UI system into unified 3-screen architecture  
-**Achievement**: UI/UX integration complete with performance maintained  
-**Result**: 
-- ✅ **Unified user experience** - Single coherent 3-screen flow
-- ✅ **Component integration** - All sophisticated features accessible  
-- ✅ **Performance preserved** - <1s startup maintained
-- ✅ **User-focused design** - Removed technical jargon, added engaging progress
-- ✅ **Graceful fallbacks** - Components work with error handling
-
-**Completed Transformations**:
-1. **Screen 1**: Simplified user-focused folder selection (removed technical metrics)
-2. **Screen 2**: Engaging progress experience (replaced boring technical logs)  
-3. **Screen 3**: Sophisticated features integrated (real components with fallbacks)
-4. **Component Architecture**: Extracted `ui/` components to organized `components/` structure
-
-## ✅ **Current Status (Post-Sprint 08 / Planning Sprint 09)**
-
-**Overall System Health:** Stable, with ongoing enhancements for robustness and feature set.
-**Key Architectural Pillars:**
--   **API-Driven Frontend:** Streamlit application interacts with backend services exclusively through a dedicated API service layer (`frontend/service_api.py`).
--   **Decoupled Backend Services:** FastAPI applications manage specific domains like ingestion and ML inference.
--   **Persistent Vector Storage:** Qdrant collections are intended to be persistent and loaded at application startup (target for Sprint 09).
--   **Modular Frontend Components:** UI is built with reusable components, though continuous alignment with backend capabilities is ongoing.
-
-**Sprint 08 Achievements Relevant to Architecture:**
--   Centralized backend interactions in `frontend/service_api.py`.
--   Developed new API endpoints for search, image listing, duplicates, random image, and vector visualization.
--   UI components (including `latent_space.py`) made API-driven and stateless.
--   Folder ingestion tasks from UI (`context_sidebar.py`) now submit tasks to the backend Ingestion Orchestration service via `service_api.py`.
-
-**Sprint 09 – In-Progress Implementation Highlights:**
--   Key accomplishments so far:
-    -   ✅ Persistent Qdrant collections now auto-load at startup; ingestion prompt appears only when no collection is found.
-    -   ✅ GPU-optimised inference with mixed precision & dynamic batch sizing.
-    -   ✅ Expanded `/capabilities` endpoint and polling-friendly `/ingest/status` for fine-grained progress reporting.
-    -   🟡 Streamlit UI remains but has entered **maintenance**; patterns archived for migration to React/Vite in Sprint 10.
-
-## 0. Environment Setup
-
-- Use a Python virtual environment (`.venv`) for dependency isolation.
-- Activate on Windows PowerShell: `.\.venv\Scripts\Activate.ps1`
-- Activate on Unix/macOS: `source .venv/bin/activate`
-- **Install CUDA-enabled PyTorch** for GPU acceleration. See the README for installation and troubleshooting instructions.
-- If you see `torch.cuda.is_available() == False`, check your drivers and CUDA install, and ensure you have the correct PyTorch version for your CUDA toolkit.
-
-## 1. Application Structure
-
-The application is broadly divided into a `frontend` (Streamlit application) and a `backend` (FastAPI services), interacting with a `Data Layer` (Qdrant).
-
-### 1.1. Frontend (`frontend/`)
-
--   **Streamlit App (`frontend/app.py`)**: Main entry point for the user interface. Implements the unified 3-screen experience. Relies on `service_api.py` for all backend communication.
--   **Configuration (`frontend/config.py`)**: Global settings for the frontend, potentially including Qdrant collection names or API endpoints.
--   **Core Logic (`frontend/core/`)**:
-    -   `app_state.py`: Manages 3-screen state transitions.
-    -   `background_loader.py`: Handles non-blocking progress tracking (to be enhanced with API-based feedback).
-    -   `session_manager.py`: Manages session state.
--   **API Service Layer (`frontend/service_api.py`)**: Crucial module acting as the sole intermediary for communication with all backend FastAPI services. Uses `httpx.AsyncClient`.
--   **Screens (`frontend/screens/`)**: Implements the different stages of the UI flow (Fast UI, Loading, Advanced UI). All screens are API-driven.
--   **Components (`frontend/components/`)**: Reusable UI modules for search, visualization, sidebar, etc. These components fetch data and trigger actions via `service_api.py`.
--   **Styling (`frontend/styles/`, `frontend/.streamlit/custom.css`)**: Defines the visual appearance of the application.
-
-### 1.2. Backend (`backend/`)
-
-The backend consists of decoupled FastAPI services. For local development and testing, these services are run manually. Docker Compose is used to manage the Qdrant instance.
-
--   **Ingestion Orchestration (`backend/ingestion_orchestration_fastapi_app/`)**:
-    -   Manages the process of ingesting images from folders.
-    -   Handles tasks like metadata extraction, embedding generation (potentially by calling the ML inference service), and storing data in Qdrant.
-    -   Provides APIs for initiating and monitoring ingestion tasks (e.g., "Folder Load").
-    -   Sprint 09 aims to make this service work with persistent Qdrant collections and provide progress updates.
--   **ML Inference (`backend/ml_inference_fastapi_app/`)**:
-    -   Provides APIs for machine learning model inferences, primarily CLIP for embeddings and BLIP for captions.
-    -   Likely called by the Ingestion Orchestration service during the ingestion pipeline.
-    -   May also be used for on-the-fly inference if needed by other features (e.g., image search).
--   **Shared Models/Utilities (Conceptual)**: Common utilities, model loading logic, or database connectors specific to the backend might reside in shared modules accessible by these FastAPI apps.
--   **Node Modules (`backend/node_modules/`)**: Indicates potential use of Node.js tools, possibly for build processes, linting, or auxiliary scripts within the backend environment.
--   **Disk Cache (`backend/.diskcache/`)**: Suggests caching is used within the backend services.
-
-### 1.3. Data Layer (Qdrant)
-
--   **Vector Database**: Qdrant is used for storing and searching image embeddings and metadata.
--   **Persistence (Sprint 09 Goal)**:
-    -   Collections will be persistent.
-    -   The application (likely the backend services or a startup script coordinated with them) will check for and load an existing collection by a configured name.
-    -   If no collection exists, the UI (via `frontend/app.py` and `service_api.py` to the ingestion service) will prompt the user to specify a folder to build a new collection.
--   **Access**: Backend services interact directly with Qdrant using the Qdrant Python client. The frontend does not interact with Qdrant directly but goes through `service_api.py`.
-
-## 2. Core Modules & Directory Structure (Consolidated View)
-
-*(This section replaces older, more fragmented directory descriptions and reflects the current project structure based on provided information and sprint plans.)*
+### **🏗️ Platform Architecture Diagram**
 
 ```
-project_root/
-│
-├── frontend/
-│   ├── app.py                      # Main Streamlit application
-│   ├── config.py                   # Frontend configuration
-│   ├── requirements.txt            # Frontend Python dependencies
-│   ├── service_api.py              # API client for backend communication
-│   ├── __init__.py
-│   │
-│   ├── core/                       # Frontend state management, background tasks
-│   │   ├── app_state.py
-│   │   ├── background_loader.py
-│   │   └── session_manager.py
-│   │
-│   ├── screens/                    # UI screens
-│   │   ├── fast_ui_screen.py
-│   │   ├── loading_screen.py
-│   │   └── advanced_ui_screen.py
-│   │
-│   ├── components/                 # Reusable UI components
-│   │   ├── search/
-│   │   │   └── search_tabs.py
-│   │   ├── visualization/
-│   │   │   └── latent_space.py
-│   │   └── sidebar/
-│   │       └── context_sidebar.py
-│   │
-│   ├── styles/                     # CSS styles
-│   ├── logs/                       # Frontend logs
-│   ├── cache/                      # Frontend cache
-│   └── .streamlit/                 # Streamlit specific files (config, static assets)
-│       ├── custom.css
-│       ├── config.toml
-│       └── static/
-│           └── detective.png
-│
-├── backend/
-│   ├── ingestion_orchestration_fastapi_app/  # FastAPI service for ingestion
-│   │   └── (service specific files: main.py, routers, models, etc.)
-│   ├── ml_inference_fastapi_app/             # FastAPI service for ML inference
-│   │   └── (service specific files: main.py, routers, models, etc.)
-│   ├── node_modules/                         # Node.js dependencies (if actively used)
-│   └── .diskcache/                           # Backend caching
-│
-├── models/ (Legacy or Shared Models for Backend?)
-│   ├── clip_model.py
-│   ├── blip_model.py
-│   ├── model_manager.py
-│   └── lazy_model_manager.py       # Potentially used by backend services
-│
-├── database/ (Legacy or Shared DB connectors for Backend?)
-│   ├── qdrant_connector.py         # Qdrant client wrapper, likely used by backend
-│   ├── db_manager.py
-│   └── vector_db.py
-│
-├── metadata_extractor.py (Legacy or Shared Utility for Backend?)
-│
-├── utils/ (Legacy or Shared Utilities for Backend?)
-│   ├── image_utils.py
-│   ├── logger.py
-│   ├── cuda_utils.py
-│   ├── incremental_indexer.py
-│   ├── embedding_cache.py
-│   └── lazy_session_state.py
-│
-├── scripts/
-│   ├── mvp_app.py                  # CLI tool, potentially interacts with backend services or Qdrant
-│   ├── diagnose_cuda.py
-│   ├── minigame.py
-│   └── run_app.bat
-│
-├── docs/
-│   ├── architecture.md             # This file
-│   ├── roadmap.md
-│   ├── CHANGELOG.md
-│   └── sprints/
-│       ├── sprint-01/
-│       ├── ...
-│       └── sprint-09/
-│
-├── Library Test/                   # Test data
-└── .venv/                          # Virtual environment
+┌──────────────────────────────────────────────────────────────────────┐
+│                     PIXEL DETECTIVE PLATFORM                          │
+├─────────────────────────────────┬────────────────────────────────────┤
+│   Application 1: Media Search  │   Application 2: Dev Graph         │
+├─────────────────────────────────┼────────────────────────────────────┤
+│                                 │                                    │
+│  ┌────────────────┐            │  ┌────────────────┐                │
+│  │  Next.js UI    │            │  │  Next.js UI    │                │
+│  │  (Port 3000)   │            │  │  (Port 3001)   │                │
+│  └───────┬────────┘            │  └───────┬────────┘                │
+│          │                      │          │                         │
+│    ┌─────┴──────┬─────┬────┐  │     ┌────┴─────────┐               │
+│    │            │     │    │  │     │              │               │
+│  ┌─▼──┐  ┌────▼──┐ ┌▼──┐ ┌▼┐  │  ┌──▼──────────┐ ┌─▼─────┐          │
+│  │Ing.│  │  ML   │ │GPU│ │Q│  │  │ Dev Graph   │ │ Neo4j │          │
+│  │8002│  │ 8001  │ │8003│ │D│  │  │ API (8080)  │ │7687/74│          │
+│  └────┘  └───────┘ └───┘ └─┘  │  └─────────────┘ └───────┘          │
+│                                 │                                    │
+│  CLIP/BLIP, Qdrant Vector DB   │  Neo4j Graph, Git Analysis         │
+└─────────────────────────────────┴────────────────────────────────────┘
 ```
-**Note on Legacy Folders (`models/`, `database/`, `metadata_extractor.py`, `utils/` at root):**
-The Sprint 08 PRD indicates a strong shift towards backend services and `frontend/service_api.py`. The roles of older top-level folders like `models/`, `database/`, `metadata_extractor.py`, and `utils/` need clarification. They might be:
-1.  Legacy code primarily used by the `scripts/mvp_app.py`.
-2.  Shared libraries/utilities now primarily consumed by the `backend/` services.
-3.  Partially or fully superseded by logic within the backend services themselves.
-This architecture document assumes they are increasingly supporting backend operations or are for CLI usage. The frontend relies on `service_api.py`.
-
-## 3. Data Flow
-
-*(This section is updated to reflect the API-driven architecture and planned Sprint 09 functionalities.)*
-
-### A. Streamlit App (`frontend/app.py`) - API-Driven UI
-1.  **Screen 1 - Fast UI**:
-    -   User selects a folder (for initial collection creation if none exists and prompted based on S09 plans) or interacts with features assuming a collection is loaded.
-    -   Actions (e.g., selecting folder, initiating search, choosing a tool) trigger calls to `frontend/service_api.py`.
-2.  **Screen 2 - Loading Progress**:
-    -   Displays progress information received from `service_api.py`. This service layer polls or receives updates from backend services about the status of long-running tasks (e.g., folder ingestion, complex searches), a feature to be enhanced in Sprint 09.
-3.  **Screen 3 - Advanced Features**:
-    -   All interactions (search, visualization, duplicate detection) make requests via `service_api.py` to the relevant backend FastAPI endpoints (e.g., `/api/v1/search`, `/api/v1/duplicates` from S08 PRD).
-    -   Results returned by the backend are processed by `service_api.py` and then rendered by the UI components.
-
-### B. "Folder Load" / Initial Collection Creation (Sprint 09 Focus)
-1.  **Startup Check**: Application startup sequence (likely initiated by `frontend/app.py` making a call through `service_api.py` to the `ingestion_orchestration_fastapi_app`) checks if the configured Qdrant collection exists.
-2.  **Prompt (if no collection)**: If the collection is not found, the frontend UI (e.g., `fast_ui_screen.py`) presents an option to the user (e.g., a button or text input) to specify a local folder path for creating a new collection.
-3.  **Initiate Ingestion**: Upon user action, the frontend calls an appropriate endpoint on the `backend/ingestion_orchestration_fastapi_app` (via `service_api.py`), passing the folder path.
-4.  **Backend Processing (Ingestion Service)**:
-    -   The `ingestion_orchestration_fastapi_app` processes the folder content:
-        -   Extracts metadata from files.
-        -   Coordinates with `ml_inference_fastapi_app` to get embeddings (and captions if applicable) for the images.
-        -   Upserts the data (embeddings and metadata) into the persistent Qdrant collection.
-    -   This service is responsible for providing progress updates that `service_api.py` can poll or receive, enabling the frontend to display status to the user.
-5.  **UI Feedback**: The frontend (`loading_screen.py` or other relevant components) displays progress and completion/error status based on information from the backend.
-
-### C. Backend Service Interaction
--   **Frontend to API Service Layer**: `frontend/app.py` (Streamlit UI) → `frontend/service_api.py` (using `httpx.AsyncClient`).
--   **API Service Layer to Backend Services**: `frontend/service_api.py` → Specific HTTP/S endpoints on `backend/ingestion_orchestration_fastapi_app` or `backend/ml_inference_fastapi_app`.
--   **Inter-Service Backend Communication (Conceptual)**: `backend/ingestion_orchestration_fastapi_app` may call `backend/ml_inference_fastapi_app` (e.g., via HTTP/S or direct Python calls if deployed in a tightly coupled manner, though separate HTTP calls maintain better decoupling).
--   **Backend Services to Data Store**: `backend/*_fastapi_app` → Qdrant instance (using Qdrant Python Client).
-
-### D. Latent Space Explorer (`frontend/components/visualization/latent_space.py`)
-1.  The component, via `service_api.py`, calls a dedicated backend endpoint (e.g., `/api/v1/vectors/all-for-visualization` as mentioned in Sprint 08 PRD) to fetch necessary data (embeddings, metadata).
-2.  The backend service retrieves this data from the Qdrant collection.
-3.  The frontend component then computes UMAP projections and DBSCAN clustering (or receives pre-computed data if the backend handles this processing step).
-4.  Renders an interactive Plotly scatter plot in the Streamlit UI.
-
-## 3.5. Hybrid Search System
-
-*(This system is primarily implemented in the backend, orchestrated via `service_api.py` from the frontend.)*
-
-### A. Query Processing (`utils/query_parser.py` - Assumed backend utility or integrated into backend search logic)
-1.  **Query Parsing**: User input from the frontend is sent via `service_api.py` to the backend. The backend analyzes the query to extract metadata constraints and semantic query text.
-2.  **Normalization & Filter Building**: The backend normalizes fields/values and creates Qdrant-compatible filters.
-
-### B. Search Execution (Backend Service, e.g., a dedicated search router in one of the FastAPI apps, using `database/qdrant_connector.py`)
-1.  **Vector Encoding**: Text queries are encoded using CLIP on the backend.
-2.  **Hybrid Search**: The backend service uses Qdrant's Query API, potentially with RRF, combining vector search with metadata boosting/filtering.
-3.  **Result Fusion & Return**: The backend combines scores and returns ranked results to `service_api.py`, which then passes them to the frontend.
-
-### C. Metadata Field Mapping (Backend Responsibility)
--   The backend maintains mappings for comprehensive metadata coverage and aliases.
-
-### D. Search Logic Principles (Implemented in Backend)
--   The backend search endpoint embodies these principles (always return results, boost don't block, etc.).
-
-## 4. Batch Processing & Results
-
--   **Backend Ingestion Service (`ingestion_orchestration_fastapi_app`)**: Handles batch processing of images from folders, including metadata extraction, embedding (via ML service), and Qdrant upsertion.
--   **CLI MVP (`scripts/mvp_app.py`)**: Provides alternative headless batch processing capabilities. Its direct interaction with Qdrant or backend services should be clarified if it's still a primary tool for data preparation.
--   Batch sizes are configurable within the respective backend services or CLI tool.
-
-## 5. RAW/DNG Image Support
-
--   Handled by the `backend/ingestion_orchestration_fastapi_app` during the ingestion pipeline, likely utilizing `rawpy` before sending image data to the `ml_inference_fastapi_app` for embedding/captioning.
-
-## 6. Static Assets & Test Data
--   **`.streamlit/static/`**: Contains app icons (e.g., `detective.png`).
--   **`Library Test/`**: Contains test images and scripts for development/testing.
--   **`docs/`**: Documentation, including this file, roadmap, and changelog.
-
-## 7. Deployment & Scaling
-
--   **Frontend (`frontend/app.py`)**: Deployed as a standard Streamlit application.
--   **Backend Services (`backend/*_fastapi_app`)**: FastAPI services are designed to be containerized (e.g., using Docker) and can be deployed independently or as a group (e.g., via Docker Compose for local development, or Kubernetes/serverless functions for cloud deployment).
--   **QdrantDB**: Supports both local (via Docker Compose) and remote/cloud deployments. The choice depends on the scale and operational requirements.
--   The decoupled nature of backend services allows for individual scaling based on load (e.g., scaling the ML inference service if it becomes a bottleneck).
--   Designed for consumer GPUs (6GB VRAM minimum) for local ML tasks, but can fall back to CPU. Cloud deployments of ML services can leverage more powerful GPU instances.
-
-## 8. File/Directory Structure (Current - Post Sprint 08 / Planning S09)
-*(Refer to consolidated structure in Section 2. This heading is a placeholder if content was here previously)*
-
-## 9. Architectural Evolution Summary (High-Level)
-
-*(This new section summarizes the journey from Sprint 01 to current state)*
-
--   **Sprint 01**: Focused on unifying a fragmented dual UI system into a cohesive 3-screen Streamlit frontend. Key activities included component extraction from the old `ui/` folder into a new `components/` structure and establishing the `fast_ui_screen`, `loading_screen`, and `advanced_ui_screen` flow. Performance (<1s startup) was a key consideration.
--   **Sprints 02-07 (Assumed Broad Strokes)**: Likely focused on visual design enhancements (e.g., Sprint 02 Visual Design System & Accessibility), progressive feature additions, backend service groundwork, and initial Qdrant exploration. The specifics of architectural changes in these sprints would need to be drawn from their respective PRDs/summaries.
--   **Sprint 08**: A pivotal sprint that solidified the API-driven architecture. All frontend-to-backend communication was centralized through `frontend/service_api.py`. Backend functionalities were more clearly delineated into FastAPI services (`ingestion_orchestration_fastapi_app`, `ml_inference_fastapi_app`) providing endpoints for search, image listing, duplicate detection, random image generation, and vector visualization data. Docker Compose for Qdrant was established for local development. UI components became fully API-driven and stateless.
--   **Sprint 09 (Planned)**: Aims to enhance robustness and user experience by introducing persistent Qdrant collections loaded at application startup. This includes implementing a check for existing collections and providing a UI mechanism to create new collections from user-specified folders if none exist. Further improvements include integrating more detailed progress/log feedback from backend APIs into the frontend and conducting comprehensive application testing, particularly for the "Folder Load" functionality.
 
 ---
 
-**🎯 Next Steps (Post Sprint 09 Implementation & Beyond):**
+## ✅ **Current System Status**
 
--   **Implement and Test Sprint 09 Goals**: Successfully deliver persistent Qdrant, robust folder loading with UI prompts, and enhanced API-driven feedback.
--   **Refine Backend Service APIs**: Based on frontend needs and performance testing, iterate on API design for clarity, efficiency, and error reporting.
--   **Scalability and Performance Tuning**: For both backend services and Qdrant, especially with large datasets.
--   **Monitoring and Logging**: Implement more comprehensive monitoring and structured logging across frontend and backend services for easier debugging and operational insight.
--   **Expand Test Coverage**: Continue to build out unit, integration, and E2E tests for all critical paths and new features.
--   **Documentation**: Keep this `architecture.md` document, along with sprint-specific documentation and API documentation (e.g., OpenAPI specs for FastAPI services), up-to-date.
--   **Address Legacy Code**: Strategically refactor or retire parts of the older top-level folders (`models/`, `database/`, `utils/`) as their functionality is fully absorbed or better managed by the backend services or `frontend/service_api.py`.
+**Overall Platform Health:** Production-ready dual-application platform. Both applications are stable, scalable, and independently deployable.
 
-// Remove very old concluding sections if they exist, like "Sprint 01 Implementation Highlights" //
-// or "Next: Sprint 02 - Visual Design System" as these are now superseded.    
+**Key Architectural Pillars:**
 
-┌─────────────────┐ ┌─────────────────┐ ┌─────────────────┐
-│ Next.js 15 │◄──►│ FastAPI │◄──►│ Qdrant │
-│ Frontend │ │ Microservices │ │ Vector DB │
-│ Port 3000 │ │ Ports 8001/2 │ │ Port 6333 │
-└─────────────────┘ └─────────────────┘ └─────────────────┘
-│ │ │
-│ │ │
-React Query API Gateway Collections
-State Management Load Balancing Embeddings
-Component Library Error Handling Metadata      //
+### **Shared Principles**
+-   **Microservices Architecture:** Decoupled services with clear responsibilities
+-   **API-Driven Communication:** REST APIs with JSON payloads
+-   **Next.js Frontends:** Modern React 18 with App Router
+-   **FastAPI Backends:** Async/await, type-safe Python services
+-   **Docker Deployment:** Containerized services for consistency
+
+### **Application-Specific**
+-   **Pixel Detective:** GPU-accelerated AI/ML with vector search (Qdrant)
+-   **Dev Graph:** Temporal graph analysis with relationship tracking (Neo4j)
+
+---
 
 ## 🔧 **Core Components**
 
-### **1. Frontend Application (`/frontend/`)**
+### **1. Frontend Application (`/frontend`)**
 
 **Technology Stack:**
 - **Framework:** Next.js 15 with App Router
 - **Language:** TypeScript
 - **UI Library:** Chakra UI v3
-- **State Management:** React Query + Zustand
-- **Styling:** CSS Modules + Chakra UI
+- **State Management:** React Query (Server State) + Zustand (Client State)
+- **Styling:** CSS Modules + Chakra UI Semantic Tokens
+- **API Client:** Axios
 
 **Key Features:**
-- **Component Architecture:** Modular, single-responsibility components
-- **State Management:** Server state (React Query) + Client state (Zustand)
-- **Theme System:** Complete dark/light mode with semantic tokens
-- **Performance:** Image optimization, efficient re-renders, <1.5s load times
-- **Accessibility:** WCAG 2.1 AA compliance
+- **Component Architecture:** Modular, single-responsibility components following patterns defined in `.cursor/rules/`.
+- **Hydration Safety:** Strict separation of server and client components to prevent hydration errors.
+- **Theme System:** Complete dark/light mode support with persistent user preference.
+- **Performance:** Optimized image loading with `next/image`, efficient re-renders via React Query.
 
-**Directory Structure:**
-frontend/src/
-├── app/ # Next.js App Router pages
-│ ├── page.tsx # Home/Search page
-│ ├── collections/ # Collection management
-│ ├── search/ # Advanced search
-│ └── logs/ # Job tracking
-├── components/ # Reusable UI components
-│ ├── SearchInput.tsx
-│ ├── ImageDetailsModal.tsx
-│ ├── CollectionModal.tsx
-│ └── ui/ # Base UI components
-├── hooks/ # Custom React hooks
-├── lib/ # Utilities and API client
-└── store/ # Zustand stores
+### **2. Backend Services (`/backend`)**
 
-### **2. Backend Services (`/backend/`)**
-
-**Architecture:** Microservices with clear separation of concerns
-
-#### **Ingestion Orchestration Service** (`/backend/ingestion_orchestration_fastapi_app/`)
-- **Purpose:** Manages image ingestion pipeline and search operations
-- **Port:** 8001
-- **Key Endpoints:**
-  - `POST /api/v1/ingest/folder` - Start folder ingestion
-  - `GET /api/v1/ingest/status/{job_id}` - Track ingestion progress
-  - `POST /api/v1/search` - Text-based image search
-  - `GET /api/v1/collections` - Collection management
-  - `GET /api/v1/umap/projection` - UMAP visualization data
-
-#### **ML Inference Service** (`/backend/ml_inference_fastapi_app/`)
-- **Purpose:** Handles AI model inference (CLIP, BLIP)
+#### **a. Ingestion Orchestration Service (`/ingestion_orchestration_fastapi_app`)**
+- **Purpose:** The primary entry point for the frontend. Manages collections, image ingestion, search operations, and data curation.
 - **Port:** 8002
-- **Features:**
-  - CUDA-optimized inference with mixed precision
-  - Dynamic batch sizing for optimal GPU utilization
-  - Model caching and warm-up strategies
+- **Key Responsibilities:**
+  - `Collection Management`: CRUD operations for Qdrant collections.
+  - `Ingestion Pipeline`: Orchestrates file processing, **dynamically auto-sizes batch parameters on startup and periodically syncs with the ML service to ensure optimal batch sizes and readiness, even if the ML service is slow to start or restarts**.
+  - `Search Gateway`: Receives search queries, gets embeddings from the ML service, and queries Qdrant.
+  - `Image Serving`: Provides endpoints for retrieving image thumbnails and full-resolution files.
+  - `Duplicate Detection`: Manages tasks for finding near-duplicates within a collection.
 
-### **3. Vector Database (`/database/`)**
+#### **b. ML Inference Service (`/ml_inference_fastapi_app`)**
+- **Purpose:** A dedicated service for handling computationally expensive AI model inferences.
+- **Port:** 8001
+- **Features:**
+  - CUDA-optimized inference for CLIP (embeddings) and BLIP (captioning) models.
+  - Dynamic batch sizing to maximize GPU utilization without causing out-of-memory errors (**`SAFE_BATCH_SIZE` auto-probes VRAM at startup**).
+  - **CPU thread-pool oversubscription** (default `os.cpu_count()*2`, tunable via `ML_CPU_WORKERS`) for faster image decode.
+  - Model caching and lazy-loading strategies to optimize resource usage.
+  - Provides simple, stateless endpoints for text embedding, image embedding, and captioning.
+
+#### **c. GPU UMAP Service (`/gpu_umap_service`)**
+- **Purpose:** Provides GPU-accelerated dimensionality reduction and clustering for latent space visualization.
+- **Port:** 8003
+- **Features:**
+  - Leverages cuML for high-speed UMAP `fit_transform` and `transform` operations.
+  - Offers GPU-accelerated clustering algorithms (DBSCAN, K-Means).
+  - Exposes a dedicated API for fitting UMAP models and performing clustering on demand.
+
+### **3. Vector Database (`/database`)**
 
 **Technology:** Qdrant
-- **Purpose:** Stores image embeddings and metadata for similarity search
+- **Purpose:** Stores all image embeddings and associated metadata for efficient similarity search.
 - **Features:**
-  - Persistent collections with automatic loading
-  - Hybrid search (vector + metadata filtering)
-  - Scalable vector operations
-- **Port:** 6333
+  - Persistent, on-disk collections.
+  - Supports hybrid search (vector similarity + metadata filtering).
+  - Accessed exclusively by the **Ingestion Orchestration Service**.
+
+---
+
+## 🗺️ **Application 2: Dev Graph**
+
+### **Purpose**
+Temporal knowledge graph for tracking code evolution, linking documentation to code, and visualizing development over time.
+
+### **Architecture Components**
+
+#### **1. Dev Graph API (`/developer_graph`)**
+- **Purpose:** Central FastAPI service for graph ingestion, queries, and data quality.
+- **Port:** 8080
+- **Key Responsibilities:**
+  - **8-Stage Ingestion Pipeline:** Git history → Sprint mapping → Chunking → Symbol extraction → Library discovery → Linking → Embedding → Derivation
+  - **Graph Queries:** Cypher-based queries for complex relationships
+  - **Quality Auditing:** Data integrity checks and validation
+  - **Background Jobs:** Non-blocking ingestion with progress tracking
+
+#### **2. Dev Graph UI (`/tools/dev-graph-ui`)**
+- **Purpose:** Interactive visualization and exploration of the knowledge graph.
+- **Port:** 3001
+- **Technology:** Next.js 14, WebGL2, DeckGL, Chakra UI
+- **Key Features:**
+  - **Timeline Visualization:** 3D temporal view of code changes
+  - **Graph Explorer:** Interactive node and relationship browsing
+  - **Sprint Analytics:** Commit and file activity per sprint
+  - **Requirement Tracking:** Implementation status monitoring
+
+#### **3. Neo4j Graph Database**
+- **Purpose:** Store nodes and relationships representing code, documentation, and their connections.
+- **Ports:** 7474 (browser), 7687 (bolt)
+- **Current Scale:**
+  - **Nodes:** 30,822 (Symbols, Chunks, Files, Commits, Documents, Libraries, Requirements, Sprints)
+  - **Relationships:** 255,389 (TOUCHED, MENTIONS_*, IMPLEMENTS, DEPENDS_ON, etc.)
+  - **Quality Score:** 100%
+
+### **8-Stage Ingestion Pipeline**
+
+```
+Stage 1: Git History        → Extract commits, authors, TOUCHED relationships
+Stage 2: Sprint Mapping     → Link commits to sprint windows
+Stage 3: Chunking           → Create Document/Chunk nodes, normalize encoding
+Stage 4: Symbol Extraction  → Parse classes/functions, DEFINED_IN relationships
+Stage 5: Library Discovery  → Extract imports, USES_LIBRARY relationships
+Stage 6: Linking            → MENTIONS_* relationships (symbol, file, commit)
+Stage 7: Embedding          → [Future] Semantic embeddings for chunks
+Stage 8: Derivation         → IMPLEMENTS, DEPENDS_ON, EVOLVES_FROM relationships
+```
+
+### **Key Data Model**
+
+**Node Types:**
+- `GitCommit`, `File`, `Document`, `Chunk`, `Symbol`, `Library`, `Requirement`, `Sprint`
+
+**Relationship Types:**
+- `TOUCHED` (commit → file)
+- `MENTIONS_SYMBOL`, `MENTIONS_FILE`, `MENTIONS_COMMIT` (chunk → code)
+- `IMPLEMENTS` (requirement → file)
+- `DEPENDS_ON` (file → file)
+- `USES_LIBRARY` (file → library)
 
 ---
 
 ## 🔄 **Data Flow & User Workflows**
 
 ### **Image Ingestion Pipeline**
-1. **User Action:** Select folder via frontend interface
-2. **API Call:** Frontend → Ingestion Service (`POST /api/v1/ingest/folder`)
-3. **Processing:**
-   - Extract image metadata (EXIF, XMP)
-   - Generate embeddings via ML Inference Service
-   - Create thumbnails (base64 encoded)
-   - Store in Qdrant with metadata
-4. **Progress Tracking:** Real-time updates via job status endpoint
-5. **Completion:** Collection ready for search
+1. **User Action:** User uploads images via the Next.js frontend.
+2. **API Call:** Frontend sends files to the Ingestion Service (`POST /api/v1/ingest/upload`).
+3. **Orchestration (Ingestion Service):**
+   a. Saves files to a temporary location.
+   b. Batch sizes are **auto-calculated** by `autosize_batches()` based on free RAM and the ML service's capabilities.
+   c. Encodes each image to PNG **on the ingestion host** and, if enabled, streams the batch as `multipart/form-data` to `POST /api/v1/batch_embed_and_caption_multipart`; otherwise falls back to the JSON base64 endpoint.
+   d. The ML service returns embeddings and captions.
+4. **Progress Tracking:** Frontend polls the Ingestion Service (`GET /api/v1/ingest/status/{job_id}`) to display real-time progress.
 
-### **Search Workflow**
-1. **User Query:** Text input via search interface
-2. **Frontend Processing:** Query validation and UI state management
-3. **API Request:** Frontend → Ingestion Service (`POST /api/v1/search`)
-4. **Backend Processing:**
-   - Generate query embedding via ML Service
-   - Execute hybrid search in Qdrant (vector + metadata)
-   - Rank and filter results
-5. **Response:** Formatted results with thumbnails and metadata
-6. **UI Update:** Display results with infinite scroll and filters
+### **Text Search Workflow**
+1. **User Query:** User enters a text query in the frontend search bar.
+2. **Frontend Call:** Frontend sends the query to the Ingestion Service (`POST /api/v1/search/text`).
+3. **Backend Processing:**
+   a. The Ingestion Service sends the text query to the **ML Inference Service** (`POST /api/v1/embed_text`) to get a query vector.
+   b. The Ingestion Service uses the returned vector to perform a similarity search in Qdrant.
+4. **Response:** The Ingestion Service returns ranked search results to the frontend for display.
 
-### **Collection Management**
-1. **CRUD Operations:** Create, read, update, delete collections
-2. **Statistics:** Real-time collection stats and health monitoring
-3. **Bulk Operations:** Multi-collection management capabilities
-
----
-
-## ⚡ **Performance Characteristics**
-
-### **Frontend Performance**
-- **First Contentful Paint:** <1.5s
-- **Time to Interactive:** <2.0s
-- **Bundle Size:** Optimized with code splitting
-- **Memory Usage:** Efficient component lifecycle management
-
-### **Backend Performance**
-- **Search Response Time:** <300ms average
-- **Ingestion Throughput:** ~1000 images/minute (GPU-optimized)
-- **API Response Times:** <100ms for metadata operations
-- **Concurrent Users:** Designed for 100+ concurrent searches
-
-### **Database Performance**
-- **Vector Search:** Sub-second for collections up to 1M images
-- **Metadata Filtering:** Optimized with proper indexing
-- **Storage Efficiency:** Compressed embeddings and thumbnails
-
----
-
-## 🔐 **Security & Reliability**
-
-### **Error Handling**
-- **Frontend:** Error boundaries with graceful fallbacks
-- **Backend:** Comprehensive exception handling with proper HTTP status codes
-- **Database:** Connection pooling with retry logic
-
-### **Data Validation**
-- **Input Sanitization:** All user inputs validated and sanitized
-- **Type Safety:** Full TypeScript coverage on frontend
-- **API Contracts:** Pydantic models for request/response validation
-
-### **Monitoring & Logging**
-- **Structured Logging:** JSON logs with correlation IDs
-- **Health Checks:** Endpoint monitoring for all services
-- **Performance Metrics:** Response times, error rates, resource usage
+### **Latent Space Visualization Workflow**
+1. **User Action:** User navigates to the Latent Space page.
+2. **Frontend Call:** Frontend requests a UMAP projection from the Ingestion Service (`GET /umap/projection`).
+3. **Backend Processing (Ingestion Service):**
+   a. Samples data from the active Qdrant collection.
+   b. Sends the high-dimensional vectors to the **GPU UMAP Service** (`POST /umap/fit_transform`).
+   c. The GPU UMAP service computes the 2D projection and returns it.
+4. **Response:** The Ingestion service forwards the 2D points to the frontend for visualization.
 
 ---
 
 ## 🚀 **Deployment Architecture**
 
 ### **Development Environment**
-```bash
-# Frontend (Next.js)
-cd frontend && npm run dev     # Port 3000
 
-# Backend Services
-cd backend/ingestion_orchestration_fastapi_app
-uvicorn main:app --port 8001 --reload
+#### **Pixel Detective (Media Search)**
+```powershell
+# Full stack (recommended)
+.\start_pixel_detective.ps1
 
-cd backend/ml_inference_fastapi_app  
-uvicorn main:app --port 8002 --reload
-
-# Vector Database
-docker-compose up qdrant       # Port 6333
+# Individual services (development mode)
+docker compose up -d qdrant_db
+uvicorn backend.ingestion_orchestration_fastapi_app.main:app --reload --port 8002
+uvicorn backend.ml_inference_fastapi_app.main:app --reload --port 8001
+cd frontend && npm run dev
 ```
 
+**Access:** http://localhost:3000
+
+#### **Dev Graph (Knowledge Graph)**
+```powershell
+# Full stack (recommended)
+.\start_dev_graph.ps1
+
+# Individual services (development mode)
+docker compose up -d neo4j_db
+uvicorn developer_graph.api:app --reload --port 8080
+cd tools/dev-graph-ui && npm run dev
+```
+
+**Access:** http://localhost:3001
+
+### **Service Port Mapping**
+
+| Service | Port | Application | Purpose |
+|---------|------|-------------|---------|
+| **Frontend (Media Search)** | 3000 | Pixel Detective | User interface |
+| **Frontend (Dev Graph)** | 3001 | Dev Graph | User interface |
+| **Ingestion API** | 8002 | Pixel Detective | Collection & search |
+| **ML Inference API** | 8001 | Pixel Detective | CLIP/BLIP models |
+| **GPU-UMAP API** | 8003 | Pixel Detective | UMAP clustering |
+| **Dev Graph API** | 8080 | Dev Graph | Graph queries |
+| **Qdrant** | 6333 | Pixel Detective | Vector database |
+| **Neo4j Browser** | 7474 | Dev Graph | Graph UI |
+| **Neo4j Bolt** | 7687 | Dev Graph | Database protocol |
+
 ### **Production Considerations**
-- **Containerization:** Docker images for all services
-- **Orchestration:** Docker Compose or Kubernetes
-- **Load Balancing:** Nginx or cloud load balancers
-- **Scaling:** Horizontal scaling for stateless services
-- **Persistence:** Mounted volumes for Qdrant data
+- **Containerization:** All services containerized with Docker
+- **Orchestration:** Docker Compose (single-node) or Kubernetes (multi-node)
+- **Load Balancing:** Nginx reverse proxy for backend services
+- **GPU Requirements:** Pixel Detective benefits from NVIDIA GPU (optional)
+- **Database Scaling:** Qdrant Cloud, Neo4j Aura for production
 
 ---
 
-## 📈 **Scalability & Future Enhancements**
+## 📁 **Repository Organization**
 
-### **Current Capacity**
-- **Images:** Tested up to 100K images per collection
-- **Collections:** Multiple collections supported
-- **Users:** Designed for concurrent multi-user access
+### **Application Directories**
 
-### **Scaling Strategies**
-- **Horizontal Scaling:** Add more backend service instances
-- **Database Sharding:** Qdrant cluster for large datasets
-- **CDN Integration:** Static asset optimization
-- **Caching Layers:** Redis for frequently accessed data
+```
+pixel-detective/
+├── 🎨 Pixel Detective (Media Search)
+│   ├── frontend/                 # Next.js UI (port 3000)
+│   └── backend/                  # 3 FastAPI services
+│       ├── ingestion_orchestration_fastapi_app/  # Port 8002
+│       ├── ml_inference_fastapi_app/              # Port 8001
+│       └── gpu_umap_service/                      # Port 8003
+│
+├── 🗺️ Dev Graph (Knowledge Graph)
+│   ├── tools/dev-graph-ui/       # Next.js UI (port 3001)
+│   └── developer_graph/           # FastAPI API (port 8080)
+│
+├── 📚 Shared Resources
+│   ├── docs/                     # Project documentation
+│   ├── utils/                    # Shared Python utilities
+│   ├── database/                 # Database connectors
+│   ├── config.py                 # Global configuration
+│   └── .cursor/rules/            # AI coding guidelines
+│
+└── 🔧 DevOps
+    ├── docker-compose.yml        # Service orchestration
+    ├── start_pixel_detective.*   # Launch scripts
+    ├── start_dev_graph.*         # Launch scripts
+    └── scripts/                  # Automation & utilities
+```
 
-### **Planned Enhancements**
-- **Real-time Features:** WebSocket integration for live updates
-- **Advanced Search:** Filters, sorting, bulk operations
-- **User Management:** Authentication and authorization
-- **Analytics:** Usage metrics and search analytics
+### **Key Shared Components**
 
----
-
-## 🛠️ **Development Guidelines**
-
-### **Frontend Development**
-- **Component Patterns:** Single responsibility, composition over inheritance
-- **State Management:** Server state in React Query, UI state in Zustand
-- **Testing:** Jest + React Testing Library
-- **Code Quality:** ESLint, Prettier, TypeScript strict mode
-
-### **Backend Development**
-- **API Design:** RESTful principles with OpenAPI documentation
-- **Error Handling:** Consistent error responses with proper HTTP codes
-- **Testing:** pytest with high coverage requirements
-- **Code Quality:** Black, isort, mypy for type checking
-
-### **Database Design**
-- **Collections:** Logical separation by use case
-- **Indexing:** Optimized for search patterns
-- **Backup Strategy:** Regular snapshots and point-in-time recovery
+-   **`database/`**: Standalone database connectors (`qdrant_connector.py`, etc.) for external scripts
+-   **`utils/`**: Utility scripts (`cuda_utils.py`, `duplicate_detector.py`, etc.) for specialized tasks
+-   **`scripts/`**: Testing, benchmarking, and development automation tools
+-   **`.cursor/rules/`**: AI agent guidelines and coding patterns for consistent development
 
 ---
 
-**Architecture Status:** ✅ **Production Ready**  
+**Architecture Status:** ✅ **Production Ready (Both Applications)**  
 **Next Review:** Quarterly architecture review planned  
-**Documentation:** Auto-generated API docs available at `/docs` endpoints
+**Documentation:** Auto-generated API docs at `/docs` endpoints for all services
+
+---
+
+## 🚀 **Recent Performance Enhancements**
+
+### **Pixel Detective Optimizations (Sprint 11)**
+
+The October 2025 batch-size initiative introduced several architecture-level enhancements:
+
+- **RAM- & GPU-Aware Autosizing**: `autosize_batches()` negotiates optimal batch numbers at runtime (no manual tuning)
+- **Capabilities Endpoints**: Both ingestion (`/api/v1/capabilities`) and ML inference services expose live limits for dynamic adaptation
+- **Thread-Pool Oversubscription**: ML service decoders run on `cpu×2` workers by default for high core utilization
+- **Multipart Image Streaming**: Pre-decoded PNG streaming removes base64 overhead and overlaps CPU decode with network I/O
+- **Bigger Qdrant Scrolls**: Duplicate scanner now pages 1000 vectors per request (env-tunable), cutting API round-trips by 10×
+
+**Result:** Sustained ingestion throughput increased ~2× on 64 GB, single-GPU workstation.
+
+### **Dev Graph Optimizations (Sprint 11)**
+
+- **8-Stage Unified Pipeline**: Consolidated ingestion into cohesive pipeline with proper stage ordering
+- **Background Job Support**: Non-blocking ingestion prevents UI freezes during large operations
+- **Batch UNWIND Operations**: Bulk node/relationship creation with optimized Cypher queries
+- **Chunk Normalization**: UTF-8 encoding fixes resolved data integrity issues
+- **Enhanced Linking**: Automatic PART_OF relationships reduce orphaned requirements
+
+**Result:** Full ingestion completes in ~14.5 minutes with 100% quality score.
+
+---
+
+## 📊 **Platform Statistics**
+
+### **Codebase Metrics**
+
+| Category | Count |
+|----------|-------|
+| **Total Lines of Code** | ~50,000 |
+| **Python Files** | ~200 |
+| **TypeScript/JavaScript Files** | ~150 |
+| **React Components** | ~80 |
+| **API Endpoints** | ~60 |
+| **Database Systems** | 2 (Qdrant + Neo4j) |
+| **Docker Services** | 8 |
+| **Sprints Completed** | 11 |
+
+### **Pixel Detective Statistics**
+
+| Metric | Current State |
+|--------|---------------|
+| **Search Latency** | ~500ms average |
+| **Ingestion Rate** | 60-80 images/minute |
+| **GPU Batch Size** | 471 images (auto-probed) |
+| **Cache Hit Rate** | > 80% for repeated ingestion |
+| **Supported Formats** | JPEG, PNG, WebP, RAW (DNG, CR2, NEF, ARW) |
+
+### **Dev Graph Statistics**
+
+| Metric | Current State |
+|--------|---------------|
+| **Total Nodes** | 30,822 |
+| **Total Relationships** | 255,389 |
+| **Quality Score** | 100.0% |
+| **Orphaned Nodes** | 7 (0.02%) |
+| **Full Ingestion Time** | ~14.5 minutes |
+| **Supported Languages** | Python, TypeScript, JavaScript |
+
+---
+
+## 🎯 **Technology Decisions & Rationale**
+
+### **Why This Stack?**
+
+#### **FastAPI (Backend)**
+- ✅ Native async/await support for high concurrency
+- ✅ Built-in Pydantic validation with type hints
+- ✅ Auto-generated OpenAPI documentation
+- ✅ Excellent performance (one of fastest Python frameworks)
+
+#### **Next.js (Frontend)**
+- ✅ Server components for SEO and performance
+- ✅ Modern App Router with React 18
+- ✅ Built-in image optimization CDN
+- ✅ Full TypeScript support
+
+#### **Qdrant (Vector Database)**
+- ✅ Fast vector similarity search
+- ✅ Hybrid search (vector + metadata)
+- ✅ Easy deployment (single Docker container)
+- ✅ Native async Python client
+
+#### **Neo4j (Graph Database)**
+- ✅ Graph-native optimizations
+- ✅ Expressive Cypher query language
+- ✅ Rich APOC algorithm library
+- ✅ Built-in visualization UI
+
+#### **CLIP/BLIP (AI Models)**
+- ✅ State-of-the-art vision-language models
+- ✅ Open source (MIT/Apache licenses)
+- ✅ GPU-optimized for fast inference
+- ✅ Active research community
+
+---
+
+## 🔮 **Future Roadmap**
+
+### **Pixel Detective**
+- [ ] Multi-modal search (text + image + metadata filters)
+- [ ] Video frame analysis support
+- [ ] User authentication and collection sharing
+- [ ] Advanced duplicate detection (perceptual hashing)
+- [ ] Cloud deployment (AWS/GCP)
+
+### **Dev Graph**
+- [ ] True incremental/delta ingestion
+- [ ] Semantic embedding generation (Stage 7)
+- [ ] GraphQL API layer
+- [ ] Multi-repository support
+- [ ] ML-based relationship confidence scoring
+
+### **Platform-Wide**
+- [ ] Unified authentication system
+- [ ] Cross-application analytics dashboard
+- [ ] Kubernetes deployment manifests
+- [ ] CI/CD pipeline automation
+- [ ] Comprehensive monitoring and alerting
+
+---
+
+## 📚 **Related Documentation**
+
+### **Pixel Detective**
+- [Backend Architecture](../backend/ARCHITECTURE.md) - Detailed backend service architecture
+- [Frontend Architecture](../frontend/ARCHITECTURE.md) - Frontend component design
+- [Backend AGENTS](../backend/AGENTS.md) - Backend development guidelines
+- [Frontend AGENTS](../frontend/AGENTS.md) - Frontend development guidelines
+
+### **Dev Graph**
+- [Dev Graph Architecture](../developer_graph/architecture.md) - Data model and ingestion pipeline
+- [Dev Graph AGENTS](../developer_graph/AGENTS.md) - Development guidelines
+- [Route Handlers AGENTS](../developer_graph/routes/AGENTS.md) - API route patterns
+
+### **Project-Wide**
+- [README](../README.md) - Project overview and quick start
+- [Root AGENTS](../AGENTS.md) - Navigation hub for all guidelines
+- [Developer Guide](../DEVELOPER_GUIDE.md) - Comprehensive onboarding
+- [Sprint Documentation](sprints/) - Sprint planning and retrospectives
+
+---
+
+**🚀 Built with AI | 🏗️ Microservices Architecture | 🎯 Dual Production-Ready Applications**
+
+*Last Updated: October 2025 (Sprint 11)*
 

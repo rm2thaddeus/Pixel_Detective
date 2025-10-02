@@ -5,3 +5,4 @@ hdbscan
 numpy
 scipy
 shapely
+umap-learn

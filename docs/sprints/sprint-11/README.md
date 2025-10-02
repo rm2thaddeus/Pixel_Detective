@@ -1,136 +1,87 @@
-# Sprint 11: Latent Space Visualization Tab
+```mermaid
+mindmap
+  root((Sprint 11: Latent Space Visualization & Curation Suite))
+    Goal
+      "Deliver production-ready interactive latent space explorer"
+      "Implement advanced clustering, lasso selection, CUDA acceleration, and a full curation suite"
+    Big_Wins
+      "Exceeded performance targets (2s vs 3s load time)"
+      "Comprehensive feature set (clustering, selection, collection merge, duplicate management)"
+      "Mobile-responsive, accessible design"
+      "Full CUDA Acceleration pipeline"
+    Next
+      "Collection dropdown rework (planned)"
+      "AI-powered cluster naming (planned)"
+      "Storybook integration (planned)"
+```
 
-**Status:** 🚀 **PRODUCTION READY** | **Week:** 4/4 | **Progress:** Interactive Clustering Complete ✅
-**Major Milestone:** 🎯 **Full Interactive Latent Space Explorer LIVE** | **Ready for:** Advanced Features & Polish
+# Sprint 11: Latent Space Visualization & Curation Suite
+
+**Status:** 🚀 **PRODUCTION COMPLETE** | **Week:** 4/4 | **Progress:** All Core Features Delivered ✅
+**Major Milestone:** 🎯 **Full Interactive Latent Space Explorer & Curation Suite LIVE**
 
 **Sprint Duration:** January 2025 (4 weeks)
 
 ## 🎯 Sprint Overview
 
-Sprint 11 has successfully delivered a **production-ready interactive latent space visualization** that transforms CLIP embeddings into an intuitive 2D exploration interface. **All core interactive clustering features are now complete and operational.**
+Sprint 11 has successfully delivered a **production-ready interactive latent space visualization** and a **comprehensive curation and duplicate management suite**. This transforms the application from a simple image viewer into a professional-grade archival and exploration tool. The system now provides an intuitive 2D exploration interface for CLIP embeddings, robust tools for ensuring database integrity, and a highly optimized backend infrastructure. All core features are complete, tested, and operational.
 
-### 🎪 What We've Built (Complete Implementation ✅)
+## 🎪 Core Features Delivered
 
-**Core Feature: Advanced Interactive Latent Space Explorer**
-- ✅ **2D UMAP Projections:** High-performance DeckGL visualization with WebGL acceleration
-- ✅ **Dynamic Clustering:** DBSCAN, K-Means, and Hierarchical algorithms with live parameter tuning
-- ✅ **Interactive Exploration:** Hover tooltips, click selection, and cluster highlighting
-- ✅ **Lasso Selection:** Draw custom selections and create collections from visual picks
-- ✅ **Multi-layer Visualization:** Scatter points, convex hulls, density overlays, and terrain modes
-- ✅ **Real-time Controls:** Live clustering updates with debounced parameter changes
-- ✅ **Collection Integration:** Create new collections directly from selected points
-- ✅ **Collections Merge:** Merge multiple collections via POST `/api/v1/collections/merge` with background processing
-- ✅ **CUDA Acceleration:** GPU-accelerated processing with automatic CPU fallback
+### 1. Advanced Interactive Latent Space Explorer
+- ✅ **2D UMAP Projections:** High-performance DeckGL visualization with WebGL acceleration.
+- ✅ **Dynamic Clustering:** DBSCAN, K-Means, and Hierarchical algorithms with live parameter tuning and quality metrics (Silhouette Score).
+- ✅ **Interactive Exploration:** Rich hover tooltips with image previews, click selection, and cluster highlighting.
+- ✅ **Lasso Selection:** An `EditableGeoJsonLayer` allows users to draw custom polygons to select arbitrary groups of points.
+- ✅ **Multi-layer Visualization:** A sophisticated layer system provides independent toggles for scatter points, convex hulls, density heatmaps, and terrain overlays.
+- ✅ **Real-time Controls:** A dedicated sidebar allows for live, debounced parameter changes for all clustering algorithms with immediate visual feedback.
+- ✅ **Collection Integration:** Create new collections directly from visual selections made with the lasso tool.
 
-### 🏗️ Technical Implementation Status
+### 2. Comprehensive Curation & Duplicate Management Suite
+- ✅ **Proactive Duplicate Suppression:** During ingestion, a real-time SHA-256 hash check prevents byte-for-byte identical duplicates from being processed or stored, ensuring database cleanliness from the start.
+- ✅ **Automated Near-Duplicate Analysis:** A background task (`POST /api/v1/duplicates/find-similar`) scans collections for visually similar images (cosine similarity > 0.98), grouping them for review.
+- ✅ **Interactive Curation UI:** A dedicated UI on the `/duplicates` page presents near-duplicate groups visually, allowing the curator to select and archive unwanted images.
+- ✅ **Safe Archival Workflow:** A **zero data loss** principle is enforced. Archiving an image *moves* the original file to a `_VibeArchive` or `_VibeDuplicates` folder at the root of the ingest directory. This is a non-destructive, reversible action.
+- ✅ **Qdrant Snapshot Safety:** Before any archival operation modifies the database, an atomic snapshot of the Qdrant collection is taken, allowing for instant rollback.
 
-**Backend Infrastructure:** ✅ **PRODUCTION COMPLETE**
-- Enhanced UMAP router with clustering algorithms
-- CUDA acceleration via cuML with automatic fallback
-- Collection creation from visual selections
-- Merge endpoint `POST /api/v1/collections/merge` with `MergeCollectionsRequest` and background task `_merge_collections_task`
-- Performance monitoring and metrics logging
-- Persistent cluster labeling system
+### 3. Backend Performance & Scalability Enhancements
+- ✅ **Full CUDA Acceleration:** GPU-accelerated processing for UMAP and clustering via NVIDIA RAPIDS cuML, with automatic CPU fallback. The `cuml.accel.install()` approach provides zero-code-change acceleration for scikit-learn and UMAP.
+- ✅ **PyTorch-Native Model Optimization:** The ML Inference Service now uses **half-precision (FP16)** loading and **`torch.compile()`** for both CLIP and BLIP models. This halves the VRAM footprint and allows the system's auto-tuner to **double the effective GPU batch size**.
+- ✅ **Dynamic Batch Sizing:** The Ingestion service now auto-sizes `ML_INFERENCE_BATCH_SIZE` and `QDRANT_UPSERT_BATCH_SIZE` based on available system RAM and the ML service's reported GPU capabilities, optimizing throughput automatically.
+- ✅ **Idempotent Collection Merging:** A robust `scroll` -> `upsert` pattern allows for multiple, year-based collections to be safely and periodically merged into a master collection without data loss or downtime.
 
-**Frontend Architecture:** ✅ **PRODUCTION COMPLETE**
-- Advanced DeckGL scatter plot with multiple visualization layers
-- Comprehensive state management with Zustand
-- Real-time parameter controls with React Query mutations
-- Responsive design with mobile support
-- Color-coded clustering with accessibility compliance
+## 🏗️ Final Technical Architecture
 
-**Key Components Delivered:**
+### Key Components Delivered
 ```
 /frontend/src/app/latent-space/
 ├── page.tsx                        # ✅ Production layout with grid system
 ├── components/
-│   ├── UMAPScatterPlot.tsx         # ✅ Advanced WebGL visualization
+│   ├── UMAPScatterPlot.tsx         # ✅ Advanced WebGL visualization with multi-layer support
 │   ├── ClusteringControls.tsx      # ✅ Live parameter controls
 │   ├── VisualizationBar.tsx        # ✅ Layer toggles and settings
-│   ├── StatsBar.tsx               # ✅ Real-time metrics display
-│   ├── ClusterCardsPanel.tsx      # ✅ Interactive cluster management
-│   ├── MetricsPanel.tsx           # ✅ Clustering quality indicators
-│   └── ThumbnailOverlay.tsx       # ✅ Hover-based image previews
+│   ├── StatsBar.tsx                # ✅ Real-time metrics display
+│   ├── ClusterCardsPanel.tsx       # ✅ Interactive cluster management
+│   ├── MetricsPanel.tsx            # ✅ Clustering quality indicators
+│   └── ThumbnailOverlay.tsx        # ✅ Hover-based image previews
 ├── hooks/
-│   ├── useUMAP.ts                 # ✅ Complete data fetching with mutations
-│   └── useLatentSpaceStore.ts     # ✅ Comprehensive state management
+│   ├── useUMAP.ts                  # ✅ Complete data fetching with mutations
+│   └── useLatentSpaceStore.ts      # ✅ Comprehensive state management for lasso, selections, etc.
 ├── types/
-│   └── latent-space.ts            # ✅ Complete TypeScript definitions
+│   └── latent-space.ts             # ✅ Complete TypeScript definitions
 └── utils/
     └── visualization.ts            # ✅ Advanced color palettes and utilities
 ```
 
-## 📊 Current Feature Matrix
-
-### ✅ Implemented & Production Ready
-| Feature | Status | Description |
-|---------|--------|-------------|
-| **UMAP Visualization** | ✅ Complete | WebGL-accelerated 2D scatter plots with optimal viewport calculation |
-| **Dynamic Clustering** | ✅ Complete | 3 algorithms (DBSCAN, K-Means, Hierarchical) with quality metrics |
-| **Interactive Controls** | ✅ Complete | Real-time parameter adjustment with live clustering updates |
-| **Visual Selection** | ✅ Complete | Lasso tool for custom point selection and collection creation |
-| **Multi-layer Display** | ✅ Complete | Points, hulls, density overlays with independent toggle controls |
-| **Color Palettes** | ✅ Complete | 4 professional palettes (Observable, Viridis, Retro Metro, Set3) |
-| **Hover Interactions** | ✅ Complete | Rich tooltips with image previews and metadata |
-| **Performance Optimization** | ✅ Complete | CUDA acceleration, viewport culling, optimized rendering |
-| **Responsive Design** | ✅ Complete | Mobile-friendly layout with collapsible controls |
-| **Collection Integration** | ✅ Complete | Create collections from visual selections with automatic activation |
-| **Collections Merge**      | ✅ Complete | Merge multiple Qdrant collections with idempotent background task |
-
-### 🔄 Next Phase Opportunities
-| Feature | Priority | Description |
-|---------|----------|-------------|
-| **Collection Dropdown** | High | Top-level collection selector instead of navigation-based switching |
-| **Auto Cluster Naming** | High | AI-powered cluster labeling based on image content analysis |
-| **Storybook Integration** | Medium | Interactive documentation and component gallery |
-| **Advanced Analytics** | Medium | Cluster similarity analysis and temporal trends |
-| **Export Capabilities** | Low | Save visualizations and cluster data in multiple formats |
-
-## 🛠️ Architecture & Performance
-
-### Technical Stack
-- **Frontend:** Next.js 15 + DeckGL + Chakra UI + Zustand + React Query
-- **Backend:** FastAPI + UMAP + scikit-learn + cuML (CUDA acceleration)
-- **Database:** Qdrant vector database with clustering metadata persistence
-- **Visualization:** WebGL-accelerated rendering with multiple layer support
-
-### Performance Metrics
-- **Load Time:** <2s for 500 points, <5s for 1000+ points
-- **Interaction Latency:** <100ms for hover/click responses
-- **Clustering Updates:** <3s for parameter changes with visual feedback
-- **Memory Usage:** Optimized for large datasets with viewport culling
-- **CUDA Acceleration:** 10-300x speedup when available with graceful CPU fallback
-
-### Scalability Features
-- **Viewport Culling:** Only render visible points for large datasets
-- **Progressive Loading:** Batch loading for collections with 10K+ images
-- **Memory Management:** Efficient thumbnail caching and cleanup
-- **GPU Acceleration:** Automatic CUDA detection and acceleration
-
-## 🎨 User Experience Features
-
-### Interactive Elements
-- **Point Exploration:** Hover for metadata, click for selection
-- **Cluster Management:** Visual cluster cards with point counts and statistics
-- **Lasso Selection:** Draw custom boundaries to select arbitrary point groups
-- **Live Controls:** Real-time parameter adjustment with immediate visual feedback
-- **Multi-layer Toggles:** Show/hide different visualization layers independently
-
-### Visual Design
-- **Professional Color Palettes:** Scientifically-designed color schemes for maximum distinction
-- **Accessibility Compliance:** High contrast ratios and screen reader support
-- **Responsive Layout:** Adaptive design for desktop, tablet, and mobile devices
-- **Dark Mode Support:** Consistent theming across all visualization components
-
-### Workflow Integration
-- **Collection Creation:** Transform visual selections into persistent collections
-- **Navigation Integration:** Seamless access from header and sidebar navigation
-- **State Persistence:** Remember user preferences and visualization settings
-- **Performance Monitoring:** Real-time feedback on processing times and quality metrics
+### Backend Endpoints
+- **UMAP & Clustering:** `GET /projection`, `POST /projection_with_clustering`, `GET /performance_info`
+- **Curation & Duplicates:** `POST /duplicates/find-similar`, `GET /duplicates/report/{task_id}`, `POST /duplicates/archive-exact`
+- **Collection Management:** `POST /collections/from_selection`, `POST /collections/merge`
 
 ## 🚀 Advanced Implementation Details
 
 ### CUDA Acceleration System
+A key to performance is the automatic, hands-off GPU acceleration. By simply including `cuml.accel.install()` before other imports, standard scikit-learn and umap-learn calls are redirected to the GPU.
 ```python
 # Automatic GPU acceleration with CPU fallback
 try:
@@ -141,107 +92,107 @@ try:
 except ImportError:
     logger.info("💻 Using CPU-only implementations")
 
-# Standard imports automatically accelerated
+# Standard imports are now automatically accelerated
 import umap
 from sklearn.cluster import DBSCAN, KMeans, AgglomerativeClustering
 ```
 
 ### Multi-layer Visualization Architecture
+The frontend uses a conditional layer rendering system in Deck.gl, allowing users to toggle different visualization modes without performance penalty.
 ```typescript
 // Advanced WebGL layer management
 const layers = [
   // Density heatmap layer (conditional)
   ...(overlayMode === 'heatmap' ? [createHeatmapLayers()] : []),
-  
+
   // Convex hull polygons (conditional)
   ...(showHulls ? [createHullLayers()] : []),
-  
+
   // Main scatter plot points (conditional)
   ...(showScatter ? [createScatterLayer()] : []),
-  
+
   // Lasso selection overlay (conditional)
   ...(lassoMode ? [createLassoLayer()] : []),
 ];
 ```
 
-### Real-time State Management
-```typescript
-// Comprehensive store with performance optimization
-export const useLatentSpaceStore = create<LatentSpaceState>((set, get) => ({
-  // Visualization settings
-  colorPalette: 'observable',
-  showOutliers: true,
-  pointSize: 10,
-  
-  // Layer toggles
-  showScatter: true,
-  showHulls: true,
-  overlayMode: 'heatmap',
-  
-  // Interactive state
-  selectedCluster: null,
-  selectedIds: [],
-  lassoMode: false,
-  
-  // Actions with logging and validation
-  setColorPalette: (palette) => {
-    console.log('🎨 Setting color palette:', palette);
-    set({ colorPalette: palette });
-  }
-}));
+### Dynamic Batch Sizing
+The ingestion service automatically tunes itself for the host hardware.
+```python
+# ingestion_orchestration_fastapi_app/utils/autosize.py
+import os, psutil, httpx
+
+def autosize_batches(ml_url: str):
+    # 1. Ask the ML service for its GPU-safe batch size
+    safe_clip = httpx.get(f"{ml_url}/api/v1/capabilities").json()["safe_clip_batch"]
+
+    # 2. Estimate RAM-limited sizes based on available memory
+    free_ram = psutil.virtual_memory().available
+    ram_batch = int((free_ram * 0.60) / (2 * 1024 * 1024)) # 2 MB/img
+    ram_upsert = int((free_ram * 0.10) / (6 * 1024))       # 6 KB/point
+
+    ml_batch = max(1, min(safe_clip, ram_batch, 2048))
+    qdrant_batch = max(32, min(ram_upsert, 2048))
+
+    # 3. Set as environment variables, respecting manual overrides
+    os.environ.setdefault("ML_INFERENCE_BATCH_SIZE", str(ml_batch))
+    os.environ.setdefault("QDRANT_UPSERT_BATCH_SIZE", str(qdrant_batch))
+```
+
+## 📈 Performance & Scalability
+
+- **Load Time:** <2s for 500 points, <5s for 1000+ points.
+- **Interaction Latency:** <100ms for hover/click responses.
+- **Clustering Updates:** <3s for parameter changes with visual feedback.
+- **GPU Throughput:** **Doubled** effective batch size via FP16 and `torch.compile` optimizations.
+- **CUDA Acceleration:** **10-300x speedup** on UMAP and clustering when available, with graceful CPU fallback.
+- **Scalability:** The system is built to scale, with viewport culling for large datasets, progressive loading, and efficient memory management.
+
+## 🛠️ Developer Quick Reference
+
+### Quick Commands
+```bash
+# One-click development stack (Windows/WSL2)
+scripts\start_dev.bat
+
+# Test endpoints
+curl "http://localhost:8002/umap/projection?sample_size=100"
+curl "http://localhost:8001/health"  # GPU-UMAP service
+
+# Run frontend tests
+cd frontend && npm run test
 ```
 
 ## 📅 Development Timeline - Completed
 
-### ✅ Week 1: Foundation & POC (Complete)
-- [x] Enhanced backend validation with CUDA integration
-- [x] DeckGL WebGL scatter plot implementation
-- [x] Data loading and viewport management
-- [x] React architecture with proper SSR handling
+- **✅ Week 1: Foundation & POC:** Enhanced backend validation, DeckGL scatter plot PoC.
+- **✅ Week 2: Interactive Clustering:** Dynamic cluster coloring, real-time algorithm switching, live feedback.
+- **✅ Week 3: Advanced Interactions:** Lasso tool, collection creation, multi-layer visualization, hover overlays.
+- **✅ Week 4: Curation, Polish & Production Readiness:** Curation suite implementation, mobile responsiveness, accessibility, performance monitoring, and final documentation.
 
-### ✅ Week 2: Interactive Clustering (Complete)
-- [x] Dynamic cluster color coding with multiple palettes
-- [x] Real-time clustering algorithm switching
-- [x] Parameter tuning with live visual feedback
-- [x] Performance optimization for large datasets
-
-### ✅ Week 3: Advanced Interactions (Complete)
-- [x] Lasso selection tool with polygon drawing
-- [x] Collection creation from visual selections
-- [x] Multi-layer visualization with toggle controls
-- [x] Hover interactions with thumbnail overlays
-
-### ✅ Week 4: Polish & Production Readiness (Complete)
-- [x] Mobile responsiveness and accessibility compliance
-- [x] Error handling and graceful degradation
-- [x] Performance monitoring and CUDA acceleration
-- [x] Documentation and comprehensive testing
-
-## 🎯 Next Development Phase
+## 🔄 Next Development Phase
 
 Based on user feedback and workflow analysis, the next phase will focus on:
 
 ### 🔸 Priority 1: Collection Dropdown Rework
-**Timeline:** 1-2 weeks  
-**Impact:** Reduce collection switching time from 10s to <2s
+**Timeline:** 1-2 weeks
+**Impact:** A global, searchable collection dropdown in the header to reduce collection switching time from over 10 seconds to less than 2 seconds.
 
 ### 🔸 Priority 2: Auto Cluster Naming
-**Timeline:** 2-3 weeks  
-**Impact:** AI-powered semantic labeling with 80% accuracy
+**Timeline:** 2-3 weeks
+**Impact:** AI-powered semantic labeling for clusters using a multi-modal analysis pipeline, targeting 80% accuracy.
 
-### 🔸 Priority 3: Storybook Integration  
-**Timeline:** 3-4 weeks  
-**Impact:** Enhanced developer experience and guided user tours
+### 🔸 Priority 3: Storybook Integration
+**Timeline:** 3-4 weeks
+**Impact:** Create an interactive component library and guided user tours to enhance developer experience and user onboarding.
 
 ---
 
 ## 🎊 Sprint 11 Success Summary
 
-✅ **Delivered production-ready interactive latent space visualization**  
-✅ **Exceeded performance targets** (2s vs 3s target load time)  
-✅ **Complete feature set** with advanced clustering and selection  
-✅ **CUDA acceleration** with automatic fallback system  
-✅ **Mobile-responsive design** with accessibility compliance  
-✅ **Comprehensive state management** with optimized performance  
-
-**Ready for next phase enhancements focused on UX refinement and AI-powered features.**
+✅ **Delivered production-ready interactive latent space visualization and a full curation suite.**
+✅ **Exceeded performance targets** (<2s vs 3s target load time for 500 points).
+✅ **Shipped a complete feature set** with advanced clustering, lasso selection, and duplicate management.
+✅ **Implemented a full CUDA acceleration pipeline** with automatic fallback.
+✅ **Designed a mobile-responsive and accessible user interface.**
+✅ **Established a scalable architecture** ready for the next phase of AI-powered features.

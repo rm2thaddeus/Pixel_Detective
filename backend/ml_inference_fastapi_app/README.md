@@ -127,6 +127,19 @@ The service can be configured using the following environment variables:
 -   `LOG_LEVEL`: The logging level for the application. (Default: `INFO`)
 -   `PORT`: The port on which the service will run. (Default: `8001`)
 
+## Redis Requirement
+
+This service now requires a running Redis instance for job scheduling and status tracking.
+
+- Default connection: `redis://localhost:6379/0`
+- You can override this with the `REDIS_URL` environment variable.
+
+Example to run Redis locally (Docker):
+
+```
+docker run -p 6379:6379 redis:7
+```
+
 ---
 
 > **@sprint-08**: Starting both backend services was problematic due to import and environment issues. Always use `uvicorn main:app` and check your Python environment. See the sprint-08 notes for more context. 

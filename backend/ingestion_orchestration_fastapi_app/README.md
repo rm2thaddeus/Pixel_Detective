@@ -1,33 +1,40 @@
 # Ingestion Orchestration FastAPI Service
 
-This service provides a robust backend for orchestrating the ingestion of image directories. It handles metadata extraction, manages a persistent cache, and communicates with a Qdrant vector database and a separate ML Inference Service to generate embeddings and captions for images.
+This service provides a robust backend for orchestrating the ingestion of image directories. It is built on a modular, asynchronous pipeline architecture to efficiently handle file I/O, CPU-bound processing, and GPU-bound ML inference.
 
 ## Architecture
 
-The service is designed around a decoupled, asynchronous workflow. When a user requests to ingest a directory, the service immediately returns a job ID and begins processing in the background.
+The service is designed around a decoupled, asynchronous pipeline managed by a central `PipelineManager`. When a user requests to ingest a directory, the service immediately returns a job ID and begins processing in the background using a series of queues and workers.
+
+**New in June 2025:** The ingestion service now includes a periodic background task that fetches ML service capabilities every 10 seconds. This ensures that batch sizes and readiness are always up to date, even if the ML service is slow to start or restarts. The system will self-heal and become ready for ingestion as soon as the ML service is available, without requiring a restart.
 
 ```mermaid
 graph TD
     subgraph "User Interaction"
-        User -- "POST /api/v1/ingest/" --> A
+        User -- "POST /api/v1/ingest/" --> IngestRouter
     end
 
     subgraph "Ingestion Orchestration Service (localhost:8002)"
-        A[FastAPI App] -- "1. Returns Job ID" --> User
-        A -- "2. Starts Background Task" --> B(Ingestion Worker)
-        B -- "3. Scan Directory" --> C{For Each Image}
-        C -- "4. Calculate Hash" --> D{Cache Check}
-        D -- "Cache Hit" --> E[Load from Disk Cache]
-        D -- "Cache Miss" --> F[Add to Batch]
-        F -- "Batch Full" --> G(Process Batch)
-        G -- "5. Send Batch to ML Service" --> H
-        E -- "6. Extract Metadata" --> I(Prepare Qdrant Point)
-        J -- "7. Store Embedding & Caption in Cache" --> D
-        I -- "8. Upsert Point to Qdrant" --> K
+        IngestRouter[FastAPI Ingest Router] -- "1. Returns Job ID" --> User
+        IngestRouter -- "2. Starts Pipeline" --> PM(Pipeline Manager)
+        
+        subgraph "Asynchronous Pipeline"
+            PM -- "Manages Queues & Workers" --> IO_Scanner
+            IO_Scanner(IO Scanner Worker) -- "File Paths" --> IO_Queue([fa:fa-folder-open IO Queue])
+            IO_Queue --> CPU_Processor(CPU Processor Worker)
+            CPU_Processor -- "Cache Miss" --> ML_Queue([fa:fa-image ML Queue])
+            CPU_Processor -- "Cache Hit" --> DB_Queue([fa:fa-database DB Queue])
+            ML_Queue --> GPU_Worker(GPU Worker)
+            GPU_Worker -- "Calls ML Service" --> H
+            J -- "Embeddings & Captions" --> GPU_Worker
+            GPU_Worker -- "ML Results" --> DB_Queue
+            DB_Queue --> DB_Upserter(DB Upserter Worker)
+            DB_Upserter -- "Upserts Points" --> K
+        end
     end
 
     subgraph "Dependencies"
-        H[ML Inference Service<br/>localhost:8001] -- "Returns Embeddings & Captions" --> J(Receive ML Results)
+        H[ML Inference Service<br/>localhost:8001] --> J(Receive ML Results)
         K[Qdrant Database<br/>localhost:6333]
     end
 
@@ -38,17 +45,17 @@ graph TD
 
 ### How It Works
 
-1.  **Ingestion Request**: A user sends a `POST` request to `/api/v1/ingest/` with a directory path.
-2.  **Background Job**: The service immediately returns a `job_id` and starts a background task to process the images, preventing the API from timing out.
-3.  **Image Processing**: For each file in the directory:
-    *   It calculates the SHA256 hash of the image content.
-    *   It checks a local disk cache (`.diskcache`) to see if the image has been processed before.
-4.  **Cache Handling**:
-    *   **Cache Hit**: If the hash is found, it retrieves the pre-computed embedding and caption directly from the cache.
-    *   **Cache Miss**: If the hash is not found, the image is added to a batch to be sent to the ML Inference service.
-5.  **ML Inference**: Once the batch reaches a configured size, the orchestration service sends it to the ML Inference Service, which returns vector embeddings and generated text captions.
-6.  **Database Storage**: The embedding, caption, and extracted metadata (from EXIF, etc.) are used to create a "point" in the Qdrant vector database. These points are then searchable.
-7.  **Job Status**: The user can poll the `GET /api/v1/ingest/status/{job_id}` endpoint to get real-time updates on the ingestion progress.
+1.  **Ingestion Request**: A user sends a `POST` request to an ingestion endpoint (e.g., `/api/v1/ingest/scan`).
+2.  **Pipeline Initialization**: The router delegates the request to the `PipelineManager`, which immediately returns a `job_id`. The manager then sets up a series of `asyncio.Queue`s and starts the background worker tasks.
+3.  **IO Scanner**: The `io_scanner.py` worker traverses the target directory, putting the file paths of potential images onto an I/O queue.
+4.  **CPU Processor**: The `cpu_processor.py` worker consumes file paths from the I/O queue. For each file, it performs CPU-intensive tasks:
+    *   Calculates the SHA256 hash of the image content.
+    *   Checks a local disk cache (`.diskcache`) to see if the image has been processed before.
+    *   **Cache Hit**: If found, the pre-computed data is sent directly to the database queue.
+    *   **Cache Miss**: If not found, the image data is placed in the ML queue for processing.
+5.  **GPU Worker**: The `gpu_worker.py` worker consumes from the ML queue. It groups images into batches and sends them to the separate **ML Inference Service** for embedding and captioning. The results are then placed in the database queue.
+6.  **DB Upserter**: The `db_upserter.py` worker consumes from the database queue, batches the points, and performs an efficient bulk upsert into the Qdrant vector database.
+7.  **Job Status & Completion**: The `PipelineManager` monitors the queues and worker tasks. It provides real-time progress updates via the `GET /api/v1/ingest/status/{job_id}` endpoint and gracefully shuts down the pipeline once all queues are empty and processed.
 
 ## How to Run the Service
 
@@ -123,15 +130,23 @@ curl -X POST -H "Content-Type: application/json" -d '{"collection_name": "my_pho
 ### Image Ingestion
 
 **1. Start an Ingestion Job**
-*Make sure you have selected a collection first.*
+*Make sure you have selected a collection first.* There are now two ways to ingest:
+
+**A) Scan a server-side directory path:**
 ```bash
 # Starts ingesting images from the specified local directory
 # NOTE: Provide the full, absolute path to the directory.
-curl -X POST -H "Content-Type: application/json" -d '{"directory_path": "C:/Users/YourUser/Pictures/MyVacation"}' http://localhost:8002/api/v1/ingest/
+curl -X POST -H "Content-Type: application/json" -d '{"directory_path": "C:/Users/YourUser/Pictures/MyVacation"}' http://localhost:8002/api/v1/ingest/scan
+```
+
+**B) Upload files directly:**
+```bash
+# Upload one or more image files
+curl -X POST -F "files=@/path/to/image1.jpg" -F "files=@/path/to/image2.png" http://localhost:8002/api/v1/ingest/upload
 ```
 
 **2. Get Ingestion Job Status**
-Use the `job_id` returned from the previous command.
+Use the `job_id` returned from the previous commands.
 ```bash
 # Checks the status of a specific job
 curl http://localhost:8002/api/v1/ingest/status/your-job-id-here
@@ -177,6 +192,7 @@ curl -X POST http://localhost:8002/api/v1/collections/cache/clear
 The service can be configured using the following environment variables:
 
 -   `ML_INFERENCE_SERVICE_URL`: URL of the ML Inference service. (Default: `http://localhost:8001`)
+    -   **Note:** The ingestion service periodically fetches capabilities from this endpoint to dynamically update batch sizes and readiness.
 -   `QDRANT_HOST`: Hostname of the Qdrant database. (Default: `localhost`)
 -   `QDRANT_PORT`: Port for the Qdrant database. (Default: `6333`)
 -   `QDRANT_VECTOR_SIZE`: The dimension of the vectors to be stored. Must match the output of the ML model. (Default: `512`)
@@ -199,6 +215,13 @@ Result: {'total_processed': 25, 'total_failed': 0}
 ```
 
 GPU-side logs show that each 8-image batch took ~11 s; batching is now the main optimisation target.
+
+## Duplicate & Curation Endpoints
+
+- `POST /api/v1/duplicates/find-similar` – run near-duplicate analysis in the background
+- `GET /api/v1/duplicates/report/{task_id}` – retrieve progress and results
+- `POST /api/v1/duplicates/archive-exact` – move exact duplicates to `_VibeDuplicates`
+- `POST /api/v1/curation/archive-selection` – archive selected images with a collection snapshot
 
 ## Potential Next Steps (Roadmap as of 2025-06-12)
 

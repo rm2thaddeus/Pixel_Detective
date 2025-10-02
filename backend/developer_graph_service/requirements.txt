@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+neo4j
+pydantic
+pydriller
+GitPython
+httpx
+python-dotenv
+

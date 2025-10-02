@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { UMAPProjectionResponse, ClusteringRequest, ViewportTransform } from '../types/latent-space';
 import { ColorPaletteName } from '../utils/visualization';
+import { UMAPPoint, UMAPProjection } from '../types/latent-space';
 
 interface LatentSpaceState {
   // Data state
@@ -19,7 +20,7 @@ interface LatentSpaceState {
   // === Density overlay & selection ===
   heatmapVisible: boolean; // Toggle for 2-D density overlay
   heatmapOpacity: number;  // 0-100 percentage for overlay opacity
-  selectedIds: string[];   // Hand-drawn polygon selection
+  selectedIds: Set<string>;   // Hand-drawn polygon selection
   
   // Cluster polygons (convex hulls)
   clusterPolygons: Record<number, [number, number][]>; // cluster_id → hull coords
@@ -51,7 +52,7 @@ interface LatentSpaceState {
   // Density overlay & selection actions
   setHeatmap: (v: boolean) => void;
   setHeatmapOpacity: (x: number) => void;
-  setSelectedIds: (ids: string[]) => void;
+  setSelectedIds: (ids: Set<string>) => void;
   
   // Reset function
   resetState: () => void;
@@ -79,33 +80,39 @@ const initialState = {
   selectedCluster: null,
   clusterLabels: {},
   clusteringParams: {
-    algorithm: 'dbscan' as const,
-    eps: 0.5,
-    min_samples: 5,
+    // Use the GPU-optimised HDBSCAN algorithm by default for superior
+    // cluster quality on image embeddings.  Operators can still switch in the
+    // UI.
+    algorithm: 'hdbscan' as const,
+    // Reasonable default that works well for most photo libraries; users can
+    // fine-tune via the numeric input.
+    min_cluster_size: 5,
   },
   isLoading: false,
   viewportTransform: { x: 0, y: 0, scale: 1 },
-  colorPalette: 'observable' as ColorPaletteName,
+  // Start with the requested "river" palette (alias of River Nights).
+  colorPalette: 'river' as ColorPaletteName,
   showOutliers: true,
   pointSize: 10,
   
   // Density overlay defaults
   heatmapVisible: true,
   heatmapOpacity: 35,
-  selectedIds: [],
+  selectedIds: new Set<string>(),
   
   clusterPolygons: {},
   
   // Overlay defaults
-  overlayMode: 'heatmap' as 'heatmap',
+  overlayMode: 'terrain' as 'terrain',
   terrainResolution: 20,
   terrainBands: 6,
   
-  // Layer toggles defaults
+  // Layer toggles defaults – enable Voronoi tiles & cluster hulls so users
+  // immediately see the tessellation structure requested.
   showScatter: true,
   showHulls: true,
-  showVoronoi: false,
-  showVoronoiFill: false,
+  showVoronoi: true,
+  showVoronoiFill: true,
   
   lassoMode: false, // true when drawing polygon
   selectedPolygon: null,
@@ -191,7 +198,7 @@ export const useLatentSpaceStore = create<LatentSpaceState>((set, get) => ({
     set({ heatmapOpacity: x });
   },
   setSelectedIds: (ids) => {
-    console.log('✂️ Set selected IDs:', ids.length);
+    console.log('✂️ Set selected IDs:', ids.size);
     set({ selectedIds: ids });
   },
   
@@ -225,7 +232,7 @@ export const useLatentSpaceStore = create<LatentSpaceState>((set, get) => ({
   
   setLassoMode: (v) => {
     console.log('🟢 Toggle lasso mode:', v);
-    set({ lassoMode: v });
+    set({ lassoMode: v, selectedPolygon: null, selectedIds: new Set() });
   },
   
   setSelectedPolygon: (poly) => {

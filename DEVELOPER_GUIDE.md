@@ -5,43 +5,49 @@
 
 ---
 
-## 🚀 **DAILY DEVELOPMENT COMMANDS**
+## 🚀 **EASY START: ONE COMMAND**
 
-### **Full Stack Startup**
-```bash
-# Terminal 1: Start vector database
-docker-compose up -d
+The entire application stack (all backend services + frontend UI) can be launched with a single script.
 
-# Terminal 2: Start ingestion service (port 8002) 
-cd backend/ingestion_orchestration_fastapi_app
-python main.py
+**This is the recommended way to start a development session.**
 
-# Terminal 3: Start ML inference service (port 8001)
-cd backend/ml_inference_fastapi_app  
-python main.py
-
-# Terminal 4: Start frontend (port 3000)
-cd frontend
-npm install  # first time only
-npm run dev
+```powershell
+# From the project root, this one command starts everything.
+# Backend services run as background jobs.
+# Frontend server runs in the current terminal.
+./start_app.ps1
 ```
 
-### **Quick Development (Frontend Only)**
+### **Manual Startup (Advanced)**
+If you need to run services individually (e.g., for focused debugging), you can use the commands below.
+
+#### **Backend Only**
+The `start_backend.ps1` script will launch all backend containers and services. Use the `-UseJobs` flag to run them as background PowerShell jobs.
+```powershell
+./start_backend.ps1 -UseJobs
+```
+**Job Management:**
+- `Get-Job`: Check the status of running services.
+- `Receive-Job -Name 'MLInference' -Keep`: View logs for a specific service.
+- `Get-Job | Stop-Job; Get-Job | Remove-Job`: Stop all backend services.
+
+#### **Frontend Only**
 ```bash
-# If backend services already running
-cd frontend && npm run dev
+cd frontend
+npm run dev
 ```
 
 ---
 
 ## 📊 **SYSTEM ARCHITECTURE STATUS**
 
-### **✅ Production Services**
+### ✅ Production Services
 | Service | Port | Status | Purpose | Health Check |
 |---------|------|--------|---------|--------------|
 | **Frontend** | 3000 | ✅ **Ready** | Next.js 15 + TypeScript + Chakra UI | http://localhost:3000 |
 | **Ingestion API** | 8002 | ✅ **Ready** | FastAPI orchestration service | http://localhost:8002/health |
 | **ML Inference** | 8001 | ✅ **Ready** | CUDA-enabled AI processing | http://localhost:8001/health |
+| **GPU UMAP** | 8003 | ✅ **Ready** | CUDA-enabled UMAP/Clustering | http://localhost:8003/health |
 | **Qdrant DB** | 6333 | ✅ **Ready** | Vector similarity database | Docker container |
 
 ### **🏗️ Architecture Overview**
@@ -75,7 +81,7 @@ frontend/src/
 | Variable | Example | Notes | Status |
 |----------|---------|-------|--------|
 | `NEXT_PUBLIC_API_URL` | `http://localhost:8002` | Base REST URL | ✅ Set |
-| `NEXT_PUBLIC_SOCKET_URL` | `http://localhost:8002` | Future WebSocket URL | 🔄 Planned |
+| `NEXT_PUBLIC_SOCKET_URL` | `ws://localhost:8002` | WebSocket URL for logs |  Planned |
 
 ---
 
@@ -304,6 +310,7 @@ Happy coding! The foundation is solid, now let's build the full experience.
 | **HTTP Client** | Axios | ✅ | Wrapped in `/src/lib/api.ts` |
 | **Styling** | Chakra semantic tokens | ✅ | Dark mode, responsive design |
 | **Icons** | React Icons (Feather) | ✅ | Consistent icon system |
+| **GPU Acceleration** | CUDA + PyTorch / cuML | ✅ | Optimized batch processing |
 
 ### **Backend (FastAPI)**
 | Service | Technology | Status | Notes |
@@ -317,43 +324,82 @@ Happy coding! The foundation is solid, now let's build the full experience.
 
 ## 🌐 **API ENDPOINTS REFERENCE**
 
-### **✅ Core Endpoints (Production Ready)**
+### **Ingestion Service (localhost:8002)**
 
 #### **System Health**
 ```http
-GET    /health                           # Backend service health
+GET /health                           # Backend service health
 ```
 
-#### **Collection Management**
+#### **Collection Management (`/api/v1/collections`)**
 ```http
-GET    /api/v1/collections               # List all collections
-POST   /api/v1/collections               # Create new collection
-POST   /api/v1/collections/select        # Select active collection  
-DELETE /api/v1/collections/{name}        # Delete collection
-GET    /api/v1/collections/{name}/info   # Collection statistics
+GET    /                              # List all collections
+POST   /                              # Create new collection
+GET    /{name}/info                   # Collection statistics
+POST   /select                        # Select active collection
+GET    /active                        # Get the active collection name
+DELETE /{name}                        # Delete collection
+POST   /merge                         # Merge multiple collections into one
+POST   /from_selection                # Create a new collection from selected points
 ```
 
-#### **Image Ingestion**
+#### **Image Ingestion (`/api/v1/ingest`)**
 ```http
-POST   /api/v1/ingest/upload             # Upload files for processing
-POST   /api/v1/ingest/scan               # Scan server directory
-GET    /api/v1/ingest/status/{job_id}    # Job progress tracking
+POST   /upload                        # Upload files for processing
+POST   /scan                          # Scan a directory on the server
+GET    /status/{job_id}               # Job progress tracking
+GET    /recent_jobs                   # Get most recent job ID per collection
 ```
 
 #### **Image Search & Serving**
 ```http
-POST   /api/v1/search/text               # Text-based image search
-POST   /api/v1/search/image              # Image similarity search
-GET    /api/v1/images/{id}/thumbnail     # Serve optimized thumbnails
-GET    /api/v1/images/{id}/info          # Image metadata + EXIF
-GET    /api/v1/images/{id}/image         # Full resolution image
+# Text & Image Search (`/api/v1/search`)
+POST   /text                          # Text-based image search
+POST   /image                         # Image similarity search
+
+# Image Retrieval (`/api/v1/images`)
+GET    /                              # List images with pagination & filters
+GET    /{id}/thumbnail                # Serve optimized thumbnails
+GET    /{id}/image                    # Serve full resolution image
+GET    /{id}/info                     # Image metadata + EXIF
 ```
 
-#### **Advanced Features**
+#### **Data Curation & Analysis**
 ```http
-GET    /api/v1/umap/projection           # 2D similarity visualization
-GET    /api/v1/random                    # Random image from collection
-POST   /api/v1/duplicates               # Find duplicate images
+# Duplicate Detection (`/api/v1/duplicates`)
+POST   /find-similar                  # Find near-duplicate images in a collection
+GET    /report/{task_id}              # Get duplicate analysis report
+GET    /curation-status               # Get curation job status per collection
+POST   /archive-exact                 # Archive files that are exact duplicates
+
+# Curation Actions (`/api/v1/curation`)
+POST   /archive-selection             # Archive selected images (from duplicates/search)
+
+# Random Image (`/random`)
+GET    /random                        # Get a random image from the active collection
+
+# UMAP & Clustering (`/umap`)
+GET    /projection                    # Get 2D UMAP projection
+POST   /projection_with_clustering    # Get projection and run clustering
+POST   /cluster_label                 # Assign a text label to a cluster
+```
+
+### **ML Inference Service (localhost:8001)**
+```http
+GET    /health                        # Service health check
+POST   /api/v1/embed                  # Get embedding for a single image
+POST   /api/v1/caption                # Get caption for a single image
+POST   /api/v1/embed_text             # Get embedding for a text query
+POST   /api/v1/batch_embed_and_caption # Process a batch of images (embed + caption)
+GET    /api/v1/capabilities           # Get service limits (e.g., safe batch size)
+```
+
+### **GPU UMAP Service (localhost:8003)**
+```http
+GET    /health                        # Service health check
+POST   /umap/fit_transform            # Fit UMAP model and transform data
+POST   /umap/transform                # Transform data using a fitted model
+POST   /umap/cluster                  # Perform clustering on 2D data
 ```
 
 ---
@@ -432,6 +478,10 @@ const nextConfig = {
 
 ### **Common Issues & Solutions**
 
+#### **Duplicate Next.js Config**
+- **Issue**: The `frontend` directory contains both `next.config.mjs` and `next.config.ts`.
+- **Solution**: This can cause confusion and inconsistent build behavior. The `next.config.mjs` is the one currently being used by Next.js. Consolidate all configuration into `next.config.mjs` and delete the `.ts` file. This is noted as a "Critical" cleanup task in the developer roadmap.
+
 #### **Frontend Won't Start**
 ```bash
 # Clean and reinstall
@@ -444,15 +494,11 @@ npm install && npm run dev
 # Check backend health
 curl http://localhost:8002/health
 curl http://localhost:8001/health
+curl http://localhost:8003/health
 
 # Check Docker services
 docker-compose ps
 ```
-
-#### **Hydration Errors (Critical Fix Applied)**
-- ✅ **SOLVED**: ColorModeScript in `<head>`, mounted state patterns
-- ✅ **SOLVED**: ClientOnly wrapper for browser-specific components
-- ✅ **SOLVED**: Semantic tokens prevent theme mismatches
 
 #### **Image Loading Issues**
 ```bash
@@ -556,19 +602,20 @@ function useCollections() {
 
 ---
 
-## 🎯 **SUCCESS METRICS**
+## 🎯 **CRITICAL NEXT STEPS**
 
-### **System Performance**
-- **Load Time**: ≤ 1.5s (Current: ~1.2s) ✅
-- **Search Response**: ≤ 300ms (Current: ~250ms) ✅
-- **Theme Switch**: ≤ 100ms (Current: ~50ms) ✅
-- **Image Loading**: ≤ 200ms thumbnails ✅
+The frontend UI is feature-complete, but the project requires the following to be considered fully production-ready. These items are based on the `frontend/DEVELOPER_ROADMAP.md`.
 
-### **Code Quality**
-- **Component Size**: Average ≤ 150 lines ✅
-- **Type Coverage**: 100% TypeScript ✅
-- **Hydration Errors**: Zero in production ✅
-- **Bundle Size**: <300kB gzipped ✅
+### **Immediate Priorities**
+1.  **Test Infrastructure** - Implement Jest/RTL for components and Playwright for E2E tests to prevent regressions.
+2.  **Config Cleanup** - Consolidate duplicate `next.config.*` files and centralize environment constants.
+3.  **New Feature UIs** - Build interfaces for new backend capabilities like the duplicate detection report.
+4.  **Global Error Handling** - Implement global error boundaries and integrate a monitoring service like Sentry.
+
+### **Next Sprint**
+- **Performance Audit** - Analyze bundle size and lazy-load heavy components.
+- **Accessibility Pass** - Ensure a Lighthouse accessibility score of ≥ 90.
+- **Storybook Adoption** - Document the component library in Storybook for isolated development.
 
 ---
 
@@ -576,8 +623,9 @@ function useCollections() {
 
 ### **Documentation**
 - **Frontend Architecture** - `frontend/ARCHITECTURE.md`
+- **Frontend Roadmap** - `frontend/DEVELOPER_ROADMAP.md`
 - **Backend Architecture** - `backend/ARCHITECTURE.md`
-- **API Documentation** - http://localhost:8002/docs (when running)
+- **API Documentation** - See endpoints above or run service and visit `/docs`.
 - **Component Rules** - `frontend/.cursor/rules/`
 
 ### **External References**
@@ -593,7 +641,6 @@ function useCollections() {
 **Architecture:** Microservices + Modern Frontend  
 
 *Your single source of truth for Pixel Detective development* 🚀
-```
 
 ## 📁 **SPRINT 10 FINAL STRUCTURE**
 
@@ -640,4 +687,20 @@ frontend/src/
 ├── lib/
 │ └── api.ts # ✅ Typed Axios client
 └── store/
-└── useStore.ts # ✅ Zustand client state
+└── useStore.ts # ✅ Zustand client state\n## Developer Graph
+The Developer Graph maps commits, requirements and sprint docs into a Neo4j database.
+
+**Setup**
+1. Ensure `docker-compose.yml` is configured with the `neo4j` and `dev_graph_api` services.
+2. Export `NEO4J_PASSWORD` before starting containers.
+3. Run `docker-compose up neo4j dev_graph_api` to launch the graph services.
+4. Execute `scripts/update_dev_graph.sh` to ingest data.
+
+The script can be run after each push to keep the graph up to date.
+
+**API Usage**
+- `GET /api/v1/dev-graph/nodes?node_type=Requirement` – list nodes
+- `GET /api/v1/dev-graph/relations?start_id=1` – list relations
+- `GET /api/v1/dev-graph/search?q=FR-10` – search the graph
+
+The API binds to `127.0.0.1:8080` by default. Update variables to expose remotely.

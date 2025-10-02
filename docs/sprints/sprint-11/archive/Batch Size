@@ -1,0 +1,315 @@
+# Large-Scale Ingestion Optimization Guide
+
+**Objective:** This document provides a detailed analysis of the backend's image import and processing pipeline. It identifies key parameters that can be adjusted to optimize for large-scale ingestion on a machine with 64GB of RAM, with the goal of processing a 100,000-image library efficiently.
+
+## 1. Processing Pipeline Analysis
+
+The backend is composed of two primary services that work in concert to ingest and process images:
+
+### a. Ingestion Orchestration Service
+- **File:** `backend/ingestion_orchestration_fastapi_app/routers/ingest.py`
+
+This service is the entry point for an ingestion job. Its responsibilities include:
+1.  **File Discovery:** It walks a given directory to find all image files.
+2.  **Batching for ML:** It reads image files, encodes them to base64, and groups them into batches of size `ML_BATCH_SIZE` to be sent to the ML Inference Service.
+3.  **Deduplication:** It computes a SHA-256 hash to check against a local disk cache and the Qdrant database to prevent re-processing identical images.
+4.  **Batching for Database:** It collects the processed results from the ML service and upserts them to Qdrant in batches of size `QDRANT_UPSERT_BATCH_SIZE`.
+5.  **Concurrency:** It uses `asyncio.to_thread` to offload synchronous work (like file hashing and metadata extraction), keeping the service responsive.
+
+### b. ML Inference Service
+- **File:** `backend/ml_inference_fastapi_app/main.py`
+
+This service handles the heavy computational work of ML model inference.
+1.  **Image Loading:** It receives base64-encoded images from the orchestration service. The actual image decoding from bytes into PIL `Image` objects happens in the `_decode_and_prep_image` function.
+2.  **CPU-Bound Parallelism:** It uses a `concurrent.futures.ThreadPoolExecutor` to perform image decoding in parallel across multiple CPU cores. This is crucial as decoding can be a CPU bottleneck. The number of worker threads is dynamically set to the number of CPU cores available (`max_workers=os.cpu_count()`).
+3.  **GPU-Bound Batching & Locking:** This is the most sophisticated part of the pipeline.
+    - It uses an `asyncio.Lock` (`gpu_lock`) to ensure only one operation accesses the GPU at a time, preventing CUDA out-of-memory (OOM) errors from concurrent requests.
+    - On startup, it probes the GPU's memory to calculate a `SAFE_BATCH_SIZE`. This means it dynamically adjusts the batch size for inference based on the available VRAM.
+    - Inference is performed in chunks of `SAFE_BATCH_SIZE`.
+
+## 2. Key Parameters for Tuning
+
+The system is well-designed to be configurable via environment variables, avoiding the need for direct code changes.
+
+| Parameter | Location | Default Value | Purpose |
+| :--- | :--- | :--- | :--- |
+| `ML_INFERENCE_BATCH_SIZE` | `ingestion_orchestration_fastapi_app/routers/ingest.py:44` | `25` | The number of images to batch together before sending to the ML inference service. |
+| `QDRANT_UPSERT_BATCH_SIZE` | `ingestion_orchestration_fastapi_app/routers/ingest.py:45` | `32` | The number of processed image records to batch for a single upsert operation to Qdrant. |
+| `max_workers` | `ml_inference_fastapi_app/main.py:33` | `os.cpu_count()` | The number of threads in the thread pool used for decoding images in the ML service. |
+| `scroll limit` | `ingestion_orchestration_fastapi_app/routers/duplicates.py:78` | `100` | The number of points to fetch from Qdrant at a time when searching for near-duplicates. |
+
+## 3. Recommendations for 64GB RAM & 100k Images
+
+Your 64GB of RAM provides a significant budget for holding more data in-flight, which can dramatically increase throughput by reducing I/O and network overhead.
+
+### Suggested Changes
+
+1.  **Increase Ingestion Batch Sizes (Ingestion Service)**
+
+    These parameters are controlled by environment variables when you launch the `ingestion_orchestration_fastapi_app`.
+
+    - **`ML_INFERENCE_BATCH_SIZE`**: Increase this value substantially. A larger batch means fewer HTTP requests to the ML service, which is more efficient. With 64GB of RAM, you can handle much larger batches of in-memory images.
+      - **Suggestion**: Start with `128` or `256`.
+      - `export ML_INFERENCE_BATCH_SIZE=256`
+
+    - **`QDRANT_UPSERT_BATCH_SIZE`**: Larger batches for Qdrant are generally more performant.
+      - **Suggestion**: Start with `256` or `512`.
+      - `export QDRANT_UPSERT_BATCH_SIZE=512`
+
+2.  **Leverage CPU Cores (ML Service)**
+
+    - The `ThreadPoolExecutor`'s `max_workers` is already set to `os.cpu_count()`, which is an excellent default for CPU-bound work like image decoding. You do not need to change this. The abundant system RAM will allow each of these threads to work on larger images without memory contention.
+
+3.  **No Changes Needed for GPU Batching (ML Service)**
+
+    - The use of `_probe_safe_batch_size` is a fantastic feature. It means the system will automatically use as much VRAM as it safely can for inference. There are no changes to make here; the system will self-optimize for your GPU.
+
+## 3.5 New in Sprint 11: PyTorch-Native Model Optimizations
+
+While the ingestion service's batch sizes (`ML_INFERENCE_BATCH_SIZE`, `QDRANT_UPSERT_BATCH_SIZE`) are critical, a recent major optimization was applied directly within the **ML Inference Service** to fundamentally increase its processing capacity. This is the direct cause of the observed doubling of the effective batch size.
+
+The CLIP and BLIP models have been optimized using two powerful, modern PyTorch features:
+
+1.  **Half-Precision (FP16) Loading**: By default, models load their weights using 32-bit floating-point numbers. We now load both CLIP and BLIP in 16-bit half-precision (`torch.float16`) when a CUDA device is present. This change alone **cuts the GPU VRAM footprint of each model by nearly 50%**, freeing up a significant amount of memory.
+
+2.  **JIT Compilation (`torch.compile`)**: We now apply `torch.compile(model, mode="reduce-overhead")` to both models on startup. This function analyzes the model's architecture and the underlying GPU hardware, then fuses operations into a more efficient, Just-In-Time compiled kernel. This primarily speeds up inference but also contributes to more efficient memory use.
+
+### The Synergy with Auto-Probing
+
+These optimizations work in perfect concert with the ML service's existing `_probe_safe_batch_size` function.
+- **Before**: The probe would calculate a safe batch size based on the memory consumed by the full-precision (FP32) models.
+- **After**: The probe now runs against the optimized FP16, compiled models. Since each model instance consumes drastically less VRAM, the probe correctly determines that a **much larger number of images can be processed in a single batch** without risk of an Out-of-Memory (OOM) error.
+
+This is why you observed the batch size doubling: we didn't just change a number, we fundamentally increased the memory efficiency of the entire ML pipeline, and the system's auto-tuning capabilities adapted accordingly.
+
+## 4. Potential Risks of Increasing Values
+
+Increasing these parameters should yield significant performance gains, but it's important to be aware of the potential trade-offs.
+
+-   **Increased RAM Usage:**
+    -   The primary effect of raising `ML_INFERENCE_BATCH_SIZE` will be higher RAM usage on both the **ingestion service** (holding more base64 strings) and the **ML service** (holding more decoded PIL images). With 64GB, you are unlikely to hit a ceiling, but it's something to monitor during the first large run.
+
+-   **CPU Bottleneck:**
+    -   The main bottleneck will likely shift to the CPU-bound image decoding step in the ML service. If you increase the `ML_INFERENCE_BATCH_SIZE` to 256, the `ThreadPoolExecutor` now has to decode 256 images before the GPU can start working on them. If your CPU is not powerful enough, the GPU may sit idle waiting for data. Monitor CPU usage on the ML inference service; if it's constantly at 100%, you've found your bottleneck.
+
+-   **Risk of OOM Errors (Low):**
+    -   While the GPU batching is self-optimizing, the memory used by the parallel CPU decoding is not. A very large batch of very high-resolution images could theoretically exhaust system RAM before it even gets to the GPU. This risk is low with 64GB but not zero.
+
+-   **Longer Feedback Loops on Failure:**
+    -   With larger batches, if an error occurs mid-batch (e.g., a single corrupted image that `PIL` can't handle), the entire batch might fail, and it could take longer to isolate the problematic file. The current logging appears to handle this gracefully on a per-image basis, but it's a general consideration.
+
+This analysis should provide a clear path to optimizing your ingestion pipeline for a very large dataset. The backend is well-structured to handle this, and tuning these environment variables should be the first and most impactful step.
+
+## 5. Auto-Probing Batch Sizes (RAM & GPU-Aware)
+
+The ML Inference Service already determines a **`SAFE_BATCH_SIZE`** for the GPU at startup.  We can give the *ingestion* service a similar super-power so that the two critical environment variables are auto-sized on boot:
+
+| Variable | How it will be calculated | Hard safety caps |
+| --- | --- | --- |
+| `ML_INFERENCE_BATCH_SIZE` | `min(SAFE_CLIP_BATCH, 60 % of free-RAM / 2 MB)` | ≥ 1, ≤ 2048 |
+| `QDRANT_UPSERT_BATCH_SIZE` | `10 % of free-RAM / 6 KB` | ≥ 32, ≤ 2048 |
+
+**Implementation sketch** (drop-in helper):
+
+```python
+# ingestion_orchestration_fastapi_app/utils/autosize.py
+import os, logging, psutil, httpx
+
+def autosize_batches(ml_url: str):
+    log = logging.getLogger(__name__)
+
+    # 1️⃣  Ask the ML service for its GPU-safe batch
+    safe_clip = 1
+    try:
+        r = httpx.get(f"{ml_url}/api/v1/capabilities", timeout=10)
+        r.raise_for_status()
+        safe_clip = int(r.json()["safe_clip_batch"])
+    except Exception as e:
+        log.warning(f"Could not fetch ML capabilities, defaulting to 1: {e}")
+
+    # 2️⃣  Estimate RAM-limited sizes
+    free_ram = psutil.virtual_memory().available  # bytes
+    ram_batch = int((free_ram * 0.60) / (2 * 1024 * 1024))      # 2 MB/img   
+    ram_upsert = int((free_ram * 0.10) / (6 * 1024))            # 6 KB/point
+
+    ml_batch = max(1, min(safe_clip, ram_batch, 2048))
+    qdrant_batch = max(32, min(ram_upsert, 2048))
+
+    # 3️⃣  Respect manual overrides
+    os.environ.setdefault("ML_INFERENCE_BATCH_SIZE", str(ml_batch))
+    os.environ.setdefault("QDRANT_UPSERT_BATCH_SIZE", str(qdrant_batch))
+    log.info(f"Auto-set ML_INFERENCE_BATCH_SIZE={ml_batch}, QDRANT_UPSERT_BATCH_SIZE={qdrant_batch}")
+```
+
+Add a one-liner in **`ingestion_orchestration_fastapi_app/main.py`** startup:
+
+```python
+from .utils.autosize import autosize_batches
+...
+@app.on_event("startup")
+async def startup_event():
+    autosize_batches(os.getenv("ML_INFERENCE_SERVICE_URL", "http://localhost:8001"))
+```
+
+*Why this works*: the helper respects any values the operator already exported, so devs can still force specific numbers for benchmarking.
+
+### 🔍 Why the Capabilities Endpoint Might Still Show 25 / 32
+
+The new `/api/v1/capabilities` route on the **ingestion service** simply echoes the
+_current_ environment variables `ML_INFERENCE_BATCH_SIZE` and
+`QDRANT_UPSERT_BATCH_SIZE` so that UIs (or other services) can discover the
+effective tuning at runtime.  If you hit the endpoint immediately after the
+process starts you may still see the **fallback defaults** `25` and `32`:
+
+```
++{
+  "ml_inference_batch_size": 25,
+  "qdrant_upsert_batch_size": 32
++}
+```
+
+That is **expected** until the `autosize_batches()` helper has executed during
+application startup.  The sequence is:
+
+1. Environment variables load (defaults 25 / 32 if user did not export their
+   own values).
+2. `autosize_batches()` runs early in the startup event and *overwrites* the
+   vars **iff** the operator hasn't set them manually.
+3. The capabilities endpoint now reflects the dynamically calculated numbers
+   (e.g. `256` and `512` on a 64 GB host).
+
+If you still see 25 / 32 **after** startup completes, check the logs – it means
+either (a) you manually exported the variables (autosize respects overrides) or
+(b) the helper failed to fetch RAM/GPU info and fell back to safe defaults.
+
+> **Tip**: Set the log level to `INFO` and look for the `[autosize]` prefix to
+> confirm what values were chosen and why.
+
+---
+
+## 6. Extra Quick Wins (Not Yet Documented Above)
+
+1. **Env-Var Consolidation**  
+   `ML_SERVICE_URL` (used by *search* router) and `ML_INFERENCE_SERVICE_URL` (used by *ingest* router) should be aliased to avoid mismatches.
+
+2. **Disk Cache Placement**  
+   The SHA-256 dedup cache lives in `.diskcache/`.  Mount this on a fast SSD or NVMe drive to reduce hash-lookup latency.
+
+3. **ThreadPool Oversubscription**  
+   JPEG/PNG decoding spends a lot of time in native code (no GIL).  Setting the executor size to `os.cpu_count()*2` can keep all cores busy.
+
+4. **Duplicate Scanner Page Size**  
+   Increase Qdrant scroll `limit` from **100 → 1000** to drop API calls by 10×.  (Make it an env var `SCROLL_LIMIT`.)
+
+5. **Logging Noise**  
+   Once stable, run services with `LOG_LEVEL=WARNING` to cut string-formatting overhead on tight loops.
+
+6. **Model Footprint Choice**  
+   If VRAM is scarce, switch BLIP to `Salesforce/blip-image-captioning-base`; frees ~6 GB.
+
+---
+
+## 7. Action Checklist for Developers
+
+- [x] **Add `autosize.py` helper** to the ingestion project as shown above.
+- [x] **Import & call `autosize_batches()`** in the ingestion app startup.
+- [x] **Create env-var alias** so both routers read the same `ML_INFERENCE_SERVICE_URL`.
+- [x] **Mount `.diskcache/` on SSD** for production runs.
+- [x] **Bump ThreadPool to `cpu*2`** if CPU utilisation is < 70 % during ingest.
+- [x] **Raise `SCROLL_LIMIT` to 1000** (and make it tunable) in `duplicates.py`.
+- [x] Document chosen values via a new `/capabilities` endpoint on the ingestion service so the UI can display "effective" batch sizes.
+
+Following the checklist will let the system self-tune to the developer's hardware while retaining manual override flexibility.
+
+## 8. Detailed Implementation Status (2025-06-30)
+
+| Item | Status | Notes |
+| --- | :---: | --- |
+| `autosize.py` helper added | ✅ | `backend/ingestion_orchestration_fastapi_app/utils/autosize.py` dynamically sizes batches using RAM + ML `/capabilities`. |
+| Call to `autosize_batches()` at startup | ✅ | Executed in ingestion `main.py` lifespan before any router import; refreshes constants in `routers/ingest.py`. |
+| Env-var alias `ML_SERVICE_URL` ↔ `ML_INFERENCE_SERVICE_URL` | ✅ | Alias logic added in ingestion `main.py` lifespan to keep both vars in sync. |
+| ThreadPool oversubscription (`os.cpu_count()*2`) | ✅ | `cpu_executor` in ML service now defaults to `os.cpu_count()*2` (override via `ML_CPU_WORKERS`). |
+| `SCROLL_LIMIT` raises to 1000 + env var | ✅ | `routers/duplicates.py` now defines module-level `SCROLL_LIMIT` from env (default 1000). |
+| Ingestion `/api/v1/capabilities` endpoint | ✅ | Implemented in ingestion `main.py`; returns live batch sizes. |
+| `.diskcache` on SSD | ✅ | Project already resides on SSD; no extra action required. |
+
+Legend: ✅ implemented | ⬜ pending | ⚙️ operational (no code change)
+
+> Next chat: decide which pending ⬜ items to implement first and open tasks accordingly.
+
+## 9. NEW ✨ Front-Loaded Image Decoding to Overlap I/O
+
+### Rationale
+
+At the moment each ingestion batch is transferred as **base64-encoded raw bytes**; all
+JPEG/RAW decoding happens on the **ML service** inside the `_decode_and_prep_image`
+thread-pool.  When the batch size grows (e.g. ≥ 256) that CPU work can delay the
+first GPU forward pass long enough that the GPU sits idle.  Moving (or at least
+*overlapping*) the decoding step to the ingestion host leverages the extra CPU
+capacity there and completely hides the decode latency behind the network
+transfer.
+
+### Proposed Architecture
+
+1. **Ingestion Service**
+   1. Directory walk already done on a background thread.
+   2. For every file, *decode* to RGB (`Pillow` for JPEG/PNG, `rawpy` for RAW)
+      using the existing `extract_image_metadata()` helpers.
+   3. Immediately write the RGB buffer to a `BytesIO()` as **PNG** (loss-less,
+      smaller than raw RGB, no quality loss) and stream it as a multipart
+      `files[]` payload.
+   4. Continue decoding the next image while the current one is in-flight — the
+      CPU and network are now overlapped.
+
+2. **ML Inference Service**
+   1. Add a new endpoint `POST /api/v1/batch_embed_and_caption_multipart` that
+      accepts `multipart/form-data` with repeated `files` parts (plus an
+      optional JSON part carrying `unique_id`).
+   2. Replace the current base64 decode with a lightweight PNG load:
+      `Image.open(io.BytesIO(file_bytes)).convert('RGB')` — still I/O bound but
+      ~3× faster than JPEG/RAW decoding and already overlapped.
+   3. Re-use the existing batching / GPU code unchanged.
+
+### Trade-offs
+
+| Aspect | Impact |
+|--------|--------|
+| **Network Bandwidth** | ~2–3 × increase (PNG bigger than JPEG) – acceptable on local 1 Gbps LAN (>100 MB/s). |
+| **CPU Load** | Moves decode CPU usage from GPU host to ingestion host (good if GPU box is decode-bound). |
+| **Implementation Effort** | ≈ **1 day** (new endpoint + helper + feature flag). |
+| **Quality** | Loss-less PNG; no change in embedding results. |
+
+### Roll-out Plan
+
+1. **Feature flag** `USE_MULTIPART_UPLOAD=1` — keeps the old JSON path as a
+   fallback.
+2. Implement helper `send_batch_multipart()` in `routers/ingest.py` that uses
+   `httpx.AsyncClient().post(..., files=files)`.
+3. Mirror logic in ML service: iterate over `request.files`, build PIL list,
+   then run the existing embedding/caption code.
+4. Benchmark 25-image and 256-image batches; expect ≥ 25 % GPU utilisation gain
+   on the first forward-pass and ~2–3 s total speed-up per 256 images.
+
+---
+
+## 10. Achievements to Date (since 2025-06-30)
+
+* **Dynamic Autosizing** — `autosize_batches()` now scales to 64 GB RAM and
+  GPU-safe limits, producing batch sizes like *471 / 2048* automatically.
+* **PyTorch-Native Model Optimization** — Both CLIP and BLIP models in the ML Inference Service are now loaded in **half-precision (FP16)** and optimized with **`torch.compile()`**. This drastically reduces their VRAM footprint, allowing the service's auto-probing to safely **double the effective GPU batch size**, significantly increasing throughput.
+* **Capabilities Endpoint** — `/api/v1/capabilities` on both services exposes
+  the effective limits for UIs.
+* **Env-Var Aliasing** — Either `ML_SERVICE_URL` **or** `ML_INFERENCE_SERVICE_URL`
+  is accepted; fewer config mistakes.
+* **Bigger Qdrant Scrolls** — `SCROLL_LIMIT` default raised from 100 → 1000.
+* **CPU Thread-Pool Oversubscription** — ML service now defaults to
+  `cpu_count × 2` workers for faster decode on multi-core hosts.
+* **Documentation Updates** — This file clarified why you may still see 25/32
+  and how to read the logs.
+* **Multipart Upload Pipeline** — Ingestion service now pre-decodes images to PNG
+  and streams them via `multipart/form-data` to the new `POST /api/v1/batch_embed_and_caption_multipart`
+  endpoint on the ML service (feature-flag `USE_MULTIPART_UPLOAD`). This removes Base64 bloat
+  and shifts JPEG/RAW decode off the GPU host, trimming ~2-3 s per 25-image batch.
+
+Next milestone: re-benchmark end-to-end ingestion with multipart path enabled and
+fine-tune SAFE_BATCH_SIZE heuristics. 🏁

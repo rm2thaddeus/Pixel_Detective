@@ -6,5 +6,6 @@ torch
 openai-clip
 transformers
 Pillow
-rawpy
-numpy 
+numpy
+python-multipart 
+aioredis>=2.0.1 
