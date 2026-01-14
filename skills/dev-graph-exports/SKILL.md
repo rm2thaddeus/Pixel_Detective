@@ -30,7 +30,7 @@ Generate exportable assets that match the Dev Graph UI.
 - Key options:
   - Range: `--range-start 0 --range-end 69` (single segment)
   - Segments: `--segments "0-69,69-199,199-"` (dash with empty end means "to last")
-  - Graph density: `--max-nodes 400` (increase if you want file/folder nodes attached to commits)
+  - Graph density: `--max-nodes 0` (default, no limit)
   - Node layout: `--show-folder-groups true|false`, `--focused-view true|false`, `--size-by-loc true|false`
   - Styling: `--color-mode folder|type|commit-flow|activity|none`, `--highlight-docs true|false`, `--edge-emphasis 0.0-1.0`
   - Filtering: `--active-folders "backend,frontend"`, `--include-patterns "docs,/\\.md$/"`
@@ -38,7 +38,10 @@ Generate exportable assets that match the Dev Graph UI.
   - Auto-fit (zoom out to see full shape): `--auto-fit true` (default) and `--auto-fit-padding 80`
   - Auto-fit motion (smooth zoom between frames): `--auto-fit-motion true` (default), `--auto-fit-motion-alpha 0.25`
   - Focus around a commit: `--focus-commit 120 --focus-window 10` (index) or `--focus-commit abcd123 --focus-window 12` (hash prefix)
-  - Data volume: `--limit 5000 --max-files 50` (API request options)
+  - Relaxation (cinematic settling): `--relax-ticks-min 180 --relax-ticks-max 520 --relax-ticks-factor 35`
+  - Data volume: `--limit 5000 --max-files 0` (0 means no limit; lets backend return full file lists)
+  - Include every file node: `--include-all-files true` (default)
+  - Downscale on failure: `--downscale-on-fail true` (default), `--downscale-factor 0.85 --downscale-retries 3`
 
 ### Per-commit SVG frames
 - Script: `python skills/dev-graph-exports/scripts/export_timeline_svgs.py`
@@ -55,3 +58,4 @@ Generate exportable assets that match the Dev Graph UI.
 - Structure export is taken from the main Structure View canvas and reflects current filters.
 - Dashboard exports pull from `/api/v1/dev-graph/stats`, `/analytics`, `/quality`, and `/data-quality/overview`.
 - Use `sprints.json` from dashboard exports to link frames and videos to sprint windows.
+ - Defaults aim for full-fidelity output; if a segment fails, it will retry at a smaller canvas size.

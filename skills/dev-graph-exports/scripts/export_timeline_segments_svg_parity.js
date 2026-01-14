@@ -75,8 +75,12 @@ function buildGraph(commits, currentTimeIndex, config, prevPositions) {
   const sortedAll = Array.from(allFiles.entries()).sort((a, b) => b[1].commits.size - a[1].commits.size);
   const docEntries = sortedAll.filter((entry) => (entry[1].file.type === 'document'));
   const nonDocEntries = sortedAll.filter((entry) => (entry[1].file.type !== 'document'));
-  const budgetForFiles = Math.max(0, config.maxNodes - commitCountInRange - 5);
-  const sortedFiles = docEntries.concat(nonDocEntries).slice(0, budgetForFiles);
+  const budgetForFiles = config.maxNodes > 0
+    ? Math.max(0, config.maxNodes - commitCountInRange - 5)
+    : Number.POSITIVE_INFINITY;
+  const sortedFiles = budgetForFiles === Number.POSITIVE_INFINITY
+    ? docEntries.concat(nonDocEntries)
+    : docEntries.concat(nonDocEntries).slice(0, budgetForFiles);
 
   if (config.showFolderGroups) {
     const folderMap = new Map();
@@ -113,12 +117,13 @@ function buildGraph(commits, currentTimeIndex, config, prevPositions) {
     }
 
     const recentCommitFiles = new Set((commits[upto]?.files || []).map((f) => f.path));
-    const importantFiles = sortedFiles.slice(0, Math.min(20, Math.floor(config.maxNodes / 5)));
+    const importantLimit = config.maxNodes > 0 ? Math.min(20, Math.floor(config.maxNodes / 5)) : 20;
+    const importantFiles = sortedFiles.slice(0, importantLimit);
 
     for (const [filePath, { file, commits: fileCommits }] of sortedFiles) {
       const isRecent = recentCommitFiles.has(filePath);
       const isImportant = importantFiles.some((entry) => entry[0] === filePath);
-      if (isRecent || isImportant) {
+      if (config.includeAllFiles || isRecent || isImportant) {
         const loc = Math.max(0, file.lines_after ?? file.loc ?? file.size ?? 0);
         const r = config.sizeByLOC ? Math.min(16, Math.max(4, loc > 0 ? Math.sqrt(loc) * 0.3 : 6)) : 8;
         nodeMap.set(filePath, {
@@ -169,9 +174,13 @@ function buildGraph(commits, currentTimeIndex, config, prevPositions) {
   const others = allNodes.filter((n) => !mustKeep.has(n.id));
 
   const finalNodes = commitNodes.concat(docNodes);
-  for (const n of others) {
-    if (finalNodes.length >= Math.max(config.maxNodes, finalNodes.length)) break;
-    finalNodes.push(n);
+  if (config.maxNodes > 0) {
+    for (const n of others) {
+      if (finalNodes.length >= Math.max(config.maxNodes, finalNodes.length)) break;
+      finalNodes.push(n);
+    }
+  } else {
+    finalNodes.push(...others);
   }
 
   const allowed = new Set(finalNodes.map((n) => n.id));
@@ -296,8 +305,16 @@ function renderSvg(commits, graph, config, prevPositions) {
     .alphaDecay(0.05)
     .velocityDecay(0.4);
 
+  const totalNodes = graph.nodes.length;
+  const totalLinks = graph.links.length;
+  const baseTicks = config.relaxTicksMin ?? 180;
+  const maxTicks = config.relaxTicksMax ?? 520;
+  const factor = config.relaxTicksFactor ?? 35;
+  const dynamic = Math.round(Math.log1p(totalNodes + totalLinks) * factor);
+  const tickCount = Math.min(maxTicks, Math.max(baseTicks, baseTicks + dynamic));
+
   sim.stop();
-  for (let i = 0; i < 150; i += 1) {
+  for (let i = 0; i < tickCount; i += 1) {
     sim.tick();
   }
 
@@ -471,9 +488,9 @@ async function main() {
   const api = process.argv.includes('--api') ? process.argv[process.argv.indexOf('--api') + 1] : 'http://localhost:8080';
   const outputDir = process.argv.includes('--output-dir') ? process.argv[process.argv.indexOf('--output-dir') + 1] : path.join(repoRoot, 'exports', 'dev-graph');
   const limit = process.argv.includes('--limit') ? parseInt(process.argv[process.argv.indexOf('--limit') + 1], 10) : 5000;
-  const maxFiles = process.argv.includes('--max-files') ? parseInt(process.argv[process.argv.indexOf('--max-files') + 1], 10) : 50;
+  const maxFiles = process.argv.includes('--max-files') ? parseInt(process.argv[process.argv.indexOf('--max-files') + 1], 10) : 0;
   const fps = process.argv.includes('--fps') ? parseInt(process.argv[process.argv.indexOf('--fps') + 1], 10) : 6;
-  const maxNodes = process.argv.includes('--max-nodes') ? parseInt(process.argv[process.argv.indexOf('--max-nodes') + 1], 10) : 400;
+  const maxNodes = process.argv.includes('--max-nodes') ? parseInt(process.argv[process.argv.indexOf('--max-nodes') + 1], 10) : 0;
   const width = process.argv.includes('--width') ? parseInt(process.argv[process.argv.indexOf('--width') + 1], 10) : 1200;
   const height = process.argv.includes('--height') ? parseInt(process.argv[process.argv.indexOf('--height') + 1], 10) : 600;
   const colorMode = process.argv.includes('--color-mode') ? process.argv[process.argv.indexOf('--color-mode') + 1] : 'folder';
@@ -487,6 +504,13 @@ async function main() {
   const autoFitPadding = process.argv.includes('--auto-fit-padding') ? parseInt(process.argv[process.argv.indexOf('--auto-fit-padding') + 1], 10) : 80;
   const autoFitMotion = parseBool(process.argv[process.argv.indexOf('--auto-fit-motion') + 1], true);
   const autoFitMotionAlpha = process.argv.includes('--auto-fit-motion-alpha') ? parseFloat(process.argv[process.argv.indexOf('--auto-fit-motion-alpha') + 1]) : 0.25;
+  const includeAllFiles = parseBool(process.argv[process.argv.indexOf('--include-all-files') + 1], true);
+  const relaxTicksMin = process.argv.includes('--relax-ticks-min') ? parseInt(process.argv[process.argv.indexOf('--relax-ticks-min') + 1], 10) : 180;
+  const relaxTicksMax = process.argv.includes('--relax-ticks-max') ? parseInt(process.argv[process.argv.indexOf('--relax-ticks-max') + 1], 10) : 520;
+  const relaxTicksFactor = process.argv.includes('--relax-ticks-factor') ? parseInt(process.argv[process.argv.indexOf('--relax-ticks-factor') + 1], 10) : 35;
+  const downscaleOnFail = parseBool(process.argv[process.argv.indexOf('--downscale-on-fail') + 1], true);
+  const downscaleFactor = process.argv.includes('--downscale-factor') ? parseFloat(process.argv[process.argv.indexOf('--downscale-factor') + 1]) : 0.85;
+  const downscaleRetries = process.argv.includes('--downscale-retries') ? parseInt(process.argv[process.argv.indexOf('--downscale-retries') + 1], 10) : 3;
   const activeFolders = process.argv.includes('--active-folders')
     ? process.argv[process.argv.indexOf('--active-folders') + 1].split(',').map((s) => s.trim()).filter(Boolean)
     : [];
@@ -501,7 +525,11 @@ async function main() {
   const focusCommit = process.argv.includes('--focus-commit') ? process.argv[process.argv.indexOf('--focus-commit') + 1] : null;
   const focusWindow = process.argv.includes('--focus-window') ? parseInt(process.argv[process.argv.indexOf('--focus-window') + 1], 10) : 10;
 
-  const data = await fetchJson(`${api.replace(/\/$/, '')}/api/v1/dev-graph/evolution/timeline?limit=${limit}&max_files_per_commit=${maxFiles}`);
+  const apiBase = api.replace(/\/$/, '');
+  const timelineUrl = maxFiles > 0
+    ? `${apiBase}/api/v1/dev-graph/evolution/timeline?limit=${limit}&max_files_per_commit=${maxFiles}`
+    : `${apiBase}/api/v1/dev-graph/evolution/timeline?limit=${limit}`;
+  const data = await fetchJson(timelineUrl);
   const commits = data.commits || [];
   if (!commits.length) throw new Error('No commits returned');
 
@@ -523,6 +551,10 @@ async function main() {
     autoFitPadding,
     autoFitMotion,
     autoFitMotionAlpha,
+    includeAllFiles,
+    relaxTicksMin,
+    relaxTicksMax,
+    relaxTicksFactor,
   };
 
   let ranges = [];
@@ -558,27 +590,58 @@ async function main() {
   fs.mkdirSync(outputDir, { recursive: true });
   const prevPositions = new Map();
 
+  const clearDir = (dir) => {
+    if (!fs.existsSync(dir)) return;
+    fs.readdirSync(dir).forEach((file) => {
+      const full = path.join(dir, file);
+      if (fs.lstatSync(full).isDirectory()) {
+        clearDir(full);
+        fs.rmdirSync(full);
+      } else {
+        fs.unlinkSync(full);
+      }
+    });
+  };
+
   for (const segment of ranges) {
-    const frameDir = path.join(outputDir, 'timeline-frames', segment.label);
-    const rasterDir = path.join(frameDir, '_raster');
-    fs.mkdirSync(frameDir, { recursive: true });
-    fs.mkdirSync(rasterDir, { recursive: true });
+    let attempt = 0;
+    let success = false;
+    while (!success) {
+      const frameDir = path.join(outputDir, 'timeline-frames', segment.label);
+      const rasterDir = path.join(frameDir, '_raster');
+      fs.mkdirSync(frameDir, { recursive: true });
+      fs.mkdirSync(rasterDir, { recursive: true });
+      clearDir(frameDir);
+      fs.mkdirSync(rasterDir, { recursive: true });
 
-    for (let idx = segment.start; idx <= segment.end; idx += 1) {
-      const graph = buildGraph(commits, idx, config, prevPositions);
-      const svgText = renderSvg(commits, graph, config, prevPositions);
-      const frameIndex = idx - segment.start + 1;
-      const svgPath = path.join(frameDir, `frame_${String(frameIndex).padStart(4, '0')}.svg`);
-      const pngPath = path.join(rasterDir, `frame_${String(frameIndex).padStart(4, '0')}.png`);
-      fs.writeFileSync(svgPath, svgText, 'utf8');
-      rasterizeSvg(svgText, pngPath, config.width);
+      try {
+        for (let idx = segment.start; idx <= segment.end; idx += 1) {
+          const graph = buildGraph(commits, idx, config, prevPositions);
+          const svgText = renderSvg(commits, graph, config, prevPositions);
+          const frameIndex = idx - segment.start + 1;
+          const svgPath = path.join(frameDir, `frame_${String(frameIndex).padStart(4, '0')}.svg`);
+          const pngPath = path.join(rasterDir, `frame_${String(frameIndex).padStart(4, '0')}.png`);
+          fs.writeFileSync(svgPath, svgText, 'utf8');
+          rasterizeSvg(svgText, pngPath, config.width);
+        }
+
+        runFfmpeg(path.join(rasterDir, 'frame_%04d.png'), path.join(outputDir, `timeline-${segment.label}.mp4`), fps);
+        runGif(path.join(rasterDir, 'frame_%04d.png'), path.join(outputDir, `timeline-${segment.label}.gif`));
+
+        fs.readdirSync(rasterDir).forEach((file) => fs.unlinkSync(path.join(rasterDir, file)));
+        fs.rmdirSync(rasterDir);
+        success = true;
+      } catch (err) {
+        if (!downscaleOnFail || attempt >= downscaleRetries) {
+          throw err;
+        }
+        attempt += 1;
+        config.width = Math.max(480, Math.floor(config.width * downscaleFactor));
+        config.height = Math.max(270, Math.floor(config.height * downscaleFactor));
+        prevPositions.clear();
+        clearDir(frameDir);
+      }
     }
-
-    runFfmpeg(path.join(rasterDir, 'frame_%04d.png'), path.join(outputDir, `timeline-${segment.label}.mp4`), fps);
-    runGif(path.join(rasterDir, 'frame_%04d.png'), path.join(outputDir, `timeline-${segment.label}.gif`));
-
-    fs.readdirSync(rasterDir).forEach((file) => fs.unlinkSync(path.join(rasterDir, file)));
-    fs.rmdirSync(rasterDir);
   }
 
   console.log('SVG parity timeline exports complete.');
