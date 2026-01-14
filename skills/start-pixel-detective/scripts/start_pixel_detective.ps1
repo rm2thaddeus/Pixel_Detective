@@ -113,6 +113,23 @@ function Open-PageUrl {
   Start-Process ($BaseUrl + $Path)
 }
 
+function Stop-AppProcesses {
+  param([string]$RepoRoot)
+  $patterns = @(
+    'backend\.ml_inference_fastapi_app',
+    'backend\.ingestion_orchestration_fastapi_app',
+    'frontend.*npm run dev',
+    'frontend.*next dev'
+  )
+  $procs = Get-CimInstance Win32_Process | Where-Object { $_.CommandLine }
+  foreach ($pattern in $patterns) {
+    $matches = $procs | Where-Object { $_.CommandLine -match $pattern -and $_.CommandLine -match [regex]::Escape($RepoRoot) }
+    foreach ($proc in $matches) {
+      try { Stop-Process -Id $proc.ProcessId -Force } catch {}
+    }
+  }
+}
+
 $repoRoot = Resolve-RepoRoot
 if (-not $repoRoot) {
   Write-Host 'Error: Could not find repo root with start_pixel_detective.ps1' -ForegroundColor Red
@@ -182,6 +199,7 @@ switch ($Mode) {
   }
   'stop' {
     docker compose down
-    Write-Host 'Close any uvicorn or npm windows that are still running.' -ForegroundColor Yellow
+    Stop-AppProcesses -RepoRoot $repoRoot
+    Write-Host 'Stopped Docker services and attempted to close uvicorn/npm processes.' -ForegroundColor Yellow
   }
 }

@@ -37,6 +37,7 @@ Generate standalone exports (no UI) and manage collections for Pixel Detective.
   - Select: `python skills/pixel-detective-exports/scripts/manage_collections.py --action select --collection my_collection`
   - Delete: `python skills/pixel-detective-exports/scripts/manage_collections.py --action delete --collection my_collection`
   - Merge: `python skills/pixel-detective-exports/scripts/manage_collections.py --action merge --dest merged_collection --sources a,b,c`
+  - Qdrant fallback listing: `python skills/pixel-detective-exports/scripts/manage_collections.py --action list --qdrant http://localhost:6333`
 
 ## Notes
 - HDBSCAN clustering is performed by the GPU UMAP service; the ingestion service does not offer HDBSCAN.

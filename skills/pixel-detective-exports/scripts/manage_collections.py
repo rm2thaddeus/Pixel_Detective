@@ -11,10 +11,15 @@ def request_json(method: str, url: str, **kwargs) -> Any:
         raise RuntimeError(f"{method} {url} failed: {resp.status_code} {resp.text}")
     return resp.json() if resp.text else {}
 
+def list_collections_qdrant(qdrant_base: str) -> List[str]:
+    data = request_json("GET", f"{qdrant_base}/collections")
+    collections = data.get("result", {}).get("collections", [])
+    return [c.get("name") for c in collections if c.get("name")]
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Manage Qdrant collections via ingestion API.")
     parser.add_argument("--api", default="http://localhost:8002")
+    parser.add_argument("--qdrant", default="http://localhost:6333")
     parser.add_argument("--action", required=True, choices=[
         "list", "info", "create", "delete", "select", "active", "merge", "from-selection"
     ])
@@ -27,10 +32,16 @@ def main() -> int:
     args = parser.parse_args()
 
     api_base = args.api.rstrip("/")
+    qdrant_base = args.qdrant.rstrip("/")
     action = args.action
 
     if action == "list":
-        data = request_json("GET", f"{api_base}/api/v1/collections")
+        try:
+            data = request_json("GET", f"{api_base}/api/v1/collections")
+        except Exception:
+            data = []
+        if isinstance(data, list) and not data:
+            data = list_collections_qdrant(qdrant_base)
     elif action == "info":
         if not args.collection:
             raise RuntimeError("--collection is required for info")

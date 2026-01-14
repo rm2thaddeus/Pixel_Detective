@@ -54,7 +54,7 @@ When launching uvicorn or npm, use new terminal windows so the main session stay
 
 6. Stop sequence
 - `docker compose down`
-- Remind the user to close any uvicorn or npm windows still running.
+- The script attempts to close uvicorn and npm windows tied to this repo.
 
 ## Notes
 - The GPU UMAP service can fail without blocking the rest. Treat it as optional.

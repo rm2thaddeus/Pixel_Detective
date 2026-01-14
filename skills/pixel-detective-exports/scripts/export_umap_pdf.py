@@ -22,6 +22,11 @@ def ensure_health(api_base: str) -> None:
 def list_collections(api_base: str) -> List[str]:
     return request_json("GET", f"{api_base}/api/v1/collections")
 
+def list_collections_qdrant(qdrant_base: str) -> List[str]:
+    data = request_json("GET", f"{qdrant_base}/collections")
+    collections = data.get("result", {}).get("collections", [])
+    return [c.get("name") for c in collections if c.get("name")]
+
 
 def select_collection(api_base: str, collection: str) -> None:
     request_json("POST", f"{api_base}/api/v1/collections/select", json={"collection_name": collection})
@@ -234,6 +239,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Export UMAP + HDBSCAN for all collections into a PDF.")
     parser.add_argument("--api", default="http://localhost:8002")
     parser.add_argument("--gpu-api", default="http://localhost:8003")
+    parser.add_argument("--qdrant", default="http://localhost:6333")
     parser.add_argument("--sample-size", type=int, default=500)
     parser.add_argument("--full", action="store_true")
     parser.add_argument("--min-cluster-size", type=int, default=5)
@@ -245,10 +251,13 @@ def main() -> int:
 
     api_base = args.api.rstrip("/")
     gpu_base = args.gpu_api.rstrip("/")
+    qdrant_base = args.qdrant.rstrip("/")
     ensure_health(api_base)
     request_json("GET", f"{gpu_base}/health")
 
     collections = list_collections(api_base)
+    if not collections:
+        collections = list_collections_qdrant(qdrant_base)
     if not collections:
         raise RuntimeError("No collections found.")
 
