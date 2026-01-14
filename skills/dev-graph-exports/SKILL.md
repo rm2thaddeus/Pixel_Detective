@@ -35,6 +35,7 @@ Generate exportable assets that match the Dev Graph UI.
   - Styling: `--color-mode folder|type|commit-flow|activity|none`, `--highlight-docs true|false`, `--edge-emphasis 0.0-1.0`
   - Filtering: `--active-folders "backend,frontend"`, `--include-patterns "docs,/\\.md$/"`
   - Canvas size: `--width 1200 --height 600`
+  - Auto-fit (zoom out to see full shape): `--auto-fit true` (default) and `--auto-fit-padding 80`
   - Data volume: `--limit 5000 --max-files 50` (API request options)
 
 ### Per-commit SVG frames

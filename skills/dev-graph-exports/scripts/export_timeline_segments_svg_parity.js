@@ -305,6 +305,33 @@ function renderSvg(commits, graph, config, prevPositions) {
     prevPositions.set(node.id, { x: node.x, y: node.y });
   }
 
+  if (config.autoFit) {
+    const padding = Math.max(0, config.autoFitPadding || 80);
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    for (const node of graph.nodes) {
+      const radius = node.radius || 0;
+      minX = Math.min(minX, node.x - radius);
+      minY = Math.min(minY, node.y - radius);
+      maxX = Math.max(maxX, node.x + radius);
+      maxY = Math.max(maxY, node.y + radius);
+    }
+    if (Number.isFinite(minX) && Number.isFinite(minY) && Number.isFinite(maxX) && Number.isFinite(maxY)) {
+      const viewWidth = Math.max(1, maxX - minX);
+      const viewHeight = Math.max(1, maxY - minY);
+      const scale = Math.min(
+        (config.width - padding * 2) / viewWidth,
+        (config.height - padding * 2) / viewHeight,
+        1.2
+      );
+      const translateX = (config.width / 2) - ((minX + maxX) / 2) * scale;
+      const translateY = (config.height / 2) - ((minY + maxY) / 2) * scale;
+      root.attr('transform', `translate(${translateX}, ${translateY}) scale(${scale})`);
+    }
+  }
+
   const colors = computeColors(graph.nodes, commits, config);
   const currentCommitFiles = new Set((commits[graph.upto]?.files || []).map((f) => f.path));
 
@@ -445,6 +472,8 @@ async function main() {
   const sizeByLOC = parseBool(process.argv[process.argv.indexOf('--size-by-loc') + 1], true);
   const highlightDocs = parseBool(process.argv[process.argv.indexOf('--highlight-docs') + 1], true);
   const filterMode = process.argv.includes('--filter-mode') ? process.argv[process.argv.indexOf('--filter-mode') + 1] : 'dim';
+  const autoFit = parseBool(process.argv[process.argv.indexOf('--auto-fit') + 1], true);
+  const autoFitPadding = process.argv.includes('--auto-fit-padding') ? parseInt(process.argv[process.argv.indexOf('--auto-fit-padding') + 1], 10) : 80;
   const activeFolders = process.argv.includes('--active-folders')
     ? process.argv[process.argv.indexOf('--active-folders') + 1].split(',').map((s) => s.trim()).filter(Boolean)
     : [];
@@ -475,6 +504,8 @@ async function main() {
     activeFolders,
     includePatterns,
     filterMode,
+    autoFit,
+    autoFitPadding,
   };
 
   let ranges = [];
