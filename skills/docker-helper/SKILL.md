@@ -31,7 +31,14 @@ Use this skill to read Docker state for the repo and list stored data sources.
 ## Script
 - Run: `powershell -ExecutionPolicy Bypass -File skills\docker-helper\scripts\docker_inventory.ps1`
 - With volume details: `-ShowVolumes`
+- List capabilities: `-ListCapabilities`
+- Action examples:
+  - `-Action status`
+  - `-Action start -Target neo4j`
+  - `-Action stop -Target dev_graph_api`
+  - `-Action restart -Target qdrant_db`
+  - `-Action logs -Target dev_graph_ui -LogsTail 200`
 
 ## Notes
-- This skill only inspects Docker state; it does not start or stop services.
+- This skill can start/stop/restart services via docker compose in the repo root.
 - The compose file may warn that the `version` field is obsolete; ignore the warning.
