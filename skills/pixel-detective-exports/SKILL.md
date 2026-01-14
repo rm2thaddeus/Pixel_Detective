@@ -20,6 +20,12 @@ Generate standalone exports (no UI) and manage collections for Pixel Detective.
 - Example:
   - `python skills/pixel-detective-exports/scripts/export_umap_hdbscan.py --collection my_collection --sample-size 2000`
 
+### UMAP PDF report (all collections)
+- Script: `python skills/pixel-detective-exports/scripts/export_umap_pdf.py`
+- Output default: `exports/pixel-detective/umap/umap_cluster_report.pdf`
+- Example:
+  - `python skills/pixel-detective-exports/scripts/export_umap_pdf.py --sample-size 500 --title "Pixel Detective · UMAP Clusters"`
+
 ## Collection management
 
 ### Manage collections via API (Qdrant in Docker)

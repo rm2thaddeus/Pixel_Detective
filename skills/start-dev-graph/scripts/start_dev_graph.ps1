@@ -9,7 +9,7 @@ param(
 function Resolve-RepoRoot {
   $current = Resolve-Path $PSScriptRoot
   for ($i = 0; $i -lt 6; $i++) {
-    if (Test-Path (Join-Path $current 'start_dev_graph.ps1')) {
+    if ((Test-Path (Join-Path $current 'docker-compose.yml')) -and (Test-Path (Join-Path $current 'developer_graph')) -and (Test-Path (Join-Path $current 'tools'))) {
       return $current
     }
     $parent = Split-Path $current -Parent
@@ -32,7 +32,7 @@ function Start-WindowProcess {
   param(
     [string]$Command
   )
-  Start-Process pwsh -ArgumentList '-NoExit', '-Command', $Command -WindowStyle Normal
+  Start-Process powershell -ArgumentList '-NoExit', '-Command', $Command -WindowStyle Normal
 }
 
 function Test-Port {
