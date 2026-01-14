@@ -1,0 +1,126 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>{{TITLE}}</title>
+  <style>
+    @page { size: A4; margin: 24pt; }
+    :root {
+      --bg: #0b0e13;
+      --bg-2: #0f141d;
+      --card: #141a24;
+      --card-border: #202939;
+      --text: #e5e7eb;
+      --muted: #9ca3af;
+      --accent: #3182ce;
+      --accent-2: #0ea5a5;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      color: var(--text);
+      background: radial-gradient(1200px 600px at 10% 0%, #101826 0%, var(--bg) 45%, var(--bg-2) 100%);
+      font-family: Arial, Helvetica, sans-serif;
+      -webkit-print-color-adjust: exact;
+    }
+    .page {
+      min-height: 100vh;
+      padding: 16pt;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      gap: 12pt;
+      padding: 12pt 14pt;
+      background: linear-gradient(135deg, #141a24 0%, #0f141d 100%);
+      border: 1px solid var(--card-border);
+      border-radius: 12pt;
+    }
+    .title {
+      font-size: 20pt;
+      font-weight: 700;
+      letter-spacing: 0.2pt;
+    }
+    .subtitle {
+      font-size: 10pt;
+      color: var(--muted);
+      margin-top: 4pt;
+    }
+    .meta {
+      text-align: right;
+      font-size: 9pt;
+      color: var(--muted);
+    }
+    .accent-line {
+      height: 2pt;
+      margin: 12pt 0 10pt 0;
+      background: linear-gradient(90deg, var(--accent), var(--accent-2));
+      border-radius: 999pt;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12pt;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--card-border);
+      border-radius: 12pt;
+      padding: 12pt;
+      box-shadow: 0 6pt 18pt rgba(0, 0, 0, 0.3);
+    }
+    .card h3 {
+      margin: 0 0 8pt 0;
+      font-size: 11pt;
+      letter-spacing: 0.3pt;
+      color: var(--accent);
+      text-transform: uppercase;
+    }
+    .card ul {
+      margin: 0;
+      padding-left: 14pt;
+      font-size: 9.5pt;
+      color: var(--text);
+    }
+    .card li { margin-bottom: 6pt; }
+    .footer {
+      margin-top: 12pt;
+      font-size: 8pt;
+      color: var(--muted);
+      display: flex;
+      justify-content: space-between;
+    }
+    .badge {
+      display: inline-block;
+      padding: 2pt 6pt;
+      border-radius: 999pt;
+      background: rgba(49, 130, 206, 0.2);
+      color: #cfe3ff;
+      border: 1px solid rgba(49, 130, 206, 0.5);
+      font-size: 8pt;
+      text-transform: uppercase;
+      letter-spacing: 0.6pt;
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="header">
+      <div>
+        <div class="title">{{TITLE}}</div>
+        <div class="subtitle">{{SUBTITLE}}</div>
+      </div>
+      <div class="meta">{{META}}</div>
+    </div>
+    <div class="accent-line"></div>
+    <div class="grid">
+      {{CARDS}}
+    </div>
+    <div class="footer">
+      <span>{{FOOTER_LEFT}}</span>
+      <span class="badge">PIXEL DETECTIVE</span>
+    </div>
+  </div>
+</body>
+</html>
