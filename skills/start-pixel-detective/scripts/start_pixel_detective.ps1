@@ -3,7 +3,8 @@ param(
   [string]$Mode = 'full',
   [string]$Page = '',
   [switch]$Open,
-  [switch]$UseGpuUmap
+  [switch]$UseGpuUmap,
+  [switch]$SkipWait
 )
 
 function Resolve-RepoRoot {
@@ -33,6 +34,65 @@ function Start-WindowProcess {
     [string]$Command
   )
   Start-Process pwsh -ArgumentList '-NoExit', '-Command', $Command -WindowStyle Normal
+}
+
+function Test-Port {
+  param([int]$Port)
+  $result = Test-NetConnection -ComputerName 'localhost' -Port $Port -WarningAction SilentlyContinue
+  return [bool]$result.TcpTestSucceeded
+}
+
+function Wait-Port {
+  param(
+    [int]$Port,
+    [int]$TimeoutSec = 60
+  )
+  $start = Get-Date
+  while (((Get-Date) - $start).TotalSeconds -lt $TimeoutSec) {
+    if (Test-Port -Port $Port) { return $true }
+    Start-Sleep -Seconds 2
+  }
+  return $false
+}
+
+function Test-Http {
+  param([string]$Url)
+  try {
+    $resp = Invoke-WebRequest -Uri $Url -UseBasicParsing -TimeoutSec 5
+    return ($resp.StatusCode -ge 200 -and $resp.StatusCode -lt 500)
+  } catch {
+    return $false
+  }
+}
+
+function Write-ReadySummary {
+  param(
+    [string]$UiUrl,
+    [string]$MlUrl,
+    [string]$IngestUrl,
+    [string]$UmapUrl
+  )
+  Write-Host 'Ready summary:' -ForegroundColor Cyan
+  foreach ($port in 6333,8001,8002,8003,3000) {
+    $state = if (Test-Port -Port $port) { 'open' } else { 'closed' }
+    Write-Host ("Port {0}: {1}" -f $port, $state)
+  }
+  if ($MlUrl) {
+    $mlOk = Test-Http -Url ($MlUrl.TrimEnd('/') + '/docs')
+    Write-Host ("ML  {0}: {1}" -f $MlUrl, ($(if ($mlOk) { 'ok' } else { 'unreachable' })))
+  }
+  if ($IngestUrl) {
+    $ingestOk = Test-Http -Url ($IngestUrl.TrimEnd('/') + '/docs')
+    Write-Host ("Ingest {0}: {1}" -f $IngestUrl, ($(if ($ingestOk) { 'ok' } else { 'unreachable' })))
+  }
+  if ($UmapUrl) {
+    $umapOk = Test-Http -Url $UmapUrl
+    Write-Host ("UMAP {0}: {1}" -f $UmapUrl, ($(if ($umapOk) { 'ok' } else { 'unreachable' })))
+  }
+  if ($UiUrl) {
+    $uiOk = Test-Http -Url $UiUrl
+    Write-Host ("UI  {0}: {1}" -f $UiUrl, ($(if ($uiOk) { 'ok' } else { 'unreachable' })))
+  }
 }
 
 function Open-PageUrl {
@@ -67,10 +127,21 @@ if (-not (Test-Docker)) {
 }
 
 $baseUrl = 'http://localhost:3000'
+$mlUrl = 'http://localhost:8001'
+$ingestUrl = 'http://localhost:8002'
+$umapUrl = 'http://localhost:8003'
+$umapTarget = if ($UseGpuUmap) { $umapUrl } else { $null }
 
 switch ($Mode) {
   'full' {
     & "$repoRoot\start_pixel_detective.ps1"
+    if (-not $SkipWait) {
+      Wait-Port -Port 8001 -TimeoutSec 120 | Out-Null
+      Wait-Port -Port 8002 -TimeoutSec 120 | Out-Null
+      Wait-Port -Port 3000 -TimeoutSec 120 | Out-Null
+      if ($UseGpuUmap) { Wait-Port -Port 8003 -TimeoutSec 120 | Out-Null }
+      Write-ReadySummary -UiUrl $baseUrl -MlUrl $mlUrl -IngestUrl $ingestUrl -UmapUrl $umapTarget
+    }
     Open-PageUrl -BaseUrl $baseUrl -Path $Page
   }
   'backend' {
@@ -82,6 +153,12 @@ switch ($Mode) {
     }
     Start-WindowProcess -Command "cd '$repoRoot'; uvicorn backend.ml_inference_fastapi_app.main:app --port 8001 --reload"
     Start-WindowProcess -Command "cd '$repoRoot'; uvicorn backend.ingestion_orchestration_fastapi_app.main:app --port 8002 --reload"
+    if (-not $SkipWait) {
+      Wait-Port -Port 8001 -TimeoutSec 120 | Out-Null
+      Wait-Port -Port 8002 -TimeoutSec 120 | Out-Null
+      if ($UseGpuUmap) { Wait-Port -Port 8003 -TimeoutSec 120 | Out-Null }
+      Write-ReadySummary -UiUrl $null -MlUrl $mlUrl -IngestUrl $ingestUrl -UmapUrl $umapTarget
+    }
   }
   'services' {
     docker compose up -d qdrant_db
@@ -93,15 +170,15 @@ switch ($Mode) {
   }
   'frontend' {
     Start-WindowProcess -Command "cd '$repoRoot\frontend'; npm run dev"
+    if (-not $SkipWait) {
+      Wait-Port -Port 3000 -TimeoutSec 120 | Out-Null
+      Write-ReadySummary -UiUrl $baseUrl -MlUrl $null -IngestUrl $null -UmapUrl $null
+    }
     Open-PageUrl -BaseUrl $baseUrl -Path $Page
   }
   'status' {
     docker compose ps
-    foreach ($port in 6333,8001,8002,8003,3000) {
-      $result = Test-NetConnection -ComputerName 'localhost' -Port $port -WarningAction SilentlyContinue
-      $state = if ($result.TcpTestSucceeded) { 'open' } else { 'closed' }
-      Write-Host ("Port {0}: {1}" -f $port, $state)
-    }
+    Write-ReadySummary -UiUrl $baseUrl -MlUrl $mlUrl -IngestUrl $ingestUrl -UmapUrl $umapTarget
   }
   'stop' {
     docker compose down

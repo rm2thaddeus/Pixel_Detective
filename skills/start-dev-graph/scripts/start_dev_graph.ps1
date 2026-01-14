@@ -2,7 +2,8 @@ param(
   [ValidateSet('full','backend','services','frontend','status','stop')]
   [string]$Mode = 'full',
   [string]$Page = '',
-  [switch]$Open
+  [switch]$Open,
+  [switch]$SkipWait
 )
 
 function Resolve-RepoRoot {
@@ -32,6 +33,55 @@ function Start-WindowProcess {
     [string]$Command
   )
   Start-Process pwsh -ArgumentList '-NoExit', '-Command', $Command -WindowStyle Normal
+}
+
+function Test-Port {
+  param([int]$Port)
+  $result = Test-NetConnection -ComputerName 'localhost' -Port $Port -WarningAction SilentlyContinue
+  return [bool]$result.TcpTestSucceeded
+}
+
+function Wait-Port {
+  param(
+    [int]$Port,
+    [int]$TimeoutSec = 60
+  )
+  $start = Get-Date
+  while (((Get-Date) - $start).TotalSeconds -lt $TimeoutSec) {
+    if (Test-Port -Port $Port) { return $true }
+    Start-Sleep -Seconds 2
+  }
+  return $false
+}
+
+function Test-Http {
+  param([string]$Url)
+  try {
+    $resp = Invoke-WebRequest -Uri $Url -UseBasicParsing -TimeoutSec 5
+    return ($resp.StatusCode -ge 200 -and $resp.StatusCode -lt 500)
+  } catch {
+    return $false
+  }
+}
+
+function Write-ReadySummary {
+  param(
+    [string]$ApiUrl,
+    [string]$UiUrl
+  )
+  Write-Host 'Ready summary:' -ForegroundColor Cyan
+  foreach ($port in 7474,7687,8080,3001) {
+    $state = if (Test-Port -Port $port) { 'open' } else { 'closed' }
+    Write-Host ("Port {0}: {1}" -f $port, $state)
+  }
+  if ($ApiUrl) {
+    $apiOk = Test-Http -Url ($ApiUrl.TrimEnd('/') + '/api/v1/dev-graph/stats')
+    Write-Host ("API {0}: {1}" -f $ApiUrl, ($(if ($apiOk) { 'ok' } else { 'unreachable' })))
+  }
+  if ($UiUrl) {
+    $uiOk = Test-Http -Url $UiUrl
+    Write-Host ("UI  {0}: {1}" -f $UiUrl, ($(if ($uiOk) { 'ok' } else { 'unreachable' })))
+  }
 }
 
 function Open-PageUrl {
@@ -66,30 +116,40 @@ if (-not (Test-Docker)) {
 }
 
 $baseUrl = 'http://localhost:3001'
+$apiUrl = 'http://localhost:8080'
 
 switch ($Mode) {
   'full' {
     & "$repoRoot\start_dev_graph.ps1"
+    if (-not $SkipWait) {
+      Wait-Port -Port 8080 -TimeoutSec 120 | Out-Null
+      Wait-Port -Port 3001 -TimeoutSec 120 | Out-Null
+      Write-ReadySummary -ApiUrl $apiUrl -UiUrl $baseUrl
+    }
     Open-PageUrl -BaseUrl $baseUrl -Path $Page
   }
   'backend' {
     docker compose up -d neo4j
     Start-WindowProcess -Command "cd '$repoRoot'; uvicorn developer_graph.api:app --host 0.0.0.0 --port 8080 --reload"
+    if (-not $SkipWait) {
+      Wait-Port -Port 8080 -TimeoutSec 120 | Out-Null
+      Write-ReadySummary -ApiUrl $apiUrl -UiUrl $null
+    }
   }
   'services' {
     docker compose up -d neo4j
   }
   'frontend' {
     Start-WindowProcess -Command "cd '$repoRoot\tools\dev-graph-ui'; npm run dev"
+    if (-not $SkipWait) {
+      Wait-Port -Port 3001 -TimeoutSec 120 | Out-Null
+      Write-ReadySummary -ApiUrl $null -UiUrl $baseUrl
+    }
     Open-PageUrl -BaseUrl $baseUrl -Path $Page
   }
   'status' {
     docker compose ps
-    foreach ($port in 7474,7687,8080,3001) {
-      $result = Test-NetConnection -ComputerName 'localhost' -Port $port -WarningAction SilentlyContinue
-      $state = if ($result.TcpTestSucceeded) { 'open' } else { 'closed' }
-      Write-Host ("Port {0}: {1}" -f $port, $state)
-    }
+    Write-ReadySummary -ApiUrl $apiUrl -UiUrl $baseUrl
   }
   'stop' {
     docker compose down
