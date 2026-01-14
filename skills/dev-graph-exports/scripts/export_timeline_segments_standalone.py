@@ -93,19 +93,27 @@ def run_gif(frame_pattern: Path, output_path: Path, fps: int) -> None:
 def export_segment(commits: list[dict], start: int, end: int, label: str, output_dir: Path, fps: int) -> None:
     segment = commits[start:end + 1]
     frame_dir = output_dir / 'timeline-frames' / label
+    raster_dir = frame_dir / '_raster'
     frame_dir.mkdir(parents=True, exist_ok=True)
+    raster_dir.mkdir(parents=True, exist_ok=True)
 
     for idx, commit in enumerate(segment):
         global_index = start + idx
         frame_idx = idx + 1
-        out_png = frame_dir / f'frame_{frame_idx:04d}.png'
+        out_png = raster_dir / f'frame_{frame_idx:04d}.png'
         out_svg = frame_dir / f'frame_{frame_idx:04d}.svg'
         render_frame(commits, global_index, out_png, out_svg)
 
     mp4_path = output_dir / f'timeline-{label}.mp4'
     gif_path = output_dir / f'timeline-{label}.gif'
-    run_ffmpeg(frame_dir / 'frame_%04d.png', mp4_path, fps)
-    run_gif(frame_dir / 'frame_%04d.png', gif_path, fps)
+    run_ffmpeg(raster_dir / 'frame_%04d.png', mp4_path, fps)
+    run_gif(raster_dir / 'frame_%04d.png', gif_path, fps)
+    try:
+        for png in raster_dir.glob('*.png'):
+            png.unlink()
+        raster_dir.rmdir()
+    except OSError:
+        pass
 
 
 def main() -> None:

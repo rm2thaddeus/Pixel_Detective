@@ -32,7 +32,8 @@ Generate exportable assets that match the Dev Graph UI.
 
 ### Timeline MP4 + GIF segments (standalone, API only)
 - Script: `python skills/dev-graph-exports/scripts/export_timeline_segments_standalone.py`
-- Output default: mp4 + gif plus per-commit SVG/PNG frames under `exports/dev-graph/timeline-frames/`
+- Output default: mp4 + gif plus per-commit SVG frames under `exports/dev-graph/timeline-frames/`
+- The SVG frames are the primary artifacts; raster frames are temporary and removed after encoding.
 
 ### Per-commit SVG frames
 - Script: `python skills/dev-graph-exports/scripts/export_timeline_svgs.py`
