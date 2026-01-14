@@ -266,7 +266,13 @@ def main() -> int:
 
     for collection in collections:
         select_collection(api_base, collection)
-        projection = fetch_projection(api_base, args.sample_size, args.full)
+        try:
+            projection = fetch_projection(api_base, args.sample_size, args.full)
+        except RuntimeError as exc:
+            message = str(exc)
+            if "Collection is empty" in message or "404" in message:
+                continue
+            raise
         points = projection.get("points") or []
         if not points:
             continue
