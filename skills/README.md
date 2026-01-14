@@ -13,6 +13,7 @@ Original goals captured from this session
 
 What is scoped and implemented
 - Start Pixel Detective: automated startup for docker-only, backend-only, and full stack (backend + frontend). Includes status/stop and optional page open.
+- Pixel Detective exports: standalone UMAP projection + HDBSCAN clustering export and collection management via the ingestion API.
 - Start Dev Graph: automated startup for docker-only, backend-only, and full stack (backend + frontend). Includes status/stop.
 - Docker helper: inventory and health checks for running containers.
 - Sprint summary PDF: generate a PDF with cards from docs/sprints content (drops output per sprint folder).
@@ -77,5 +78,5 @@ Tasklist
 - [ ] Add sprint-window exports tied to sprints.json
 - [x] Add cinematic preset (relaxation + auto-fit) for timeline exports
 - [x] Add focus-commit preset docs and examples
-- [ ] Add Pixel Detective export skill with parity to Dev Graph (standalone, UI-independent)
+- [x] Add Pixel Detective export skill with parity to Dev Graph (standalone, UI-independent)
 - [ ] Add per-skill quickstart blocks and a skills index
