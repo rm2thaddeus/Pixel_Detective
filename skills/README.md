@@ -4,6 +4,7 @@ This folder contains skill definitions and helper scripts for Pixel Detective an
 
 Original goals captured from this session
 - Startup skills that “just work” on this machine: start docker-only, backend-only, or full stack; optionally open a specific page.
+- Pixel Detective skills should reach parity with Dev Graph: exports, standalone generation, and ready summaries.
 - Dev Graph exports are standalone (no UI) but require the backend API to be running.
 - Sprint summary artifacts should drop into each `docs/sprints/<sprint>/` folder by default and reflect the frontend design language.
 - Sprint perspectives should be exportable as PDF with embedded Dev Graph visuals, without requiring the UI to be open.
@@ -60,6 +61,11 @@ Plan (detailed next steps)
    - Create a short quickstart in each SKILL.md (“best command to run”).
    - Add a top-level “skills index” section with common tasks and examples.
    - Plan for future npm packaging (folder structure + entry points).
+7. Pixel Detective parity with Dev Graph
+   - Add a standalone Pixel Detective exports skill (no UI required).
+   - Support asset exports: captions, embeddings, vector snapshots, UMAP visual assets.
+   - Provide ready summaries, health checks, and consistent prompts for required services.
+   - Document where outputs are stored and how to regenerate them.
 
 Tasklist
 - [x] Align Pixel Detective and Dev Graph start scripts with identical flags and ready summaries
@@ -71,4 +77,5 @@ Tasklist
 - [ ] Add sprint-window exports tied to sprints.json
 - [x] Add cinematic preset (relaxation + auto-fit) for timeline exports
 - [x] Add focus-commit preset docs and examples
+- [ ] Add Pixel Detective export skill with parity to Dev Graph (standalone, UI-independent)
 - [ ] Add per-skill quickstart blocks and a skills index
