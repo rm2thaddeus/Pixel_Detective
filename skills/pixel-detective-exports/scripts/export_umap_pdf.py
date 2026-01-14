@@ -3,7 +3,7 @@ import base64
 import json
 import os
 from datetime import datetime
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import requests
 
@@ -39,9 +39,40 @@ def fetch_projection(api_base: str, sample_size: int, full: bool) -> Dict[str, A
     return request_json("GET", f"{api_base}/umap/projection", params=params)
 
 
-def cluster_hdbscan(gpu_base: str, points: List[Dict[str, Any]], min_cluster_size: int) -> Dict[str, Any]:
+def build_cluster_payload(
+    algorithm: str,
+    data: List[List[float]],
+    min_cluster_size: int,
+    eps: Optional[float],
+    min_samples: Optional[int],
+    n_clusters: Optional[int],
+) -> Dict[str, Any]:
+    algo = algorithm.lower()
+    payload: Dict[str, Any] = {"data": data, "algorithm": algo}
+    if algo == "hdbscan":
+        payload["min_cluster_size"] = min_cluster_size
+    elif algo == "dbscan":
+        if eps is not None:
+            payload["eps"] = eps
+        if min_samples is not None:
+            payload["min_samples"] = min_samples
+    elif algo in {"kmeans", "hierarchical"}:
+        if n_clusters is not None:
+            payload["n_clusters"] = n_clusters
+    return payload
+
+
+def cluster_points(
+    gpu_base: str,
+    points: List[Dict[str, Any]],
+    algorithm: str,
+    min_cluster_size: int,
+    eps: Optional[float],
+    min_samples: Optional[int],
+    n_clusters: Optional[int],
+) -> Dict[str, Any]:
     data = [[p["x"], p["y"]] for p in points]
-    payload = {"data": data, "algorithm": "hdbscan", "min_cluster_size": min_cluster_size}
+    payload = build_cluster_payload(algorithm, data, min_cluster_size, eps, min_samples, n_clusters)
     return request_json("POST", f"{gpu_base}/umap/cluster", json=payload)
 
 
@@ -50,15 +81,24 @@ def write_json(path: str, payload: Dict[str, Any]) -> None:
         json.dump(payload, handle, indent=2)
 
 
-def render_svg(points: List[Dict[str, Any]], out_path: str, width: int, height: int) -> None:
+def render_svg(
+    points: List[Dict[str, Any]],
+    out_path: str,
+    width: int,
+    height: int,
+    color_map: str,
+    point_size: int,
+    outlier_size: int,
+    outlier_color: str,
+) -> None:
+    import matplotlib
     import matplotlib.pyplot as plt
-    import matplotlib.cm as cm
 
     xs = [p["x"] for p in points]
     ys = [p["y"] for p in points]
     labels = [p.get("cluster_id", -1) for p in points]
     unique_labels = sorted(set(labels))
-    colors = cm.get_cmap("tab20", max(len(unique_labels), 1))
+    colors = matplotlib.colormaps.get_cmap(color_map)
 
     fig = plt.figure(figsize=(width / 100, height / 100), dpi=100)
     ax = fig.add_subplot(111)
@@ -67,11 +107,11 @@ def render_svg(points: List[Dict[str, Any]], out_path: str, width: int, height: 
 
     for idx, label in enumerate(unique_labels):
         mask = [l == label for l in labels]
-        color = "#94a3b8" if label == -1 else colors(idx)
+        color = outlier_color if label == -1 else colors(idx)
         ax.scatter(
             [x for x, m in zip(xs, mask) if m],
             [y for y, m in zip(ys, mask) if m],
-            s=12 if label == -1 else 18,
+            s=outlier_size if label == -1 else point_size,
             c=[color],
             alpha=0.75 if label == -1 else 0.9,
             linewidths=0,
@@ -112,7 +152,7 @@ def build_html(title: str, collections: List[Dict[str, Any]]) -> str:
                 <div class="meta">
                   <div class="filename">{item.get("filename","")}</div>
                   <div class="caption">{item.get("caption","")}</div>
-                  <div class="cluster">{cluster_text} · size {item.get("cluster_size", 0)}</div>
+                  <div class="cluster">{cluster_text} - size {item.get("cluster_size", 0)}</div>
                 </div>
               </div>
             """)
@@ -215,7 +255,7 @@ def build_html(title: str, collections: List[Dict[str, Any]]) -> str:
   <body>
     <header>
       <h1>{title}</h1>
-      <p>Generated {now} · UMAP + HDBSCAN summary per image</p>
+      <p>Generated {now} - UMAP + HDBSCAN summary per image</p>
     </header>
     {content}
   </body>
@@ -242,11 +282,19 @@ def main() -> int:
     parser.add_argument("--qdrant", default="http://localhost:6333")
     parser.add_argument("--sample-size", type=int, default=500)
     parser.add_argument("--full", action="store_true")
+    parser.add_argument("--cluster-algorithm", default="hdbscan")
     parser.add_argument("--min-cluster-size", type=int, default=5)
+    parser.add_argument("--eps", type=float, default=None)
+    parser.add_argument("--min-samples", type=int, default=None)
+    parser.add_argument("--n-clusters", type=int, default=None)
     parser.add_argument("--out-dir", default=os.path.join("exports", "pixel-detective", "umap"))
-    parser.add_argument("--title", default="Pixel Detective · UMAP Cluster Summary")
+    parser.add_argument("--title", default="Pixel Detective - UMAP Cluster Summary")
     parser.add_argument("--width", type=int, default=1200)
     parser.add_argument("--height", type=int, default=800)
+    parser.add_argument("--color-map", default="tab20")
+    parser.add_argument("--point-size", type=int, default=18)
+    parser.add_argument("--outlier-size", type=int, default=12)
+    parser.add_argument("--outlier-color", default="#94a3b8")
     args = parser.parse_args()
 
     api_base = args.api.rstrip("/")
@@ -277,7 +325,15 @@ def main() -> int:
         if not points:
             continue
 
-        cluster_info = cluster_hdbscan(gpu_base, points, args.min_cluster_size)
+        cluster_info = cluster_points(
+            gpu_base,
+            points,
+            args.cluster_algorithm,
+            args.min_cluster_size,
+            args.eps,
+            args.min_samples,
+            args.n_clusters,
+        )
         labels = cluster_info.get("labels", [])
 
         cluster_sizes: Dict[int, int] = {}
@@ -294,8 +350,11 @@ def main() -> int:
             "collection": collection,
             "points": points,
             "clustering": {
-                "algorithm": "hdbscan",
+                "algorithm": args.cluster_algorithm,
                 "min_cluster_size": args.min_cluster_size,
+                "eps": args.eps,
+                "min_samples": args.min_samples,
+                "n_clusters": args.n_clusters,
                 "clusters": cluster_info.get("clusters"),
                 "silhouette_score": cluster_info.get("silhouette_score"),
             },
@@ -303,9 +362,18 @@ def main() -> int:
 
         base_name = f"umap_hdbscan_{collection}"
         write_json(os.path.join(args.out_dir, f"{base_name}.json"), payload)
-        render_svg(points, os.path.join(args.out_dir, f"{base_name}.svg"), args.width, args.height)
+        render_svg(
+            points,
+            os.path.join(args.out_dir, f"{base_name}.svg"),
+            args.width,
+            args.height,
+            args.color_map,
+            args.point_size,
+            args.outlier_size,
+            args.outlier_color,
+        )
 
-        summary = f"{len(points)} points · {len(cluster_sizes)} clusters"
+        summary = f"{len(points)} points - {len(cluster_sizes)} clusters ({args.cluster_algorithm})"
         rendered_collections.append({"name": collection, "points": points, "summary": summary})
 
     html = build_html(args.title, rendered_collections)

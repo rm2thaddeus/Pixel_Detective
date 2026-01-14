@@ -19,6 +19,7 @@ Generate standalone exports (no UI) and manage collections for Pixel Detective.
 - Output default: `exports/pixel-detective/umap/umap_hdbscan_<collection>.json|csv|svg`
 - Example:
   - `python skills/pixel-detective-exports/scripts/export_umap_hdbscan.py --collection my_collection --sample-size 2000`
+  - Color controls: `--color-map tab20 --point-size 18 --outlier-size 12 --outlier-color #94a3b8`
 
 ### UMAP PDF report (all collections)
 - Script: `python skills/pixel-detective-exports/scripts/export_umap_pdf.py`

@@ -41,10 +41,19 @@ def cluster_hdbscan(gpu_base: str, points: List[Dict[str, Any]], min_cluster_siz
     return request_json("POST", f"{gpu_base}/umap/cluster", json=payload)
 
 
-def render_svg(points: List[Dict[str, Any]], out_path: str, width: int, height: int) -> None:
+def render_svg(
+    points: List[Dict[str, Any]],
+    out_path: str,
+    width: int,
+    height: int,
+    color_map: str,
+    point_size: int,
+    outlier_size: int,
+    outlier_color: str,
+) -> None:
     try:
+        import matplotlib
         import matplotlib.pyplot as plt
-        import matplotlib.cm as cm
     except Exception as exc:
         raise RuntimeError(f"matplotlib required for SVG output: {exc}")
 
@@ -52,7 +61,7 @@ def render_svg(points: List[Dict[str, Any]], out_path: str, width: int, height: 
     ys = [p["y"] for p in points]
     labels = [p.get("cluster_id", -1) for p in points]
     unique_labels = sorted(set(labels))
-    colors = cm.get_cmap("tab20", max(len(unique_labels), 1))
+    colors = matplotlib.colormaps.get_cmap(color_map)
 
     fig = plt.figure(figsize=(width / 100, height / 100), dpi=100)
     ax = fig.add_subplot(111)
@@ -61,11 +70,11 @@ def render_svg(points: List[Dict[str, Any]], out_path: str, width: int, height: 
 
     for idx, label in enumerate(unique_labels):
         mask = [l == label for l in labels]
-        color = "#94a3b8" if label == -1 else colors(idx)
+        color = outlier_color if label == -1 else colors(idx)
         ax.scatter(
             [x for x, m in zip(xs, mask) if m],
             [y for y, m in zip(ys, mask) if m],
-            s=12 if label == -1 else 18,
+            s=outlier_size if label == -1 else point_size,
             c=[color],
             alpha=0.75 if label == -1 else 0.9,
             linewidths=0,
@@ -101,6 +110,10 @@ def main() -> int:
     parser.add_argument("--width", type=int, default=1200)
     parser.add_argument("--height", type=int, default=800)
     parser.add_argument("--no-svg", action="store_true")
+    parser.add_argument("--color-map", default="tab20")
+    parser.add_argument("--point-size", type=int, default=18)
+    parser.add_argument("--outlier-size", type=int, default=12)
+    parser.add_argument("--outlier-color", default="#94a3b8")
     args = parser.parse_args()
 
     api_base = args.api.rstrip("/")
@@ -150,7 +163,16 @@ def main() -> int:
     write_csv(points, csv_path)
 
     if not args.no_svg:
-        render_svg(points, svg_path, args.width, args.height)
+        render_svg(
+            points,
+            svg_path,
+            args.width,
+            args.height,
+            args.color_map,
+            args.point_size,
+            args.outlier_size,
+            args.outlier_color,
+        )
 
     print(f"Wrote {json_path}")
     print(f"Wrote {csv_path}")
