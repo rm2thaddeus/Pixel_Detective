@@ -26,7 +26,16 @@ Generate exportable assets that match the Dev Graph UI.
 - Script: `node skills/dev-graph-exports/scripts/export_timeline_segments_svg_parity.js`
 - Output default: mp4 + gif plus per-commit SVG frames under `exports/dev-graph/timeline-frames/`
 - The SVG frames are the primary artifacts; raster frames are temporary and removed after encoding.
- - Segments: commits 1-70, 70-200, 200+.
+- Segments: commits 1-70, 70-200, 200+.
+- Key options:
+  - Range: `--range-start 0 --range-end 69` (single segment)
+  - Segments: `--segments "0-69,69-199,199-"` (dash with empty end means "to last")
+  - Graph density: `--max-nodes 400` (increase if you want file/folder nodes attached to commits)
+  - Node layout: `--show-folder-groups true|false`, `--focused-view true|false`, `--size-by-loc true|false`
+  - Styling: `--color-mode folder|type|commit-flow|activity|none`, `--highlight-docs true|false`, `--edge-emphasis 0.0-1.0`
+  - Filtering: `--active-folders "backend,frontend"`, `--include-patterns "docs,/\\.md$/"`
+  - Canvas size: `--width 1200 --height 600`
+  - Data volume: `--limit 5000 --max-files 50` (API request options)
 
 ### Per-commit SVG frames
 - Script: `python skills/dev-graph-exports/scripts/export_timeline_svgs.py`

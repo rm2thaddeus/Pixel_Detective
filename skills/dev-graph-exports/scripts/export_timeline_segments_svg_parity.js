@@ -45,6 +45,7 @@ function buildGraph(commits, currentTimeIndex, config, prevPositions) {
   const linkList = [];
   const startIndex = Math.max(0, Math.min(config.rangeStartIndex ?? 0, commits.length - 1));
   const upto = Math.max(startIndex, Math.min(currentTimeIndex, commits.length - 1));
+  const commitCountInRange = Math.max(0, upto - startIndex + 1);
 
   for (let i = startIndex; i <= upto; i += 1) {
     const c = commits[i];
@@ -74,7 +75,7 @@ function buildGraph(commits, currentTimeIndex, config, prevPositions) {
   const sortedAll = Array.from(allFiles.entries()).sort((a, b) => b[1].commits.size - a[1].commits.size);
   const docEntries = sortedAll.filter((entry) => (entry[1].file.type === 'document'));
   const nonDocEntries = sortedAll.filter((entry) => (entry[1].file.type !== 'document'));
-  const budgetForFiles = Math.max(0, config.maxNodes - commits.length - 5);
+  const budgetForFiles = Math.max(0, config.maxNodes - commitCountInRange - 5);
   const sortedFiles = docEntries.concat(nonDocEntries).slice(0, budgetForFiles);
 
   if (config.showFolderGroups) {
@@ -138,6 +139,27 @@ function buildGraph(commits, currentTimeIndex, config, prevPositions) {
         }
       }
     }
+  } else {
+    for (const [filePath, { file, commits: fileCommits }] of sortedFiles) {
+      const loc = Math.max(0, file.lines_after ?? file.loc ?? file.size ?? 0);
+      const r = config.sizeByLOC ? Math.min(16, Math.max(4, loc > 0 ? Math.sqrt(loc) * 0.3 : 6)) : 8;
+      nodeMap.set(filePath, {
+        id: filePath,
+        nodeType: 'file',
+        fileKind: file.type,
+        radius: r,
+        loc,
+        folderPath: getTopLevelFolder(file.path),
+        touchCount: fileCommits.size,
+      });
+
+      for (let i = startIndex; i <= upto; i += 1) {
+        const commitFiles = new Set((commits[i]?.files || []).map((f) => f.path));
+        if (commitFiles.has(filePath)) {
+          linkList.push({ source: commits[i].hash, target: filePath, kind: 'touch' });
+        }
+      }
+    }
   }
 
   const allNodes = Array.from(nodeMap.values());
@@ -175,6 +197,23 @@ function computeColors(nodes, commits, config) {
   const commitFlowColor = d3.scaleSequential(d3.interpolateTurbo).domain([0, Math.max(1, commits.length - 1)]);
 
   return { folderColor, activityColor, commitFlowColor };
+}
+
+function nodeInFilter(d, config) {
+  if (d.nodeType === 'commit') return true;
+  const topFolder = d.folderPath || (typeof d.id === 'string' ? d.id.split('/')[0] : '');
+  const folderOk = !config.activeFolders?.length || config.activeFolders.includes(topFolder);
+  const patternOk = !config.includePatterns?.length || config.includePatterns.some((p) => {
+    if (!p) return false;
+    try {
+      if (p.startsWith('/') && p.endsWith('/')) {
+        const re = new RegExp(p.slice(1, -1));
+        return re.test(String(d.id));
+      }
+    } catch {}
+    return String(d.id).includes(p);
+  });
+  return folderOk && patternOk;
 }
 
 function nodeFill(d, colors, commits, config) {
@@ -301,17 +340,20 @@ function renderSvg(commits, graph, config, prevPositions) {
     .attr('stroke-width', (d) => d.nodeType === 'folder' ? 2.5 : 1.5)
     .attr('opacity', (d) => {
       if (!config.focusedView) return 1.0;
+      const inFilter = nodeInFilter(d, config);
+      if (config.filterMode === 'hide' && !inFilter) return 0.02;
       if (d.nodeType === 'commit') {
         const commitIndex = commits.findIndex((c) => c.hash === d.id);
         if (commitIndex === graph.upto) return 1.0;
         if (Math.abs(commitIndex - graph.upto) <= 2) return 0.8;
-        return 0.3;
+        return inFilter ? 0.3 : 0.1;
       }
       if (graph.upto >= 0 && graph.upto < commits.length) {
         const isInCurrent = currentCommitFiles.has(d.id);
-        return isInCurrent ? 1.0 : 0.2;
+        const base = isInCurrent ? 1.0 : 0.2;
+        return inFilter ? base : Math.min(base, 0.08);
       }
-      return 0.6;
+      return inFilter ? 0.6 : 0.1;
     });
 
   if (config.highlightDocs) {
@@ -365,6 +407,27 @@ function ensureDeps() {
   }
 }
 
+function parseSegments(value) {
+  if (!value) return null;
+  const segments = [];
+  const parts = value.split(',').map((s) => s.trim()).filter(Boolean);
+  for (const part of parts) {
+    const [rawStart, rawEnd] = part.split('-');
+    const start = rawStart === '' ? 0 : parseInt(rawStart, 10);
+    const end = rawEnd === '' ? null : parseInt(rawEnd, 10);
+    if (Number.isNaN(start) || (rawEnd !== undefined && rawEnd !== '' && Number.isNaN(end))) continue;
+    segments.push({ start, end });
+  }
+  return segments.length ? segments : null;
+}
+
+function parseBool(value, defaultValue) {
+  if (value === undefined) return defaultValue;
+  if (value === 'true' || value === '1') return true;
+  if (value === 'false' || value === '0') return false;
+  return defaultValue;
+}
+
 async function main() {
   ensureDeps();
   const api = process.argv.includes('--api') ? process.argv[process.argv.indexOf('--api') + 1] : 'http://localhost:8080';
@@ -372,29 +435,66 @@ async function main() {
   const limit = process.argv.includes('--limit') ? parseInt(process.argv[process.argv.indexOf('--limit') + 1], 10) : 5000;
   const maxFiles = process.argv.includes('--max-files') ? parseInt(process.argv[process.argv.indexOf('--max-files') + 1], 10) : 50;
   const fps = process.argv.includes('--fps') ? parseInt(process.argv[process.argv.indexOf('--fps') + 1], 10) : 6;
+  const maxNodes = process.argv.includes('--max-nodes') ? parseInt(process.argv[process.argv.indexOf('--max-nodes') + 1], 10) : 400;
+  const width = process.argv.includes('--width') ? parseInt(process.argv[process.argv.indexOf('--width') + 1], 10) : 1200;
+  const height = process.argv.includes('--height') ? parseInt(process.argv[process.argv.indexOf('--height') + 1], 10) : 600;
+  const colorMode = process.argv.includes('--color-mode') ? process.argv[process.argv.indexOf('--color-mode') + 1] : 'folder';
+  const edgeEmphasis = process.argv.includes('--edge-emphasis') ? parseFloat(process.argv[process.argv.indexOf('--edge-emphasis') + 1]) : 0.4;
+  const showFolderGroups = parseBool(process.argv[process.argv.indexOf('--show-folder-groups') + 1], true);
+  const focusedView = parseBool(process.argv[process.argv.indexOf('--focused-view') + 1], true);
+  const sizeByLOC = parseBool(process.argv[process.argv.indexOf('--size-by-loc') + 1], true);
+  const highlightDocs = parseBool(process.argv[process.argv.indexOf('--highlight-docs') + 1], true);
+  const filterMode = process.argv.includes('--filter-mode') ? process.argv[process.argv.indexOf('--filter-mode') + 1] : 'dim';
+  const activeFolders = process.argv.includes('--active-folders')
+    ? process.argv[process.argv.indexOf('--active-folders') + 1].split(',').map((s) => s.trim()).filter(Boolean)
+    : [];
+  const includePatterns = process.argv.includes('--include-patterns')
+    ? process.argv[process.argv.indexOf('--include-patterns') + 1].split(',').map((s) => s.trim()).filter(Boolean)
+    : [];
+
+  const rangeStartArg = process.argv.includes('--range-start') ? parseInt(process.argv[process.argv.indexOf('--range-start') + 1], 10) : null;
+  const rangeEndArg = process.argv.includes('--range-end') ? parseInt(process.argv[process.argv.indexOf('--range-end') + 1], 10) : null;
+  const segmentArg = process.argv.includes('--segments') ? process.argv[process.argv.indexOf('--segments') + 1] : null;
+  const parsedSegments = parseSegments(segmentArg);
 
   const data = await fetchJson(`${api.replace(/\/$/, '')}/api/v1/dev-graph/evolution/timeline?limit=${limit}&max_files_per_commit=${maxFiles}`);
   const commits = data.commits || [];
   if (!commits.length) throw new Error('No commits returned');
 
   const config = {
-    width: 1200,
-    height: 600,
-    maxNodes: 100,
-    showFolderGroups: true,
-    focusedView: true,
-    sizeByLOC: true,
-    colorMode: 'folder',
-    highlightDocs: true,
-    edgeEmphasis: 0.4,
+    width,
+    height,
+    maxNodes,
+    showFolderGroups,
+    focusedView,
+    sizeByLOC,
+    colorMode,
+    highlightDocs,
+    edgeEmphasis,
     rangeStartIndex: 0,
+    activeFolders,
+    includePatterns,
+    filterMode,
   };
 
-  const ranges = [
-    { start: 0, end: Math.min(69, commits.length - 1), label: 'commits-1-70' },
-    { start: 69, end: Math.min(199, commits.length - 1), label: 'commits-70-200' },
-  ];
-  if (commits.length > 199) ranges.push({ start: 199, end: commits.length - 1, label: 'commits-200-plus' });
+  let ranges = [];
+  if (rangeStartArg !== null || rangeEndArg !== null) {
+    const start = Math.max(0, rangeStartArg ?? 0);
+    const end = Math.max(start, Math.min(rangeEndArg ?? (commits.length - 1), commits.length - 1));
+    ranges.push({ start, end, label: `commits-${start + 1}-${end + 1}` });
+  } else if (parsedSegments) {
+    ranges = parsedSegments.map((seg) => {
+      const start = Math.max(0, seg.start);
+      const end = Math.max(start, Math.min(seg.end ?? (commits.length - 1), commits.length - 1));
+      return { start, end, label: `commits-${start + 1}-${end + 1}` };
+    });
+  } else {
+    ranges = [
+      { start: 0, end: Math.min(69, commits.length - 1), label: 'commits-1-70' },
+      { start: 69, end: Math.min(199, commits.length - 1), label: 'commits-70-200' },
+    ];
+    if (commits.length > 199) ranges.push({ start: 199, end: commits.length - 1, label: 'commits-200-plus' });
+  }
 
   fs.mkdirSync(outputDir, { recursive: true });
   const prevPositions = new Map();
