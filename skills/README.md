@@ -62,13 +62,13 @@ Plan (detailed next steps)
    - Plan for future npm packaging (folder structure + entry points).
 
 Tasklist
-- [ ] Align Pixel Detective and Dev Graph start scripts with identical flags and ready summaries
-- [ ] Add docker capability mapping and MCP integration fallback logic
-- [ ] Add health checks for API readiness and basic port verification
+- [x] Align Pixel Detective and Dev Graph start scripts with identical flags and ready summaries
+- [x] Add docker capability mapping (MCP fallback still pending)
+- [x] Add health checks for API readiness and basic port verification
 - [ ] Update sprint PDF template to match frontend typography and color tokens
 - [ ] Generate one PDF per sprint folder by default (docs/sprints/*)
 - [ ] Add sprint perspectives PDF with embedded Dev Graph visuals
 - [ ] Add sprint-window exports tied to sprints.json
-- [ ] Add cinematic preset (relaxation + auto-fit) for timeline exports
-- [ ] Add focus-commit preset docs and examples
+- [x] Add cinematic preset (relaxation + auto-fit) for timeline exports
+- [x] Add focus-commit preset docs and examples
 - [ ] Add per-skill quickstart blocks and a skills index
