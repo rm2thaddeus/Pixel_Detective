@@ -36,6 +36,8 @@ Generate exportable assets that match the Dev Graph UI.
   - Filtering: `--active-folders "backend,frontend"`, `--include-patterns "docs,/\\.md$/"`
   - Canvas size: `--width 1200 --height 600`
   - Auto-fit (zoom out to see full shape): `--auto-fit true` (default) and `--auto-fit-padding 80`
+  - Auto-fit motion (smooth zoom between frames): `--auto-fit-motion true` (default), `--auto-fit-motion-alpha 0.25`
+  - Focus around a commit: `--focus-commit 120 --focus-window 10` (index) or `--focus-commit abcd123 --focus-window 12` (hash prefix)
   - Data volume: `--limit 5000 --max-files 50` (API request options)
 
 ### Per-commit SVG frames

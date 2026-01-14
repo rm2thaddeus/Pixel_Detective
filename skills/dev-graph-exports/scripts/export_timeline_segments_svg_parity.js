@@ -328,7 +328,18 @@ function renderSvg(commits, graph, config, prevPositions) {
       );
       const translateX = (config.width / 2) - ((minX + maxX) / 2) * scale;
       const translateY = (config.height / 2) - ((minY + maxY) / 2) * scale;
-      root.attr('transform', `translate(${translateX}, ${translateY}) scale(${scale})`);
+      let finalScale = scale;
+      let finalX = translateX;
+      let finalY = translateY;
+      if (config.autoFitMotion) {
+        const prev = config.prevTransform || { scale, x: translateX, y: translateY };
+        const t = Math.max(0, Math.min(1, config.autoFitMotionAlpha ?? 0.25));
+        finalScale = prev.scale + (scale - prev.scale) * t;
+        finalX = prev.x + (translateX - prev.x) * t;
+        finalY = prev.y + (translateY - prev.y) * t;
+        config.prevTransform = { scale: finalScale, x: finalX, y: finalY };
+      }
+      root.attr('transform', `translate(${finalX}, ${finalY}) scale(${finalScale})`);
     }
   }
 
@@ -474,6 +485,8 @@ async function main() {
   const filterMode = process.argv.includes('--filter-mode') ? process.argv[process.argv.indexOf('--filter-mode') + 1] : 'dim';
   const autoFit = parseBool(process.argv[process.argv.indexOf('--auto-fit') + 1], true);
   const autoFitPadding = process.argv.includes('--auto-fit-padding') ? parseInt(process.argv[process.argv.indexOf('--auto-fit-padding') + 1], 10) : 80;
+  const autoFitMotion = parseBool(process.argv[process.argv.indexOf('--auto-fit-motion') + 1], true);
+  const autoFitMotionAlpha = process.argv.includes('--auto-fit-motion-alpha') ? parseFloat(process.argv[process.argv.indexOf('--auto-fit-motion-alpha') + 1]) : 0.25;
   const activeFolders = process.argv.includes('--active-folders')
     ? process.argv[process.argv.indexOf('--active-folders') + 1].split(',').map((s) => s.trim()).filter(Boolean)
     : [];
@@ -485,6 +498,8 @@ async function main() {
   const rangeEndArg = process.argv.includes('--range-end') ? parseInt(process.argv[process.argv.indexOf('--range-end') + 1], 10) : null;
   const segmentArg = process.argv.includes('--segments') ? process.argv[process.argv.indexOf('--segments') + 1] : null;
   const parsedSegments = parseSegments(segmentArg);
+  const focusCommit = process.argv.includes('--focus-commit') ? process.argv[process.argv.indexOf('--focus-commit') + 1] : null;
+  const focusWindow = process.argv.includes('--focus-window') ? parseInt(process.argv[process.argv.indexOf('--focus-window') + 1], 10) : 10;
 
   const data = await fetchJson(`${api.replace(/\/$/, '')}/api/v1/dev-graph/evolution/timeline?limit=${limit}&max_files_per_commit=${maxFiles}`);
   const commits = data.commits || [];
@@ -506,10 +521,23 @@ async function main() {
     filterMode,
     autoFit,
     autoFitPadding,
+    autoFitMotion,
+    autoFitMotionAlpha,
   };
 
   let ranges = [];
-  if (rangeStartArg !== null || rangeEndArg !== null) {
+  if (focusCommit) {
+    let idx = -1;
+    if (/^\d+$/.test(focusCommit)) {
+      idx = Math.max(0, Math.min(parseInt(focusCommit, 10), commits.length - 1));
+    } else {
+      idx = commits.findIndex((c) => c.hash.startsWith(focusCommit) || c.hash === focusCommit);
+    }
+    if (idx < 0) throw new Error(`Focus commit not found: ${focusCommit}`);
+    const start = Math.max(0, idx - focusWindow);
+    const end = Math.min(commits.length - 1, idx + focusWindow);
+    ranges.push({ start, end, label: `commit-${idx + 1}-window` });
+  } else if (rangeStartArg !== null || rangeEndArg !== null) {
     const start = Math.max(0, rangeStartArg ?? 0);
     const end = Math.max(start, Math.min(rangeEndArg ?? (commits.length - 1), commits.length - 1));
     ranges.push({ start, end, label: `commits-${start + 1}-${end + 1}` });
