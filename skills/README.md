@@ -22,6 +22,13 @@ What is scoped and implemented
 What was validated
 - SVG timeline exporter generates MP4 + GIF per segment and per-commit SVG frames.
 - Segments produced for 1-70, 70-200, and 200+ commits (200-290 for this repo).
+- Pixel Detective UMAP projection test across collections:
+  - Lightroom_2017: 200 points
+  - Lightroom_2019: 0 points
+  - lightroom_2018: 200 points
+  - PrueMap: 25 points
+  - Lightroom 2020: 200 points
+  - cluster mas grande: 11 points
 
 Key design decisions
 - Timeline exports must use the SVG timeline renderer (not GL2/WebGL).
