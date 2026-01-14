@@ -59,6 +59,9 @@ When launching uvicorn or npm, use new terminal windows so the main session stay
 ## Notes
 - The GPU UMAP service can fail without blocking the rest. Treat it as optional.
 - Use existing startup scripts whenever possible to stay aligned with repo behavior.
+- Qdrant is the only required Docker service for Pixel Detective; ML and ingestion run on the host.
+- If port 3000 is already in use, Next.js will choose 3001 or another port; report the actual port from the terminal output.
+- If the ML or ingestion uvicorn process exits immediately, check for missing Python dependencies or a virtualenv not being activated.
 
 ## Script
 - Run: `powershell -ExecutionPolicy Bypass -File skills\\start-pixel-detective\\scripts\\start_pixel_detective.ps1 -Mode full`

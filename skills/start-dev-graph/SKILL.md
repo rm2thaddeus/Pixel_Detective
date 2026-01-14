@@ -56,6 +56,8 @@ When launching uvicorn or npm, use new terminal windows so the main session stay
 ## Notes
 - Docker Compose service name is `neo4j` in `docker-compose.yml`.
 - The Windows batch script uses `neo4j_db`; do not copy that name here.
+- Do not redirect uvicorn output to `dev_graph_api.log` in the repo root. The app writes the same file and will raise a permission error.
+- The UI may choose port 3001 if 3000 is already in use; the script expects 3001.
 
 ## Script
 - Run: `powershell -ExecutionPolicy Bypass -File skills\\start-dev-graph\\scripts\\start_dev_graph.ps1 -Mode full`

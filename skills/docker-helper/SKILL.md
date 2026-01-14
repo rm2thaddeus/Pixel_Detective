@@ -31,3 +31,7 @@ Use this skill to read Docker state for the repo and list stored data sources.
 ## Script
 - Run: `powershell -ExecutionPolicy Bypass -File skills\docker-helper\scripts\docker_inventory.ps1`
 - With volume details: `-ShowVolumes`
+
+## Notes
+- This skill only inspects Docker state; it does not start or stop services.
+- The compose file may warn that the `version` field is obsolete; ignore the warning.

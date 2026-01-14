@@ -54,3 +54,8 @@ If a sprint is missing a summary file, synthesize a short summary from README an
 - Template: `skills/sprint-summary-pdf/assets/sprint_cards_template.html`
 - Script: `python skills/sprint-summary-pdf/scripts/generate_sprint_summary_pdf.py --all`
 - Single sprint: `--sprint sprint-11`
+
+## Notes
+- If a sprint folder has no bullet lists, generate a single Summary card using the first paragraph of README/PRD.
+- Prefer README for narrative, PRD for goals, and completion summaries for wins and gaps.
+- Keep cards concise; trim long bullets and drop low-signal items.
