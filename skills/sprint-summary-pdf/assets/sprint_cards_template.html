@@ -6,20 +6,24 @@
   <style>
     @page { size: A4; margin: 24pt; }
     :root {
-      --bg: #0b0e13;
-      --bg-2: #0f141d;
-      --card: #141a24;
-      --card-border: #202939;
-      --text: #e5e7eb;
-      --muted: #9ca3af;
-      --accent: #3182ce;
-      --accent-2: #0ea5a5;
+      /* Chakra-ish (Pixel Detective) dark tokens */
+      --bg: #1A202C;         /* gray.900 */
+      --bg-2: #171923;       /* gray.950-ish */
+      --card: #2D3748;       /* gray.800 */
+      --card-border: #4A5568;/* gray.600 */
+      --text: #F7FAFC;       /* gray.50 */
+      --muted: #A0AEC0;      /* gray.400 */
+      --accent: #3182CE;     /* blue.500 */
+      --accent-2: #805AD5;   /* purple.500 */
     }
     * { box-sizing: border-box; }
     body {
       margin: 0;
       color: var(--text);
-      background: radial-gradient(1200px 600px at 10% 0%, #101826 0%, var(--bg) 45%, var(--bg-2) 100%);
+      background:
+        radial-gradient(1100px 620px at 12% 0%, rgba(49,130,206,0.22) 0%, rgba(26,32,44,0.0) 58%),
+        radial-gradient(900px 520px at 92% 14%, rgba(128,90,213,0.18) 0%, rgba(23,25,35,0.0) 62%),
+        linear-gradient(180deg, var(--bg) 0%, var(--bg-2) 100%);
       font-family: Arial, Helvetica, sans-serif;
       -webkit-print-color-adjust: exact;
     }

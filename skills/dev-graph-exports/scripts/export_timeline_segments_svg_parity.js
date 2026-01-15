@@ -498,10 +498,76 @@ function parseBool(value, defaultValue) {
   return defaultValue;
 }
 
+function parseSprintNumber(raw) {
+  if (!raw) return null;
+  const match = String(raw).match(/(\d+)/);
+  if (!match) return null;
+  const n = parseInt(match[1], 10);
+  if (Number.isNaN(n)) return null;
+  return String(n);
+}
+
+function toDate(value) {
+  if (!value) return null;
+  if (value instanceof Date) return value;
+  if (typeof value === 'string' || typeof value === 'number') {
+    const d = new Date(value);
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+  if (typeof value === 'object') {
+    if (typeof value.iso === 'string') {
+      const d = new Date(value.iso);
+      return Number.isNaN(d.getTime()) ? null : d;
+    }
+    if (value.year && value.month && value.day) {
+      const yyyy = String(value.year).padStart(4, '0');
+      const mm = String(value.month).padStart(2, '0');
+      const dd = String(value.day).padStart(2, '0');
+      const d = new Date(`${yyyy}-${mm}-${dd}T00:00:00Z`);
+      return Number.isNaN(d.getTime()) ? null : d;
+    }
+  }
+  return null;
+}
+
+function findCommitIndexRange(commits, startIso, endIso) {
+  const startD = toDate(startIso);
+  const endD = toDate(endIso);
+  if (!startD || !endD) return null;
+
+  let startIdx = -1;
+  let endIdx = -1;
+  for (let i = 0; i < commits.length; i += 1) {
+    const cDate = toDate(commits[i]?.timestamp);
+    if (!cDate) continue;
+    if (startIdx === -1 && cDate >= startD) startIdx = i;
+    if (cDate <= endD) endIdx = i;
+  }
+  if (startIdx === -1 || endIdx === -1 || endIdx < startIdx) return null;
+  return { start: startIdx, end: endIdx };
+}
+
+async function resolveSprintWindow(apiBase, sprintArg) {
+  const number = parseSprintNumber(sprintArg);
+  if (!number) throw new Error(`Invalid sprint: ${sprintArg} (expected sprint-11 or 11)`);
+  const meta = await fetchJson(`${apiBase}/api/v1/dev-graph/sprints/${number}`);
+  const start = meta?.start_date ?? meta?.start;
+  const end = meta?.end_date ?? meta?.end;
+  if (!start || !end) {
+    throw new Error(`Sprint ${number} missing start/end (got: ${JSON.stringify({ start, end })})`);
+  }
+  return { number, start, end, label: `sprint-${number}` };
+}
+
 async function main() {
   ensureDeps();
   const api = process.argv.includes('--api') ? process.argv[process.argv.indexOf('--api') + 1] : 'http://localhost:8080';
   const outputDir = process.argv.includes('--output-dir') ? process.argv[process.argv.indexOf('--output-dir') + 1] : path.join(repoRoot, 'exports', 'dev-graph');
+  const sprintArg = process.argv.includes('--sprint') ? process.argv[process.argv.indexOf('--sprint') + 1] : null;
+  const frameOnly = parseBool(process.argv[process.argv.indexOf('--frame-only') + 1], false);
+  const frameCommit = process.argv.includes('--frame-commit') ? process.argv[process.argv.indexOf('--frame-commit') + 1] : null;
+  const sprintFrame = process.argv.includes('--sprint-frame') ? process.argv[process.argv.indexOf('--sprint-frame') + 1] : 'end';
+  const frameOutput = process.argv.includes('--frame-output') ? process.argv[process.argv.indexOf('--frame-output') + 1] : null;
   const limit = process.argv.includes('--limit') ? parseInt(process.argv[process.argv.indexOf('--limit') + 1], 10) : 5000;
   const maxFiles = process.argv.includes('--max-files') ? parseInt(process.argv[process.argv.indexOf('--max-files') + 1], 10) : 0;
   const fps = process.argv.includes('--fps') ? parseInt(process.argv[process.argv.indexOf('--fps') + 1], 10) : 6;
@@ -548,6 +614,12 @@ async function main() {
   const commits = data.commits || [];
   if (!commits.length) throw new Error('No commits returned');
 
+  const sprintWindow = sprintArg ? await resolveSprintWindow(apiBase, sprintArg) : null;
+  const sprintRange = sprintWindow ? findCommitIndexRange(commits, sprintWindow.start, sprintWindow.end) : null;
+  if (sprintWindow && !sprintRange) {
+    throw new Error(`No commits found in sprint window for ${sprintWindow.label}`);
+  }
+
   const config = {
     width,
     height,
@@ -572,8 +644,41 @@ async function main() {
     relaxTicksFactor,
   };
 
+  if (frameOnly) {
+    let idx = -1;
+    if (frameCommit) {
+      if (/^\d+$/.test(frameCommit)) {
+        idx = Math.max(0, Math.min(parseInt(frameCommit, 10), commits.length - 1));
+      } else {
+        idx = commits.findIndex((c) => c.hash.startsWith(frameCommit) || c.hash === frameCommit);
+      }
+      if (idx < 0) throw new Error(`Frame commit not found: ${frameCommit}`);
+    } else if (sprintRange) {
+      if (sprintFrame === 'start') idx = sprintRange.start;
+      else if (sprintFrame === 'middle') idx = Math.floor((sprintRange.start + sprintRange.end) / 2);
+      else idx = sprintRange.end;
+      config.rangeStartIndex = sprintRange.start;
+    } else {
+      idx = commits.length - 1;
+    }
+
+    fs.mkdirSync(outputDir, { recursive: true });
+    const outPath = frameOutput
+      ? path.resolve(frameOutput)
+      : path.join(outputDir, sprintWindow ? `${sprintWindow.label}-timeline.svg` : 'timeline-frame.svg');
+    fs.mkdirSync(path.dirname(outPath), { recursive: true });
+    const prevPositions = new Map();
+    const graph = buildGraph(commits, idx, config, prevPositions);
+    const svgText = renderSvg(commits, graph, config, prevPositions);
+    fs.writeFileSync(outPath, svgText, 'utf8');
+    console.log(`Wrote SVG frame: ${outPath}`);
+    return;
+  }
+
   let ranges = [];
-  if (focusCommit) {
+  if (sprintRange && sprintWindow) {
+    ranges.push({ start: sprintRange.start, end: sprintRange.end, label: sprintWindow.label, rangeStartIndex: sprintRange.start });
+  } else if (focusCommit) {
     let idx = -1;
     if (/^\d+$/.test(focusCommit)) {
       idx = Math.max(0, Math.min(parseInt(focusCommit, 10), commits.length - 1));
@@ -631,6 +736,7 @@ async function main() {
 
       try {
         for (let idx = segment.start; idx <= segment.end; idx += 1) {
+          config.rangeStartIndex = segment.rangeStartIndex ?? 0;
           const graph = buildGraph(commits, idx, config, prevPositions);
           const svgText = renderSvg(commits, graph, config, prevPositions);
           const frameIndex = idx - segment.start + 1;

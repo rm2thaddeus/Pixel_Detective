@@ -34,6 +34,9 @@ Generate exportable assets that match the Dev Graph UI.
 - Key options:
   - Range: `--range-start 0 --range-end 69` (single segment)
   - Segments: `--segments "0-69,69-199,199-"` (dash with empty end means "to last")
+  - Sprint window preset: `--sprint sprint-11` (uses `/api/v1/dev-graph/sprints/<n>` start/end)
+  - Single SVG frame (no ffmpeg): `--frame-only true --sprint sprint-11 --sprint-frame end --frame-output docs/sprints/sprint-11/_dev_graph_visuals/timeline.svg`
+  - Single SVG at commit: `--frame-only true --frame-commit abcd123 --frame-output exports/dev-graph/timeline-frame.svg`
   - Graph density: `--max-nodes 0` (default, no limit)
   - Node layout: `--show-folder-groups true|false`, `--focused-view true|false`, `--size-by-loc true|false`
   - Styling: `--color-mode folder|type|commit-flow|activity|none`, `--highlight-docs true|false`, `--edge-emphasis 0.0-1.0`

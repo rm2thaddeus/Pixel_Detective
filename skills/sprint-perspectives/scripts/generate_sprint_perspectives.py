@@ -7,6 +7,9 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Iterable, Optional
+from urllib.error import URLError
+from urllib.parse import quote
+from urllib.request import urlopen
 
 
 TEMPLATE_PATH = Path(__file__).resolve().parent.parent / "assets" / "perspectives_cards_template.html"
@@ -15,6 +18,9 @@ DEFAULT_MD_NAME = "PERSPECTIVES.md"
 DEFAULT_JSON_NAME = "_linked_docs.json"
 DEFAULT_ALL_FILES_JSON_NAME = "_cochanged_files.json"
 DEFAULT_PDF_NAME = "SPRINT_PERSPECTIVES_CARDS.pdf"
+DEFAULT_DEV_GRAPH_VISUALS_DIR = "_dev_graph_visuals"
+
+VISUAL_EXTS = {".svg", ".png", ".jpg", ".jpeg"}
 
 ANCHOR_PATTERNS = [
     "README.md",
@@ -117,6 +123,69 @@ def safe_read_text(path: Path) -> str:
         return path.read_text(encoding="utf-8", errors="replace")
     except FileNotFoundError:
         return ""
+
+
+def fetch_json(url: str) -> Any:
+    with urlopen(url) as response:
+        payload = response.read().decode("utf-8", errors="replace")
+        return json.loads(payload)
+
+
+def parse_sprint_number(sprint_name: str) -> Optional[str]:
+    m = re.search(r"(\d+)", sprint_name)
+    if not m:
+        return None
+    try:
+        return str(int(m.group(1)))
+    except ValueError:
+        return None
+
+
+def discover_dev_graph_visuals(sprint_dir: Path, dir_name: str) -> list[str]:
+    visuals_dir = sprint_dir / dir_name
+    if not visuals_dir.exists() or not visuals_dir.is_dir():
+        return []
+    found: list[str] = []
+    for p in sorted(visuals_dir.iterdir()):
+        if p.is_file() and p.suffix.lower() in VISUAL_EXTS:
+            found.append(p.relative_to(sprint_dir).as_posix())
+    return found
+
+
+def enrich_from_dev_graph(dev_graph_api: str, sprint_number: str) -> Optional[dict[str, Any]]:
+    api = dev_graph_api.rstrip("/")
+    try:
+        meta = fetch_json(f"{api}/api/v1/dev-graph/sprints/{quote(sprint_number)}")
+        if not isinstance(meta, dict) or meta.get("error"):
+            return None
+    except (URLError, ValueError):
+        return None
+
+    start_date = meta.get("start_date") or meta.get("start")
+    end_date = meta.get("end_date") or meta.get("end")
+    if start_date and end_date:
+        try:
+            mapped = fetch_json(
+                f"{api}/api/v1/dev-graph/sprint/map?number={quote(sprint_number)}&start_date={quote(str(start_date))}&end_date={quote(str(end_date))}"
+            )
+            if isinstance(mapped, dict):
+                metrics = mapped.get("metrics") or {}
+                if isinstance(metrics, dict) and "count" in metrics:
+                    meta["commit_count_in_window"] = metrics.get("count")
+        except (URLError, ValueError):
+            pass
+
+    try:
+        subgraph = fetch_json(f"{api}/api/v1/dev-graph/sprints/{quote(sprint_number)}/subgraph")
+        if isinstance(subgraph, dict):
+            nodes = subgraph.get("nodes") or []
+            edges = subgraph.get("edges") or []
+            meta["subgraph_node_count"] = len(nodes) if isinstance(nodes, list) else 0
+            meta["subgraph_edge_count"] = len(edges) if isinstance(edges, list) else 0
+    except (URLError, ValueError):
+        pass
+
+    return meta
 
 
 def clean_line(line: str) -> str:
@@ -507,6 +576,8 @@ def build_cards_html(
     next_scene: list[str],
     performance_receipts: list[str],
     commit_count: int,
+    dev_graph_meta: Optional[dict[str, Any]] = None,
+    dev_graph_visuals: Optional[list[str]] = None,
 ) -> str:
     total_added = sum(v.added for v in churn_by_lang.values())
     total_deleted = sum(v.deleted for v in churn_by_lang.values())
@@ -516,6 +587,14 @@ def build_cards_html(
         render_chip("Evidence Docs", str(len(evidence_items)), accent="aqua"),
         render_chip("Churn", f"+{total_added} / -{total_deleted}", accent="teal"),
     ]
+    if dev_graph_meta:
+        dg_commits = dev_graph_meta.get("commit_count_in_window")
+        if dg_commits is not None:
+            chips.append(render_chip("Dev Graph", f"{dg_commits} commits", accent="cyan"))
+        sg_nodes = dev_graph_meta.get("subgraph_node_count")
+        sg_edges = dev_graph_meta.get("subgraph_edge_count")
+        if sg_nodes is not None and sg_edges is not None:
+            chips.append(render_chip("Sprint Subgraph", f"{sg_nodes}n/{sg_edges}e", accent="aqua"))
 
     top_langs = sorted(churn_by_lang.items(), key=lambda kv: kv[1].total, reverse=True)[:6]
     totals = [(lang, churn.total) for lang, churn in top_langs]
@@ -549,15 +628,34 @@ def build_cards_html(
         tag_text = f" - {', '.join(tags)}" if tags else ""
         title = (e.get("title") or "").strip()
         title_html = f'<div class="subline">{escape_html(title)}</div>' if title else ""
+        headings = e.get("headings") or []
+        heading_bits = [h for h in headings if h and h != title][:2]
+        headings_html = (
+            f'<div class="subline muted">{escape_html(" • ".join(heading_bits))}</div>' if heading_bits else ""
+        )
         evidence_lines.append(
             f'<li><span class="mono">{escape_html(e["path"])}</span>'
             f' <span class="muted">({escape_html(str(e["cochange_count"]))}x)</span>'
-            f'<span class="muted">{escape_html(tag_text)}</span>{title_html}</li>'
+            f'<span class="muted">{escape_html(tag_text)}</span>{title_html}{headings_html}</li>'
         )
     evidence_html = f'<ul class="tight">{"".join(evidence_lines)}</ul>' if evidence_lines else "<p class=\"muted\">(none)</p>"
 
     hotspots = sorted(churn_by_path.items(), key=lambda kv: kv[1].total, reverse=True)[:10]
     hotspots_html = render_hotspots_table(hotspots) if hotspots else "<p class=\"muted\">(none)</p>"
+
+    visuals_card = ""
+    visuals = dev_graph_visuals or []
+    if visuals:
+        items = []
+        for rel in visuals[:4]:
+            base = Path(rel).name
+            items.append(
+                "<div class=\"visual-item\">"
+                f"<img class=\"visual-img\" src=\"{escape_html(rel)}\" />"
+                f"<div class=\"visual-caption mono\">{escape_html(base)}</div>"
+                "</div>"
+            )
+        visuals_card = card("Dev Graph Visuals", f'<div class="visual-grid">{"".join(items)}</div>', span2=True)
 
     story_html = (
         f"<p>{escape_html(story_blurb)}</p>"
@@ -572,6 +670,7 @@ def build_cards_html(
             card("Shipped Map", shipped_html, span2=True),
             card("Receipts", receipts_html),
             card("Evidence Pack", evidence_html),
+            visuals_card,
             card("Hotspots", hotspots_html, span2=True),
             card(
                 "Next Scene",
@@ -592,6 +691,8 @@ def build_story_markdown(
     churn_by_path: dict[str, Churn],
     commit_count: int,
     output_name: str,
+    dev_graph_meta: Optional[dict[str, Any]] = None,
+    dev_graph_visuals: Optional[list[str]] = None,
 ) -> tuple[list[str], dict[str, list[str]], list[str], str, list[str]]:
     prd_sections = parse_markdown_sections(prd_text) if prd_text else []
     readme_sections = parse_markdown_sections(readme_text) if readme_text else []
@@ -717,6 +818,17 @@ def build_story_markdown(
     receipts.append(f"Commits touching sprint docs: {commit_count}")
     receipts.append(f"Engineering footprint: +{total_added} / -{total_deleted} lines across {len(churn_by_lang)} languages")
     receipts.append(f"Evidence pack: {len(evidence)} linked docs (git co-updated)")
+    if dev_graph_meta:
+        start_date = dev_graph_meta.get("start_date") or dev_graph_meta.get("start") or ""
+        end_date = dev_graph_meta.get("end_date") or dev_graph_meta.get("end") or ""
+        if start_date and end_date:
+            receipts.append(f"Dev Graph sprint window: {start_date} -> {end_date}")
+        if dev_graph_meta.get("commit_count_in_window") is not None:
+            receipts.append(f"Dev Graph commits in window: {dev_graph_meta.get('commit_count_in_window')}")
+        if dev_graph_meta.get("subgraph_node_count") is not None and dev_graph_meta.get("subgraph_edge_count") is not None:
+            receipts.append(
+                f"Dev Graph sprint subgraph: {dev_graph_meta.get('subgraph_node_count')} nodes / {dev_graph_meta.get('subgraph_edge_count')} edges"
+            )
     receipts = [r for r in (clean_line(x) for x in receipts) if r]
 
     next_scene = []
@@ -736,6 +848,10 @@ def build_story_markdown(
     lines.append("- `SPRINT_PERSPECTIVES_CARDS.html` or `SPRINT_PERSPECTIVES_CARDS.pdf` (cards)")
     lines.append("- `_linked_docs.json` (evidence docs only)")
     lines.append("- `_cochanged_files.json` (all co-changed files)")
+    visuals = dev_graph_visuals or []
+    if visuals:
+        vis_dir = visuals[0].split("/", 1)[0]
+        lines.append(f"- `{vis_dir}/` (optional Dev Graph visuals)")
     lines.append("")
     lines.append("## Cold Open")
     lines.append("")
@@ -784,14 +900,17 @@ def build_story_markdown(
     for item in evidence[:12]:
         title = item.get("title") or ""
         tags = item.get("tags") or []
+        headings = item.get("headings") or []
+        heading_bits = [h for h in headings if h and h != title][:1]
         meta = [f"{item.get('cochange_count', 0)}x"]
         if tags:
             meta.append(", ".join(tags))
         meta_str = " - " + " | ".join(meta) if meta else ""
+        hint = f" - {clean_line(heading_bits[0])}" if heading_bits else ""
         if title:
-            lines.append(f"- `{item['path']}`{meta_str} - {clean_line(title)}")
+            lines.append(f"- `{item['path']}`{meta_str} - {clean_line(title)}{hint}")
         else:
-            lines.append(f"- `{item['path']}`{meta_str}")
+            lines.append(f"- `{item['path']}`{meta_str}{hint}")
     lines.append("")
     lines.append("### Engineering Footprint (churn)")
     lines.append("")
@@ -828,6 +947,12 @@ def main() -> int:
     parser.add_argument("--include-nonstandard", action="store_true", help="Include nonstandard folders under docs/sprints/")
     parser.add_argument("--keep-html", action="store_true", help="Keep HTML next to PDFs")
     parser.add_argument("--max-evidence", type=int, default=12, help="Max linked evidence docs to include")
+    parser.add_argument("--dev-graph-api", default="", help="Optional Dev Graph API base URL (e.g., http://localhost:8080)")
+    parser.add_argument(
+        "--dev-graph-visuals-dir",
+        default=DEFAULT_DEV_GRAPH_VISUALS_DIR,
+        help="Optional folder under sprint dir with SVG/PNG receipts to embed",
+    )
     parser.add_argument("--md-name", default=DEFAULT_MD_NAME)
     parser.add_argument("--json-name", default=DEFAULT_JSON_NAME)
     parser.add_argument("--pdf-name", default=DEFAULT_PDF_NAME)
@@ -909,6 +1034,12 @@ def main() -> int:
         prd_text = safe_read_text(prd) if prd else ""
         readme_text = safe_read_text(readme) if readme else ""
 
+        dev_graph_meta = None
+        sprint_number = parse_sprint_number(sprint_dir.name)
+        if args.dev_graph_api and sprint_number:
+            dev_graph_meta = enrich_from_dev_graph(args.dev_graph_api, sprint_number)
+        dev_graph_visuals = discover_dev_graph_visuals(sprint_dir, args.dev_graph_visuals_dir)
+
         cold_open, shipped_map, next_scene, story_blurb, performance_receipts = build_story_markdown(
             sprint_name=sprint_dir.name,
             sprint_dir=sprint_dir,
@@ -920,6 +1051,8 @@ def main() -> int:
             churn_by_path=churn_by_path,
             commit_count=len(commit_ts),
             output_name=args.md_name,
+            dev_graph_meta=dev_graph_meta,
+            dev_graph_visuals=dev_graph_visuals,
         )
 
         title = f"{sprint_dir.name} Perspectives"
@@ -941,6 +1074,8 @@ def main() -> int:
             next_scene=next_scene,
             performance_receipts=performance_receipts,
             commit_count=len(commit_ts),
+            dev_graph_meta=dev_graph_meta,
+            dev_graph_visuals=dev_graph_visuals,
         )
         html = render_html(title, subtitle, meta, cards_html, footer_left="Pixel Detective - Sprint Perspectives")
 

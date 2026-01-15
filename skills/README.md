@@ -39,15 +39,13 @@ This repo is built around 3 reusable skill types:
 
 ## Tasklist (backlog and next improvements)
 - [x] Start scripts for Pixel Detective and Dev Graph with consistent flags and ready summaries
-- [x] Docker capability mapping (MCP fallback still pending)
+- [x] Docker capability mapping (CLI-based)
 - [x] Health checks for API readiness and basic port verification
 - [x] Pixel Detective export skill (standalone, UI-independent)
 - [x] Sprint perspectives (git-driven narrative + evidence cards; no Dev Graph required)
 - [x] Rituals audit + scaffold (manifesto-derived rubric + templates)
 - [ ] Improve sprint perspectives story quality (manifesto-style beats; fewer bullets, more narrative)
-- [ ] Tag and surface evidence docs more deeply (titles/headings, doc types, "research helped build X")
-- [ ] Add optional Dev Graph enrichment (when running) for deeper code-change attribution and sprint-window presets
-- [ ] Update sprint-summary-pdf template to fully match Pixel Detective typography and color tokens
-- [ ] Add sprint perspectives PDFs with embedded Dev Graph visuals (SVG/PNG receipts)
-- [ ] Add MCP-based Docker control fallback (scripts currently use Docker CLI directly)
-
+- [x] Tag and surface evidence docs more deeply (titles/headings/tags captured; headings surfaced in cards/markdown)
+- [x] Add optional Dev Graph enrichment + sprint-window presets (API receipts in perspectives; `--sprint` presets in timeline exporter)
+- [x] Align sprint-summary-pdf template to Pixel Detective (Chakra-ish) color tokens
+- [x] Add sprint perspectives PDFs with embedded Dev Graph visuals (SVG/PNG receipts under `_dev_graph_visuals/`)
