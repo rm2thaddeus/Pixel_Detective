@@ -1,0 +1,311 @@
+[
+  {
+    "path": "docs/README.md",
+    "cochange_count": 3,
+    "last_commit": "9ae594a6e4830c8b487182e5b0d4f018eceb03bb",
+    "last_commit_ts": 1750928530,
+    "statuses": [
+      "M"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "5ce0d02e6bfa4854156e03dfb59e5eaa86c0af58",
+      "e4280d3ba9f7cf15f9890f50ace1e56aeb40ec34",
+      "9ae594a6e4830c8b487182e5b0d4f018eceb03bb"
+    ],
+    "title": "Pixel Detective: AI-Powered Media Search Engine",
+    "tags": [],
+    "headings": [
+      "Pixel Detective: AI-Powered Media Search Engine",
+      "LATEST: Backend Complete, Preparing for New UI (Post-Sprint 09)",
+      "Technical Architecture",
+      "System Architecture (Post-Sprint 09)",
+      "Key Features (Backend)",
+      "Development Status",
+      "Sprint 09: Backend Overhaul & Cleanup",
+      "Sprint 10: Critical UI Refactor"
+    ]
+  },
+  {
+    "path": "docs/PROJECT_STATUS.md",
+    "cochange_count": 2,
+    "last_commit": "9ae594a6e4830c8b487182e5b0d4f018eceb03bb",
+    "last_commit_ts": 1750928530,
+    "statuses": [
+      "A",
+      "M"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "e4280d3ba9f7cf15f9890f50ace1e56aeb40ec34",
+      "9ae594a6e4830c8b487182e5b0d4f018eceb03bb"
+    ],
+    "title": "Pixel Detective - Project Status Dashboard",
+    "tags": [],
+    "headings": [
+      "Pixel Detective - Project Status Dashboard",
+      "Current Status Overview",
+      "Overall Project Health: GOOD",
+      "Current Development Phase",
+      "Architecture Status",
+      "Current System Architecture (Post Sprint 11)",
+      "Architecture Health Metrics",
+      "Performance Metrics"
+    ]
+  },
+  {
+    "path": "docs/CHANGELOG.md",
+    "cochange_count": 2,
+    "last_commit": "5ce0d02e6bfa4854156e03dfb59e5eaa86c0af58",
+    "last_commit_ts": 1748527492,
+    "statuses": [
+      "M"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "5ce0d02e6bfa4854156e03dfb59e5eaa86c0af58",
+      "e4280d3ba9f7cf15f9890f50ace1e56aeb40ec34"
+    ],
+    "title": "CHANGELOG",
+    "tags": [],
+    "headings": [
+      "CHANGELOG",
+      "[3.0.0] - 2024-12-15 - Sprint 10: Complete System Transformation",
+      "MAJOR RELEASE - Production-Ready System",
+      "Added",
+      "Changed",
+      "Technical Achievements",
+      "Architecture Evolution",
+      "Documentation"
+    ]
+  },
+  {
+    "path": "docs/sprints/planning/SPRINT_STATUS.md",
+    "cochange_count": 2,
+    "last_commit": "5ce0d02e6bfa4854156e03dfb59e5eaa86c0af58",
+    "last_commit_ts": 1748527492,
+    "statuses": [
+      "A",
+      "M"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "5ce0d02e6bfa4854156e03dfb59e5eaa86c0af58",
+      "e4280d3ba9f7cf15f9890f50ace1e56aeb40ec34"
+    ],
+    "title": "Sprint Status Tracker",
+    "tags": [
+      "plan",
+      "sprint"
+    ],
+    "headings": [
+      "Sprint Status Tracker",
+      "Current Sprint Status",
+      "Sprint 10: Critical UI Refactor / Vertical-Slice v0.1",
+      "Key Planned Deliverables",
+      "Sprint 01: UI/UX Architecture Integration",
+      "Key Achievements",
+      "Sprint 01 Deliverables",
+      "Sprint 02: Visual Design System & Accessibility"
+    ]
+  },
+  {
+    "path": "docs/sprints/planning/sprint-coordination.md",
+    "cochange_count": 2,
+    "last_commit": "5ce0d02e6bfa4854156e03dfb59e5eaa86c0af58",
+    "last_commit_ts": 1748527492,
+    "statuses": [
+      "A",
+      "M"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "5ce0d02e6bfa4854156e03dfb59e5eaa86c0af58",
+      "e4280d3ba9f7cf15f9890f50ace1e56aeb40ec34"
+    ],
+    "title": "Sprint Coordination & Transition Planning",
+    "tags": [
+      "plan",
+      "sprint"
+    ],
+    "headings": [
+      "Sprint Coordination & Transition Planning",
+      "Current Sprint Coordination",
+      "Active Sprint Status",
+      "Sprint Handoff Protocol",
+      "Sprint Transition Checklist",
+      "Sprint 01 Sprint 02 Transition COMPLETE",
+      "Sprint 01 Closure",
+      "Sprint 02 Preparation"
+    ]
+  },
+  {
+    "path": "docs/sprints/sprint-02/FOLDER_BROWSER_ENHANCEMENT.md",
+    "cochange_count": 2,
+    "last_commit": "5ce0d02e6bfa4854156e03dfb59e5eaa86c0af58",
+    "last_commit_ts": 1748527492,
+    "statuses": [
+      "A"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "5ce0d02e6bfa4854156e03dfb59e5eaa86c0af58",
+      "1ae330850eab860b6247e6f2ab09737a4d0935c0"
+    ],
+    "title": "Real Folder Browser Implementation - Sprint 02 Enhancement",
+    "tags": [
+      "plan",
+      "sprint"
+    ],
+    "headings": [
+      "Real Folder Browser Implementation - Sprint 02 Enhancement",
+      "Issue Addressed",
+      "Previous Problem",
+      "Solution Implemented",
+      "New Real Folder Browser",
+      "Core Features:",
+      "User Interface:",
+      "Folder Browser Enhancement - Sprint 02 Phase 2"
+    ]
+  },
+  {
+    "path": "docs/sprints/sprint-02/PROGRESS_PHASE_1.md",
+    "cochange_count": 2,
+    "last_commit": "5ce0d02e6bfa4854156e03dfb59e5eaa86c0af58",
+    "last_commit_ts": 1748527492,
+    "statuses": [
+      "A"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "5ce0d02e6bfa4854156e03dfb59e5eaa86c0af58",
+      "1ae330850eab860b6247e6f2ab09737a4d0935c0"
+    ],
+    "title": "Sprint 02 - Phase 1: Foundation COMPLETED",
+    "tags": [
+      "sprint"
+    ],
+    "headings": [
+      "Sprint 02 - Phase 1: Foundation COMPLETED",
+      "Phase 1 Deliverables (Days 1-3)",
+      "1. CSS System Setup - COMPLETE",
+      "Core Design System",
+      "Component Library",
+      "Animation Framework",
+      "2. Integration System - COMPLETE",
+      "Style Injector"
+    ]
+  },
+  {
+    "path": "docs/sprints/sprint-02/PROGRESS_PHASE_2.md",
+    "cochange_count": 2,
+    "last_commit": "5ce0d02e6bfa4854156e03dfb59e5eaa86c0af58",
+    "last_commit_ts": 1748527492,
+    "statuses": [
+      "A"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "5ce0d02e6bfa4854156e03dfb59e5eaa86c0af58",
+      "1ae330850eab860b6247e6f2ab09737a4d0935c0"
+    ],
+    "title": "Sprint 02 - Phase 2: Interactions PROGRESS UPDATE",
+    "tags": [
+      "sprint"
+    ],
+    "headings": [
+      "Sprint 02 - Phase 2: Interactions PROGRESS UPDATE",
+      "Phase 2 Deliverables (Days 4-7)",
+      "1. Indentation Issue Resolution - COMPLETE",
+      "Problem Identified",
+      "Solution Implemented",
+      "2. Enhanced Loading Screen - COMPLETE",
+      "Screen 2 Enhancements Applied",
+      "Design System Integration"
+    ]
+  },
+  {
+    "path": "docs/sprints/sprint-01/mindmap.md",
+    "cochange_count": 1,
+    "last_commit": "9ae594a6e4830c8b487182e5b0d4f018eceb03bb",
+    "last_commit_ts": 1750928530,
+    "statuses": [
+      "A"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "9ae594a6e4830c8b487182e5b0d4f018eceb03bb"
+    ],
+    "title": "```mermaid",
+    "tags": [
+      "sprint"
+    ],
+    "headings": []
+  },
+  {
+    "path": "docs/sprints/sprint-03/mindmap.md",
+    "cochange_count": 1,
+    "last_commit": "9ae594a6e4830c8b487182e5b0d4f018eceb03bb",
+    "last_commit_ts": 1750928530,
+    "statuses": [
+      "A"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "9ae594a6e4830c8b487182e5b0d4f018eceb03bb"
+    ],
+    "title": "```mermaid",
+    "tags": [
+      "sprint"
+    ],
+    "headings": []
+  },
+  {
+    "path": "docs/sprints/sprint-04/mindmap.md",
+    "cochange_count": 1,
+    "last_commit": "9ae594a6e4830c8b487182e5b0d4f018eceb03bb",
+    "last_commit_ts": 1750928530,
+    "statuses": [
+      "A"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "9ae594a6e4830c8b487182e5b0d4f018eceb03bb"
+    ],
+    "title": "```mermaid",
+    "tags": [
+      "sprint"
+    ],
+    "headings": []
+  },
+  {
+    "path": "docs/sprints/sprint-06/mindmap.md",
+    "cochange_count": 1,
+    "last_commit": "9ae594a6e4830c8b487182e5b0d4f018eceb03bb",
+    "last_commit_ts": 1750928530,
+    "statuses": [
+      "A"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "9ae594a6e4830c8b487182e5b0d4f018eceb03bb"
+    ],
+    "title": "```mermaid",
+    "tags": [
+      "sprint"
+    ],
+    "headings": []
+  }
+]

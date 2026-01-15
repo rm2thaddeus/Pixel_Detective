@@ -2,6 +2,7 @@ import argparse
 import base64
 import json
 import os
+import sys
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
@@ -21,6 +22,7 @@ def ensure_health(api_base: str) -> None:
 
 def list_collections(api_base: str) -> List[str]:
     return request_json("GET", f"{api_base}/api/v1/collections")
+
 
 def list_collections_qdrant(qdrant_base: str) -> List[str]:
     data = request_json("GET", f"{qdrant_base}/collections")
@@ -263,16 +265,34 @@ def build_html(title: str, collections: List[Dict[str, Any]]) -> str:
     """
 
 
-def export_pdf(html_path: str, pdf_path: str) -> None:
-    from playwright.sync_api import sync_playwright
+def export_pdf(html_path: str, pdf_path: str) -> bool:
+    try:
+        from weasyprint import HTML  # type: ignore
 
-    with sync_playwright() as p:
-        browser = p.chromium.launch()
-        page = browser.new_page()
-        page.goto(f"file:///{html_path}")
-        page.emulate_media(media="screen")
-        page.pdf(path=pdf_path, format="A4", print_background=True)
-        browser.close()
+        HTML(filename=html_path, base_url=os.path.dirname(html_path)).write_pdf(pdf_path)
+        return True
+    except Exception:
+        pass
+
+    try:
+        from playwright.sync_api import sync_playwright  # type: ignore
+
+        with sync_playwright() as p:
+            browser = p.chromium.launch()
+            page = browser.new_page()
+            page.goto(f"file:///{html_path}")
+            page.emulate_media(media="screen")
+            page.pdf(path=pdf_path, format="A4", print_background=True)
+            browser.close()
+        return True
+    except Exception as exc:
+        print(
+            "PDF generation unavailable. Install `weasyprint` (recommended) or `playwright` to produce a PDF.\n"
+            f"HTML report created at: {html_path}\n"
+            f"Reason: {exc}",
+            file=sys.stderr,
+        )
+        return False
 
 
 def main() -> int:
@@ -382,9 +402,12 @@ def main() -> int:
 
     with open(html_path, "w", encoding="utf-8") as handle:
         handle.write(html)
-    export_pdf(os.path.abspath(html_path), pdf_path)
+    pdf_created = export_pdf(os.path.abspath(html_path), pdf_path)
 
-    print(f"Wrote {pdf_path}")
+    if pdf_created:
+        print(f"Wrote {pdf_path}")
+    else:
+        print(f"Wrote {html_path}")
     return 0
 
 

@@ -7,9 +7,13 @@ description: Export Dev Graph UI assets and dashboard data. Use when the user as
 
 Generate exportable assets that match the Dev Graph UI.
 
+## Quickstart
+- API-only SVG-parity timeline exports: `node skills/dev-graph-exports/scripts/export_timeline_segments_svg_parity.js --api http://localhost:8080`
+- Dashboard JSON export: `python skills/dev-graph-exports/scripts/export_dashboard_data.py --base-url http://localhost:8080`
+
 ## Requirements
 - Dev Graph API running on `http://localhost:8080`
-- Node.js available (for SVG-parity renderer)
+- Node.js 18+ available (for SVG-parity renderer; uses global `fetch`)
 - Dependencies installed in `tools/dev-graph-ui`:
   - `npm --prefix tools/dev-graph-ui install jsdom @resvg/resvg-js`
 - ffmpeg available on PATH for mp4/gif exports
@@ -47,6 +51,7 @@ Generate exportable assets that match the Dev Graph UI.
 - Script: `python skills/dev-graph-exports/scripts/export_timeline_svgs.py`
 - Output default: `exports/dev-graph/timeline-frames/`
 - Optional: `--start 0 --count 20`
+- Note: this script is UI-driven (requires the Dev Graph UI running) and requires Python Playwright.
 
 ### Dashboard data
 - Script: `python skills/dev-graph-exports/scripts/export_dashboard_data.py`
@@ -58,4 +63,9 @@ Generate exportable assets that match the Dev Graph UI.
 - Structure export is taken from the main Structure View canvas and reflects current filters.
 - Dashboard exports pull from `/api/v1/dev-graph/stats`, `/analytics`, `/quality`, and `/data-quality/overview`.
 - Use `sprints.json` from dashboard exports to link frames and videos to sprint windows.
- - Defaults aim for full-fidelity output; if a segment fails, it will retry at a smaller canvas size.
+- Defaults aim for full-fidelity output; if a segment fails, it will retry at a smaller canvas size.
+
+## Other scripts (optional)
+- UI-driven structure SVG export: `python skills/dev-graph-exports/scripts/export_structure_svg.py` (requires the UI + Python Playwright)
+- UI-driven MP4 export via the Timeline page: `python skills/dev-graph-exports/scripts/export_timeline_mp4.py` (requires the UI + Python Playwright)
+- Legacy standalone timeline export (non-parity): `python skills/dev-graph-exports/scripts/export_timeline_segments_standalone.py` (requires `matplotlib` + ffmpeg)

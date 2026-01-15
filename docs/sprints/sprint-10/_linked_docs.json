@@ -1,0 +1,249 @@
+[
+  {
+    "path": "docs/sprints/sprint-10/QUICK_REFERENCE.md",
+    "cochange_count": 4,
+    "last_commit": "8fc4f6ed65b0200ec6ccc811febe34fee91f0011",
+    "last_commit_ts": 1750162751,
+    "statuses": [
+      "A",
+      "D",
+      "M"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "aaeb3f06a48dbb9387f3e7b1a16db140dbf445a8",
+      "b9de930525a7f2d7d4c42461ee3ba71a2245a4fe",
+      "7ef39f2514c6c83279e7ab397c29c7c4998b98b5",
+      "8fc4f6ed65b0200ec6ccc811febe34fee91f0011"
+    ],
+    "title": "",
+    "tags": [
+      "evidence",
+      "sprint"
+    ],
+    "headings": []
+  },
+  {
+    "path": "docs/sprints/sprint-10/completion-summary.md",
+    "cochange_count": 3,
+    "last_commit": "aaeb3f06a48dbb9387f3e7b1a16db140dbf445a8",
+    "last_commit_ts": 1750079228,
+    "statuses": [
+      "A",
+      "D",
+      "M"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "aaeb3f06a48dbb9387f3e7b1a16db140dbf445a8",
+      "b9de930525a7f2d7d4c42461ee3ba71a2245a4fe",
+      "7ef39f2514c6c83279e7ab397c29c7c4998b98b5"
+    ],
+    "title": "",
+    "tags": [
+      "sprint"
+    ],
+    "headings": []
+  },
+  {
+    "path": "docs/sprints/sprint-10/README.md",
+    "cochange_count": 2,
+    "last_commit": "aaeb3f06a48dbb9387f3e7b1a16db140dbf445a8",
+    "last_commit_ts": 1750079228,
+    "statuses": [
+      "A",
+      "M"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "aaeb3f06a48dbb9387f3e7b1a16db140dbf445a8",
+      "7ef39f2514c6c83279e7ab397c29c7c4998b98b5"
+    ],
+    "title": "",
+    "tags": [
+      "sprint"
+    ],
+    "headings": []
+  },
+  {
+    "path": "docs/sprints/sprint-10/technical-implementation-plan.md",
+    "cochange_count": 2,
+    "last_commit": "aaeb3f06a48dbb9387f3e7b1a16db140dbf445a8",
+    "last_commit_ts": 1750079228,
+    "statuses": [
+      "A",
+      "D"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "aaeb3f06a48dbb9387f3e7b1a16db140dbf445a8",
+      "7ef39f2514c6c83279e7ab397c29c7c4998b98b5"
+    ],
+    "title": "",
+    "tags": [
+      "plan",
+      "sprint"
+    ],
+    "headings": []
+  },
+  {
+    "path": "CLEANUP_SUMMARY.md",
+    "cochange_count": 1,
+    "last_commit": "8fc4f6ed65b0200ec6ccc811febe34fee91f0011",
+    "last_commit_ts": 1750162751,
+    "statuses": [
+      "A"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "8fc4f6ed65b0200ec6ccc811febe34fee91f0011"
+    ],
+    "title": "",
+    "tags": [],
+    "headings": []
+  },
+  {
+    "path": "DEVELOPER_GUIDE.md",
+    "cochange_count": 1,
+    "last_commit": "8fc4f6ed65b0200ec6ccc811febe34fee91f0011",
+    "last_commit_ts": 1750162751,
+    "statuses": [
+      "A"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "8fc4f6ed65b0200ec6ccc811febe34fee91f0011"
+    ],
+    "title": "Pixel Detective - Developer Quick Reference",
+    "tags": [
+      "evidence"
+    ],
+    "headings": [
+      "Pixel Detective - Developer Quick Reference",
+      "EASY START: ONE COMMAND",
+      "From the project root, this one command starts everything.",
+      "Backend services run as background jobs.",
+      "Frontend server runs in the current terminal.",
+      "Manual Startup (Advanced)",
+      "Backend Only",
+      "Frontend Only"
+    ]
+  },
+  {
+    "path": "README.md",
+    "cochange_count": 1,
+    "last_commit": "8fc4f6ed65b0200ec6ccc811febe34fee91f0011",
+    "last_commit_ts": 1750162751,
+    "statuses": [
+      "M"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "8fc4f6ed65b0200ec6ccc811febe34fee91f0011"
+    ],
+    "title": "Pixel Detective - Dual AI Platform",
+    "tags": [],
+    "headings": [
+      "Pixel Detective - Dual AI Platform",
+      "Project Overview",
+      "Pixel Detective - AI-Powered Media Search",
+      "Dev Graph - Temporal Knowledge Graph",
+      "Quick Start",
+      "Prerequisites",
+      "Launch Applications",
+      "Option 1: Pixel Detective (Media Search)"
+    ]
+  },
+  {
+    "path": "docs/archive/deprecated/sprint-10-historical/BACKLOG.md",
+    "cochange_count": 1,
+    "last_commit": "8fc4f6ed65b0200ec6ccc811febe34fee91f0011",
+    "last_commit_ts": 1750162751,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "8fc4f6ed65b0200ec6ccc811febe34fee91f0011"
+    ],
+    "title": "",
+    "tags": [],
+    "headings": []
+  },
+  {
+    "path": "docs/archive/deprecated/sprint-10-historical/README.md",
+    "cochange_count": 1,
+    "last_commit": "8fc4f6ed65b0200ec6ccc811febe34fee91f0011",
+    "last_commit_ts": 1750162751,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "8fc4f6ed65b0200ec6ccc811febe34fee91f0011"
+    ],
+    "title": "",
+    "tags": [],
+    "headings": []
+  },
+  {
+    "path": "docs/archive/deprecated/sprint-10-historical/SPRINT_10_COMPREHENSIVE_SUMMARY.md",
+    "cochange_count": 1,
+    "last_commit": "8fc4f6ed65b0200ec6ccc811febe34fee91f0011",
+    "last_commit_ts": 1750162751,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "8fc4f6ed65b0200ec6ccc811febe34fee91f0011"
+    ],
+    "title": "",
+    "tags": [],
+    "headings": []
+  },
+  {
+    "path": "docs/archive/deprecated/sprint-10-historical/SPRINT_10_FINAL_FIXES.md",
+    "cochange_count": 1,
+    "last_commit": "8fc4f6ed65b0200ec6ccc811febe34fee91f0011",
+    "last_commit_ts": 1750162751,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "8fc4f6ed65b0200ec6ccc811febe34fee91f0011"
+    ],
+    "title": "",
+    "tags": [],
+    "headings": []
+  },
+  {
+    "path": "docs/archive/deprecated/sprint-10-historical/SPRINT_STATUS_FINAL.md",
+    "cochange_count": 1,
+    "last_commit": "8fc4f6ed65b0200ec6ccc811febe34fee91f0011",
+    "last_commit_ts": 1750162751,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "8fc4f6ed65b0200ec6ccc811febe34fee91f0011"
+    ],
+    "title": "",
+    "tags": [],
+    "headings": []
+  }
+]

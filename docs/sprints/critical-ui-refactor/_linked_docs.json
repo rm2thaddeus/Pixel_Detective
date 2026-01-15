@@ -1,0 +1,241 @@
+[
+  {
+    "path": "docs/CHANGELOG.md",
+    "cochange_count": 1,
+    "last_commit": "0c638479e098276da5abb819ec6db505931cd4c5",
+    "last_commit_ts": 1749805276,
+    "statuses": [
+      "M"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "0c638479e098276da5abb819ec6db505931cd4c5"
+    ],
+    "title": "CHANGELOG",
+    "tags": [],
+    "headings": [
+      "CHANGELOG",
+      "[3.0.0] - 2024-12-15 - Sprint 10: Complete System Transformation",
+      "MAJOR RELEASE - Production-Ready System",
+      "Added",
+      "Changed",
+      "Technical Achievements",
+      "Architecture Evolution",
+      "Documentation"
+    ]
+  },
+  {
+    "path": "docs/PROJECT_STATUS.md",
+    "cochange_count": 1,
+    "last_commit": "0c638479e098276da5abb819ec6db505931cd4c5",
+    "last_commit_ts": 1749805276,
+    "statuses": [
+      "M"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "0c638479e098276da5abb819ec6db505931cd4c5"
+    ],
+    "title": "Pixel Detective - Project Status Dashboard",
+    "tags": [],
+    "headings": [
+      "Pixel Detective - Project Status Dashboard",
+      "Current Status Overview",
+      "Overall Project Health: GOOD",
+      "Current Development Phase",
+      "Architecture Status",
+      "Current System Architecture (Post Sprint 11)",
+      "Architecture Health Metrics",
+      "Performance Metrics"
+    ]
+  },
+  {
+    "path": "frontend/README.md",
+    "cochange_count": 1,
+    "last_commit": "0c638479e098276da5abb819ec6db505931cd4c5",
+    "last_commit_ts": 1749805276,
+    "statuses": [
+      "A"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "0c638479e098276da5abb819ec6db505931cd4c5"
+    ],
+    "title": "Getting Started",
+    "tags": [],
+    "headings": [
+      "Getting Started",
+      "or",
+      "or",
+      "or",
+      "Learn More",
+      "Deploy on Vercel"
+    ]
+  },
+  {
+    "path": "docs/reference_guides/ui.md",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3"
+    ],
+    "title": "UI Service Documentation",
+    "tags": [
+      "evidence",
+      "reference"
+    ],
+    "headings": [
+      "UI Service Documentation",
+      "1. Overview",
+      "2. Directory Structure",
+      "3. Component Descriptions",
+      "`components/search/search_tabs.py`",
+      "`components/visualization/latent_space.py`",
+      "`components/sidebar/context_sidebar.py`",
+      "4. API Interactions"
+    ]
+  },
+  {
+    "path": "docs/sprints/sprint-09/PRD.md",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "M"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3"
+    ],
+    "title": "Sprint 09 Product Requirements Document (PRD)",
+    "tags": [
+      "sprint"
+    ],
+    "headings": [
+      "Sprint 09 Product Requirements Document (PRD)",
+      "1. Executive Summary",
+      "2. Context7 Research Summary",
+      "3. Requirements Matrix",
+      "4. Technical Architecture",
+      "5. Implementation Timeline",
+      "6. Testing Strategy",
+      "7. Risk Assessment"
+    ]
+  },
+  {
+    "path": "docs/sprints/sprint-09/README.md",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "M"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3"
+    ],
+    "title": "Sprint 09 README",
+    "tags": [
+      "sprint"
+    ],
+    "headings": [
+      "Sprint 09 README",
+      "1. Sprint Overview and Status",
+      "2. Key Deliverables",
+      "3. Sprint Timeline",
+      "4. Team & Roles"
+    ]
+  },
+  {
+    "path": "docs/sprints/sprint-09/Task_Breakdown.md",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3"
+    ],
+    "title": "",
+    "tags": [
+      "sprint"
+    ],
+    "headings": []
+  },
+  {
+    "path": "docs/sprints/sprint-09/transition-to-sprint-09.md",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "M"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3"
+    ],
+    "title": "Transition to Sprint 09: Backend Validation & Streamlit Removal",
+    "tags": [
+      "sprint"
+    ],
+    "headings": [
+      "Transition to Sprint 09: Backend Validation & Streamlit Removal",
+      "1. Sprint Theme & Goals",
+      "2. Backlog Refinement",
+      "High Priority",
+      "Medium Priority",
+      "Low Priority",
+      "3. Key Action Items",
+      "4. Sprint Rituals & Standards"
+    ]
+  },
+  {
+    "path": "services/ingestion_orchestration_service/requirements.txt",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "Docs (Text)",
+    "is_doc": true,
+    "commits": [
+      "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3"
+    ],
+    "title": "",
+    "tags": [],
+    "headings": []
+  },
+  {
+    "path": "services/ml_inference_service/requirements.txt",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "Docs (Text)",
+    "is_doc": true,
+    "commits": [
+      "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3"
+    ],
+    "title": "",
+    "tags": [],
+    "headings": []
+  }
+]

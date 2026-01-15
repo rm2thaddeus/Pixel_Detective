@@ -1,7 +1,6 @@
 import argparse
 from pathlib import Path
 from typing import Optional
-from playwright.sync_api import sync_playwright
 
 
 def set_commit_range(page, start: Optional[int], end: Optional[int]) -> None:
@@ -51,6 +50,10 @@ def set_commit_range(page, start: Optional[int], end: Optional[int]) -> None:
 
 def export_timeline_mp4(url: str, output: Path, headful: bool, range_start: Optional[int], range_end: Optional[int]) -> None:
     output.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        from playwright.sync_api import sync_playwright  # type: ignore
+    except Exception as exc:
+        raise RuntimeError("Playwright is required for UI-driven MP4 exports. Install it with `pip install playwright` and then run `playwright install`.") from exc
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=not headful)
         context = browser.new_context(accept_downloads=True)

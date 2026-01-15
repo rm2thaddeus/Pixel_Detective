@@ -7,6 +7,10 @@ description: Start, stop, or check Pixel Detective services on this machine. Use
 
 Use this skill to run Pixel Detective locally with the right subset of services.
 
+## Quickstart
+- Full stack: `powershell -ExecutionPolicy Bypass -File skills\\start-pixel-detective\\scripts\\start_pixel_detective.ps1 -Mode full`
+- Backend only (+ optional GPU UMAP): `powershell -ExecutionPolicy Bypass -File skills\\start-pixel-detective\\scripts\\start_pixel_detective.ps1 -Mode backend -UseGpuUmap`
+
 ## Workflow
 
 1. Confirm repo root
@@ -44,7 +48,7 @@ When launching uvicorn or npm, use new terminal windows so the main session stay
 
 5. Status checks
 - `docker compose ps`
-- `Test-NetConnection localhost -Port 6333,8001,8002,8003,3000`
+- The script prints a port readiness summary (6333/8001/8002/8003/3000).
 - Report URLs:
   - http://localhost:3000
   - http://localhost:8002/docs
@@ -66,4 +70,5 @@ When launching uvicorn or npm, use new terminal windows so the main session stay
 ## Script
 - Run: `powershell -ExecutionPolicy Bypass -File skills\\start-pixel-detective\\scripts\\start_pixel_detective.ps1 -Mode full`
 - Backend only: `-Mode backend -UseGpuUmap`
-- Frontend + open page: `-Mode frontend -Page /search -Open`
+- Frontend + open page: `-Mode frontend -Open -Page /search`
+- Note: `-Open` is required to open a browser; `-Page` alone will not open anything.

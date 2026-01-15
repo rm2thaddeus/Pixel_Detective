@@ -5,10 +5,6 @@ import sys
 from pathlib import Path
 from urllib.request import urlopen
 
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
-
 
 BG = '#0b0e13'
 FG = '#e5e7eb'
@@ -30,6 +26,14 @@ def fetch_commits(api_base: str, limit: int, max_files: int) -> tuple[list[dict]
 
 
 def render_frame(commits: list[dict], idx: int, out_png: Path, out_svg: Path) -> None:
+    try:
+        import matplotlib
+
+        matplotlib.use('Agg')
+        import matplotlib.pyplot as plt
+    except Exception as exc:
+        raise RuntimeError("matplotlib is required for standalone timeline exports. Install it with `pip install matplotlib`.") from exc
+
     total = len(commits)
     current = commits[idx]
     xs = list(range(idx + 1))

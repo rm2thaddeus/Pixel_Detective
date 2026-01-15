@@ -11,6 +11,12 @@ Generate standalone exports (no UI) and manage collections for Pixel Detective.
 - Ingestion API running on `http://localhost:8002`
 - Qdrant running (Docker)
 - GPU UMAP service on `http://localhost:8003` for HDBSCAN clustering
+- Optional (for visuals): `matplotlib`
+- Optional (for PDF output): `weasyprint` (preferred) or `playwright`
+
+## Quickstart
+- UMAP + HDBSCAN JSON/CSV/SVG: `python skills/pixel-detective-exports/scripts/export_umap_hdbscan.py --collection <name>`
+- Cluster report PDF/HTML (all collections): `python skills/pixel-detective-exports/scripts/export_umap_pdf.py --sample-size 500`
 
 ## Exports
 
@@ -25,7 +31,7 @@ Generate standalone exports (no UI) and manage collections for Pixel Detective.
 - Script: `python skills/pixel-detective-exports/scripts/export_umap_pdf.py`
 - Output default: `exports/pixel-detective/umap/umap_cluster_report.pdf`
 - Example:
-  - `python skills/pixel-detective-exports/scripts/export_umap_pdf.py --sample-size 500 --title "Pixel Detective · UMAP Clusters"`
+  - `python skills/pixel-detective-exports/scripts/export_umap_pdf.py --sample-size 500 --title "Pixel Detective UMAP Clusters"`
 
 ## Collection management
 

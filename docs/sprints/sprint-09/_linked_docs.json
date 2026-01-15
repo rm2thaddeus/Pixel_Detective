@@ -1,0 +1,271 @@
+[
+  {
+    "path": "docs/sprints/sprint-09/Task_Breakdown.md",
+    "cochange_count": 5,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "A",
+      "D",
+      "M"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+      "8b59f71f2fcf2afb9a0ed256c948117e487be8fc",
+      "442b3848a83accabb74e74fe3ddfb8744e7a0490",
+      "138582b4a44b307d57fbe206e6af5285a2db2302",
+      "9aa832e181525ba430fa5d4ab7d19799e23f5f6a"
+    ],
+    "title": "",
+    "tags": [
+      "sprint"
+    ],
+    "headings": []
+  },
+  {
+    "path": "docs/sprints/sprint-09/transition-to-sprint-09.md",
+    "cochange_count": 2,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "M"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+      "9aa832e181525ba430fa5d4ab7d19799e23f5f6a"
+    ],
+    "title": "Transition to Sprint 09: Backend Validation & Streamlit Removal",
+    "tags": [
+      "sprint"
+    ],
+    "headings": [
+      "Transition to Sprint 09: Backend Validation & Streamlit Removal",
+      "1. Sprint Theme & Goals",
+      "2. Backlog Refinement",
+      "High Priority",
+      "Medium Priority",
+      "Low Priority",
+      "3. Key Action Items",
+      "4. Sprint Rituals & Standards"
+    ]
+  },
+  {
+    "path": "docs/PROJECT_STATUS.md",
+    "cochange_count": 1,
+    "last_commit": "9ae594a6e4830c8b487182e5b0d4f018eceb03bb",
+    "last_commit_ts": 1750928530,
+    "statuses": [
+      "M"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "9ae594a6e4830c8b487182e5b0d4f018eceb03bb"
+    ],
+    "title": "Pixel Detective - Project Status Dashboard",
+    "tags": [],
+    "headings": [
+      "Pixel Detective - Project Status Dashboard",
+      "Current Status Overview",
+      "Overall Project Health: GOOD",
+      "Current Development Phase",
+      "Architecture Status",
+      "Current System Architecture (Post Sprint 11)",
+      "Architecture Health Metrics",
+      "Performance Metrics"
+    ]
+  },
+  {
+    "path": "docs/README.md",
+    "cochange_count": 1,
+    "last_commit": "9ae594a6e4830c8b487182e5b0d4f018eceb03bb",
+    "last_commit_ts": 1750928530,
+    "statuses": [
+      "M"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "9ae594a6e4830c8b487182e5b0d4f018eceb03bb"
+    ],
+    "title": "Pixel Detective: AI-Powered Media Search Engine",
+    "tags": [],
+    "headings": [
+      "Pixel Detective: AI-Powered Media Search Engine",
+      "LATEST: Backend Complete, Preparing for New UI (Post-Sprint 09)",
+      "Technical Architecture",
+      "System Architecture (Post-Sprint 09)",
+      "Key Features (Backend)",
+      "Development Status",
+      "Sprint 09: Backend Overhaul & Cleanup",
+      "Sprint 10: Critical UI Refactor"
+    ]
+  },
+  {
+    "path": "docs/sprints/sprint-01/mindmap.md",
+    "cochange_count": 1,
+    "last_commit": "9ae594a6e4830c8b487182e5b0d4f018eceb03bb",
+    "last_commit_ts": 1750928530,
+    "statuses": [
+      "A"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "9ae594a6e4830c8b487182e5b0d4f018eceb03bb"
+    ],
+    "title": "```mermaid",
+    "tags": [
+      "sprint"
+    ],
+    "headings": []
+  },
+  {
+    "path": "docs/sprints/sprint-02/SPRINT_02_MINDMAP.md",
+    "cochange_count": 1,
+    "last_commit": "9ae594a6e4830c8b487182e5b0d4f018eceb03bb",
+    "last_commit_ts": 1750928530,
+    "statuses": [
+      "M"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "9ae594a6e4830c8b487182e5b0d4f018eceb03bb"
+    ],
+    "title": "Sprint 02: Visual Design System - Comprehensive Mindmap",
+    "tags": [
+      "sprint"
+    ],
+    "headings": [
+      "Sprint 02: Visual Design System - Comprehensive Mindmap"
+    ]
+  },
+  {
+    "path": "docs/sprints/sprint-03/mindmap.md",
+    "cochange_count": 1,
+    "last_commit": "9ae594a6e4830c8b487182e5b0d4f018eceb03bb",
+    "last_commit_ts": 1750928530,
+    "statuses": [
+      "A"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "9ae594a6e4830c8b487182e5b0d4f018eceb03bb"
+    ],
+    "title": "```mermaid",
+    "tags": [
+      "sprint"
+    ],
+    "headings": []
+  },
+  {
+    "path": "docs/sprints/sprint-04/mindmap.md",
+    "cochange_count": 1,
+    "last_commit": "9ae594a6e4830c8b487182e5b0d4f018eceb03bb",
+    "last_commit_ts": 1750928530,
+    "statuses": [
+      "A"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "9ae594a6e4830c8b487182e5b0d4f018eceb03bb"
+    ],
+    "title": "```mermaid",
+    "tags": [
+      "sprint"
+    ],
+    "headings": []
+  },
+  {
+    "path": "docs/sprints/sprint-06/mindmap.md",
+    "cochange_count": 1,
+    "last_commit": "9ae594a6e4830c8b487182e5b0d4f018eceb03bb",
+    "last_commit_ts": 1750928530,
+    "statuses": [
+      "A"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "9ae594a6e4830c8b487182e5b0d4f018eceb03bb"
+    ],
+    "title": "```mermaid",
+    "tags": [
+      "sprint"
+    ],
+    "headings": []
+  },
+  {
+    "path": "docs/sprints/sprint-07/mindmap.md",
+    "cochange_count": 1,
+    "last_commit": "9ae594a6e4830c8b487182e5b0d4f018eceb03bb",
+    "last_commit_ts": 1750928530,
+    "statuses": [
+      "A"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "9ae594a6e4830c8b487182e5b0d4f018eceb03bb"
+    ],
+    "title": "```mermaid",
+    "tags": [
+      "sprint"
+    ],
+    "headings": []
+  },
+  {
+    "path": "docs/sprints/sprint-08/mindmap.md",
+    "cochange_count": 1,
+    "last_commit": "9ae594a6e4830c8b487182e5b0d4f018eceb03bb",
+    "last_commit_ts": 1750928530,
+    "statuses": [
+      "A"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "9ae594a6e4830c8b487182e5b0d4f018eceb03bb"
+    ],
+    "title": "```mermaid",
+    "tags": [
+      "sprint"
+    ],
+    "headings": []
+  },
+  {
+    "path": "docs/sprints/sprint-11/PRD.md",
+    "cochange_count": 1,
+    "last_commit": "9ae594a6e4830c8b487182e5b0d4f018eceb03bb",
+    "last_commit_ts": 1750928530,
+    "statuses": [
+      "M"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "9ae594a6e4830c8b487182e5b0d4f018eceb03bb"
+    ],
+    "title": "Sprint 11 PRD: Latent Space Visualization Tab",
+    "tags": [
+      "sprint"
+    ],
+    "headings": [
+      "Sprint 11 PRD: Latent Space Visualization Tab",
+      "Executive Summary",
+      "Sprint Objectives ACHIEVED",
+      "Success Criteria EXCEEDED",
+      "Key Stakeholders",
+      "Context7 Research Summary",
+      "Technology Stack Assessment",
+      "Requirements Matrix"
+    ]
+  }
+]

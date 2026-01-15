@@ -27,6 +27,17 @@ A temporal semantic knowledge graph that tracks code evolution, linking git comm
 - **Python 3.9+**
 - **NVIDIA GPU with CUDA** (recommended for performance, but not required)
 
+### **Local Codex Skills (optional)**
+This repo includes local automation skills under `skills/` (exports, sprint perspectives, startup helpers).
+
+```powershell
+# Validate skills before installing system-wide
+powershell -ExecutionPolicy Bypass -File skills\\validate_skills.ps1
+
+# Generate per-sprint perspectives (story + evidence)
+python skills\\sprint-perspectives\\scripts\\generate_sprint_perspectives.py --sprint sprint-11 --no-pdf
+```
+
 ### **Launch Applications**
 
 #### **Option 1: Pixel Detective (Media Search)**

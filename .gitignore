@@ -160,3 +160,6 @@ docs/_build/
 frontend/node_modules/
 frontend/.next/
 
+# Generated exports (large artifacts)
+exports/
+

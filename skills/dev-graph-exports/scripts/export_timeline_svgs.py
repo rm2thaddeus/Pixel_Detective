@@ -1,7 +1,6 @@
 import argparse
 from pathlib import Path
 from typing import Optional
-from playwright.sync_api import sync_playwright
 
 
 def find_timeline_svg(page) -> Optional[str]:
@@ -25,6 +24,10 @@ def find_timeline_svg(page) -> Optional[str]:
 
 def export_timeline_svgs(url: str, output_dir: Path, start: int, count: int, headful: bool) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        from playwright.sync_api import sync_playwright  # type: ignore
+    except Exception as exc:
+        raise RuntimeError("Playwright is required for UI-driven SVG exports. Install it with `pip install playwright` and then run `playwright install`.") from exc
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=not headful)
         context = browser.new_context()

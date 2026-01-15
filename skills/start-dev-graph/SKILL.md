@@ -7,6 +7,10 @@ description: Start, stop, or check Dev Graph services on this machine. Use when 
 
 Use this skill to run Dev Graph locally with the right subset of services.
 
+## Quickstart
+- Full stack: `powershell -ExecutionPolicy Bypass -File skills\\start-dev-graph\\scripts\\start_dev_graph.ps1 -Mode full`
+- Backend only: `powershell -ExecutionPolicy Bypass -File skills\\start-dev-graph\\scripts\\start_dev_graph.ps1 -Mode backend`
+
 ## Workflow
 
 1. Confirm repo root
@@ -41,7 +45,7 @@ When launching uvicorn or npm, use new terminal windows so the main session stay
 
 5. Status checks
 - `docker compose ps`
-- `Test-NetConnection localhost -Port 7474,7687,8080,3001`
+- The script prints a port readiness summary (7474/7687/8080/3001).
 - Report URLs:
   - http://localhost:3001
   - http://localhost:8080/docs
@@ -62,4 +66,5 @@ When launching uvicorn or npm, use new terminal windows so the main session stay
 ## Script
 - Run: `powershell -ExecutionPolicy Bypass -File skills\\start-dev-graph\\scripts\\start_dev_graph.ps1 -Mode full`
 - Backend only: `-Mode backend`
-- Frontend + open page: `-Mode frontend -Page /dev-graph/structure -Open`
+- Frontend + open page: `-Mode frontend -Open -Page /dev-graph/structure`
+- Note: `-Open` is required to open a browser; `-Page` alone will not open anything.

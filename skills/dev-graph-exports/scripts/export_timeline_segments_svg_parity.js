@@ -3,13 +3,28 @@ const path = require('path');
 const { spawnSync } = require('child_process');
 const { createRequire } = require('module');
 
+if (typeof fetch !== 'function') {
+  throw new Error('Node.js 18+ is required (global `fetch` not found).');
+}
+
 const repoRoot = path.resolve(__dirname, '..', '..', '..');
 const uiNodeModules = path.join(repoRoot, 'tools', 'dev-graph-ui', 'node_modules');
+if (!fs.existsSync(uiNodeModules)) {
+  throw new Error(`Missing UI node_modules at ${uiNodeModules}. Run: npm --prefix tools/dev-graph-ui install`);
+}
 const requireFromUi = createRequire(path.join(uiNodeModules, 'noop.js'));
 
-const d3 = requireFromUi('d3');
-const { JSDOM } = requireFromUi('jsdom');
-const { Resvg } = requireFromUi('@resvg/resvg-js');
+function requireUi(moduleName) {
+  try {
+    return requireFromUi(moduleName);
+  } catch (err) {
+    throw new Error(`Failed to load ${moduleName} from tools/dev-graph-ui/node_modules. Install deps with: npm --prefix tools/dev-graph-ui install\n${err}`);
+  }
+}
+
+const d3 = requireUi('d3');
+const { JSDOM } = requireUi('jsdom');
+const { Resvg } = requireUi('@resvg/resvg-js');
 
 const BG = '#1a202c';
 const FILE_COLORS = {

@@ -1,0 +1,2217 @@
+[
+  {
+    "path": "frontend/src/app/latent-space/components/UMAPScatterPlot.tsx",
+    "cochange_count": 8,
+    "last_commit": "7a3df22b991b4de1406128f59552bbef988c98d0",
+    "last_commit_ts": 1750928529,
+    "statuses": [
+      "A",
+      "M"
+    ],
+    "language": "TypeScript",
+    "is_doc": false
+  },
+  {
+    "path": "backend/ingestion_orchestration_fastapi_app/routers/collections.py",
+    "cochange_count": 4,
+    "last_commit": "cddadaa1b22639c7dd629b17ee65b8d4ab08d614",
+    "last_commit_ts": 1752148193,
+    "statuses": [
+      "M"
+    ],
+    "language": "Python",
+    "is_doc": false
+  },
+  {
+    "path": "frontend/src/app/latent-space/components/VisualizationBar.tsx",
+    "cochange_count": 4,
+    "last_commit": "7a3df22b991b4de1406128f59552bbef988c98d0",
+    "last_commit_ts": 1750928529,
+    "statuses": [
+      "A",
+      "M"
+    ],
+    "language": "TypeScript",
+    "is_doc": false
+  },
+  {
+    "path": "frontend/src/app/latent-space/hooks/useLatentSpaceStore.ts",
+    "cochange_count": 4,
+    "last_commit": "50e4be01218ba6f6808b71db1471c5dc54570ec5",
+    "last_commit_ts": 1750928529,
+    "statuses": [
+      "A",
+      "M"
+    ],
+    "language": "TypeScript",
+    "is_doc": false
+  },
+  {
+    "path": "frontend/src/app/latent-space/components/ClusteringControls.tsx",
+    "cochange_count": 4,
+    "last_commit": "7a3df22b991b4de1406128f59552bbef988c98d0",
+    "last_commit_ts": 1750928529,
+    "statuses": [
+      "A",
+      "M"
+    ],
+    "language": "TypeScript",
+    "is_doc": false
+  },
+  {
+    "path": "docs/sprints/sprint-11/IMPLEMENTATION_IMPROVEMENTS_SUMMARY.md",
+    "cochange_count": 4,
+    "last_commit": "7a3df22b991b4de1406128f59552bbef988c98d0",
+    "last_commit_ts": 1750928529,
+    "statuses": [
+      "A",
+      "M"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "ae0971951c624792f765ce15476792b244ee55d6",
+      "8acfe9d28c4ab2ff2386a3a87a6093a82fd782bc",
+      "6bc25502868ca72fa6f39759ea14ad0f334ddd62",
+      "7a3df22b991b4de1406128f59552bbef988c98d0"
+    ],
+    "title": "",
+    "tags": [
+      "plan",
+      "sprint"
+    ],
+    "headings": []
+  },
+  {
+    "path": "frontend/src/app/latent-space/page.tsx",
+    "cochange_count": 4,
+    "last_commit": "7a3df22b991b4de1406128f59552bbef988c98d0",
+    "last_commit_ts": 1750928529,
+    "statuses": [
+      "A",
+      "M"
+    ],
+    "language": "TypeScript",
+    "is_doc": false
+  },
+  {
+    "path": "README.md",
+    "cochange_count": 3,
+    "last_commit": "cf0f89e55a460a8ccfbd9aaef8e503f4fcacdfaa",
+    "last_commit_ts": 1751051338,
+    "statuses": [
+      "M"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "cf0f89e55a460a8ccfbd9aaef8e503f4fcacdfaa",
+      "a82766b154a016c38d0b05d1b5cff9958a95ef76",
+      "f7851fffe36800606347092d10cb795456bd4156"
+    ],
+    "title": "Pixel Detective - Dual AI Platform",
+    "tags": [],
+    "headings": [
+      "Pixel Detective - Dual AI Platform",
+      "Project Overview",
+      "Pixel Detective - AI-Powered Media Search",
+      "Dev Graph - Temporal Knowledge Graph",
+      "Quick Start",
+      "Prerequisites",
+      "Launch Applications",
+      "Option 1: Pixel Detective (Media Search)"
+    ]
+  },
+  {
+    "path": "backend/ingestion_orchestration_fastapi_app/routers/umap.py",
+    "cochange_count": 3,
+    "last_commit": "9ae594a6e4830c8b487182e5b0d4f018eceb03bb",
+    "last_commit_ts": 1750928530,
+    "statuses": [
+      "M"
+    ],
+    "language": "Python",
+    "is_doc": false
+  },
+  {
+    "path": "frontend/src/app/latent-space/components/ClusterLabelingPanel.tsx",
+    "cochange_count": 3,
+    "last_commit": "9ae594a6e4830c8b487182e5b0d4f018eceb03bb",
+    "last_commit_ts": 1750928530,
+    "statuses": [
+      "A",
+      "M"
+    ],
+    "language": "TypeScript",
+    "is_doc": false
+  },
+  {
+    "path": "frontend/src/components/Header.tsx",
+    "cochange_count": 3,
+    "last_commit": "a82766b154a016c38d0b05d1b5cff9958a95ef76",
+    "last_commit_ts": 1750928529,
+    "statuses": [
+      "M"
+    ],
+    "language": "TypeScript",
+    "is_doc": false
+  },
+  {
+    "path": "frontend/package-lock.json",
+    "cochange_count": 3,
+    "last_commit": "50e4be01218ba6f6808b71db1471c5dc54570ec5",
+    "last_commit_ts": 1750928529,
+    "statuses": [
+      "M"
+    ],
+    "language": "JSON",
+    "is_doc": false
+  },
+  {
+    "path": "frontend/package.json",
+    "cochange_count": 3,
+    "last_commit": "50e4be01218ba6f6808b71db1471c5dc54570ec5",
+    "last_commit_ts": 1750928529,
+    "statuses": [
+      "M"
+    ],
+    "language": "JSON",
+    "is_doc": false
+  },
+  {
+    "path": "frontend/src/app/latent-space/hooks/useUMAP.ts",
+    "cochange_count": 3,
+    "last_commit": "5601925b1607b4bf124b5a0ca44396d1919a3c61",
+    "last_commit_ts": 1750928526,
+    "statuses": [
+      "A",
+      "M"
+    ],
+    "language": "TypeScript",
+    "is_doc": false
+  },
+  {
+    "path": "backend/ingestion_orchestration_fastapi_app/routers/ingest.py",
+    "cochange_count": 2,
+    "last_commit": "cddadaa1b22639c7dd629b17ee65b8d4ab08d614",
+    "last_commit_ts": 1752148193,
+    "statuses": [
+      "M"
+    ],
+    "language": "Python",
+    "is_doc": false
+  },
+  {
+    "path": "frontend/src/app/collections/page.tsx",
+    "cochange_count": 2,
+    "last_commit": "cf0f89e55a460a8ccfbd9aaef8e503f4fcacdfaa",
+    "last_commit_ts": 1751051338,
+    "statuses": [
+      "M"
+    ],
+    "language": "TypeScript",
+    "is_doc": false
+  },
+  {
+    "path": "frontend/src/app/latent-space/utils/visualization.ts",
+    "cochange_count": 2,
+    "last_commit": "a82766b154a016c38d0b05d1b5cff9958a95ef76",
+    "last_commit_ts": 1750928529,
+    "statuses": [
+      "A",
+      "M"
+    ],
+    "language": "TypeScript",
+    "is_doc": false
+  },
+  {
+    "path": "scripts/start_dev.bat",
+    "cochange_count": 2,
+    "last_commit": "a82766b154a016c38d0b05d1b5cff9958a95ef76",
+    "last_commit_ts": 1750928529,
+    "statuses": [
+      "A",
+      "M"
+    ],
+    "language": "BAT",
+    "is_doc": false
+  },
+  {
+    "path": "frontend/src/components/Sidebar.tsx",
+    "cochange_count": 2,
+    "last_commit": "6bc25502868ca72fa6f39759ea14ad0f334ddd62",
+    "last_commit_ts": 1750928529,
+    "statuses": [
+      "M"
+    ],
+    "language": "TypeScript",
+    "is_doc": false
+  },
+  {
+    "path": "backend/gpu_umap_service/README.md",
+    "cochange_count": 2,
+    "last_commit": "5e40d4ea8fed845c3213d8a1ca7dd386e81db30b",
+    "last_commit_ts": 1750928528,
+    "statuses": [
+      "M"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "5e40d4ea8fed845c3213d8a1ca7dd386e81db30b",
+      "ae0971951c624792f765ce15476792b244ee55d6"
+    ],
+    "title": "GPU UMAP Service",
+    "tags": [],
+    "headings": [
+      "GPU UMAP Service",
+      "Setup",
+      "Docker",
+      "Live-Reload Development with Docker Compose",
+      "From the repository root",
+      "1. Ensure the shared network exists (only needed once)",
+      "2. Start the GPU UMAP service in dev mode",
+      "Endpoints"
+    ]
+  },
+  {
+    "path": "backend/ingestion_orchestration_fastapi_app/cuml_integration_guide.md",
+    "cochange_count": 2,
+    "last_commit": "ae0971951c624792f765ce15476792b244ee55d6",
+    "last_commit_ts": 1750928526,
+    "statuses": [
+      "A",
+      "M"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "ae0971951c624792f765ce15476792b244ee55d6",
+      "8acfe9d28c4ab2ff2386a3a87a6093a82fd782bc"
+    ],
+    "title": "Overview",
+    "tags": [
+      "evidence"
+    ],
+    "headings": [
+      "Overview",
+      "Research Summary",
+      "Current Challenges",
+      "Pip Installation Issues",
+      "This fails due to stub package issues on Windows:",
+      "Alternative Installation Methods",
+      "1. Conda Approach (Recommended)",
+      "Install miniforge/conda first, then:"
+    ]
+  },
+  {
+    "path": "frontend/src/app/latent-space/components/MetricsPanel.tsx",
+    "cochange_count": 2,
+    "last_commit": "8acfe9d28c4ab2ff2386a3a87a6093a82fd782bc",
+    "last_commit_ts": 1750928525,
+    "statuses": [
+      "A",
+      "M"
+    ],
+    "language": "TypeScript",
+    "is_doc": false
+  },
+  {
+    "path": "archive/CLEANUP_SUMMARY.md",
+    "cochange_count": 1,
+    "last_commit": "cddadaa1b22639c7dd629b17ee65b8d4ab08d614",
+    "last_commit_ts": 1752148193,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "cddadaa1b22639c7dd629b17ee65b8d4ab08d614"
+    ],
+    "title": "Repository Cleanup Summary",
+    "tags": [],
+    "headings": [
+      "Repository Cleanup Summary",
+      "Overview",
+      "Actions Taken",
+      "Removed (Outdated/Deprecated)",
+      "Archived to `/docs/archive/deprecated/`",
+      "Reorganized",
+      "Preserved (Active Components)",
+      "Current Project Structure"
+    ]
+  },
+  {
+    "path": "archive/CLI_ENTERPRISE_VISION.md",
+    "cochange_count": 1,
+    "last_commit": "cddadaa1b22639c7dd629b17ee65b8d4ab08d614",
+    "last_commit_ts": 1752148193,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "cddadaa1b22639c7dd629b17ee65b8d4ab08d614"
+    ],
+    "title": "CLI Enterprise Vision: Large Collection Processing",
+    "tags": [],
+    "headings": [
+      "CLI Enterprise Vision: Large Collection Processing",
+      "Current CLI Capabilities (Strong Foundation)",
+      "Production-Ready Features",
+      "Current enterprise capabilities",
+      "Large-Scale Optimizations",
+      "Professional Format Support",
+      "Enterprise Enhancement Roadmap",
+      "Sprint 03: CLI Enterprise Features"
+    ]
+  },
+  {
+    "path": "archive/COMPONENT_THREADING_FIXES.md",
+    "cochange_count": 1,
+    "last_commit": "cddadaa1b22639c7dd629b17ee65b8d4ab08d614",
+    "last_commit_ts": 1752148193,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "cddadaa1b22639c7dd629b17ee65b8d4ab08d614"
+    ],
+    "title": "Component Threading Fixes - Pixel Detective",
+    "tags": [],
+    "headings": [
+      "Component Threading Fixes - Pixel Detective",
+      "Problem Solved",
+      "Symptoms Resolved:",
+      "Root Cause Analysis",
+      "Problematic Components:",
+      "The Problem Pattern:",
+      "DANGEROUS: Called during app initialization or from background threads",
+      "Solutions Implemented"
+    ]
+  },
+  {
+    "path": "archive/CRITICAL_THREADING_FIXES.md",
+    "cochange_count": 1,
+    "last_commit": "cddadaa1b22639c7dd629b17ee65b8d4ab08d614",
+    "last_commit_ts": 1752148193,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "cddadaa1b22639c7dd629b17ee65b8d4ab08d614"
+    ],
+    "title": "Critical Threading Fixes - Pixel Detective",
+    "tags": [],
+    "headings": [
+      "Critical Threading Fixes - Pixel Detective",
+      "Problem Identified",
+      "Error Symptoms:",
+      "Root Cause Analysis:",
+      "Solutions Implemented",
+      "1. Thread-Safe Background Loader",
+      "Before (Problematic):",
+      "WRONG: Accessing session state from background thread"
+    ]
+  },
+  {
+    "path": "archive/LOADING_SCREEN_FIXES.md",
+    "cochange_count": 1,
+    "last_commit": "cddadaa1b22639c7dd629b17ee65b8d4ab08d614",
+    "last_commit_ts": 1752148193,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "cddadaa1b22639c7dd629b17ee65b8d4ab08d614"
+    ],
+    "title": "Loading Screen Performance Fixes",
+    "tags": [
+      "metrics"
+    ],
+    "headings": [
+      "Loading Screen Performance Fixes",
+      "Critical Issues Identified and Fixed",
+      "1. Blocking Operations Removed",
+      "2. Optimized CSS Injection",
+      "3. Smart Refresh Mechanism",
+      "4. Enhanced Completion Handling",
+      "Performance Improvements",
+      "Before Fixes:"
+    ]
+  },
+  {
+    "path": "archive/PERFORMANCE_OPTIMIZATIONS.md",
+    "cochange_count": 1,
+    "last_commit": "cddadaa1b22639c7dd629b17ee65b8d4ab08d614",
+    "last_commit_ts": 1752148193,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "cddadaa1b22639c7dd629b17ee65b8d4ab08d614"
+    ],
+    "title": "Pixel Detective Performance Optimizations",
+    "tags": [
+      "metrics"
+    ],
+    "headings": [
+      "Pixel Detective Performance Optimizations",
+      "Overview",
+      "Problem Analysis",
+      "Original Performance Issues",
+      "Optimization Strategy",
+      "Core Principles",
+      "Implementation Approach",
+      "Implemented Solutions"
+    ]
+  },
+  {
+    "path": "archive/THREADING_PERFORMANCE_GUIDELINES.md",
+    "cochange_count": 1,
+    "last_commit": "cddadaa1b22639c7dd629b17ee65b8d4ab08d614",
+    "last_commit_ts": 1752148193,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "cddadaa1b22639c7dd629b17ee65b8d4ab08d614"
+    ],
+    "title": "Threading & Performance Guidelines for Pixel Detective",
+    "tags": [
+      "evidence",
+      "metrics"
+    ],
+    "headings": [
+      "Threading & Performance Guidelines for Pixel Detective",
+      "0. Task Orchestrator Integration",
+      "1. Heavy Modules Import",
+      "2. BackgroundLoader Pipeline",
+      "3. Thread Safety and Session State",
+      "4. Caching of Managers",
+      "5. Component Development",
+      "6. Adding Future Background Tasks"
+    ]
+  },
+  {
+    "path": "archive/deprecated/architecture-evolution-pre-sprint10.md",
+    "cochange_count": 1,
+    "last_commit": "cddadaa1b22639c7dd629b17ee65b8d4ab08d614",
+    "last_commit_ts": 1752148193,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "cddadaa1b22639c7dd629b17ee65b8d4ab08d614"
+    ],
+    "title": "Architecture Evolution: A Sprint-by-Sprint Journey",
+    "tags": [],
+    "headings": [
+      "Architecture Evolution: A Sprint-by-Sprint Journey",
+      "Initial State & Vision (Pre-Sprint 01)",
+      "Sprint 01: Unified 3-Screen Frontend Architecture",
+      "Sprint 02: Visual Design System & Accessibility",
+      "Sprints 03-07: Progressive Enhancements & Backend Foundations (Assumed Broad Strokes)",
+      "Sprint 08: Solidified API-Driven Architecture & Backend Services",
+      "Sprint 09: Backend Validation, GPU Optimisation & Streamlit Sunset (In&nbsp;Progress)",
+      "Future Architectural Considerations (Beyond Sprint 09)"
+    ]
+  },
+  {
+    "path": "archive/deprecated/architecture-streamlit-legacy.md",
+    "cochange_count": 1,
+    "last_commit": "cddadaa1b22639c7dd629b17ee65b8d4ab08d614",
+    "last_commit_ts": 1752148193,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "cddadaa1b22639c7dd629b17ee65b8d4ab08d614"
+    ],
+    "title": "Vibe Coding - System Architecture",
+    "tags": [],
+    "headings": [
+      "Vibe Coding - System Architecture",
+      "Executive Summary",
+      "High-Level Architecture",
+      "Architecture Overview",
+      "Sprint 01 Complete: Unified 3-Screen Architecture",
+      "Current Status (Post-Sprint 08 / Planning Sprint 09)",
+      "0. Environment Setup",
+      "1. Application Structure"
+    ]
+  },
+  {
+    "path": "archive/deprecated/models/lazy_model_manager.py",
+    "cochange_count": 1,
+    "last_commit": "cddadaa1b22639c7dd629b17ee65b8d4ab08d614",
+    "last_commit_ts": 1752148193,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Python",
+    "is_doc": false
+  },
+  {
+    "path": "archive/deprecated/scripts/browser_connector.py",
+    "cochange_count": 1,
+    "last_commit": "cddadaa1b22639c7dd629b17ee65b8d4ab08d614",
+    "last_commit_ts": 1752148193,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Python",
+    "is_doc": false
+  },
+  {
+    "path": "archive/deprecated/scripts/diagnose_cuda.py",
+    "cochange_count": 1,
+    "last_commit": "cddadaa1b22639c7dd629b17ee65b8d4ab08d614",
+    "last_commit_ts": 1752148193,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Python",
+    "is_doc": false
+  },
+  {
+    "path": "archive/deprecated/scripts/emergency_performance_test.py",
+    "cochange_count": 1,
+    "last_commit": "cddadaa1b22639c7dd629b17ee65b8d4ab08d614",
+    "last_commit_ts": 1752148193,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Python",
+    "is_doc": false
+  },
+  {
+    "path": "archive/deprecated/scripts/find_duplicates.py",
+    "cochange_count": 1,
+    "last_commit": "cddadaa1b22639c7dd629b17ee65b8d4ab08d614",
+    "last_commit_ts": 1752148193,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Python",
+    "is_doc": false
+  },
+  {
+    "path": "archive/deprecated/scripts/measure_ingest.ps1",
+    "cochange_count": 1,
+    "last_commit": "cddadaa1b22639c7dd629b17ee65b8d4ab08d614",
+    "last_commit_ts": 1752148193,
+    "statuses": [
+      "R100"
+    ],
+    "language": "PowerShell",
+    "is_doc": false
+  },
+  {
+    "path": "archive/deprecated/scripts/measure_mvp.ps1",
+    "cochange_count": 1,
+    "last_commit": "cddadaa1b22639c7dd629b17ee65b8d4ab08d614",
+    "last_commit_ts": 1752148193,
+    "statuses": [
+      "R100"
+    ],
+    "language": "PowerShell",
+    "is_doc": false
+  },
+  {
+    "path": "archive/deprecated/scripts/minigame.py",
+    "cochange_count": 1,
+    "last_commit": "cddadaa1b22639c7dd629b17ee65b8d4ab08d614",
+    "last_commit_ts": 1752148193,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Python",
+    "is_doc": false
+  },
+  {
+    "path": "archive/deprecated/scripts/performance_test.py",
+    "cochange_count": 1,
+    "last_commit": "cddadaa1b22639c7dd629b17ee65b8d4ab08d614",
+    "last_commit_ts": 1752148193,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Python",
+    "is_doc": false
+  },
+  {
+    "path": "archive/deprecated/scripts/run_app.bat",
+    "cochange_count": 1,
+    "last_commit": "cddadaa1b22639c7dd629b17ee65b8d4ab08d614",
+    "last_commit_ts": 1752148193,
+    "statuses": [
+      "R100"
+    ],
+    "language": "BAT",
+    "is_doc": false
+  },
+  {
+    "path": "archive/deprecated/scripts/test_api.py",
+    "cochange_count": 1,
+    "last_commit": "cddadaa1b22639c7dd629b17ee65b8d4ab08d614",
+    "last_commit_ts": 1752148193,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Python",
+    "is_doc": false
+  },
+  {
+    "path": "archive/deprecated/scripts/test_backend_performance.py",
+    "cochange_count": 1,
+    "last_commit": "cddadaa1b22639c7dd629b17ee65b8d4ab08d614",
+    "last_commit_ts": 1752148193,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Python",
+    "is_doc": false
+  },
+  {
+    "path": "archive/deprecated/scripts/test_core_functionality.py",
+    "cochange_count": 1,
+    "last_commit": "cddadaa1b22639c7dd629b17ee65b8d4ab08d614",
+    "last_commit_ts": 1752148193,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Python",
+    "is_doc": false
+  },
+  {
+    "path": "archive/deprecated/scripts/test_fixes.py",
+    "cochange_count": 1,
+    "last_commit": "cddadaa1b22639c7dd629b17ee65b8d4ab08d614",
+    "last_commit_ts": 1752148193,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Python",
+    "is_doc": false
+  },
+  {
+    "path": "archive/deprecated/scripts/test_lightning_startup.py",
+    "cochange_count": 1,
+    "last_commit": "cddadaa1b22639c7dd629b17ee65b8d4ab08d614",
+    "last_commit_ts": 1752148193,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Python",
+    "is_doc": false
+  },
+  {
+    "path": "archive/deprecated/scripts/test_live_application.py",
+    "cochange_count": 1,
+    "last_commit": "cddadaa1b22639c7dd629b17ee65b8d4ab08d614",
+    "last_commit_ts": 1752148193,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Python",
+    "is_doc": false
+  },
+  {
+    "path": "archive/deprecated/scripts/test_loading_performance.py",
+    "cochange_count": 1,
+    "last_commit": "cddadaa1b22639c7dd629b17ee65b8d4ab08d614",
+    "last_commit_ts": 1752148193,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Python",
+    "is_doc": false
+  },
+  {
+    "path": "archive/deprecated/scripts/test_loading_screen_ui.py",
+    "cochange_count": 1,
+    "last_commit": "cddadaa1b22639c7dd629b17ee65b8d4ab08d614",
+    "last_commit_ts": 1752148193,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Python",
+    "is_doc": false
+  },
+  {
+    "path": "archive/deprecated/scripts/test_sprint_02_completion.py",
+    "cochange_count": 1,
+    "last_commit": "cddadaa1b22639c7dd629b17ee65b8d4ab08d614",
+    "last_commit_ts": 1752148193,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Python",
+    "is_doc": false
+  },
+  {
+    "path": "archive/deprecated/sprint-10-historical/BACKLOG.md",
+    "cochange_count": 1,
+    "last_commit": "cddadaa1b22639c7dd629b17ee65b8d4ab08d614",
+    "last_commit_ts": 1752148193,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "cddadaa1b22639c7dd629b17ee65b8d4ab08d614"
+    ],
+    "title": "Sprint 10 Phase 2.5 - Final Polish Backlog",
+    "tags": [],
+    "headings": [
+      "Sprint 10 Phase 2.5 - Final Polish Backlog",
+      "SPRINT 10 SUCCESS CONTEXT",
+      "DOCUMENTED ACHIEVEMENTS (Preserved)",
+      "IMPLEMENTATION GAPS DISCOVERED",
+      "PHASE 2.5 - FINAL POLISH TASKS",
+      "HIGH PRIORITY - Production Readiness",
+      "POLISH-01: Hydration Edge Cases",
+      "POLISH-02: Image Domain Configuration"
+    ]
+  },
+  {
+    "path": "archive/deprecated/sprint-10-historical/README.md",
+    "cochange_count": 1,
+    "last_commit": "cddadaa1b22639c7dd629b17ee65b8d4ab08d614",
+    "last_commit_ts": 1752148193,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "cddadaa1b22639c7dd629b17ee65b8d4ab08d614"
+    ],
+    "title": "Sprint 10 Critical UI Refactor / Vertical-Slice v0.1 - COMPLETE",
+    "tags": [],
+    "headings": [
+      "Sprint 10 Critical UI Refactor / Vertical-Slice v0.1 - COMPLETE",
+      "1. Why This Sprint Exists",
+      "2. High-Level Objectives - ALL ACHIEVED",
+      "3. Deliverables Checklist",
+      "4. Timeline (2-Week Sprint)",
+      "5. Getting Started (TL;DR)",
+      "0. Prerequisite backend services running on ports 8002 / 8001",
+      "1. Setup frontend"
+    ]
+  },
+  {
+    "path": "archive/deprecated/sprint-10-historical/SPRINT_10_COMPREHENSIVE_SUMMARY.md",
+    "cochange_count": 1,
+    "last_commit": "cddadaa1b22639c7dd629b17ee65b8d4ab08d614",
+    "last_commit_ts": 1752148193,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "cddadaa1b22639c7dd629b17ee65b8d4ab08d614"
+    ],
+    "title": "Sprint 10 - Comprehensive Summary & Current State",
+    "tags": [],
+    "headings": [
+      "Sprint 10 - Comprehensive Summary & Current State",
+      "EXECUTIVE SUMMARY",
+      "DOCUMENTATION OVERVIEW",
+      "CORE SPRINT DOCUMENTATION",
+      "CURRENT STATE DOCUMENTATION",
+      "SPRINT 10 MAJOR ACHIEVEMENTS",
+      "1. Architectural Transformation",
+      "2. Full-Stack Integration"
+    ]
+  },
+  {
+    "path": "archive/deprecated/sprint-10-historical/SPRINT_10_FINAL_FIXES.md",
+    "cochange_count": 1,
+    "last_commit": "cddadaa1b22639c7dd629b17ee65b8d4ab08d614",
+    "last_commit_ts": 1752148193,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "cddadaa1b22639c7dd629b17ee65b8d4ab08d614"
+    ],
+    "title": "Sprint 10 - Final Fixes & Feature Completion",
+    "tags": [],
+    "headings": [
+      "Sprint 10 - Final Fixes & Feature Completion",
+      "1. Overview",
+      "2. Collection Management: Deletion Enabled",
+      "2.1. Backend (`routers/collections.py`)",
+      "2.2. Frontend (`components/Sidebar.tsx`)",
+      "3. Image Ingestion: File Upload Workflow",
+      "3.1. Backend (`routers/ingest.py`)",
+      "3.2. Frontend (`components/AddImagesModal.tsx`)"
+    ]
+  },
+  {
+    "path": "archive/deprecated/sprint-10-historical/SPRINT_STATUS_FINAL.md",
+    "cochange_count": 1,
+    "last_commit": "cddadaa1b22639c7dd629b17ee65b8d4ab08d614",
+    "last_commit_ts": 1752148193,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "cddadaa1b22639c7dd629b17ee65b8d4ab08d614"
+    ],
+    "title": "Sprint 10 - FINAL COMPLETION REPORT",
+    "tags": [],
+    "headings": [
+      "Sprint 10 - FINAL COMPLETION REPORT",
+      "EXECUTIVE SUMMARY",
+      "MAJOR ACHIEVEMENTS",
+      "CRITICAL FIXES & REFACTORS IMPLEMENTED",
+      "Frontend Architecture:",
+      "Backend Fixes:",
+      "System Integration:",
+      "CURRENT SYSTEM STATUS"
+    ]
+  },
+  {
+    "path": "archive/deprecated/sprint-10-technical-guides/DARK_MODE_REQUIREMENTS.md",
+    "cochange_count": 1,
+    "last_commit": "cddadaa1b22639c7dd629b17ee65b8d4ab08d614",
+    "last_commit_ts": 1752148193,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "cddadaa1b22639c7dd629b17ee65b8d4ab08d614"
+    ],
+    "title": "Dark Mode Implementation Requirements - Sprint 10 Phase 2",
+    "tags": [
+      "evidence",
+      "plan"
+    ],
+    "headings": [
+      "Dark Mode Implementation Requirements - Sprint 10 Phase 2",
+      "1. Overview",
+      "Success Criteria",
+      "2. Technical Implementation",
+      "2.1 Chakra UI Color Mode Setup",
+      "2.2 Theme Toggle Component",
+      "2.3 Header Integration",
+      "2.4 Root Layout Update"
+    ]
+  },
+  {
+    "path": "archive/deprecated/sprint-10-technical-guides/HYDRATION_ERROR_PREVENTION_GUIDE.md",
+    "cochange_count": 1,
+    "last_commit": "cddadaa1b22639c7dd629b17ee65b8d4ab08d614",
+    "last_commit_ts": 1752148193,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "cddadaa1b22639c7dd629b17ee65b8d4ab08d614"
+    ],
+    "title": "Next.js Hydration Error Prevention Guide - Sprint 10",
+    "tags": [
+      "evidence"
+    ],
+    "headings": [
+      "Next.js Hydration Error Prevention Guide - Sprint 10",
+      "Critical Issue Identification",
+      "What is Hydration?",
+      "The Hydration Process:",
+      "When Hydration Fails:",
+      "Common Causes of Hydration Errors",
+      "1. Server/Client Content Mismatch",
+      "2. Browser-Only APIs in SSR"
+    ]
+  },
+  {
+    "path": "archive/deprecated/sprint-10-technical-guides/HYDRATION_FINAL_FIX.md",
+    "cochange_count": 1,
+    "last_commit": "cddadaa1b22639c7dd629b17ee65b8d4ab08d614",
+    "last_commit_ts": 1752148193,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "cddadaa1b22639c7dd629b17ee65b8d4ab08d614"
+    ],
+    "title": "FINAL HYDRATION FIX - Sprint 10",
+    "tags": [
+      "evidence"
+    ],
+    "headings": [
+      "FINAL HYDRATION FIX - Sprint 10",
+      "THE PROBLEM",
+      "THE COMPREHENSIVE SOLUTION",
+      "Strategy: Mounted State Pattern",
+      "Implementation Applied:",
+      "1. Provider with Staged Theme Loading",
+      "2. Layout with Matching Configuration",
+      "3. Hydration-Safe Theme Toggle"
+    ]
+  },
+  {
+    "path": "archive/deprecated/sprint-10-technical-guides/IMAGE_GALLERY_IMPLEMENTATION.md",
+    "cochange_count": 1,
+    "last_commit": "cddadaa1b22639c7dd629b17ee65b8d4ab08d614",
+    "last_commit_ts": 1752148193,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "cddadaa1b22639c7dd629b17ee65b8d4ab08d614"
+    ],
+    "title": "Image Gallery Implementation - Sprint 10",
+    "tags": [
+      "evidence",
+      "plan"
+    ],
+    "headings": [
+      "Image Gallery Implementation - Sprint 10",
+      "Overview",
+      "Problem Statement",
+      "Solution Architecture",
+      "Backend Enhancements",
+      "Frontend Implementation (Refactored)",
+      "1. `hooks/useSearch.ts`",
+      "2. `components/SearchInput.tsx`"
+    ]
+  },
+  {
+    "path": "archive/deprecated/sprint-10-technical-guides/PHASE_2_5_FINAL_POLISH.md",
+    "cochange_count": 1,
+    "last_commit": "cddadaa1b22639c7dd629b17ee65b8d4ab08d614",
+    "last_commit_ts": 1752148193,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "cddadaa1b22639c7dd629b17ee65b8d4ab08d614"
+    ],
+    "title": "Sprint 10 Phase 2.5 - Final Polish & Gap Resolution",
+    "tags": [
+      "evidence"
+    ],
+    "headings": [
+      "Sprint 10 Phase 2.5 - Final Polish & Gap Resolution",
+      "CONTEXT & SITUATION",
+      "SPRINT 10 ACHIEVEMENTS - CONFIRMED",
+      "MAJOR ACCOMPLISHMENTS (Preserved from documentation)",
+      "ALL USER STORIES COMPLETE (FR-10-01 through FR-10-07)",
+      "PHASE 2.5 - IMPLEMENTATION GAP ANALYSIS",
+      "Gap Category: Frontend Integration Issues",
+      "GAP-01: Hydration Edge Cases"
+    ]
+  },
+  {
+    "path": "archive/deprecated/sprint-10-technical-guides/PHASE_3_CRITICAL_FIXES.md",
+    "cochange_count": 1,
+    "last_commit": "cddadaa1b22639c7dd629b17ee65b8d4ab08d614",
+    "last_commit_ts": 1752148193,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "cddadaa1b22639c7dd629b17ee65b8d4ab08d614"
+    ],
+    "title": "Sprint 10 Phase 3 - Critical Fixes & Implementation Plan",
+    "tags": [
+      "evidence",
+      "plan"
+    ],
+    "headings": [
+      "Sprint 10 Phase 3 - Critical Fixes & Implementation Plan",
+      "CRITICAL ISSUE ASSESSMENT",
+      "Current State Analysis",
+      "Backend Capability Analysis",
+      "Available APIs (Backend Complete)",
+      "CRITICAL FIX #1: Hydration Errors",
+      "Issue:",
+      "Root Cause:"
+    ]
+  },
+  {
+    "path": "archive/deprecated/tests/test_optimizations.py",
+    "cochange_count": 1,
+    "last_commit": "cddadaa1b22639c7dd629b17ee65b8d4ab08d614",
+    "last_commit_ts": 1752148193,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Python",
+    "is_doc": false
+  },
+  {
+    "path": "archive/deprecated/tests/test_performance_fix.py",
+    "cochange_count": 1,
+    "last_commit": "cddadaa1b22639c7dd629b17ee65b8d4ab08d614",
+    "last_commit_ts": 1752148193,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Python",
+    "is_doc": false
+  },
+  {
+    "path": "archive/sprint_06_service_superseded_managers/model_manager.py",
+    "cochange_count": 1,
+    "last_commit": "cddadaa1b22639c7dd629b17ee65b8d4ab08d614",
+    "last_commit_ts": 1752148193,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Python",
+    "is_doc": false
+  },
+  {
+    "path": "archive/sprint_06_service_superseded_managers/optimized_model_manager.py",
+    "cochange_count": 1,
+    "last_commit": "cddadaa1b22639c7dd629b17ee65b8d4ab08d614",
+    "last_commit_ts": 1752148193,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Python",
+    "is_doc": false
+  },
+  {
+    "path": "archive/sprint_06_service_superseded_models/blip_model.py",
+    "cochange_count": 1,
+    "last_commit": "cddadaa1b22639c7dd629b17ee65b8d4ab08d614",
+    "last_commit_ts": 1752148193,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Python",
+    "is_doc": false
+  },
+  {
+    "path": "archive/sprint_06_service_superseded_models/clip_model.py",
+    "cochange_count": 1,
+    "last_commit": "cddadaa1b22639c7dd629b17ee65b8d4ab08d614",
+    "last_commit_ts": 1752148193,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Python",
+    "is_doc": false
+  },
+  {
+    "path": "archive/sprint_09_frontend_ideas.md",
+    "cochange_count": 1,
+    "last_commit": "cddadaa1b22639c7dd629b17ee65b8d4ab08d614",
+    "last_commit_ts": 1752148193,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "cddadaa1b22639c7dd629b17ee65b8d4ab08d614"
+    ],
+    "title": "Archived Front-End Concepts Sprint 09",
+    "tags": [],
+    "headings": [
+      "Archived Front-End Concepts Sprint 09",
+      "1 Accessibility & UX Components",
+      "2 Application State Flow",
+      "3 Background Loader Pattern",
+      "4 Sidebar Collection Management",
+      "5 Latent Space Visualisation",
+      "Preservation Strategy"
+    ]
+  },
+  {
+    "path": "archive/sprint_09_frontend_ideas/README.md",
+    "cochange_count": 1,
+    "last_commit": "cddadaa1b22639c7dd629b17ee65b8d4ab08d614",
+    "last_commit_ts": 1752148193,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "cddadaa1b22639c7dd629b17ee65b8d4ab08d614"
+    ],
+    "title": "Frontend UI/UX Patterns Archive (Sprint 09)",
+    "tags": [],
+    "headings": [
+      "Frontend UI/UX Patterns Archive (Sprint 09)",
+      "Contents"
+    ]
+  },
+  {
+    "path": "archive/sprint_09_frontend_ideas/accessibility.py",
+    "cochange_count": 1,
+    "last_commit": "cddadaa1b22639c7dd629b17ee65b8d4ab08d614",
+    "last_commit_ts": 1752148193,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Python",
+    "is_doc": false
+  },
+  {
+    "path": "archive/sprint_09_frontend_ideas/animations.css",
+    "cochange_count": 1,
+    "last_commit": "cddadaa1b22639c7dd629b17ee65b8d4ab08d614",
+    "last_commit_ts": 1752148193,
+    "statuses": [
+      "R100"
+    ],
+    "language": "CSS",
+    "is_doc": false
+  },
+  {
+    "path": "archive/sprint_09_frontend_ideas/components.css",
+    "cochange_count": 1,
+    "last_commit": "cddadaa1b22639c7dd629b17ee65b8d4ab08d614",
+    "last_commit_ts": 1752148193,
+    "statuses": [
+      "R100"
+    ],
+    "language": "CSS",
+    "is_doc": false
+  },
+  {
+    "path": "archive/sprint_09_frontend_ideas/example_advanced_ui_screen.py",
+    "cochange_count": 1,
+    "last_commit": "cddadaa1b22639c7dd629b17ee65b8d4ab08d614",
+    "last_commit_ts": 1752148193,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Python",
+    "is_doc": false
+  },
+  {
+    "path": "archive/sprint_09_frontend_ideas/example_context_sidebar.py",
+    "cochange_count": 1,
+    "last_commit": "cddadaa1b22639c7dd629b17ee65b8d4ab08d614",
+    "last_commit_ts": 1752148193,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Python",
+    "is_doc": false
+  },
+  {
+    "path": "archive/sprint_09_frontend_ideas/example_search_tabs.py",
+    "cochange_count": 1,
+    "last_commit": "cddadaa1b22639c7dd629b17ee65b8d4ab08d614",
+    "last_commit_ts": 1752148193,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Python",
+    "is_doc": false
+  },
+  {
+    "path": "archive/sprint_09_frontend_ideas/main.css",
+    "cochange_count": 1,
+    "last_commit": "cddadaa1b22639c7dd629b17ee65b8d4ab08d614",
+    "last_commit_ts": 1752148193,
+    "statuses": [
+      "R100"
+    ],
+    "language": "CSS",
+    "is_doc": false
+  },
+  {
+    "path": "archive/sprint_09_frontend_ideas/skeleton_screens.py",
+    "cochange_count": 1,
+    "last_commit": "cddadaa1b22639c7dd629b17ee65b8d4ab08d614",
+    "last_commit_ts": 1752148193,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Python",
+    "is_doc": false
+  },
+  {
+    "path": "backend/ingestion_orchestration_fastapi_app/main.py",
+    "cochange_count": 1,
+    "last_commit": "cddadaa1b22639c7dd629b17ee65b8d4ab08d614",
+    "last_commit_ts": 1752148193,
+    "statuses": [
+      "M"
+    ],
+    "language": "Python",
+    "is_doc": false
+  },
+  {
+    "path": "backend/ingestion_orchestration_fastapi_app/pipeline/cpu_processor.py",
+    "cochange_count": 1,
+    "last_commit": "cddadaa1b22639c7dd629b17ee65b8d4ab08d614",
+    "last_commit_ts": 1752148193,
+    "statuses": [
+      "M"
+    ],
+    "language": "Python",
+    "is_doc": false
+  },
+  {
+    "path": "backend/ingestion_orchestration_fastapi_app/pipeline/db_upserter.py",
+    "cochange_count": 1,
+    "last_commit": "cddadaa1b22639c7dd629b17ee65b8d4ab08d614",
+    "last_commit_ts": 1752148193,
+    "statuses": [
+      "M"
+    ],
+    "language": "Python",
+    "is_doc": false
+  },
+  {
+    "path": "backend/ingestion_orchestration_fastapi_app/pipeline/gpu_worker.py",
+    "cochange_count": 1,
+    "last_commit": "cddadaa1b22639c7dd629b17ee65b8d4ab08d614",
+    "last_commit_ts": 1752148193,
+    "statuses": [
+      "M"
+    ],
+    "language": "Python",
+    "is_doc": false
+  },
+  {
+    "path": "backend/ingestion_orchestration_fastapi_app/pipeline/io_scanner.py",
+    "cochange_count": 1,
+    "last_commit": "cddadaa1b22639c7dd629b17ee65b8d4ab08d614",
+    "last_commit_ts": 1752148193,
+    "statuses": [
+      "M"
+    ],
+    "language": "Python",
+    "is_doc": false
+  },
+  {
+    "path": "backend/ingestion_orchestration_fastapi_app/pipeline/manager.py",
+    "cochange_count": 1,
+    "last_commit": "cddadaa1b22639c7dd629b17ee65b8d4ab08d614",
+    "last_commit_ts": 1752148193,
+    "statuses": [
+      "M"
+    ],
+    "language": "Python",
+    "is_doc": false
+  },
+  {
+    "path": "backend/ingestion_orchestration_fastapi_app/routers/images.py",
+    "cochange_count": 1,
+    "last_commit": "cddadaa1b22639c7dd629b17ee65b8d4ab08d614",
+    "last_commit_ts": 1752148193,
+    "statuses": [
+      "M"
+    ],
+    "language": "Python",
+    "is_doc": false
+  },
+  {
+    "path": "backend/ingestion_orchestration_fastapi_app/routers/search.py",
+    "cochange_count": 1,
+    "last_commit": "cddadaa1b22639c7dd629b17ee65b8d4ab08d614",
+    "last_commit_ts": 1752148193,
+    "statuses": [
+      "M"
+    ],
+    "language": "Python",
+    "is_doc": false
+  },
+  {
+    "path": "docs/sprints/sprint-11/archive/Batch Size",
+    "cochange_count": 1,
+    "last_commit": "cddadaa1b22639c7dd629b17ee65b8d4ab08d614",
+    "last_commit_ts": 1752148193,
+    "statuses": [
+      "R088"
+    ],
+    "language": "Other",
+    "is_doc": false
+  },
+  {
+    "path": "docs/sprints/sprint-11/archive/CUDA_ACCELERATION_GUIDE.md",
+    "cochange_count": 1,
+    "last_commit": "cddadaa1b22639c7dd629b17ee65b8d4ab08d614",
+    "last_commit_ts": 1752148193,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "cddadaa1b22639c7dd629b17ee65b8d4ab08d614"
+    ],
+    "title": "CUDA Acceleration Implementation Guide - Sprint 11",
+    "tags": [
+      "evidence",
+      "plan",
+      "sprint"
+    ],
+    "headings": [
+      "CUDA Acceleration Implementation Guide - Sprint 11",
+      "Overview",
+      "Current State Analysis",
+      "Backend Implementation Status",
+      "Performance Bottlenecks Identified",
+      "CUDA Acceleration Solutions",
+      "1. NVIDIA RAPIDS cuML Integration",
+      "Option A: Zero-Code Change Acceleration (Recommended for Phase 1)"
+    ]
+  },
+  {
+    "path": "docs/sprints/sprint-11/archive/CUDA_IMPLEMENTATION_PROMPT.md",
+    "cochange_count": 1,
+    "last_commit": "cddadaa1b22639c7dd629b17ee65b8d4ab08d614",
+    "last_commit_ts": 1752148193,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "cddadaa1b22639c7dd629b17ee65b8d4ab08d614"
+    ],
+    "title": "CUDA Acceleration Implementation Prompt for Sprint 11",
+    "tags": [
+      "plan",
+      "sprint"
+    ],
+    "headings": [
+      "CUDA Acceleration Implementation Prompt for Sprint 11",
+      "Context & Background",
+      "Current Project State",
+      "Working Implementation",
+      "Key Files Structure",
+      "Current Backend Implementation (umap.py)",
+      "Performance Bottlenecks Identified",
+      "CUDA Acceleration Research Findings"
+    ]
+  },
+  {
+    "path": "docs/sprints/sprint-11/archive/Curation_duplicate_proposal",
+    "cochange_count": 1,
+    "last_commit": "cddadaa1b22639c7dd629b17ee65b8d4ab08d614",
+    "last_commit_ts": 1752148193,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Other",
+    "is_doc": false
+  },
+  {
+    "path": "docs/sprints/sprint-11/archive/IMPLEMENTATION_IMPROVEMENTS_SUMMARY.md",
+    "cochange_count": 1,
+    "last_commit": "cddadaa1b22639c7dd629b17ee65b8d4ab08d614",
+    "last_commit_ts": 1752148193,
+    "statuses": [
+      "R093"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "cddadaa1b22639c7dd629b17ee65b8d4ab08d614"
+    ],
+    "title": "Sprint 11 Phase 2 Implementation Improvements",
+    "tags": [
+      "plan",
+      "sprint"
+    ],
+    "headings": [
+      "Sprint 11 Phase 2 Implementation Improvements",
+      "Overview",
+      "Current Implementation Status",
+      "Major Improvements Completed",
+      "1. Dynamic Clustering Visualization",
+      "2. Interactive Point System",
+      "3. Integrated Control System",
+      "4. Enhanced Layout & Navigation"
+    ]
+  },
+  {
+    "path": "docs/sprints/sprint-11/archive/POC_COMPLETION_STATUS.md",
+    "cochange_count": 1,
+    "last_commit": "cddadaa1b22639c7dd629b17ee65b8d4ab08d614",
+    "last_commit_ts": 1752148193,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "cddadaa1b22639c7dd629b17ee65b8d4ab08d614"
+    ],
+    "title": "Sprint 11 POC Completion Status",
+    "tags": [
+      "sprint"
+    ],
+    "headings": [
+      "Sprint 11 POC Completion Status",
+      "POC Achievement Summary",
+      "Successfully Completed",
+      "Technical Metrics",
+      "Current State Analysis",
+      "What's Working",
+      "Available Data Structure",
+      "Phase 2 Immediate Priorities"
+    ]
+  },
+  {
+    "path": "docs/sprints/sprint-11/archive/QDRANT_COLLECTION_MERGE_GUIDE.md",
+    "cochange_count": 1,
+    "last_commit": "cddadaa1b22639c7dd629b17ee65b8d4ab08d614",
+    "last_commit_ts": 1752148193,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "cddadaa1b22639c7dd629b17ee65b8d4ab08d614"
+    ],
+    "title": "Qdrant Collection Merge & Incremental Ingestion Guide (Sprint 11)",
+    "tags": [
+      "evidence",
+      "sprint"
+    ],
+    "headings": [
+      "Qdrant Collection Merge & Incremental Ingestion Guide (Sprint 11)",
+      "1 Design Options",
+      "2 Incremental Ingestion Pattern",
+      "3 Building / Updating the Master Collection",
+      "3.1 Python Helper",
+      "(Re)create destination collection non-destructive to sources",
+      "3.2 Atomic *Swap* with Alias (Optional)",
+      "4 Testing the Merge"
+    ]
+  },
+  {
+    "path": "docs/sprints/sprint-11/archive/cluster_visualization_and_labeling.md",
+    "cochange_count": 1,
+    "last_commit": "cddadaa1b22639c7dd629b17ee65b8d4ab08d614",
+    "last_commit_ts": 1752148193,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "cddadaa1b22639c7dd629b17ee65b8d4ab08d614"
+    ],
+    "title": "Cluster Discovery & Image Labelling Guide",
+    "tags": [
+      "evidence",
+      "sprint"
+    ],
+    "headings": [
+      "Cluster Discovery & Image Labelling Guide",
+      "1. Current Workflow (v1)",
+      "1.1 Pipeline",
+      "1.2 UI Building Blocks",
+      "2. Alternative & Complementary Visualisations",
+      "Interaction Enhancements",
+      "3. Advanced Labelling Strategies",
+      "4. Design Principles (aligned with project rules)"
+    ]
+  },
+  {
+    "path": "docs/sprints/sprint-11/archive/o3 research",
+    "cochange_count": 1,
+    "last_commit": "cddadaa1b22639c7dd629b17ee65b8d4ab08d614",
+    "last_commit_ts": 1752148193,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Other",
+    "is_doc": false
+  },
+  {
+    "path": "docs/sprints/sprint-11/archive/research lasso tool",
+    "cochange_count": 1,
+    "last_commit": "cddadaa1b22639c7dd629b17ee65b8d4ab08d614",
+    "last_commit_ts": 1752148193,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Other",
+    "is_doc": false
+  },
+  {
+    "path": "backend/ingestion_orchestration_fastapi_app/routers/duplicates.py",
+    "cochange_count": 1,
+    "last_commit": "cf0f89e55a460a8ccfbd9aaef8e503f4fcacdfaa",
+    "last_commit_ts": 1751051338,
+    "statuses": [
+      "M"
+    ],
+    "language": "Python",
+    "is_doc": false
+  },
+  {
+    "path": "frontend/src/lib/api.ts",
+    "cochange_count": 1,
+    "last_commit": "cf0f89e55a460a8ccfbd9aaef8e503f4fcacdfaa",
+    "last_commit_ts": 1751051338,
+    "statuses": [
+      "A"
+    ],
+    "language": "TypeScript",
+    "is_doc": false
+  },
+  {
+    "path": "docs/PROJECT_STATUS.md",
+    "cochange_count": 1,
+    "last_commit": "9ae594a6e4830c8b487182e5b0d4f018eceb03bb",
+    "last_commit_ts": 1750928530,
+    "statuses": [
+      "M"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "9ae594a6e4830c8b487182e5b0d4f018eceb03bb"
+    ],
+    "title": "Pixel Detective - Project Status Dashboard",
+    "tags": [],
+    "headings": [
+      "Pixel Detective - Project Status Dashboard",
+      "Current Status Overview",
+      "Overall Project Health: GOOD",
+      "Current Development Phase",
+      "Architecture Status",
+      "Current System Architecture (Post Sprint 11)",
+      "Architecture Health Metrics",
+      "Performance Metrics"
+    ]
+  },
+  {
+    "path": "docs/README.md",
+    "cochange_count": 1,
+    "last_commit": "9ae594a6e4830c8b487182e5b0d4f018eceb03bb",
+    "last_commit_ts": 1750928530,
+    "statuses": [
+      "M"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "9ae594a6e4830c8b487182e5b0d4f018eceb03bb"
+    ],
+    "title": "Pixel Detective: AI-Powered Media Search Engine",
+    "tags": [],
+    "headings": [
+      "Pixel Detective: AI-Powered Media Search Engine",
+      "LATEST: Backend Complete, Preparing for New UI (Post-Sprint 09)",
+      "Technical Architecture",
+      "System Architecture (Post-Sprint 09)",
+      "Key Features (Backend)",
+      "Development Status",
+      "Sprint 09: Backend Overhaul & Cleanup",
+      "Sprint 10: Critical UI Refactor"
+    ]
+  },
+  {
+    "path": "docs/sprints/sprint-01/mindmap.md",
+    "cochange_count": 1,
+    "last_commit": "9ae594a6e4830c8b487182e5b0d4f018eceb03bb",
+    "last_commit_ts": 1750928530,
+    "statuses": [
+      "A"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "9ae594a6e4830c8b487182e5b0d4f018eceb03bb"
+    ],
+    "title": "```mermaid",
+    "tags": [
+      "sprint"
+    ],
+    "headings": []
+  },
+  {
+    "path": "docs/sprints/sprint-02/SPRINT_02_MINDMAP.md",
+    "cochange_count": 1,
+    "last_commit": "9ae594a6e4830c8b487182e5b0d4f018eceb03bb",
+    "last_commit_ts": 1750928530,
+    "statuses": [
+      "M"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "9ae594a6e4830c8b487182e5b0d4f018eceb03bb"
+    ],
+    "title": "Sprint 02: Visual Design System - Comprehensive Mindmap",
+    "tags": [
+      "sprint"
+    ],
+    "headings": [
+      "Sprint 02: Visual Design System - Comprehensive Mindmap"
+    ]
+  },
+  {
+    "path": "docs/sprints/sprint-03/mindmap.md",
+    "cochange_count": 1,
+    "last_commit": "9ae594a6e4830c8b487182e5b0d4f018eceb03bb",
+    "last_commit_ts": 1750928530,
+    "statuses": [
+      "A"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "9ae594a6e4830c8b487182e5b0d4f018eceb03bb"
+    ],
+    "title": "```mermaid",
+    "tags": [
+      "sprint"
+    ],
+    "headings": []
+  },
+  {
+    "path": "docs/sprints/sprint-04/mindmap.md",
+    "cochange_count": 1,
+    "last_commit": "9ae594a6e4830c8b487182e5b0d4f018eceb03bb",
+    "last_commit_ts": 1750928530,
+    "statuses": [
+      "A"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "9ae594a6e4830c8b487182e5b0d4f018eceb03bb"
+    ],
+    "title": "```mermaid",
+    "tags": [
+      "sprint"
+    ],
+    "headings": []
+  },
+  {
+    "path": "docs/sprints/sprint-06/mindmap.md",
+    "cochange_count": 1,
+    "last_commit": "9ae594a6e4830c8b487182e5b0d4f018eceb03bb",
+    "last_commit_ts": 1750928530,
+    "statuses": [
+      "A"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "9ae594a6e4830c8b487182e5b0d4f018eceb03bb"
+    ],
+    "title": "```mermaid",
+    "tags": [
+      "sprint"
+    ],
+    "headings": []
+  },
+  {
+    "path": "docs/sprints/sprint-07/mindmap.md",
+    "cochange_count": 1,
+    "last_commit": "9ae594a6e4830c8b487182e5b0d4f018eceb03bb",
+    "last_commit_ts": 1750928530,
+    "statuses": [
+      "A"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "9ae594a6e4830c8b487182e5b0d4f018eceb03bb"
+    ],
+    "title": "```mermaid",
+    "tags": [
+      "sprint"
+    ],
+    "headings": []
+  },
+  {
+    "path": "docs/sprints/sprint-08/mindmap.md",
+    "cochange_count": 1,
+    "last_commit": "9ae594a6e4830c8b487182e5b0d4f018eceb03bb",
+    "last_commit_ts": 1750928530,
+    "statuses": [
+      "A"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "9ae594a6e4830c8b487182e5b0d4f018eceb03bb"
+    ],
+    "title": "```mermaid",
+    "tags": [
+      "sprint"
+    ],
+    "headings": []
+  },
+  {
+    "path": "docs/sprints/sprint-09/mindmap.md",
+    "cochange_count": 1,
+    "last_commit": "9ae594a6e4830c8b487182e5b0d4f018eceb03bb",
+    "last_commit_ts": 1750928530,
+    "statuses": [
+      "A"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "9ae594a6e4830c8b487182e5b0d4f018eceb03bb"
+    ],
+    "title": "```mermaid",
+    "tags": [
+      "sprint"
+    ],
+    "headings": []
+  },
+  {
+    "path": "docs/sprints/sprint-11/NEXT_STEPS.md",
+    "cochange_count": 1,
+    "last_commit": "a82766b154a016c38d0b05d1b5cff9958a95ef76",
+    "last_commit_ts": 1750928529,
+    "statuses": [
+      "A"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "a82766b154a016c38d0b05d1b5cff9958a95ef76"
+    ],
+    "title": "Sprint 11 Next Steps & Future Enhancements",
+    "tags": [
+      "sprint"
+    ],
+    "headings": [
+      "Sprint 11 Next Steps & Future Enhancements",
+      "Overview",
+      "DevGraph Standalone Prep (High Priority)",
+      "Priority 1: Collection Dropdown Rework (HIGH)",
+      "Current Pain Point",
+      "Proposed Solution: Header Collection Dropdown",
+      "Implementation Plan",
+      "Features to Implement"
+    ]
+  },
+  {
+    "path": "frontend/src/app/latent-space/components/ClusterCardsPanel.tsx",
+    "cochange_count": 1,
+    "last_commit": "a82766b154a016c38d0b05d1b5cff9958a95ef76",
+    "last_commit_ts": 1750928529,
+    "statuses": [
+      "M"
+    ],
+    "language": "TypeScript",
+    "is_doc": false
+  },
+  {
+    "path": "frontend/src/components/CollectionDetailsDrawer.tsx",
+    "cochange_count": 1,
+    "last_commit": "a82766b154a016c38d0b05d1b5cff9958a95ef76",
+    "last_commit_ts": 1750928529,
+    "statuses": [
+      "A"
+    ],
+    "language": "TypeScript",
+    "is_doc": false
+  },
+  {
+    "path": "frontend/src/components/CollectionSelector.tsx",
+    "cochange_count": 1,
+    "last_commit": "a82766b154a016c38d0b05d1b5cff9958a95ef76",
+    "last_commit_ts": 1750928529,
+    "statuses": [
+      "A"
+    ],
+    "language": "TypeScript",
+    "is_doc": false
+  },
+  {
+    "path": "frontend/src/components/MergeCollectionsModal.tsx",
+    "cochange_count": 1,
+    "last_commit": "a82766b154a016c38d0b05d1b5cff9958a95ef76",
+    "last_commit_ts": 1750928529,
+    "statuses": [
+      "A"
+    ],
+    "language": "TypeScript",
+    "is_doc": false
+  },
+  {
+    "path": "docs/sprints/sprint-11/Storybook Idea",
+    "cochange_count": 1,
+    "last_commit": "6bc25502868ca72fa6f39759ea14ad0f334ddd62",
+    "last_commit_ts": 1750928529,
+    "statuses": [
+      "A"
+    ],
+    "language": "Other",
+    "is_doc": false
+  },
+  {
+    "path": "docs/sprints/sprint-11/research lasso tool",
+    "cochange_count": 1,
+    "last_commit": "6bc25502868ca72fa6f39759ea14ad0f334ddd62",
+    "last_commit_ts": 1750928529,
+    "statuses": [
+      "A"
+    ],
+    "language": "Other",
+    "is_doc": false
+  },
+  {
+    "path": "frontend/src/app/latent-space/components/StatsBar.tsx",
+    "cochange_count": 1,
+    "last_commit": "7a3df22b991b4de1406128f59552bbef988c98d0",
+    "last_commit_ts": 1750928529,
+    "statuses": [
+      "A"
+    ],
+    "language": "TypeScript",
+    "is_doc": false
+  },
+  {
+    "path": "frontend/src/app/latent-space/components/VisualizationSettingsPanel.tsx",
+    "cochange_count": 1,
+    "last_commit": "7a3df22b991b4de1406128f59552bbef988c98d0",
+    "last_commit_ts": 1750928529,
+    "statuses": [
+      "A"
+    ],
+    "language": "TypeScript",
+    "is_doc": false
+  },
+  {
+    "path": "backend/gpu_umap_service/main.py",
+    "cochange_count": 1,
+    "last_commit": "30cdec72ca49c24b9087af19132cd6e39c6336da",
+    "last_commit_ts": 1750928526,
+    "statuses": [
+      "M"
+    ],
+    "language": "Python",
+    "is_doc": false
+  },
+  {
+    "path": "docs/sprints/sprint-11/QDRANT_COLLECTION_MERGE_GUIDE.md",
+    "cochange_count": 1,
+    "last_commit": "30cdec72ca49c24b9087af19132cd6e39c6336da",
+    "last_commit_ts": 1750928526,
+    "statuses": [
+      "A"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "30cdec72ca49c24b9087af19132cd6e39c6336da"
+    ],
+    "title": "",
+    "tags": [
+      "evidence",
+      "sprint"
+    ],
+    "headings": []
+  },
+  {
+    "path": "backend/gpu_umap_service/Dockerfile",
+    "cochange_count": 1,
+    "last_commit": "ae0971951c624792f765ce15476792b244ee55d6",
+    "last_commit_ts": 1750928526,
+    "statuses": [
+      "M"
+    ],
+    "language": "Other",
+    "is_doc": false
+  },
+  {
+    "path": "backend/gpu_umap_service/docker-compose.dev.yml",
+    "cochange_count": 1,
+    "last_commit": "ae0971951c624792f765ce15476792b244ee55d6",
+    "last_commit_ts": 1750928526,
+    "statuses": [
+      "A"
+    ],
+    "language": "YAML",
+    "is_doc": false
+  },
+  {
+    "path": "backend/gpu_umap_service/requirements.txt",
+    "cochange_count": 1,
+    "last_commit": "ae0971951c624792f765ce15476792b244ee55d6",
+    "last_commit_ts": 1750928526,
+    "statuses": [
+      "M"
+    ],
+    "language": "Docs (Text)",
+    "is_doc": true,
+    "commits": [
+      "ae0971951c624792f765ce15476792b244ee55d6"
+    ],
+    "title": "fastapi",
+    "tags": [],
+    "headings": []
+  },
+  {
+    "path": "backend/Dockerfile.cuda",
+    "cochange_count": 1,
+    "last_commit": "8acfe9d28c4ab2ff2386a3a87a6093a82fd782bc",
+    "last_commit_ts": 1750928525,
+    "statuses": [
+      "A"
+    ],
+    "language": "CUDA",
+    "is_doc": false
+  },
+  {
+    "path": "backend/ingestion_orchestration_fastapi_app/ml_algorithms.py",
+    "cochange_count": 1,
+    "last_commit": "8acfe9d28c4ab2ff2386a3a87a6093a82fd782bc",
+    "last_commit_ts": 1750928525,
+    "statuses": [
+      "A"
+    ],
+    "language": "Python",
+    "is_doc": false
+  },
+  {
+    "path": "backend/ingestion_orchestration_fastapi_app/requirements.txt",
+    "cochange_count": 1,
+    "last_commit": "8acfe9d28c4ab2ff2386a3a87a6093a82fd782bc",
+    "last_commit_ts": 1750928525,
+    "statuses": [
+      "M"
+    ],
+    "language": "Docs (Text)",
+    "is_doc": true,
+    "commits": [
+      "8acfe9d28c4ab2ff2386a3a87a6093a82fd782bc"
+    ],
+    "title": "CUDA-accelerated ML libraries (optional, fallback to CPU)",
+    "tags": [],
+    "headings": [
+      "CUDA-accelerated ML libraries (optional, fallback to CPU)"
+    ]
+  },
+  {
+    "path": "backend/scripts/benchmark_cuda.py",
+    "cochange_count": 1,
+    "last_commit": "8acfe9d28c4ab2ff2386a3a87a6093a82fd782bc",
+    "last_commit_ts": 1750928525,
+    "statuses": [
+      "A"
+    ],
+    "language": "Python",
+    "is_doc": false
+  },
+  {
+    "path": "backend/test_cuda_setup.py",
+    "cochange_count": 1,
+    "last_commit": "8acfe9d28c4ab2ff2386a3a87a6093a82fd782bc",
+    "last_commit_ts": 1750928525,
+    "statuses": [
+      "A"
+    ],
+    "language": "Python",
+    "is_doc": false
+  },
+  {
+    "path": "backend/test_cupy_acceleration.py",
+    "cochange_count": 1,
+    "last_commit": "8acfe9d28c4ab2ff2386a3a87a6093a82fd782bc",
+    "last_commit_ts": 1750928525,
+    "statuses": [
+      "A"
+    ],
+    "language": "Python",
+    "is_doc": false
+  },
+  {
+    "path": "docs/sprints/sprint-11/CUDA_ACCELERATION_GUIDE.md",
+    "cochange_count": 1,
+    "last_commit": "8acfe9d28c4ab2ff2386a3a87a6093a82fd782bc",
+    "last_commit_ts": 1750928525,
+    "statuses": [
+      "A"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "8acfe9d28c4ab2ff2386a3a87a6093a82fd782bc"
+    ],
+    "title": "",
+    "tags": [
+      "evidence",
+      "sprint"
+    ],
+    "headings": []
+  },
+  {
+    "path": "docs/sprints/sprint-11/CUDA_IMPLEMENTATION_PROMPT.md",
+    "cochange_count": 1,
+    "last_commit": "8acfe9d28c4ab2ff2386a3a87a6093a82fd782bc",
+    "last_commit_ts": 1750928525,
+    "statuses": [
+      "A"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "8acfe9d28c4ab2ff2386a3a87a6093a82fd782bc"
+    ],
+    "title": "",
+    "tags": [
+      "plan",
+      "sprint"
+    ],
+    "headings": []
+  },
+  {
+    "path": "docs/sprints/sprint-11/POC_COMPLETION_STATUS.md",
+    "cochange_count": 1,
+    "last_commit": "f6a35488d71224a8dabd322a6d61dcd793123d24",
+    "last_commit_ts": 1750928525,
+    "statuses": [
+      "A"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "f6a35488d71224a8dabd322a6d61dcd793123d24"
+    ],
+    "title": "",
+    "tags": [
+      "sprint"
+    ],
+    "headings": []
+  },
+  {
+    "path": "frontend/src/app/page.tsx",
+    "cochange_count": 1,
+    "last_commit": "f7d106b11d10a164de3afd8cb8561d60a9da8e19",
+    "last_commit_ts": 1750928525,
+    "statuses": [
+      "M"
+    ],
+    "language": "TypeScript",
+    "is_doc": false
+  },
+  {
+    "path": "docs/sprints/planning/SPRINT_STATUS.md",
+    "cochange_count": 1,
+    "last_commit": "6780f848e3611789f88a91974fe38f8b08739dfb",
+    "last_commit_ts": 1750928524,
+    "statuses": [
+      "M"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "6780f848e3611789f88a91974fe38f8b08739dfb"
+    ],
+    "title": "Sprint Status Tracker",
+    "tags": [
+      "plan",
+      "sprint"
+    ],
+    "headings": [
+      "Sprint Status Tracker",
+      "Current Sprint Status",
+      "Sprint 10: Critical UI Refactor / Vertical-Slice v0.1",
+      "Key Planned Deliverables",
+      "Sprint 01: UI/UX Architecture Integration",
+      "Key Achievements",
+      "Sprint 01 Deliverables",
+      "Sprint 02: Visual Design System & Accessibility"
+    ]
+  },
+  {
+    "path": "docs/sprints/sprint-11/o3 research",
+    "cochange_count": 1,
+    "last_commit": "6780f848e3611789f88a91974fe38f8b08739dfb",
+    "last_commit_ts": 1750928524,
+    "statuses": [
+      "A"
+    ],
+    "language": "Other",
+    "is_doc": false
+  },
+  {
+    "path": "frontend/src/app/latent-space/components/ThumbnailOverlay.tsx",
+    "cochange_count": 1,
+    "last_commit": "6780f848e3611789f88a91974fe38f8b08739dfb",
+    "last_commit_ts": 1750928524,
+    "statuses": [
+      "A"
+    ],
+    "language": "TypeScript",
+    "is_doc": false
+  },
+  {
+    "path": "frontend/src/app/latent-space/types/latent-space.ts",
+    "cochange_count": 1,
+    "last_commit": "6780f848e3611789f88a91974fe38f8b08739dfb",
+    "last_commit_ts": 1750928524,
+    "statuses": [
+      "A"
+    ],
+    "language": "TypeScript",
+    "is_doc": false
+  },
+  {
+    "path": "frontend/src/app/layout.tsx",
+    "cochange_count": 1,
+    "last_commit": "6780f848e3611789f88a91974fe38f8b08739dfb",
+    "last_commit_ts": 1750928524,
+    "statuses": [
+      "M"
+    ],
+    "language": "TypeScript",
+    "is_doc": false
+  },
+  {
+    "path": "frontend/src/components/ui/provider.tsx",
+    "cochange_count": 1,
+    "last_commit": "6780f848e3611789f88a91974fe38f8b08739dfb",
+    "last_commit_ts": 1750928524,
+    "statuses": [
+      "M"
+    ],
+    "language": "TypeScript",
+    "is_doc": false
+  }
+]

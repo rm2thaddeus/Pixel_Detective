@@ -100,9 +100,7 @@ function Open-PageUrl {
     [string]$BaseUrl,
     [string]$Path
   )
-  if (-not $Open -and [string]::IsNullOrWhiteSpace($Path)) {
-    return
-  }
+  if (-not $Open) { return }
   if ([string]::IsNullOrWhiteSpace($Path)) {
     Start-Process $BaseUrl
     return

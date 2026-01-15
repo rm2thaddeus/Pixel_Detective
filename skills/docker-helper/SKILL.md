@@ -7,6 +7,9 @@ description: Inspect Docker containers, volumes, and compose services for Pixel 
 
 Use this skill to read Docker state for the repo and list stored data sources.
 
+## Quickstart
+- Status + capabilities: `powershell -ExecutionPolicy Bypass -File skills\\docker-helper\\scripts\\docker_inventory.ps1 -Action status -ListCapabilities`
+
 ## Workflow
 
 1. Confirm Docker is available
@@ -41,4 +44,5 @@ Use this skill to read Docker state for the repo and list stored data sources.
 
 ## Notes
 - This skill can start/stop/restart services via docker compose in the repo root.
+- `docker compose` actions auto-detect the repo root (by locating `docker-compose.yml`).
 - The compose file may warn that the `version` field is obsolete; ignore the warning.

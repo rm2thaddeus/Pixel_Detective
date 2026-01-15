@@ -1,89 +1,53 @@
-Skills Scope Notes
+# Skills (local)
 
-This folder contains skill definitions and helper scripts for Pixel Detective and Dev Graph. This README captures what was scoped, built, and validated in the current session, plus a forward plan.
+This folder contains local Codex skill definitions (`*/SKILL.md`) plus helper scripts under `*/scripts/` used by Pixel Detective and Dev Graph.
 
-Original goals captured from this session
-- Startup skills that “just work” on this machine: start docker-only, backend-only, or full stack; optionally open a specific page.
-- Pixel Detective skills should reach parity with Dev Graph: exports, standalone generation, and ready summaries.
-- Dev Graph exports are standalone (no UI) but require the backend API to be running.
-- Sprint summary artifacts should drop into each `docs/sprints/<sprint>/` folder by default and reflect the frontend design language.
-- Sprint perspectives should be exportable as PDF with embedded Dev Graph visuals, without requiring the UI to be open.
-- Docker is required and should be fully operable from skills; an MCP server can be used for Docker operations.
-- Outputs should be shareable: SVGs, MP4, GIF, and PDF.
+## Quickstart (common commands)
+- Start Pixel Detective: `powershell -ExecutionPolicy Bypass -File skills\\start-pixel-detective\\scripts\\start_pixel_detective.ps1 -Mode full -Open`
+- Start Dev Graph: `powershell -ExecutionPolicy Bypass -File skills\\start-dev-graph\\scripts\\start_dev_graph.ps1 -Mode full -Open`
+- Docker inventory/actions: `powershell -ExecutionPolicy Bypass -File skills\\docker-helper\\scripts\\docker_inventory.ps1 -Action status -ListCapabilities`
+- Pixel Detective exports: `python skills\\pixel-detective-exports\\scripts\\export_umap_hdbscan.py --collection <name>`
+- Dev Graph API-only timeline exports: `node skills\\dev-graph-exports\\scripts\\export_timeline_segments_svg_parity.js --api http://localhost:8080`
+- Sprint summary PDFs (defaults to all sprints): `python skills\\sprint-summary-pdf\\scripts\\generate_sprint_summary_pdf.py`
+- Sprint perspectives (git-driven, per sprint): `python skills\\sprint-perspectives\\scripts\\generate_sprint_perspectives.py --sprint sprint-11 --no-pdf`
+- Rituals audit + scaffold: `python skills\\rituals-guide\\scripts\\audit_and_scaffold_rituals.py --sprint sprint-11 --scaffold`
 
-What is scoped and implemented
-- Start Pixel Detective: automated startup for docker-only, backend-only, and full stack (backend + frontend). Includes status/stop and optional page open.
-- Pixel Detective exports: standalone UMAP projection + HDBSCAN clustering export and collection management via the ingestion API.
-- Start Dev Graph: automated startup for docker-only, backend-only, and full stack (backend + frontend). Includes status/stop.
-- Docker helper: inventory and health checks for running containers.
-- Sprint summary PDF: generate a PDF with cards from docs/sprints content (drops output per sprint folder).
-- Dev Graph exports: standalone, API-only SVG parity exporter for timeline animations, plus structure SVG and dashboard JSON exports.
+## Skill types (minimum 3)
+This repo is built around 3 reusable skill types:
+1) **Dev Graph** (exports + manipulation): `dev-graph-exports`, `start-dev-graph`
+2) **Pixel Detective** (exports + collection ops): `pixel-detective-exports`, `start-pixel-detective`
+3) **Sprint perspectives** (story + evidence cards): `sprint-perspectives` (generator) + `rituals-guide` (audit/scaffold)
 
-What was validated
-- SVG timeline exporter generates MP4 + GIF per segment and per-commit SVG frames.
-- Segments produced for 1-70, 70-200, and 200+ commits (200-290 for this repo).
-- Pixel Detective UMAP projection test across collections:
-  - Lightroom_2017: 200 points
-  - Lightroom_2019: 0 points
-  - lightroom_2018: 200 points
-  - PrueMap: 25 points
-  - Lightroom 2020: 200 points
-  - cluster mas grande: 11 points
+## Source-of-truth scope (implemented)
+- `start-pixel-detective`: modes `full|backend|services|frontend|status|stop`, plus `-Open` + optional `-Page`.
+- `start-dev-graph`: modes `full|backend|services|frontend|status|stop`, plus `-Open` + optional `-Page`.
+- `docker-helper`: Docker inventory, repo-root-aware `docker compose` actions (`start|stop|restart|logs`).
+- `pixel-detective-exports`: UMAP projection export + clustering (GPU UMAP service), plus collection operations via ingestion API.
+- `dev-graph-exports`: API-only SVG-parity timeline exporter (Node.js) plus optional UI-driven Playwright scripts.
+- `sprint-summary-pdf`: per-sprint HTML/PDF card summaries from `docs/sprints/*` saved into each sprint folder.
+- `sprint-perspectives`: per-sprint `PERSPECTIVES.md` + cards, derived from sprint anchor docs + git co-updated evidence and churn metrics.
+- `rituals-guide`: per-sprint ritual audit + optional scaffolding templates, derived from `MANIFESTO.md`.
 
-Key design decisions
-- Timeline exports must use the SVG timeline renderer (not GL2/WebGL).
-- No artificial node limits by default (max-nodes=0, max-files=0).
-- Auto-fit and smooth zoom motion are enabled by default.
-- If a render fails, the exporter retries at a smaller canvas size.
+## Notes and dependencies
+- `dev-graph-exports` API-only exporter requires Node.js 18+ (global `fetch`).
+- `sprint-summary-pdf` and `sprint-perspectives` produce PDFs when `weasyprint` is installed; otherwise they write HTML next to the intended PDF path.
+- `pixel-detective-exports` report PDF generation prefers `weasyprint` and falls back to `playwright` if available; otherwise it leaves HTML.
 
-Plan (detailed next steps)
-1. Startup skills
-   - Add explicit “mode prompts” for: docker-only, backend-only, full stack, and open page.
-   - Detect docker availability and state; start only required containers.
-   - Add lightweight health checks (API ready + port checks) and a final “ready summary.”
-   - Align both Pixel Detective and Dev Graph scripts to the same flags and outputs.
+## Validation (before installing system-wide)
+- Run: `powershell -ExecutionPolicy Bypass -File skills\\validate_skills.ps1`
+- Optional: `-SkipPython` or `-SkipNode` (if those runtimes are not installed on the target machine)
 
-2. Docker control + MCP
-   - Define a docker capability map: list containers, start/stop/restart, logs, and ports.
-   - If MCP is available, prefer it for controlled docker operations; fall back to shell.
-   - Log docker actions taken (for reproducibility).
+## Tasklist (backlog and next improvements)
+- [x] Start scripts for Pixel Detective and Dev Graph with consistent flags and ready summaries
+- [x] Docker capability mapping (MCP fallback still pending)
+- [x] Health checks for API readiness and basic port verification
+- [x] Pixel Detective export skill (standalone, UI-independent)
+- [x] Sprint perspectives (git-driven narrative + evidence cards; no Dev Graph required)
+- [x] Rituals audit + scaffold (manifesto-derived rubric + templates)
+- [ ] Improve sprint perspectives story quality (manifesto-style beats; fewer bullets, more narrative)
+- [ ] Tag and surface evidence docs more deeply (titles/headings, doc types, "research helped build X")
+- [ ] Add optional Dev Graph enrichment (when running) for deeper code-change attribution and sprint-window presets
+- [ ] Update sprint-summary-pdf template to fully match Pixel Detective typography and color tokens
+- [ ] Add sprint perspectives PDFs with embedded Dev Graph visuals (SVG/PNG receipts)
+- [ ] Add MCP-based Docker control fallback (scripts currently use Docker CLI directly)
 
-3. Sprint summary PDFs
-   - Read `docs/sprints/` and generate one PDF per sprint folder by default.
-   - Use frontend styles: typography, colors, and card spacing aligned to the UI theme.
-   - Include “story cards” and a final “metrics/links” card per sprint.
-   - Add optional cover page, and a minimal table of contents.
-
-4. Sprint perspectives (PDF + visuals)
-   - Produce a “perspectives” PDF that merges sprint narrative and Dev Graph visuals.
-   - Pull visuals from the standalone exporter (SVG or rendered PNG).
-   - Allow “per sprint window” exports tied to sprints.json.
-   - Ensure output lives inside each sprint folder.
-
-5. Dev Graph exports (cinematic + parity)
-   - Provide a “cinematic” preset: slower relaxation, higher auto-fit padding, smooth zoom.
-   - Add a “focus commit” preset for localized windows around a commit/hash.
-   - Keep SVG as the source of truth; video/gif is derived from SVG frames only.
-
-6. Documentation and packaging
-   - Create a short quickstart in each SKILL.md (“best command to run”).
-   - Add a top-level “skills index” section with common tasks and examples.
-   - Plan for future npm packaging (folder structure + entry points).
-7. Pixel Detective parity with Dev Graph
-   - Add a standalone Pixel Detective exports skill (no UI required).
-   - Support asset exports: captions, embeddings, vector snapshots, UMAP visual assets.
-   - Provide ready summaries, health checks, and consistent prompts for required services.
-   - Document where outputs are stored and how to regenerate them.
-
-Tasklist
-- [x] Align Pixel Detective and Dev Graph start scripts with identical flags and ready summaries
-- [x] Add docker capability mapping (MCP fallback still pending)
-- [x] Add health checks for API readiness and basic port verification
-- [ ] Update sprint PDF template to match frontend typography and color tokens
-- [ ] Generate one PDF per sprint folder by default (docs/sprints/*)
-- [ ] Add sprint perspectives PDF with embedded Dev Graph visuals
-- [ ] Add sprint-window exports tied to sprints.json
-- [x] Add cinematic preset (relaxation + auto-fit) for timeline exports
-- [x] Add focus-commit preset docs and examples
-- [x] Add Pixel Detective export skill with parity to Dev Graph (standalone, UI-independent)
-- [ ] Add per-skill quickstart blocks and a skills index

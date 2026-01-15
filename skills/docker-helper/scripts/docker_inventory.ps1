@@ -7,6 +7,22 @@ param(
   [switch]$ListCapabilities
 )
 
+function Resolve-RepoRoot {
+  $current = Resolve-Path $PSScriptRoot
+  for ($i = 0; $i -lt 6; $i++) {
+    if (Test-Path (Join-Path $current 'docker-compose.yml')) {
+      return $current
+    }
+    $parent = Split-Path $current -Parent
+    if ($parent -eq $current) { break }
+    $current = $parent
+  }
+  if (Test-Path (Join-Path $PWD 'docker-compose.yml')) {
+    return $PWD
+  }
+  return $null
+}
+
 function Test-Docker {
   try { docker version | Out-Null } catch { return $false }
   try { docker compose version | Out-Null } catch { return $false }
@@ -18,9 +34,31 @@ if (-not (Test-Docker)) {
   exit 1
 }
 
+$repoRoot = Resolve-RepoRoot
+
+function Get-ComposeServices {
+  param([string]$RepoRoot)
+  if (-not $RepoRoot) { return @() }
+  Push-Location $RepoRoot
+  try {
+    $services = docker compose config --services 2>$null
+    if ($services) { return @($services) }
+    return @()
+  } catch {
+    return @()
+  } finally {
+    Pop-Location
+  }
+}
+
 if ($ListCapabilities) {
+  $services = Get-ComposeServices -RepoRoot $repoRoot
   Write-Host 'Capabilities:' -ForegroundColor Cyan
-  Write-Host 'Compose services: qdrant_db, neo4j, dev_graph_api, dev_graph_ui'
+  if ($services.Count -gt 0) {
+    Write-Host ("Compose services: {0}" -f ($services -join ', '))
+  } else {
+    Write-Host 'Compose services: (repo root not detected)'
+  }
   Write-Host 'Actions: status, start, stop, restart, logs'
   Write-Host 'Use -Target <service> for start/stop/restart/logs.'
 }
@@ -30,10 +68,11 @@ docker ps -a
 
 Write-Host ''
 Write-Host 'Docker Compose Services (repo root only):' -ForegroundColor Cyan
-if (Test-Path "${PWD}\docker-compose.yml") {
-  docker compose ps
+if ($repoRoot) {
+  Push-Location $repoRoot
+  try { docker compose ps } finally { Pop-Location }
 } else {
-  Write-Host 'docker-compose.yml not found in current directory.' -ForegroundColor Yellow
+  Write-Host 'Repo root not detected (docker-compose.yml not found). Compose status/actions are unavailable.' -ForegroundColor Yellow
 }
 
 switch ($Action) {
@@ -44,15 +83,20 @@ switch ($Action) {
       Write-Host 'Error: -Target is required for this action.' -ForegroundColor Red
       exit 1
     }
-    if (-not (Test-Path "${PWD}\docker-compose.yml")) {
+    if (-not $repoRoot) {
       Write-Host 'Error: docker-compose.yml not found; actions require repo root.' -ForegroundColor Red
       exit 1
     }
-    switch ($Action) {
-      'start' { docker compose up -d $Target }
-      'stop' { docker compose stop $Target }
-      'restart' { docker compose restart $Target }
-      'logs' { docker compose logs --tail $LogsTail $Target }
+    Push-Location $repoRoot
+    try {
+      switch ($Action) {
+        'start' { docker compose up -d $Target }
+        'stop' { docker compose stop $Target }
+        'restart' { docker compose restart $Target }
+        'logs' { docker compose logs --tail $LogsTail $Target }
+      }
+    } finally {
+      Pop-Location
     }
   }
 }

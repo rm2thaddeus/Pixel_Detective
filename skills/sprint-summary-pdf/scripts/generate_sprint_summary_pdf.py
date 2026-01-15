@@ -184,6 +184,9 @@ def main() -> None:
     if not sprints_root.exists():
         raise SystemExit('docs/sprints not found. Run from repo context.')
 
+    if not args.sprint and not args.all:
+        args.all = True
+
     if args.sprint:
         targets = [sprints_root / args.sprint]
     elif args.all:

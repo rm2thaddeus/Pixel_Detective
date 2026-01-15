@@ -7,6 +7,10 @@ description: Generate per-sprint PDF summaries with a card layout from docs/spri
 
 Use this skill to generate a clean PDF per sprint, saved inside each sprint folder.
 
+## Quickstart
+- All sprints (default): `python skills/sprint-summary-pdf/scripts/generate_sprint_summary_pdf.py`
+- Single sprint: `python skills/sprint-summary-pdf/scripts/generate_sprint_summary_pdf.py --sprint sprint-11`
+
 ## Inputs
 - `docs/sprints/*/README.md`
 - `docs/sprints/*/PRD.md`
@@ -52,7 +56,7 @@ If a sprint is missing a summary file, synthesize a short summary from README an
 
 ## Template and script
 - Template: `skills/sprint-summary-pdf/assets/sprint_cards_template.html`
-- Script: `python skills/sprint-summary-pdf/scripts/generate_sprint_summary_pdf.py --all`
+- Script: `python skills/sprint-summary-pdf/scripts/generate_sprint_summary_pdf.py` (defaults to `--all`)
 - Single sprint: `--sprint sprint-11`
 
 ## Notes
