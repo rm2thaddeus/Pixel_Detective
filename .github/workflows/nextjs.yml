@@ -1,8 +1,9 @@
-name: Deploy Frontpage
+name: Deploy Frontpage (Static)
 
 on:
   push:
-    branches: [ "frontpage-site", "main", "master" ]
+    branches: [ "main", "frontpage-site" ]
+  workflow_dispatch:
 
 permissions:
   contents: read
