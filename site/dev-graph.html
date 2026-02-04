@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Dev Graph | Pixel Detective</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600&family=IBM+Plex+Serif:wght@400;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <nav class="nav">
+    <div class="container nav-inner">
+      <div class="logo">
+        <span class="logo-dot"></span>
+        Pixel Detective
+      </div>
+      <div class="nav-links">
+        <a href="index.html">Home</a>
+        <a href="manifesto.html">Manifesto</a>
+        <a href="pixel-detective.html">Pixel Detective</a>
+        <a href="dev-graph.html">Dev Graph</a>
+      </div>
+    </div>
+  </nav>
+
+  <main class="container">
+    <section class="hero">
+      <div class="reveal">
+        <h1>Developer Graph</h1>
+        <p>
+          A graph intelligence layer that connects commits, docs, requirements, and sprints into a
+          navigable system. Built with Neo4j, FastAPI, and temporal queries.
+        </p>
+        <div class="badges">
+          <span class="badge">Neo4j + FastAPI</span>
+          <span class="badge">Temporal Slices</span>
+          <span class="badge">Sprint Mapping</span>
+        </div>
+      </div>
+      <div class="hero-visual reveal">
+        <img src="assets/images/dev-graph-hero.png" alt="Developer graph visualization" />
+      </div>
+    </section>
+
+    <section class="section reveal">
+      <h2 class="section-title">Architecture</h2>
+      <p class="section-subtitle">
+        Git history and documentation are ingested into a Neo4j graph, exposed through a REST API,
+        and rendered as interactive timeline and graph views.
+      </p>
+      <div class="two-col">
+        <div class="card">
+          <h3>Ingestion</h3>
+          <p>Commits, files, and sprints mapped into typed nodes and relationships.</p>
+        </div>
+        <div class="card">
+          <h3>Graph API</h3>
+          <p>Endpoints for nodes, relations, temporal subgraphs, and sprint mapping.</p>
+        </div>
+        <div class="card">
+          <h3>UI Surfaces</h3>
+          <p>Timeline views, search, and relationship exploration for planning.</p>
+        </div>
+        <div class="card">
+          <h3>Value</h3>
+          <p>Onboarding, forensic history, and strategy grounded in evidence.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section reveal">
+      <h2 class="section-title">Temporal intelligence</h2>
+      <div class="tile-grid">
+        <div class="tile">
+          <img src="assets/images/dev-graph-timeline.png" alt="Timeline view" />
+          <div class="tile-content">
+            <h3>Timeline View</h3>
+            <p>Slice the graph by commit ranges or sprint windows.</p>
+          </div>
+        </div>
+        <div class="tile">
+          <img src="assets/images/query-flow.png" alt="API flow" />
+          <div class="tile-content">
+            <h3>API Surface</h3>
+            <p>Nodes, relations, search, commit history, and sprint mapping.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section reveal">
+      <h2 class="section-title">Why it matters</h2>
+      <div class="band">
+        <div class="metric">
+          <strong>Faster onboarding</strong>
+          <span>New contributors see real structure, not just folders.</span>
+        </div>
+        <div class="metric">
+          <strong>Planning clarity</strong>
+          <span>Sprint work tied directly to requirements and outcomes.</span>
+        </div>
+        <div class="metric">
+          <strong>Forensic insight</strong>
+          <span>Identify why the codebase evolved the way it did.</span>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="container">
+      <div>Developer Graph is the narrative layer of Pixel Detective.</div>
+      <div class="footer-links">
+        <a href="pixel-detective.html">Platform</a>
+        <a href="manifesto.html">Manifesto</a>
+        <a href="index.html">Home</a>
+      </div>
+    </div>
+  </footer>
+
+  <script src="site.js"></script>
+</body>
+</html>

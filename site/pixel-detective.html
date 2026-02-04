@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Pixel Detective | Platform</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600&family=IBM+Plex+Serif:wght@400;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <nav class="nav">
+    <div class="container nav-inner">
+      <div class="logo">
+        <span class="logo-dot"></span>
+        Pixel Detective
+      </div>
+      <div class="nav-links">
+        <a href="index.html">Home</a>
+        <a href="manifesto.html">Manifesto</a>
+        <a href="pixel-detective.html">Pixel Detective</a>
+        <a href="dev-graph.html">Dev Graph</a>
+      </div>
+    </div>
+  </nav>
+
+  <main class="container">
+    <section class="hero">
+      <div class="reveal">
+        <h1>Pixel Detective Platform</h1>
+        <p>
+          A local-first AI media search engine that brings semantic discovery, clustering, and curation
+          to large personal archives. Built as a microservices platform with GPU acceleration.
+        </p>
+        <div class="badges">
+          <span class="badge">FastAPI Services</span>
+          <span class="badge">Qdrant Vector Search</span>
+          <span class="badge">CUDA + cuML</span>
+        </div>
+      </div>
+      <div class="hero-visual reveal">
+        <img src="assets/images/pd-architecture-hero.png" alt="Pixel Detective architecture" />
+      </div>
+    </section>
+
+    <section class="section reveal">
+      <h2 class="section-title">System Architecture</h2>
+      <p class="section-subtitle">
+        The platform is decoupled into a Next.js frontend, ingestion orchestration, ML inference,
+        a vector database, and a GPU-accelerated UMAP service.
+      </p>
+      <div class="two-col">
+        <div class="card">
+          <h3>Frontend</h3>
+          <p>Next.js 15, Chakra UI, React Query, Zustand, hydration-safe components.</p>
+        </div>
+        <div class="card">
+          <h3>Backend Services</h3>
+          <p>Ingestion, ML inference, and GPU UMAP services coordinated via FastAPI.</p>
+        </div>
+        <div class="card">
+          <h3>Vector Intelligence</h3>
+          <p>Qdrant stores embeddings and metadata for hybrid semantic search.</p>
+        </div>
+        <div class="card">
+          <h3>Performance</h3>
+          <p>Dynamic batch sizing, FP16 models, and CUDA acceleration for throughput.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section reveal">
+      <h2 class="section-title">Core systems</h2>
+      <div class="cards">
+        <div class="card">
+          <h3>Search Pipeline</h3>
+          <p>Text and image queries embed via CLIP, then rank results in Qdrant.</p>
+        </div>
+        <div class="card">
+          <h3>Latent Space Explorer</h3>
+          <p>UMAP projections, clustering, lasso selection, and multi-layer visualization.</p>
+        </div>
+        <div class="card">
+          <h3>Curation & Duplicates</h3>
+          <p>Near-duplicate detection, archival workflows, and collection merging.</p>
+        </div>
+        <div class="card">
+          <h3>Streaming UMAP</h3>
+          <p>Chunked processing with progress tracking for 10k+ images.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section reveal">
+      <h2 class="section-title">Feature visuals</h2>
+      <div class="tile-grid">
+        <div class="tile">
+          <img src="assets/images/pd-latent-space.png" alt="Latent space explorer" />
+          <div class="tile-content">
+            <h3>Latent Space Explorer</h3>
+            <p>Interactive scatter plots, clustering controls, and selection pipelines.</p>
+          </div>
+        </div>
+        <div class="tile">
+          <img src="assets/images/pd-curation.png" alt="Curation workflows" />
+          <div class="tile-content">
+            <h3>Curation Suite</h3>
+            <p>Duplicate analysis, archive safeguards, and collection-level actions.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section reveal">
+      <h2 class="section-title">Performance signals</h2>
+      <div class="band">
+        <div class="metric">
+          <strong>Latency &lt; 200ms</strong>
+          <span>Backend API response targets sustained.</span>
+        </div>
+        <div class="metric">
+          <strong>UMAP &lt; 2s for 500 points</strong>
+          <span>Interactive visualizations without blocking UI.</span>
+        </div>
+        <div class="metric">
+          <strong>10x throughput</strong>
+          <span>GPU-optimized inference and batch autosizing.</span>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="container">
+      <div>Pixel Detective is production-ready and designed for scale.</div>
+      <div class="footer-links">
+        <a href="dev-graph.html">Dev Graph</a>
+        <a href="manifesto.html">Manifesto</a>
+        <a href="index.html">Home</a>
+      </div>
+    </div>
+  </footer>
+
+  <script src="site.js"></script>
+</body>
+</html>
