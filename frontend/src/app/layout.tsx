@@ -19,8 +19,8 @@ import { ClientProviders } from './client-providers';
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Vibe Coder",
-  description: "Your intelligent image search and management platform",
+  title: "Pixel Detective",
+  description: "AI-powered media search and management platform",
 };
 
 export default function RootLayout({

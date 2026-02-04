@@ -1,0 +1,254 @@
+[
+  {
+    "path": "README.md",
+    "cochange_count": 1,
+    "last_commit": "5ce0d02e6bfa4854156e03dfb59e5eaa86c0af58",
+    "last_commit_ts": 1748527492,
+    "statuses": [
+      "M"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "5ce0d02e6bfa4854156e03dfb59e5eaa86c0af58"
+    ],
+    "title": "Pixel Detective - Dual AI Platform",
+    "tags": [],
+    "headings": [
+      "Pixel Detective - Dual AI Platform",
+      "Project Overview",
+      "Pixel Detective - AI-Powered Media Search",
+      "Dev Graph - Temporal Knowledge Graph",
+      "Quick Start",
+      "Prerequisites",
+      "Launch Applications",
+      "Option 1: Pixel Detective (Media Search)"
+    ]
+  },
+  {
+    "path": "backend/ingestion_orchestration_fastapi_app/requirements.txt",
+    "cochange_count": 1,
+    "last_commit": "5ce0d02e6bfa4854156e03dfb59e5eaa86c0af58",
+    "last_commit_ts": 1748527492,
+    "statuses": [
+      "A"
+    ],
+    "language": "Docs (Text)",
+    "is_doc": true,
+    "commits": [
+      "5ce0d02e6bfa4854156e03dfb59e5eaa86c0af58"
+    ],
+    "title": "CUDA-accelerated ML libraries (optional, fallback to CPU)",
+    "tags": [],
+    "headings": [
+      "CUDA-accelerated ML libraries (optional, fallback to CPU)"
+    ]
+  },
+  {
+    "path": "backend/ml_inference_fastapi_app/requirements.txt",
+    "cochange_count": 1,
+    "last_commit": "5ce0d02e6bfa4854156e03dfb59e5eaa86c0af58",
+    "last_commit_ts": 1748527492,
+    "statuses": [
+      "A"
+    ],
+    "language": "Docs (Text)",
+    "is_doc": true,
+    "commits": [
+      "5ce0d02e6bfa4854156e03dfb59e5eaa86c0af58"
+    ],
+    "title": "ML Model Dependencies",
+    "tags": [],
+    "headings": [
+      "ML Model Dependencies"
+    ]
+  },
+  {
+    "path": "docs/CHANGELOG.md",
+    "cochange_count": 1,
+    "last_commit": "5ce0d02e6bfa4854156e03dfb59e5eaa86c0af58",
+    "last_commit_ts": 1748527492,
+    "statuses": [
+      "M"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "5ce0d02e6bfa4854156e03dfb59e5eaa86c0af58"
+    ],
+    "title": "CHANGELOG",
+    "tags": [],
+    "headings": [
+      "CHANGELOG",
+      "[3.0.0] - 2024-12-15 - Sprint 10: Complete System Transformation",
+      "MAJOR RELEASE - Production-Ready System",
+      "Added",
+      "Changed",
+      "Technical Achievements",
+      "Architecture Evolution",
+      "Documentation"
+    ]
+  },
+  {
+    "path": "docs/README.md",
+    "cochange_count": 1,
+    "last_commit": "5ce0d02e6bfa4854156e03dfb59e5eaa86c0af58",
+    "last_commit_ts": 1748527492,
+    "statuses": [
+      "M"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "5ce0d02e6bfa4854156e03dfb59e5eaa86c0af58"
+    ],
+    "title": "Pixel Detective: AI-Powered Media Search Engine",
+    "tags": [],
+    "headings": [
+      "Pixel Detective: AI-Powered Media Search Engine",
+      "LATEST: Backend Complete, Preparing for New UI (Post-Sprint 09)",
+      "Technical Architecture",
+      "System Architecture (Post-Sprint 09)",
+      "Key Features (Backend)",
+      "Development Status",
+      "Sprint 09: Backend Overhaul & Cleanup",
+      "Sprint 10: Critical UI Refactor"
+    ]
+  },
+  {
+    "path": "docs/archive/CLI_ENTERPRISE_VISION.md",
+    "cochange_count": 1,
+    "last_commit": "5ce0d02e6bfa4854156e03dfb59e5eaa86c0af58",
+    "last_commit_ts": 1748527492,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "5ce0d02e6bfa4854156e03dfb59e5eaa86c0af58"
+    ],
+    "title": "",
+    "tags": [],
+    "headings": []
+  },
+  {
+    "path": "docs/archive/COMPONENT_THREADING_FIXES.md",
+    "cochange_count": 1,
+    "last_commit": "5ce0d02e6bfa4854156e03dfb59e5eaa86c0af58",
+    "last_commit_ts": 1748527492,
+    "statuses": [
+      "A"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "5ce0d02e6bfa4854156e03dfb59e5eaa86c0af58"
+    ],
+    "title": "",
+    "tags": [],
+    "headings": []
+  },
+  {
+    "path": "docs/archive/CRITICAL_THREADING_FIXES.md",
+    "cochange_count": 1,
+    "last_commit": "5ce0d02e6bfa4854156e03dfb59e5eaa86c0af58",
+    "last_commit_ts": 1748527492,
+    "statuses": [
+      "A"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "5ce0d02e6bfa4854156e03dfb59e5eaa86c0af58"
+    ],
+    "title": "",
+    "tags": [],
+    "headings": []
+  },
+  {
+    "path": "docs/archive/LOADING_SCREEN_FIXES.md",
+    "cochange_count": 1,
+    "last_commit": "5ce0d02e6bfa4854156e03dfb59e5eaa86c0af58",
+    "last_commit_ts": 1748527492,
+    "statuses": [
+      "A"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "5ce0d02e6bfa4854156e03dfb59e5eaa86c0af58"
+    ],
+    "title": "",
+    "tags": [],
+    "headings": []
+  },
+  {
+    "path": "docs/archive/PERFORMANCE_OPTIMIZATIONS.md",
+    "cochange_count": 1,
+    "last_commit": "5ce0d02e6bfa4854156e03dfb59e5eaa86c0af58",
+    "last_commit_ts": 1748527492,
+    "statuses": [
+      "A"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "5ce0d02e6bfa4854156e03dfb59e5eaa86c0af58"
+    ],
+    "title": "",
+    "tags": [
+      "metrics"
+    ],
+    "headings": []
+  },
+  {
+    "path": "docs/archive/THREADING_PERFORMANCE_GUIDELINES.md",
+    "cochange_count": 1,
+    "last_commit": "5ce0d02e6bfa4854156e03dfb59e5eaa86c0af58",
+    "last_commit_ts": 1748527492,
+    "statuses": [
+      "A"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "5ce0d02e6bfa4854156e03dfb59e5eaa86c0af58"
+    ],
+    "title": "",
+    "tags": [
+      "evidence",
+      "metrics"
+    ],
+    "headings": []
+  },
+  {
+    "path": "docs/reference_guides/Streamlit Background tasks.md",
+    "cochange_count": 1,
+    "last_commit": "5ce0d02e6bfa4854156e03dfb59e5eaa86c0af58",
+    "last_commit_ts": 1748527492,
+    "statuses": [
+      "A"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "5ce0d02e6bfa4854156e03dfb59e5eaa86c0af58"
+    ],
+    "title": "1. Streamlit Background Processing Strategies",
+    "tags": [
+      "evidence",
+      "reference"
+    ],
+    "headings": [
+      "1. Streamlit Background Processing Strategies",
+      "1.1 Official Approaches and Caching",
+      "1.2 Concurrency, asyncio & Threading",
+      "1.3 Task Queues: RQ & Celery",
+      "2. Managing Heavy Dependencies & CUDA",
+      "2.1 Environment Isolation",
+      "2.2 Docker & NVIDIA Container Toolkit",
+      "2.3 Lazy Loading & Model Dispatch"
+    ]
+  }
+]

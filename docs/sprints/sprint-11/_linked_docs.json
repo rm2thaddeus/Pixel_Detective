@@ -1,0 +1,326 @@
+[
+  {
+    "path": "docs/sprints/sprint-11/IMPLEMENTATION_IMPROVEMENTS_SUMMARY.md",
+    "cochange_count": 4,
+    "last_commit": "7a3df22b991b4de1406128f59552bbef988c98d0",
+    "last_commit_ts": 1750928529,
+    "statuses": [
+      "A",
+      "M"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "ae0971951c624792f765ce15476792b244ee55d6",
+      "8acfe9d28c4ab2ff2386a3a87a6093a82fd782bc",
+      "6bc25502868ca72fa6f39759ea14ad0f334ddd62",
+      "7a3df22b991b4de1406128f59552bbef988c98d0"
+    ],
+    "title": "",
+    "tags": [
+      "plan",
+      "sprint"
+    ],
+    "headings": []
+  },
+  {
+    "path": "README.md",
+    "cochange_count": 3,
+    "last_commit": "cf0f89e55a460a8ccfbd9aaef8e503f4fcacdfaa",
+    "last_commit_ts": 1751051338,
+    "statuses": [
+      "M"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "cf0f89e55a460a8ccfbd9aaef8e503f4fcacdfaa",
+      "a82766b154a016c38d0b05d1b5cff9958a95ef76",
+      "f7851fffe36800606347092d10cb795456bd4156"
+    ],
+    "title": "Pixel Detective - Dual AI Platform",
+    "tags": [],
+    "headings": [
+      "Pixel Detective - Dual AI Platform",
+      "Project Overview",
+      "Pixel Detective - AI-Powered Media Search",
+      "Dev Graph - Temporal Knowledge Graph",
+      "Quick Start",
+      "Prerequisites",
+      "Launch Applications",
+      "Option 1: Pixel Detective (Media Search)"
+    ]
+  },
+  {
+    "path": "backend/gpu_umap_service/README.md",
+    "cochange_count": 2,
+    "last_commit": "5e40d4ea8fed845c3213d8a1ca7dd386e81db30b",
+    "last_commit_ts": 1750928528,
+    "statuses": [
+      "M"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "5e40d4ea8fed845c3213d8a1ca7dd386e81db30b",
+      "ae0971951c624792f765ce15476792b244ee55d6"
+    ],
+    "title": "GPU UMAP Service",
+    "tags": [],
+    "headings": [
+      "GPU UMAP Service",
+      "Setup",
+      "Docker",
+      "Live-Reload Development with Docker Compose",
+      "From the repository root",
+      "1. Ensure the shared network exists (only needed once)",
+      "2. Start the GPU UMAP service in dev mode",
+      "Endpoints"
+    ]
+  },
+  {
+    "path": "backend/ingestion_orchestration_fastapi_app/cuml_integration_guide.md",
+    "cochange_count": 2,
+    "last_commit": "ae0971951c624792f765ce15476792b244ee55d6",
+    "last_commit_ts": 1750928526,
+    "statuses": [
+      "A",
+      "M"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "ae0971951c624792f765ce15476792b244ee55d6",
+      "8acfe9d28c4ab2ff2386a3a87a6093a82fd782bc"
+    ],
+    "title": "Overview",
+    "tags": [
+      "evidence"
+    ],
+    "headings": [
+      "Overview",
+      "Research Summary",
+      "Current Challenges",
+      "Pip Installation Issues",
+      "This fails due to stub package issues on Windows:",
+      "Alternative Installation Methods",
+      "1. Conda Approach (Recommended)",
+      "Install miniforge/conda first, then:"
+    ]
+  },
+  {
+    "path": "archive/CLEANUP_SUMMARY.md",
+    "cochange_count": 1,
+    "last_commit": "cddadaa1b22639c7dd629b17ee65b8d4ab08d614",
+    "last_commit_ts": 1752148193,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "cddadaa1b22639c7dd629b17ee65b8d4ab08d614"
+    ],
+    "title": "Repository Cleanup Summary",
+    "tags": [],
+    "headings": [
+      "Repository Cleanup Summary",
+      "Overview",
+      "Actions Taken",
+      "Removed (Outdated/Deprecated)",
+      "Archived to `/docs/archive/deprecated/`",
+      "Reorganized",
+      "Preserved (Active Components)",
+      "Current Project Structure"
+    ]
+  },
+  {
+    "path": "archive/CLI_ENTERPRISE_VISION.md",
+    "cochange_count": 1,
+    "last_commit": "cddadaa1b22639c7dd629b17ee65b8d4ab08d614",
+    "last_commit_ts": 1752148193,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "cddadaa1b22639c7dd629b17ee65b8d4ab08d614"
+    ],
+    "title": "CLI Enterprise Vision: Large Collection Processing",
+    "tags": [],
+    "headings": [
+      "CLI Enterprise Vision: Large Collection Processing",
+      "Current CLI Capabilities (Strong Foundation)",
+      "Production-Ready Features",
+      "Current enterprise capabilities",
+      "Large-Scale Optimizations",
+      "Professional Format Support",
+      "Enterprise Enhancement Roadmap",
+      "Sprint 03: CLI Enterprise Features"
+    ]
+  },
+  {
+    "path": "archive/COMPONENT_THREADING_FIXES.md",
+    "cochange_count": 1,
+    "last_commit": "cddadaa1b22639c7dd629b17ee65b8d4ab08d614",
+    "last_commit_ts": 1752148193,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "cddadaa1b22639c7dd629b17ee65b8d4ab08d614"
+    ],
+    "title": "Component Threading Fixes - Pixel Detective",
+    "tags": [],
+    "headings": [
+      "Component Threading Fixes - Pixel Detective",
+      "Problem Solved",
+      "Symptoms Resolved:",
+      "Root Cause Analysis",
+      "Problematic Components:",
+      "The Problem Pattern:",
+      "DANGEROUS: Called during app initialization or from background threads",
+      "Solutions Implemented"
+    ]
+  },
+  {
+    "path": "archive/CRITICAL_THREADING_FIXES.md",
+    "cochange_count": 1,
+    "last_commit": "cddadaa1b22639c7dd629b17ee65b8d4ab08d614",
+    "last_commit_ts": 1752148193,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "cddadaa1b22639c7dd629b17ee65b8d4ab08d614"
+    ],
+    "title": "Critical Threading Fixes - Pixel Detective",
+    "tags": [],
+    "headings": [
+      "Critical Threading Fixes - Pixel Detective",
+      "Problem Identified",
+      "Error Symptoms:",
+      "Root Cause Analysis:",
+      "Solutions Implemented",
+      "1. Thread-Safe Background Loader",
+      "Before (Problematic):",
+      "WRONG: Accessing session state from background thread"
+    ]
+  },
+  {
+    "path": "archive/LOADING_SCREEN_FIXES.md",
+    "cochange_count": 1,
+    "last_commit": "cddadaa1b22639c7dd629b17ee65b8d4ab08d614",
+    "last_commit_ts": 1752148193,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "cddadaa1b22639c7dd629b17ee65b8d4ab08d614"
+    ],
+    "title": "Loading Screen Performance Fixes",
+    "tags": [
+      "metrics"
+    ],
+    "headings": [
+      "Loading Screen Performance Fixes",
+      "Critical Issues Identified and Fixed",
+      "1. Blocking Operations Removed",
+      "2. Optimized CSS Injection",
+      "3. Smart Refresh Mechanism",
+      "4. Enhanced Completion Handling",
+      "Performance Improvements",
+      "Before Fixes:"
+    ]
+  },
+  {
+    "path": "archive/PERFORMANCE_OPTIMIZATIONS.md",
+    "cochange_count": 1,
+    "last_commit": "cddadaa1b22639c7dd629b17ee65b8d4ab08d614",
+    "last_commit_ts": 1752148193,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "cddadaa1b22639c7dd629b17ee65b8d4ab08d614"
+    ],
+    "title": "Pixel Detective Performance Optimizations",
+    "tags": [
+      "metrics"
+    ],
+    "headings": [
+      "Pixel Detective Performance Optimizations",
+      "Overview",
+      "Problem Analysis",
+      "Original Performance Issues",
+      "Optimization Strategy",
+      "Core Principles",
+      "Implementation Approach",
+      "Implemented Solutions"
+    ]
+  },
+  {
+    "path": "archive/THREADING_PERFORMANCE_GUIDELINES.md",
+    "cochange_count": 1,
+    "last_commit": "cddadaa1b22639c7dd629b17ee65b8d4ab08d614",
+    "last_commit_ts": 1752148193,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "cddadaa1b22639c7dd629b17ee65b8d4ab08d614"
+    ],
+    "title": "Threading & Performance Guidelines for Pixel Detective",
+    "tags": [
+      "evidence",
+      "metrics"
+    ],
+    "headings": [
+      "Threading & Performance Guidelines for Pixel Detective",
+      "0. Task Orchestrator Integration",
+      "1. Heavy Modules Import",
+      "2. BackgroundLoader Pipeline",
+      "3. Thread Safety and Session State",
+      "4. Caching of Managers",
+      "5. Component Development",
+      "6. Adding Future Background Tasks"
+    ]
+  },
+  {
+    "path": "archive/deprecated/architecture-evolution-pre-sprint10.md",
+    "cochange_count": 1,
+    "last_commit": "cddadaa1b22639c7dd629b17ee65b8d4ab08d614",
+    "last_commit_ts": 1752148193,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "cddadaa1b22639c7dd629b17ee65b8d4ab08d614"
+    ],
+    "title": "Architecture Evolution: A Sprint-by-Sprint Journey",
+    "tags": [],
+    "headings": [
+      "Architecture Evolution: A Sprint-by-Sprint Journey",
+      "Initial State & Vision (Pre-Sprint 01)",
+      "Sprint 01: Unified 3-Screen Frontend Architecture",
+      "Sprint 02: Visual Design System & Accessibility",
+      "Sprints 03-07: Progressive Enhancements & Backend Foundations (Assumed Broad Strokes)",
+      "Sprint 08: Solidified API-Driven Architecture & Backend Services",
+      "Sprint 09: Backend Validation, GPU Optimisation & Streamlit Sunset (In&nbsp;Progress)",
+      "Future Architectural Considerations (Beyond Sprint 09)"
+    ]
+  }
+]

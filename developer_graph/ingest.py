@@ -219,7 +219,7 @@ class DevGraphIngester:
     def _create_constraints(tx):
         tx.run("CREATE CONSTRAINT IF NOT EXISTS FOR (s:Sprint) REQUIRE s.number IS UNIQUE")
         tx.run("CREATE CONSTRAINT IF NOT EXISTS FOR (r:Requirement) REQUIRE r.id IS UNIQUE")
-        tx.run("CREATE CONSTRAINT IF NOT EXISTS FOR (c:Commit) REQUIRE c.hash IS UNIQUE")
+        tx.run("CREATE CONSTRAINT IF NOT EXISTS FOR (c:GitCommit) REQUIRE c.hash IS UNIQUE")
         tx.run("CREATE CONSTRAINT IF NOT EXISTS FOR (f:File) REQUIRE f.path IS UNIQUE")
         tx.run("CREATE CONSTRAINT IF NOT EXISTS FOR (rel:Release) REQUIRE rel.version IS UNIQUE")
         tx.run("CREATE CONSTRAINT IF NOT EXISTS FOR (lib:Library) REQUIRE lib.name IS UNIQUE")
@@ -242,28 +242,30 @@ class DevGraphIngester:
 
     @staticmethod
     def _merge_commit(tx, commit: Dict[str, str]):
+        # Unified temporal schema: GitCommit + TOUCHED with timestamp
         tx.run(
-            "MERGE (c:Commit {hash:$hash}) SET c.message=$msg, c.date=$date",
-            hash=commit["hash"], msg=commit["message"], date=commit["date"]
+            "MERGE (c:GitCommit {hash:$hash}) SET c.message=$msg, c.timestamp=$ts",
+            hash=commit["hash"], msg=commit["message"], ts=commit.get("date")
         )
         for path in commit["files"]:
             tx.run(
                 "MERGE (f:File {path:$path})"
-                "WITH f MATCH (c:Commit {hash:$hash})"
-                "MERGE (c)-[:TOUCHES]->(f)",
-                path=path, hash=commit["hash"]
+                " WITH f MATCH (c:GitCommit {hash:$hash})"
+                " MERGE (c)-[r:TOUCHED]->(f)"
+                " ON CREATE SET r.timestamp=$ts",
+                path=path, hash=commit["hash"], ts=commit.get("date")
             )
         for rid in commit["requirements"]:
             tx.run(
-                "MATCH (r:Requirement {id:$rid}), (c:Commit {hash:$hash}) "
+                "MATCH (r:Requirement {id:$rid}), (c:GitCommit {hash:$hash}) "
                 "MERGE (c)-[:IMPLEMENTS]->(r)",
                 rid=rid, hash=commit["hash"]
             )
         for lib, action in commit.get("libraries", []):
             tx.run(
                 "MERGE (l:Library {name:$name})"
-                "WITH l MATCH (c:Commit {hash:$hash})"
-                "MERGE (c)-[:USES {action:$action}]->(l)",
+                " WITH l MATCH (c:GitCommit {hash:$hash})"
+                " MERGE (c)-[:USES {action:$action}]->(l)",
                 name=lib,
                 hash=commit["hash"],
                 action=action,
@@ -271,8 +273,8 @@ class DevGraphIngester:
         if commit.get("attempt"):
             tx.run(
                 "MERGE (a:Attempt {id:$id})"
-                "WITH a MATCH (c:Commit {hash:$hash})"
-                "MERGE (c)-[:PROTOTYPED_IN]->(a)",
+                " WITH a MATCH (c:GitCommit {hash:$hash})"
+                " MERGE (c)-[:PROTOTYPED_IN]->(a)",
                 id=commit["attempt"],
                 hash=commit["hash"],
             )

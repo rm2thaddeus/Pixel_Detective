@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Dev Graph UI (Minimal)</title>
+    <style>
+      body { font-family: system-ui, sans-serif; margin: 0; }
+      header { padding: 12px 16px; background: #111; color: #fff; }
+      main { padding: 16px; display: grid; gap: 16px; grid-template-columns: 320px 1fr; }
+      section { border: 1px solid #ddd; border-radius: 8px; padding: 12px; }
+      h2 { margin: 0 0 8px 0; font-size: 16px; }
+      label { display: block; margin: 8px 0 4px; font-size: 12px; color: #555; }
+      input, select, button { padding: 8px; font-size: 14px; }
+      .row { display: flex; gap: 8px; align-items: center; }
+      .list { max-height: 360px; overflow: auto; border: 1px solid #eee; border-radius: 6px; padding: 8px; }
+      code { background: #f6f8fa; padding: 2px 4px; border-radius: 4px; }
+      small { color: #666; }
+      .pill { display: inline-block; padding: 2px 6px; border-radius: 999px; background: #eef; color: #224; font-size: 12px; margin-left: 6px; }
+    </style>
+    <script>
+      window.DEV_GRAPH_API_URL = (new URLSearchParams(location.search).get('api') || 'http://localhost:8080');
+
+      async function api(path) {
+        const url = `${window.DEV_GRAPH_API_URL}${path}`;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`Request failed ${res.status}`);
+        return res.json();
+      }
+
+      async function loadOverview() {
+        const [nodes, rels, sprints] = await Promise.all([
+          api('/api/v1/dev-graph/nodes/count'),
+          api('/api/v1/dev-graph/relations/count'),
+          api('/api/v1/dev-graph/sprints')
+        ]);
+        document.getElementById('nodesCount').textContent = nodes.total;
+        document.getElementById('relsCount').textContent = rels.total;
+        const ul = document.getElementById('sprintList');
+        ul.innerHTML = '';
+        (sprints || []).forEach(s => {
+          const li = document.createElement('li');
+          li.textContent = `Sprint ${s.number} (${s.start_date} → ${s.end_date})`;
+          ul.appendChild(li);
+        });
+      }
+
+      async function queryNodes() {
+        const type = document.getElementById('nodeType').value.trim();
+        const p = new URLSearchParams({ limit: '100' });
+        if (type) {
+          const nodes = await api(`/api/v1/dev-graph/nodes?node_type=${encodeURIComponent(type)}&${p.toString()}`);
+          const out = document.getElementById('nodeResults');
+          out.innerHTML = '';
+          nodes.forEach(n => {
+            const div = document.createElement('div');
+            const title = n.id || JSON.stringify(n);
+            div.innerHTML = `<strong>${title}</strong> <span class="pill">${n.type || (n.labels||[])[0]||'Node'}</span><br><small>${(n.path||n.title||n.description||'').toString().slice(0,120)}</small>`;
+            out.appendChild(div);
+          });
+        }
+      }
+
+      async function queryRelations() {
+        const type = document.getElementById('relType').value.trim();
+        const p = new URLSearchParams({ limit: '200' });
+        if (type) p.set('rel_type', type);
+        const rels = await api(`/api/v1/dev-graph/relations?${p.toString()}`);
+        const out = document.getElementById('relResults');
+        out.innerHTML = '';
+        rels.forEach(r => {
+          const div = document.createElement('div');
+          div.innerHTML = `<code>${r.from}</code> — <strong>${r.type}</strong> → <code>${r.to}</code>`;
+          out.appendChild(div);
+        });
+      }
+
+      window.addEventListener('DOMContentLoaded', () => {
+        loadOverview().catch(err => console.error(err));
+        document.getElementById('runNodeQuery').addEventListener('click', queryNodes);
+        document.getElementById('runRelQuery').addEventListener('click', queryRelations);
+      });
+    </script>
+  </head>
+  <body>
+    <header>
+      <strong>Dev Graph UI</strong>
+      <small style="margin-left:8px;">API: <code id="apiBase"></code></small>
+      <script>document.getElementById('apiBase').textContent = window.DEV_GRAPH_API_URL;</script>
+    </header>
+    <main>
+      <section>
+        <h2>Overview</h2>
+        <div>Total Nodes: <strong id="nodesCount">…</strong></div>
+        <div>Total Relations: <strong id="relsCount">…</strong></div>
+        <div style="margin-top:8px;">
+          <label>Sprints</label>
+          <ul id="sprintList"></ul>
+        </div>
+      </section>
+      <section>
+        <h2>Explore</h2>
+        <div class="row">
+          <label style="min-width:120px;">Node Type</label>
+          <input id="nodeType" placeholder="Requirement | Document | Chunk | GitCommit | File" style="flex:1;" />
+          <button id="runNodeQuery">List</button>
+        </div>
+        <div id="nodeResults" class="list" style="margin-top:8px;"></div>
+        <div class="row" style="margin-top:16px;">
+          <label style="min-width:120px;">Relation Type</label>
+          <input id="relType" placeholder="CONTAINS_DOC | CONTAINS_CHUNK | MENTIONS | TOUCHED | IMPLEMENTS" style="flex:1;" />
+          <button id="runRelQuery">List</button>
+        </div>
+        <div id="relResults" class="list" style="margin-top:8px;"></div>
+      </section>
+    </main>
+  </body>
+  </html>
+

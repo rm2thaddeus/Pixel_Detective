@@ -12,6 +12,14 @@ export const mlApi = axios.create({
   timeout: 10000,
 });
 
+// Dev Graph API client removed - Dev Graph is now a separate application
+// If Dev Graph integration is needed, use the standalone Dev Graph UI at port 3001
+
+// export const devGraphApi = axios.create({
+//   baseURL: process.env.NEXT_PUBLIC_DEV_GRAPH_API_URL || 'http://localhost:8080',
+//   timeout: 10000,
+// });
+
 api.interceptors.response.use(
   (response) => response,
   (error) => {
@@ -162,3 +170,88 @@ export async function archiveAllDuplicates(jobId: string) {
   return res.data; // Returns updated JobResponse – the UI will refetch status
 }
 
+// -------------------------------
+// Developer Graph / Exploration
+// -------------------------------
+export interface EvolutionEvent {
+  id: string;
+  type: 'commit' | 'requirement' | 'file' | 'note';
+  timestamp: string;
+  label: string;
+}
+
+export interface EvolutionSnapshot {
+  nodes: Array<{ id: string; label?: string; x?: number; y?: number; size?: number; color?: string }>;
+  edges: Array<{ id: string; source: string; target: string; label?: string; color?: string }>;
+}
+
+export interface FeatureEvolutionResponse {
+  feature: string;
+  events: EvolutionEvent[];
+  snapshots?: Record<string, EvolutionSnapshot>;
+}
+
+// Dev Graph integration removed - use standalone Dev Graph app at port 3001
+export async function fetchFeatureEvolution(feature: string): Promise<FeatureEvolutionResponse> {
+  // This functionality is available in the Dev Graph standalone application
+  return { feature, events: [] };
+}
+
+export interface FailureAnalysisResponse {
+  patterns: Array<{ id: string; label: string; severity: 'low' | 'medium' | 'high' }>;
+  insights: string[];
+  recommendations: string[];
+}
+
+export async function analyzeFailurePatterns(_feature: string): Promise<FailureAnalysisResponse> {
+  // Synthesize analysis from available analytics endpoints
+  const [graphResp, activityResp] = await Promise.all([
+    api.get(`/api/v1/analytics/graph`).then(r => r.data).catch(() => null),
+    api.get(`/api/v1/analytics/activity`).then(r => r.data).catch(() => null),
+  ]);
+  const patterns: FailureAnalysisResponse['patterns'] = [];
+  const insights: string[] = [];
+  const recommendations: string[] = [];
+
+  if (graphResp?.edges?.TOUCHED && graphResp?.nodes?.files) {
+    const churn = graphResp.edges.TOUCHED / Math.max(1, graphResp.nodes.files);
+    if (churn > 5) patterns.push({ id: 'p-churn', label: 'High file churn', severity: 'high' });
+    if (churn > 2) insights.push('Elevated churn suggests instability in file-level changes.');
+  }
+  if (activityResp?.unique_authors && activityResp?.commit_count) {
+    const authors = activityResp.unique_authors;
+    const commits = activityResp.commit_count;
+    if (authors > 5 && commits < 20) patterns.push({ id: 'p-busfactor', label: 'Many authors, low throughput', severity: 'medium' });
+  }
+  if (!patterns.length) patterns.push({ id: 'p-none', label: 'No obvious failure patterns detected', severity: 'low' });
+  if (!insights.length) insights.push('Consider adding domain-specific checks to improve analysis.');
+  recommendations.push('Add guardrail tests around critical modules');
+  recommendations.push('Stabilize dependencies and monitor regressions');
+
+  return { patterns, insights, recommendations };
+}
+
+export interface ArchitectureInsightsResponse {
+  dependencies: Array<{ source: string; target: string; weight?: number }>;
+  bottlenecks: Array<{ id: string; label: string; metric: string; value: number }>;
+  overview?: Record<string, unknown>;
+}
+
+// Dev Graph integration removed - use standalone Dev Graph app at port 3001
+export async function generateArchitectureInsights(): Promise<ArchitectureInsightsResponse> {
+  // This functionality is available in the Dev Graph standalone application
+  return { dependencies: [], bottlenecks: [], overview: {} };
+}
+
+export interface KnowledgeSearchResult {
+  id: string;
+  type: string;
+  title: string;
+  snippet?: string;
+}
+
+// Dev Graph integration removed - use standalone Dev Graph app at port 3001
+export async function searchKnowledge(query: string): Promise<KnowledgeSearchResult[]> {
+  // This functionality is available in the Dev Graph standalone application
+  return [];
+}

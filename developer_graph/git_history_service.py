@@ -75,6 +75,62 @@ class GitHistoryService:
             )
         return commits
 
+    def get_commits_batched(self, limit: int = 100, path: Optional[str] = None) -> List[Dict[str, object]]:
+        """Optimized: Return commits with files in one git log call using --name-status."""
+        limit = max(1, min(limit, 1000))
+        pretty = "%H\t%an\t%ae\t%aI\t%s"
+        args = ["--name-status", "--pretty=format:" + pretty, f"-n{limit}"]
+        
+        if path:
+            output = self.repo.git.log("--follow", *args, "--", path)
+        else:
+            output = self.repo.git.log(*args)
+
+        commits = []
+        current_commit = None
+        
+        for line in output.split("\n"):
+            line = line.strip()
+            if not line:
+                continue
+                
+            # Check if this is a commit header line
+            if "\t" in line and len(line.split("\t")) >= 5:
+                # Save previous commit if exists
+                if current_commit:
+                    commits.append(current_commit)
+                
+                # Parse new commit header
+                try:
+                    commit_hash, author_name, author_email, timestamp_iso, message = line.split("\t", 4)
+                    current_commit = {
+                        "hash": commit_hash,
+                        "author_name": author_name,
+                        "author_email": author_email,
+                        "timestamp": timestamp_iso,
+                        "message": message,
+                        "files_changed": []
+                    }
+                except ValueError:
+                    continue
+            else:
+                # This is a file status line
+                if current_commit and line:
+                    # Parse file status (e.g., "M\tfile.py" or "A\tnewfile.py")
+                    parts = line.split("\t", 1)
+                    if len(parts) == 2:
+                        change_type, file_path = parts
+                        current_commit["files_changed"].append({
+                            "path": file_path,
+                            "change_type": change_type
+                        })
+        
+        # Don't forget the last commit
+        if current_commit:
+            commits.append(current_commit)
+            
+        return commits
+
     def get_commit(self, commit_hash: str) -> Optional[Dict[str, object]]:
         """Return details for a specific commit, including changed files and stats."""
         try:

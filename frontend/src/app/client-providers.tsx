@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useState, useEffect } from 'react';
 import { useStore } from '@/store/useStore';
 import { api } from '@/lib/api';
+import { ColorModeScript } from '@chakra-ui/react';
 
 function CollectionSyncProvider({ children }: { children: React.ReactNode }) {
   const { collection } = useStore();
@@ -31,10 +32,13 @@ export function ClientProviders({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(() => new QueryClient());
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <CollectionSyncProvider>
-        {children}
-      </CollectionSyncProvider>
-    </QueryClientProvider>
+    <>
+      <ColorModeScript initialColorMode="light" />
+      <QueryClientProvider client={queryClient}>
+        <CollectionSyncProvider>
+          {children}
+        </CollectionSyncProvider>
+      </QueryClientProvider>
+    </>
   );
 } 

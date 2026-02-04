@@ -1,0 +1,1446 @@
+[
+  {
+    "path": "docs/sprints/sprint-10/QUICK_REFERENCE.md",
+    "cochange_count": 4,
+    "last_commit": "8fc4f6ed65b0200ec6ccc811febe34fee91f0011",
+    "last_commit_ts": 1750162751,
+    "statuses": [
+      "A",
+      "D",
+      "M"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "aaeb3f06a48dbb9387f3e7b1a16db140dbf445a8",
+      "b9de930525a7f2d7d4c42461ee3ba71a2245a4fe",
+      "7ef39f2514c6c83279e7ab397c29c7c4998b98b5",
+      "8fc4f6ed65b0200ec6ccc811febe34fee91f0011"
+    ],
+    "title": "",
+    "tags": [
+      "evidence",
+      "sprint"
+    ],
+    "headings": []
+  },
+  {
+    "path": "docs/sprints/sprint-10/completion-summary.md",
+    "cochange_count": 3,
+    "last_commit": "aaeb3f06a48dbb9387f3e7b1a16db140dbf445a8",
+    "last_commit_ts": 1750079228,
+    "statuses": [
+      "A",
+      "D",
+      "M"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "aaeb3f06a48dbb9387f3e7b1a16db140dbf445a8",
+      "b9de930525a7f2d7d4c42461ee3ba71a2245a4fe",
+      "7ef39f2514c6c83279e7ab397c29c7c4998b98b5"
+    ],
+    "title": "",
+    "tags": [
+      "sprint"
+    ],
+    "headings": []
+  },
+  {
+    "path": "docs/sprints/sprint-10/README.md",
+    "cochange_count": 2,
+    "last_commit": "aaeb3f06a48dbb9387f3e7b1a16db140dbf445a8",
+    "last_commit_ts": 1750079228,
+    "statuses": [
+      "A",
+      "M"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "aaeb3f06a48dbb9387f3e7b1a16db140dbf445a8",
+      "7ef39f2514c6c83279e7ab397c29c7c4998b98b5"
+    ],
+    "title": "",
+    "tags": [
+      "sprint"
+    ],
+    "headings": []
+  },
+  {
+    "path": "docs/sprints/sprint-10/technical-implementation-plan.md",
+    "cochange_count": 2,
+    "last_commit": "aaeb3f06a48dbb9387f3e7b1a16db140dbf445a8",
+    "last_commit_ts": 1750079228,
+    "statuses": [
+      "A",
+      "D"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "aaeb3f06a48dbb9387f3e7b1a16db140dbf445a8",
+      "7ef39f2514c6c83279e7ab397c29c7c4998b98b5"
+    ],
+    "title": "",
+    "tags": [
+      "plan",
+      "sprint"
+    ],
+    "headings": []
+  },
+  {
+    "path": "frontend/src/app/layout.tsx",
+    "cochange_count": 2,
+    "last_commit": "aaeb3f06a48dbb9387f3e7b1a16db140dbf445a8",
+    "last_commit_ts": 1750079228,
+    "statuses": [
+      "M"
+    ],
+    "language": "TypeScript",
+    "is_doc": false
+  },
+  {
+    "path": "CLEANUP_SUMMARY.md",
+    "cochange_count": 1,
+    "last_commit": "8fc4f6ed65b0200ec6ccc811febe34fee91f0011",
+    "last_commit_ts": 1750162751,
+    "statuses": [
+      "A"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "8fc4f6ed65b0200ec6ccc811febe34fee91f0011"
+    ],
+    "title": "",
+    "tags": [],
+    "headings": []
+  },
+  {
+    "path": "DEVELOPER_GUIDE.md",
+    "cochange_count": 1,
+    "last_commit": "8fc4f6ed65b0200ec6ccc811febe34fee91f0011",
+    "last_commit_ts": 1750162751,
+    "statuses": [
+      "A"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "8fc4f6ed65b0200ec6ccc811febe34fee91f0011"
+    ],
+    "title": "Pixel Detective - Developer Quick Reference",
+    "tags": [
+      "evidence"
+    ],
+    "headings": [
+      "Pixel Detective - Developer Quick Reference",
+      "EASY START: ONE COMMAND",
+      "From the project root, this one command starts everything.",
+      "Backend services run as background jobs.",
+      "Frontend server runs in the current terminal.",
+      "Manual Startup (Advanced)",
+      "Backend Only",
+      "Frontend Only"
+    ]
+  },
+  {
+    "path": "README.md",
+    "cochange_count": 1,
+    "last_commit": "8fc4f6ed65b0200ec6ccc811febe34fee91f0011",
+    "last_commit_ts": 1750162751,
+    "statuses": [
+      "M"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "8fc4f6ed65b0200ec6ccc811febe34fee91f0011"
+    ],
+    "title": "Pixel Detective - Dual AI Platform",
+    "tags": [],
+    "headings": [
+      "Pixel Detective - Dual AI Platform",
+      "Project Overview",
+      "Pixel Detective - AI-Powered Media Search",
+      "Dev Graph - Temporal Knowledge Graph",
+      "Quick Start",
+      "Prerequisites",
+      "Launch Applications",
+      "Option 1: Pixel Detective (Media Search)"
+    ]
+  },
+  {
+    "path": "docs/archive/deprecated/models/lazy_model_manager.py",
+    "cochange_count": 1,
+    "last_commit": "8fc4f6ed65b0200ec6ccc811febe34fee91f0011",
+    "last_commit_ts": 1750162751,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Python",
+    "is_doc": false
+  },
+  {
+    "path": "docs/archive/deprecated/scripts/browser_connector.py",
+    "cochange_count": 1,
+    "last_commit": "8fc4f6ed65b0200ec6ccc811febe34fee91f0011",
+    "last_commit_ts": 1750162751,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Python",
+    "is_doc": false
+  },
+  {
+    "path": "docs/archive/deprecated/scripts/diagnose_cuda.py",
+    "cochange_count": 1,
+    "last_commit": "8fc4f6ed65b0200ec6ccc811febe34fee91f0011",
+    "last_commit_ts": 1750162751,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Python",
+    "is_doc": false
+  },
+  {
+    "path": "docs/archive/deprecated/scripts/emergency_performance_test.py",
+    "cochange_count": 1,
+    "last_commit": "8fc4f6ed65b0200ec6ccc811febe34fee91f0011",
+    "last_commit_ts": 1750162751,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Python",
+    "is_doc": false
+  },
+  {
+    "path": "docs/archive/deprecated/scripts/find_duplicates.py",
+    "cochange_count": 1,
+    "last_commit": "8fc4f6ed65b0200ec6ccc811febe34fee91f0011",
+    "last_commit_ts": 1750162751,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Python",
+    "is_doc": false
+  },
+  {
+    "path": "docs/archive/deprecated/scripts/measure_ingest.ps1",
+    "cochange_count": 1,
+    "last_commit": "8fc4f6ed65b0200ec6ccc811febe34fee91f0011",
+    "last_commit_ts": 1750162751,
+    "statuses": [
+      "R100"
+    ],
+    "language": "PowerShell",
+    "is_doc": false
+  },
+  {
+    "path": "docs/archive/deprecated/scripts/measure_mvp.ps1",
+    "cochange_count": 1,
+    "last_commit": "8fc4f6ed65b0200ec6ccc811febe34fee91f0011",
+    "last_commit_ts": 1750162751,
+    "statuses": [
+      "R100"
+    ],
+    "language": "PowerShell",
+    "is_doc": false
+  },
+  {
+    "path": "docs/archive/deprecated/scripts/minigame.py",
+    "cochange_count": 1,
+    "last_commit": "8fc4f6ed65b0200ec6ccc811febe34fee91f0011",
+    "last_commit_ts": 1750162751,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Python",
+    "is_doc": false
+  },
+  {
+    "path": "docs/archive/deprecated/scripts/performance_test.py",
+    "cochange_count": 1,
+    "last_commit": "8fc4f6ed65b0200ec6ccc811febe34fee91f0011",
+    "last_commit_ts": 1750162751,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Python",
+    "is_doc": false
+  },
+  {
+    "path": "docs/archive/deprecated/scripts/run_app.bat",
+    "cochange_count": 1,
+    "last_commit": "8fc4f6ed65b0200ec6ccc811febe34fee91f0011",
+    "last_commit_ts": 1750162751,
+    "statuses": [
+      "R100"
+    ],
+    "language": "BAT",
+    "is_doc": false
+  },
+  {
+    "path": "docs/archive/deprecated/scripts/test_api.py",
+    "cochange_count": 1,
+    "last_commit": "8fc4f6ed65b0200ec6ccc811febe34fee91f0011",
+    "last_commit_ts": 1750162751,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Python",
+    "is_doc": false
+  },
+  {
+    "path": "docs/archive/deprecated/scripts/test_backend_performance.py",
+    "cochange_count": 1,
+    "last_commit": "8fc4f6ed65b0200ec6ccc811febe34fee91f0011",
+    "last_commit_ts": 1750162751,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Python",
+    "is_doc": false
+  },
+  {
+    "path": "docs/archive/deprecated/scripts/test_core_functionality.py",
+    "cochange_count": 1,
+    "last_commit": "8fc4f6ed65b0200ec6ccc811febe34fee91f0011",
+    "last_commit_ts": 1750162751,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Python",
+    "is_doc": false
+  },
+  {
+    "path": "docs/archive/deprecated/scripts/test_fixes.py",
+    "cochange_count": 1,
+    "last_commit": "8fc4f6ed65b0200ec6ccc811febe34fee91f0011",
+    "last_commit_ts": 1750162751,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Python",
+    "is_doc": false
+  },
+  {
+    "path": "docs/archive/deprecated/scripts/test_lightning_startup.py",
+    "cochange_count": 1,
+    "last_commit": "8fc4f6ed65b0200ec6ccc811febe34fee91f0011",
+    "last_commit_ts": 1750162751,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Python",
+    "is_doc": false
+  },
+  {
+    "path": "docs/archive/deprecated/scripts/test_live_application.py",
+    "cochange_count": 1,
+    "last_commit": "8fc4f6ed65b0200ec6ccc811febe34fee91f0011",
+    "last_commit_ts": 1750162751,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Python",
+    "is_doc": false
+  },
+  {
+    "path": "docs/archive/deprecated/scripts/test_loading_performance.py",
+    "cochange_count": 1,
+    "last_commit": "8fc4f6ed65b0200ec6ccc811febe34fee91f0011",
+    "last_commit_ts": 1750162751,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Python",
+    "is_doc": false
+  },
+  {
+    "path": "docs/archive/deprecated/scripts/test_loading_screen_ui.py",
+    "cochange_count": 1,
+    "last_commit": "8fc4f6ed65b0200ec6ccc811febe34fee91f0011",
+    "last_commit_ts": 1750162751,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Python",
+    "is_doc": false
+  },
+  {
+    "path": "docs/archive/deprecated/scripts/test_sprint_02_completion.py",
+    "cochange_count": 1,
+    "last_commit": "8fc4f6ed65b0200ec6ccc811febe34fee91f0011",
+    "last_commit_ts": 1750162751,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Python",
+    "is_doc": false
+  },
+  {
+    "path": "docs/archive/deprecated/sprint-10-historical/BACKLOG.md",
+    "cochange_count": 1,
+    "last_commit": "8fc4f6ed65b0200ec6ccc811febe34fee91f0011",
+    "last_commit_ts": 1750162751,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "8fc4f6ed65b0200ec6ccc811febe34fee91f0011"
+    ],
+    "title": "",
+    "tags": [],
+    "headings": []
+  },
+  {
+    "path": "docs/archive/deprecated/sprint-10-historical/README.md",
+    "cochange_count": 1,
+    "last_commit": "8fc4f6ed65b0200ec6ccc811febe34fee91f0011",
+    "last_commit_ts": 1750162751,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "8fc4f6ed65b0200ec6ccc811febe34fee91f0011"
+    ],
+    "title": "",
+    "tags": [],
+    "headings": []
+  },
+  {
+    "path": "docs/archive/deprecated/sprint-10-historical/SPRINT_10_COMPREHENSIVE_SUMMARY.md",
+    "cochange_count": 1,
+    "last_commit": "8fc4f6ed65b0200ec6ccc811febe34fee91f0011",
+    "last_commit_ts": 1750162751,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "8fc4f6ed65b0200ec6ccc811febe34fee91f0011"
+    ],
+    "title": "",
+    "tags": [],
+    "headings": []
+  },
+  {
+    "path": "docs/archive/deprecated/sprint-10-historical/SPRINT_10_FINAL_FIXES.md",
+    "cochange_count": 1,
+    "last_commit": "8fc4f6ed65b0200ec6ccc811febe34fee91f0011",
+    "last_commit_ts": 1750162751,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "8fc4f6ed65b0200ec6ccc811febe34fee91f0011"
+    ],
+    "title": "",
+    "tags": [],
+    "headings": []
+  },
+  {
+    "path": "docs/archive/deprecated/sprint-10-historical/SPRINT_STATUS_FINAL.md",
+    "cochange_count": 1,
+    "last_commit": "8fc4f6ed65b0200ec6ccc811febe34fee91f0011",
+    "last_commit_ts": 1750162751,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "8fc4f6ed65b0200ec6ccc811febe34fee91f0011"
+    ],
+    "title": "",
+    "tags": [],
+    "headings": []
+  },
+  {
+    "path": "docs/archive/deprecated/sprint-10-technical-guides/DARK_MODE_REQUIREMENTS.md",
+    "cochange_count": 1,
+    "last_commit": "8fc4f6ed65b0200ec6ccc811febe34fee91f0011",
+    "last_commit_ts": 1750162751,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "8fc4f6ed65b0200ec6ccc811febe34fee91f0011"
+    ],
+    "title": "",
+    "tags": [
+      "evidence"
+    ],
+    "headings": []
+  },
+  {
+    "path": "docs/archive/deprecated/sprint-10-technical-guides/HYDRATION_ERROR_PREVENTION_GUIDE.md",
+    "cochange_count": 1,
+    "last_commit": "8fc4f6ed65b0200ec6ccc811febe34fee91f0011",
+    "last_commit_ts": 1750162751,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "8fc4f6ed65b0200ec6ccc811febe34fee91f0011"
+    ],
+    "title": "",
+    "tags": [
+      "evidence"
+    ],
+    "headings": []
+  },
+  {
+    "path": "docs/archive/deprecated/sprint-10-technical-guides/HYDRATION_FINAL_FIX.md",
+    "cochange_count": 1,
+    "last_commit": "8fc4f6ed65b0200ec6ccc811febe34fee91f0011",
+    "last_commit_ts": 1750162751,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "8fc4f6ed65b0200ec6ccc811febe34fee91f0011"
+    ],
+    "title": "",
+    "tags": [
+      "evidence"
+    ],
+    "headings": []
+  },
+  {
+    "path": "docs/archive/deprecated/sprint-10-technical-guides/IMAGE_GALLERY_IMPLEMENTATION.md",
+    "cochange_count": 1,
+    "last_commit": "8fc4f6ed65b0200ec6ccc811febe34fee91f0011",
+    "last_commit_ts": 1750162751,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "8fc4f6ed65b0200ec6ccc811febe34fee91f0011"
+    ],
+    "title": "",
+    "tags": [
+      "evidence",
+      "plan"
+    ],
+    "headings": []
+  },
+  {
+    "path": "docs/archive/deprecated/sprint-10-technical-guides/PHASE_2_5_FINAL_POLISH.md",
+    "cochange_count": 1,
+    "last_commit": "8fc4f6ed65b0200ec6ccc811febe34fee91f0011",
+    "last_commit_ts": 1750162751,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "8fc4f6ed65b0200ec6ccc811febe34fee91f0011"
+    ],
+    "title": "",
+    "tags": [
+      "evidence"
+    ],
+    "headings": []
+  },
+  {
+    "path": "docs/archive/deprecated/sprint-10-technical-guides/PHASE_3_CRITICAL_FIXES.md",
+    "cochange_count": 1,
+    "last_commit": "8fc4f6ed65b0200ec6ccc811febe34fee91f0011",
+    "last_commit_ts": 1750162751,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "8fc4f6ed65b0200ec6ccc811febe34fee91f0011"
+    ],
+    "title": "",
+    "tags": [
+      "evidence"
+    ],
+    "headings": []
+  },
+  {
+    "path": "docs/archive/deprecated/tests/test_optimizations.py",
+    "cochange_count": 1,
+    "last_commit": "8fc4f6ed65b0200ec6ccc811febe34fee91f0011",
+    "last_commit_ts": 1750162751,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Python",
+    "is_doc": false
+  },
+  {
+    "path": "docs/archive/deprecated/tests/test_performance_fix.py",
+    "cochange_count": 1,
+    "last_commit": "8fc4f6ed65b0200ec6ccc811febe34fee91f0011",
+    "last_commit_ts": 1750162751,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Python",
+    "is_doc": false
+  },
+  {
+    "path": "logs/pixel_detective_20250312_224547.log",
+    "cochange_count": 1,
+    "last_commit": "8fc4f6ed65b0200ec6ccc811febe34fee91f0011",
+    "last_commit_ts": 1750162751,
+    "statuses": [
+      "D"
+    ],
+    "language": "LOG",
+    "is_doc": false
+  },
+  {
+    "path": "logs/pixel_detective_20250312_224751.log",
+    "cochange_count": 1,
+    "last_commit": "8fc4f6ed65b0200ec6ccc811febe34fee91f0011",
+    "last_commit_ts": 1750162751,
+    "statuses": [
+      "D"
+    ],
+    "language": "LOG",
+    "is_doc": false
+  },
+  {
+    "path": "logs/pixel_detective_20250313_095926.log",
+    "cochange_count": 1,
+    "last_commit": "8fc4f6ed65b0200ec6ccc811febe34fee91f0011",
+    "last_commit_ts": 1750162751,
+    "statuses": [
+      "D"
+    ],
+    "language": "LOG",
+    "is_doc": false
+  },
+  {
+    "path": "logs/pixel_detective_20250313_101320.log",
+    "cochange_count": 1,
+    "last_commit": "8fc4f6ed65b0200ec6ccc811febe34fee91f0011",
+    "last_commit_ts": 1750162751,
+    "statuses": [
+      "D"
+    ],
+    "language": "LOG",
+    "is_doc": false
+  },
+  {
+    "path": "logs/pixel_detective_20250313_102646.log",
+    "cochange_count": 1,
+    "last_commit": "8fc4f6ed65b0200ec6ccc811febe34fee91f0011",
+    "last_commit_ts": 1750162751,
+    "statuses": [
+      "D"
+    ],
+    "language": "LOG",
+    "is_doc": false
+  },
+  {
+    "path": "logs/pixel_detective_20250313_103920.log",
+    "cochange_count": 1,
+    "last_commit": "8fc4f6ed65b0200ec6ccc811febe34fee91f0011",
+    "last_commit_ts": 1750162751,
+    "statuses": [
+      "D"
+    ],
+    "language": "LOG",
+    "is_doc": false
+  },
+  {
+    "path": "logs/pixel_detective_20250313_105323.log",
+    "cochange_count": 1,
+    "last_commit": "8fc4f6ed65b0200ec6ccc811febe34fee91f0011",
+    "last_commit_ts": 1750162751,
+    "statuses": [
+      "D"
+    ],
+    "language": "LOG",
+    "is_doc": false
+  },
+  {
+    "path": "logs/pixel_detective_20250313_110853.log",
+    "cochange_count": 1,
+    "last_commit": "8fc4f6ed65b0200ec6ccc811febe34fee91f0011",
+    "last_commit_ts": 1750162751,
+    "statuses": [
+      "D"
+    ],
+    "language": "LOG",
+    "is_doc": false
+  },
+  {
+    "path": "logs/pixel_detective_20250313_111054.log",
+    "cochange_count": 1,
+    "last_commit": "8fc4f6ed65b0200ec6ccc811febe34fee91f0011",
+    "last_commit_ts": 1750162751,
+    "statuses": [
+      "D"
+    ],
+    "language": "LOG",
+    "is_doc": false
+  },
+  {
+    "path": "logs/pixel_detective_20250313_123453.log",
+    "cochange_count": 1,
+    "last_commit": "8fc4f6ed65b0200ec6ccc811febe34fee91f0011",
+    "last_commit_ts": 1750162751,
+    "statuses": [
+      "D"
+    ],
+    "language": "LOG",
+    "is_doc": false
+  },
+  {
+    "path": "logs/pixel_detective_20250313_125358.log",
+    "cochange_count": 1,
+    "last_commit": "8fc4f6ed65b0200ec6ccc811febe34fee91f0011",
+    "last_commit_ts": 1750162751,
+    "statuses": [
+      "D"
+    ],
+    "language": "LOG",
+    "is_doc": false
+  },
+  {
+    "path": "logs/pixel_detective_20250313_140142.log",
+    "cochange_count": 1,
+    "last_commit": "8fc4f6ed65b0200ec6ccc811febe34fee91f0011",
+    "last_commit_ts": 1750162751,
+    "statuses": [
+      "D"
+    ],
+    "language": "LOG",
+    "is_doc": false
+  },
+  {
+    "path": "logs/pixel_detective_20250313_145830.log",
+    "cochange_count": 1,
+    "last_commit": "8fc4f6ed65b0200ec6ccc811febe34fee91f0011",
+    "last_commit_ts": 1750162751,
+    "statuses": [
+      "D"
+    ],
+    "language": "LOG",
+    "is_doc": false
+  },
+  {
+    "path": "logs/pixel_detective_20250313_152600.log",
+    "cochange_count": 1,
+    "last_commit": "8fc4f6ed65b0200ec6ccc811febe34fee91f0011",
+    "last_commit_ts": 1750162751,
+    "statuses": [
+      "D"
+    ],
+    "language": "LOG",
+    "is_doc": false
+  },
+  {
+    "path": "logs/pixel_detective_20250313_153640.log",
+    "cochange_count": 1,
+    "last_commit": "8fc4f6ed65b0200ec6ccc811febe34fee91f0011",
+    "last_commit_ts": 1750162751,
+    "statuses": [
+      "D"
+    ],
+    "language": "LOG",
+    "is_doc": false
+  },
+  {
+    "path": "logs/pixel_detective_20250313_160054.log",
+    "cochange_count": 1,
+    "last_commit": "8fc4f6ed65b0200ec6ccc811febe34fee91f0011",
+    "last_commit_ts": 1750162751,
+    "statuses": [
+      "D"
+    ],
+    "language": "LOG",
+    "is_doc": false
+  },
+  {
+    "path": "logs/pixel_detective_20250313_160221.log",
+    "cochange_count": 1,
+    "last_commit": "8fc4f6ed65b0200ec6ccc811febe34fee91f0011",
+    "last_commit_ts": 1750162751,
+    "statuses": [
+      "D"
+    ],
+    "language": "LOG",
+    "is_doc": false
+  },
+  {
+    "path": "logs/pixel_detective_20250313_163603.log",
+    "cochange_count": 1,
+    "last_commit": "8fc4f6ed65b0200ec6ccc811febe34fee91f0011",
+    "last_commit_ts": 1750162751,
+    "statuses": [
+      "D"
+    ],
+    "language": "LOG",
+    "is_doc": false
+  },
+  {
+    "path": "logs/pixel_detective_20250313_200046.log",
+    "cochange_count": 1,
+    "last_commit": "8fc4f6ed65b0200ec6ccc811febe34fee91f0011",
+    "last_commit_ts": 1750162751,
+    "statuses": [
+      "D"
+    ],
+    "language": "LOG",
+    "is_doc": false
+  },
+  {
+    "path": "logs/pixel_detective_20250313_200222.log",
+    "cochange_count": 1,
+    "last_commit": "8fc4f6ed65b0200ec6ccc811febe34fee91f0011",
+    "last_commit_ts": 1750162751,
+    "statuses": [
+      "D"
+    ],
+    "language": "LOG",
+    "is_doc": false
+  },
+  {
+    "path": "screenshots/screenshot-2025-05-25T13-37-46-937Z.png",
+    "cochange_count": 1,
+    "last_commit": "8fc4f6ed65b0200ec6ccc811febe34fee91f0011",
+    "last_commit_ts": 1750162751,
+    "statuses": [
+      "D"
+    ],
+    "language": "PNG",
+    "is_doc": false
+  },
+  {
+    "path": "screenshots/screenshot-2025-05-25T13-38-40-038Z.png",
+    "cochange_count": 1,
+    "last_commit": "8fc4f6ed65b0200ec6ccc811febe34fee91f0011",
+    "last_commit_ts": 1750162751,
+    "statuses": [
+      "D"
+    ],
+    "language": "PNG",
+    "is_doc": false
+  },
+  {
+    "path": "screenshots/screenshot-2025-05-25T18-21-31-203Z.png",
+    "cochange_count": 1,
+    "last_commit": "8fc4f6ed65b0200ec6ccc811febe34fee91f0011",
+    "last_commit_ts": 1750162751,
+    "statuses": [
+      "D"
+    ],
+    "language": "PNG",
+    "is_doc": false
+  },
+  {
+    "path": "screenshots/screenshot-2025-05-25T18-21-53-229Z.png",
+    "cochange_count": 1,
+    "last_commit": "8fc4f6ed65b0200ec6ccc811febe34fee91f0011",
+    "last_commit_ts": 1750162751,
+    "statuses": [
+      "D"
+    ],
+    "language": "PNG",
+    "is_doc": false
+  },
+  {
+    "path": "screenshots/screenshot-2025-05-25T19-08-03-869Z.png",
+    "cochange_count": 1,
+    "last_commit": "8fc4f6ed65b0200ec6ccc811febe34fee91f0011",
+    "last_commit_ts": 1750162751,
+    "statuses": [
+      "D"
+    ],
+    "language": "PNG",
+    "is_doc": false
+  },
+  {
+    "path": "screenshots/screenshot-2025-06-05T12-37-33-318Z.png",
+    "cochange_count": 1,
+    "last_commit": "8fc4f6ed65b0200ec6ccc811febe34fee91f0011",
+    "last_commit_ts": 1750162751,
+    "statuses": [
+      "D"
+    ],
+    "language": "PNG",
+    "is_doc": false
+  },
+  {
+    "path": "screenshots/screenshot-2025-06-05T12-38-55-807Z.png",
+    "cochange_count": 1,
+    "last_commit": "8fc4f6ed65b0200ec6ccc811febe34fee91f0011",
+    "last_commit_ts": 1750162751,
+    "statuses": [
+      "D"
+    ],
+    "language": "PNG",
+    "is_doc": false
+  },
+  {
+    "path": "screenshots/screenshot-2025-06-05T12-58-28-514Z.png",
+    "cochange_count": 1,
+    "last_commit": "8fc4f6ed65b0200ec6ccc811febe34fee91f0011",
+    "last_commit_ts": 1750162751,
+    "statuses": [
+      "D"
+    ],
+    "language": "PNG",
+    "is_doc": false
+  },
+  {
+    "path": "src/app/page.tsx",
+    "cochange_count": 1,
+    "last_commit": "8fc4f6ed65b0200ec6ccc811febe34fee91f0011",
+    "last_commit_ts": 1750162751,
+    "statuses": [
+      "D"
+    ],
+    "language": "TypeScript",
+    "is_doc": false
+  },
+  {
+    "path": "test_images_to_ingest/test_image_copy.jpg",
+    "cochange_count": 1,
+    "last_commit": "8fc4f6ed65b0200ec6ccc811febe34fee91f0011",
+    "last_commit_ts": 1750162751,
+    "statuses": [
+      "D"
+    ],
+    "language": "JPG",
+    "is_doc": false
+  },
+  {
+    "path": "tests/test_ingestion.py",
+    "cochange_count": 1,
+    "last_commit": "8fc4f6ed65b0200ec6ccc811febe34fee91f0011",
+    "last_commit_ts": 1750162751,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Python",
+    "is_doc": false
+  },
+  {
+    "path": "tests/test_pipeline.py",
+    "cochange_count": 1,
+    "last_commit": "8fc4f6ed65b0200ec6ccc811febe34fee91f0011",
+    "last_commit_ts": 1750162751,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Python",
+    "is_doc": false
+  },
+  {
+    "path": ".cursor/rules/auto-activation-config.mdc",
+    "cochange_count": 1,
+    "last_commit": "aaeb3f06a48dbb9387f3e7b1a16db140dbf445a8",
+    "last_commit_ts": 1750079228,
+    "statuses": [
+      "M"
+    ],
+    "language": "MDC",
+    "is_doc": false
+  },
+  {
+    "path": ".cursor/rules/debugging.mdc",
+    "cochange_count": 1,
+    "last_commit": "aaeb3f06a48dbb9387f3e7b1a16db140dbf445a8",
+    "last_commit_ts": 1750079228,
+    "statuses": [
+      "M"
+    ],
+    "language": "MDC",
+    "is_doc": false
+  },
+  {
+    "path": ".cursor/rules/fastapi.mdc",
+    "cochange_count": 1,
+    "last_commit": "aaeb3f06a48dbb9387f3e7b1a16db140dbf445a8",
+    "last_commit_ts": 1750079228,
+    "statuses": [
+      "A"
+    ],
+    "language": "MDC",
+    "is_doc": false
+  },
+  {
+    "path": ".cursor/rules/react.mdc",
+    "cochange_count": 1,
+    "last_commit": "aaeb3f06a48dbb9387f3e7b1a16db140dbf445a8",
+    "last_commit_ts": 1750079228,
+    "statuses": [
+      "A"
+    ],
+    "language": "MDC",
+    "is_doc": false
+  },
+  {
+    "path": "backend/ingestion_orchestration_fastapi_app/main.py",
+    "cochange_count": 1,
+    "last_commit": "aaeb3f06a48dbb9387f3e7b1a16db140dbf445a8",
+    "last_commit_ts": 1750079228,
+    "statuses": [
+      "M"
+    ],
+    "language": "Python",
+    "is_doc": false
+  },
+  {
+    "path": "backend/ingestion_orchestration_fastapi_app/routers/ingest.py",
+    "cochange_count": 1,
+    "last_commit": "aaeb3f06a48dbb9387f3e7b1a16db140dbf445a8",
+    "last_commit_ts": 1750079228,
+    "statuses": [
+      "M"
+    ],
+    "language": "Python",
+    "is_doc": false
+  },
+  {
+    "path": "docs/sprints/splan-10/BACKEND_ROUTING_FIX_PLAN.md",
+    "cochange_count": 1,
+    "last_commit": "aaeb3f06a48dbb9387f3e7b1a16db140dbf445a8",
+    "last_commit_ts": 1750079228,
+    "statuses": [
+      "D"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "aaeb3f06a48dbb9387f3e7b1a16db140dbf445a8"
+    ],
+    "title": "",
+    "tags": [
+      "plan",
+      "sprint"
+    ],
+    "headings": []
+  },
+  {
+    "path": "docs/sprints/sprint-10/ARCHITECTURE_REVIEW.md",
+    "cochange_count": 1,
+    "last_commit": "aaeb3f06a48dbb9387f3e7b1a16db140dbf445a8",
+    "last_commit_ts": 1750079228,
+    "statuses": [
+      "D"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "aaeb3f06a48dbb9387f3e7b1a16db140dbf445a8"
+    ],
+    "title": "",
+    "tags": [
+      "sprint"
+    ],
+    "headings": []
+  },
+  {
+    "path": "docs/sprints/sprint-10/BACKEND_ROUTING_FIX_PLAN.md",
+    "cochange_count": 1,
+    "last_commit": "aaeb3f06a48dbb9387f3e7b1a16db140dbf445a8",
+    "last_commit_ts": 1750079228,
+    "statuses": [
+      "D"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "aaeb3f06a48dbb9387f3e7b1a16db140dbf445a8"
+    ],
+    "title": "",
+    "tags": [
+      "plan",
+      "sprint"
+    ],
+    "headings": []
+  },
+  {
+    "path": "docs/sprints/sprint-10/BACKLOG.md",
+    "cochange_count": 1,
+    "last_commit": "aaeb3f06a48dbb9387f3e7b1a16db140dbf445a8",
+    "last_commit_ts": 1750079228,
+    "statuses": [
+      "M"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "aaeb3f06a48dbb9387f3e7b1a16db140dbf445a8"
+    ],
+    "title": "",
+    "tags": [
+      "sprint"
+    ],
+    "headings": []
+  },
+  {
+    "path": "docs/sprints/sprint-10/CRITICAL_POINT_ID_FIX.md",
+    "cochange_count": 1,
+    "last_commit": "aaeb3f06a48dbb9387f3e7b1a16db140dbf445a8",
+    "last_commit_ts": 1750079228,
+    "statuses": [
+      "D"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "aaeb3f06a48dbb9387f3e7b1a16db140dbf445a8"
+    ],
+    "title": "",
+    "tags": [
+      "sprint"
+    ],
+    "headings": []
+  },
+  {
+    "path": "docs/sprints/sprint-10/HYDRATION_QUICK_FIX.md",
+    "cochange_count": 1,
+    "last_commit": "aaeb3f06a48dbb9387f3e7b1a16db140dbf445a8",
+    "last_commit_ts": 1750079228,
+    "statuses": [
+      "D"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "aaeb3f06a48dbb9387f3e7b1a16db140dbf445a8"
+    ],
+    "title": "",
+    "tags": [
+      "sprint"
+    ],
+    "headings": []
+  },
+  {
+    "path": "docs/sprints/sprint-10/IMAGE_GALLERY_IMPLEMENTATION.md",
+    "cochange_count": 1,
+    "last_commit": "aaeb3f06a48dbb9387f3e7b1a16db140dbf445a8",
+    "last_commit_ts": 1750079228,
+    "statuses": [
+      "M"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "aaeb3f06a48dbb9387f3e7b1a16db140dbf445a8"
+    ],
+    "title": "",
+    "tags": [
+      "plan",
+      "sprint"
+    ],
+    "headings": []
+  },
+  {
+    "path": "docs/sprints/sprint-10/PHASE_2_5_FINAL_POLISH.md",
+    "cochange_count": 1,
+    "last_commit": "aaeb3f06a48dbb9387f3e7b1a16db140dbf445a8",
+    "last_commit_ts": 1750079228,
+    "statuses": [
+      "A"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "aaeb3f06a48dbb9387f3e7b1a16db140dbf445a8"
+    ],
+    "title": "",
+    "tags": [
+      "sprint"
+    ],
+    "headings": []
+  },
+  {
+    "path": "docs/sprints/sprint-10/PHASE_3_CRITICAL_FIXES.md",
+    "cochange_count": 1,
+    "last_commit": "aaeb3f06a48dbb9387f3e7b1a16db140dbf445a8",
+    "last_commit_ts": 1750079228,
+    "statuses": [
+      "A"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "aaeb3f06a48dbb9387f3e7b1a16db140dbf445a8"
+    ],
+    "title": "",
+    "tags": [
+      "sprint"
+    ],
+    "headings": []
+  },
+  {
+    "path": "docs/sprints/sprint-10/SEARCH_FUNCTIONALITY_FIX.md",
+    "cochange_count": 1,
+    "last_commit": "aaeb3f06a48dbb9387f3e7b1a16db140dbf445a8",
+    "last_commit_ts": 1750079228,
+    "statuses": [
+      "D"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "aaeb3f06a48dbb9387f3e7b1a16db140dbf445a8"
+    ],
+    "title": "",
+    "tags": [
+      "sprint"
+    ],
+    "headings": []
+  },
+  {
+    "path": "docs/sprints/sprint-10/SPRINT_10_COMPREHENSIVE_SUMMARY.md",
+    "cochange_count": 1,
+    "last_commit": "aaeb3f06a48dbb9387f3e7b1a16db140dbf445a8",
+    "last_commit_ts": 1750079228,
+    "statuses": [
+      "A"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "aaeb3f06a48dbb9387f3e7b1a16db140dbf445a8"
+    ],
+    "title": "",
+    "tags": [
+      "sprint"
+    ],
+    "headings": []
+  },
+  {
+    "path": "docs/sprints/sprint-10/SPRINT_STATUS_FINAL.md",
+    "cochange_count": 1,
+    "last_commit": "aaeb3f06a48dbb9387f3e7b1a16db140dbf445a8",
+    "last_commit_ts": 1750079228,
+    "statuses": [
+      "M"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "aaeb3f06a48dbb9387f3e7b1a16db140dbf445a8"
+    ],
+    "title": "",
+    "tags": [
+      "sprint"
+    ],
+    "headings": []
+  },
+  {
+    "path": "frontend/src/app/collections/page.tsx",
+    "cochange_count": 1,
+    "last_commit": "aaeb3f06a48dbb9387f3e7b1a16db140dbf445a8",
+    "last_commit_ts": 1750079228,
+    "statuses": [
+      "A"
+    ],
+    "language": "TypeScript",
+    "is_doc": false
+  },
+  {
+    "path": "frontend/src/app/page.tsx",
+    "cochange_count": 1,
+    "last_commit": "aaeb3f06a48dbb9387f3e7b1a16db140dbf445a8",
+    "last_commit_ts": 1750079228,
+    "statuses": [
+      "M"
+    ],
+    "language": "TypeScript",
+    "is_doc": false
+  },
+  {
+    "path": "frontend/src/app/search/page.tsx",
+    "cochange_count": 1,
+    "last_commit": "aaeb3f06a48dbb9387f3e7b1a16db140dbf445a8",
+    "last_commit_ts": 1750079228,
+    "statuses": [
+      "M"
+    ],
+    "language": "TypeScript",
+    "is_doc": false
+  },
+  {
+    "path": "frontend/src/components/AddImagesModal.tsx",
+    "cochange_count": 1,
+    "last_commit": "aaeb3f06a48dbb9387f3e7b1a16db140dbf445a8",
+    "last_commit_ts": 1750079228,
+    "statuses": [
+      "M"
+    ],
+    "language": "TypeScript",
+    "is_doc": false
+  },
+  {
+    "path": "frontend/src/components/ImageDetailsModal.tsx",
+    "cochange_count": 1,
+    "last_commit": "aaeb3f06a48dbb9387f3e7b1a16db140dbf445a8",
+    "last_commit_ts": 1750079228,
+    "statuses": [
+      "A"
+    ],
+    "language": "TypeScript",
+    "is_doc": false
+  },
+  {
+    "path": "frontend/src/components/SearchInput.tsx",
+    "cochange_count": 1,
+    "last_commit": "aaeb3f06a48dbb9387f3e7b1a16db140dbf445a8",
+    "last_commit_ts": 1750079228,
+    "statuses": [
+      "A"
+    ],
+    "language": "TypeScript",
+    "is_doc": false
+  },
+  {
+    "path": "frontend/src/components/SearchResultsGrid.tsx",
+    "cochange_count": 1,
+    "last_commit": "aaeb3f06a48dbb9387f3e7b1a16db140dbf445a8",
+    "last_commit_ts": 1750079228,
+    "statuses": [
+      "A"
+    ],
+    "language": "TypeScript",
+    "is_doc": false
+  },
+  {
+    "path": "frontend/src/components/Sidebar.tsx",
+    "cochange_count": 1,
+    "last_commit": "aaeb3f06a48dbb9387f3e7b1a16db140dbf445a8",
+    "last_commit_ts": 1750079228,
+    "statuses": [
+      "M"
+    ],
+    "language": "TypeScript",
+    "is_doc": false
+  },
+  {
+    "path": "frontend/src/components/ui/provider.tsx",
+    "cochange_count": 1,
+    "last_commit": "aaeb3f06a48dbb9387f3e7b1a16db140dbf445a8",
+    "last_commit_ts": 1750079228,
+    "statuses": [
+      "M"
+    ],
+    "language": "TypeScript",
+    "is_doc": false
+  },
+  {
+    "path": "frontend/src/hooks/useSearch.ts",
+    "cochange_count": 1,
+    "last_commit": "aaeb3f06a48dbb9387f3e7b1a16db140dbf445a8",
+    "last_commit_ts": 1750079228,
+    "statuses": [
+      "M"
+    ],
+    "language": "TypeScript",
+    "is_doc": false
+  },
+  {
+    "path": "docs/sprints/sprint-10/DARK_MODE_REQUIREMENTS.md",
+    "cochange_count": 1,
+    "last_commit": "b9de930525a7f2d7d4c42461ee3ba71a2245a4fe",
+    "last_commit_ts": 1749821473,
+    "statuses": [
+      "A"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "b9de930525a7f2d7d4c42461ee3ba71a2245a4fe"
+    ],
+    "title": "",
+    "tags": [
+      "sprint"
+    ],
+    "headings": []
+  },
+  {
+    "path": "docs/sprints/planning/SPRINT_STATUS.md",
+    "cochange_count": 1,
+    "last_commit": "7ef39f2514c6c83279e7ab397c29c7c4998b98b5",
+    "last_commit_ts": 1749816720,
+    "statuses": [
+      "M"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "7ef39f2514c6c83279e7ab397c29c7c4998b98b5"
+    ],
+    "title": "Sprint Status Tracker",
+    "tags": [
+      "plan",
+      "sprint"
+    ],
+    "headings": [
+      "Sprint Status Tracker",
+      "Current Sprint Status",
+      "Sprint 10: Critical UI Refactor / Vertical-Slice v0.1",
+      "Key Planned Deliverables",
+      "Sprint 01: UI/UX Architecture Integration",
+      "Key Achievements",
+      "Sprint 01 Deliverables",
+      "Sprint 02: Visual Design System & Accessibility"
+    ]
+  },
+  {
+    "path": "frontend/package-lock.json",
+    "cochange_count": 1,
+    "last_commit": "7ef39f2514c6c83279e7ab397c29c7c4998b98b5",
+    "last_commit_ts": 1749816720,
+    "statuses": [
+      "M"
+    ],
+    "language": "JSON",
+    "is_doc": false
+  },
+  {
+    "path": "frontend/package.json",
+    "cochange_count": 1,
+    "last_commit": "7ef39f2514c6c83279e7ab397c29c7c4998b98b5",
+    "last_commit_ts": 1749816720,
+    "statuses": [
+      "M"
+    ],
+    "language": "JSON",
+    "is_doc": false
+  },
+  {
+    "path": "frontend/src/app/registry.tsx",
+    "cochange_count": 1,
+    "last_commit": "7ef39f2514c6c83279e7ab397c29c7c4998b98b5",
+    "last_commit_ts": 1749816720,
+    "statuses": [
+      "A"
+    ],
+    "language": "TypeScript",
+    "is_doc": false
+  }
+]

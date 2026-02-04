@@ -279,9 +279,8 @@ export default function LatentSpacePage() {
         duration: 5000,
         isClosable: true,
       });
-    },
-    onSettled: onClose,
-  });
+    }
+  };
 
   const loadAllMutation = useMutation({
     mutationFn: () => fetchUMAPProjection(collection, 5000, undefined, true),

@@ -1,280 +1,105 @@
----
-description: 
-globs: powershell,run_terminal_cmd,bash
-alwaysApply: false
----
+# PowerShell Syntax Rules
 
-# PowerShell Terminal Command Syntax - Enhanced Auto-Prevention
+## Command Separators
+- **NEVER use `&&` in PowerShell** - it's not a valid command separator
+- Use `;` for sequential commands: `cd frontend; npm run dev`
+- Use separate commands or PowerShell-specific operators
 
-## 🎯 **Automatic PowerShell Syntax Prevention**
+## Correct PowerShell Syntax Patterns
 
-This rule provides **automatic patterns** to prevent bash syntax errors in PowerShell, making it **impossible to get wrong**.
-
----
-
-## **🚀 PROACTIVE PATTERN: Auto-Safe Commands**
-
-### **The "Always Safe" Command Templates**
-
-Instead of remembering syntax rules, use these **copy-paste ready** templates:
-
-#### **Git Workflow Template (Auto-Safe)**
+### Sequential Commands
 ```powershell
-# Template: Git workflow that always works
-cd "C:\Users\aitor\OneDrive\Escritorio\Vibe Coding"
-git status
-git add .
-git commit -m "feat: your message here"
-git push origin development
-```
+# CORRECT
+cd frontend; npm run dev
 
-#### **Development Workflow Template (Auto-Safe)**
-```powershell
-# Template: Common development tasks
-cd "C:\Users\aitor\OneDrive\Escritorio\Vibe Coding"
-npm run dev
-# (separate terminal command for each step)
-```
-
-#### **File Management Template (Auto-Safe)**
-```powershell
-# Template: File operations
-cd "C:\Users\aitor\OneDrive\Escritorio\Vibe Coding"
-ls -la
-mkdir "new-folder"
-cp "source.txt" "destination.txt"
-```
-
----
-
-## **🤖 AI Assistant Auto-Patterns**
-
-### **Mandatory Command Generation Rules**
-
-When AI assistants use `run_terminal_cmd`, they **MUST** follow these patterns:
-
-#### **Pattern 1: Single Command per Tool Call**
-```yaml
-# ✅ ALWAYS DO THIS:
-run_terminal_cmd_1: cd "C:\Users\aitor\OneDrive\Escritorio\Vibe Coding"
-run_terminal_cmd_2: git status  
-run_terminal_cmd_3: git add .cursor/rules/
-run_terminal_cmd_4: git commit -m "docs: add rule"
-
-# ❌ NEVER DO THIS:
-run_terminal_cmd: cd "path" && git status && git commit -m "message"
-```
-
-#### **Pattern 2: Auto-Quote All Paths**
-```yaml
-# ✅ ALWAYS AUTO-QUOTE (even if no spaces):
-command: cd "C:\Users\aitor\OneDrive\Escritorio\Vibe Coding"
-
-# ❌ NEVER UNQUOTED PATHS:
-command: cd C:\Users\aitor\OneDrive\Escritorio\Vibe Coding
-```
-
-#### **Pattern 3: Workspace-Aware Commands**
-```yaml
-# ✅ ALWAYS START WITH WORKSPACE NAVIGATION:
-step_1: cd "C:\Users\aitor\OneDrive\Escritorio\Vibe Coding"
-step_2: {actual_command}
-
-# This ensures commands run in correct directory
-```
-
----
-
-## **🔧 Smart Command Builder System**
-
-### **Command Composition Rules**
-
-#### **For Multi-Step Operations**
-```markdown
-Instead of: `command1 && command2 && command3`
-Use this pattern:
-
-1. run_terminal_cmd: cd "C:\Users\aitor\OneDrive\Escritorio\Vibe Coding"
-2. run_terminal_cmd: command1
-3. run_terminal_cmd: command2  
-4. run_terminal_cmd: command3
-```
-
-#### **For Conditional Operations**
-```markdown
-Instead of: `command1 && if success then command2`
-Use this pattern:
-
-1. run_terminal_cmd: cd "C:\Users\aitor\OneDrive\Escritorio\Vibe Coding"
-2. run_terminal_cmd: command1
-3. (check result, then conditionally run next command)
-4. run_terminal_cmd: command2  # only if step 2 succeeded
-```
-
-#### **For Path-Heavy Operations**
-```markdown
-Instead of: complex path handling
-Use this pattern:
-
-1. run_terminal_cmd: cd "C:\Users\aitor\OneDrive\Escritorio\Vibe Coding"
-2. run_terminal_cmd: {command using relative paths}
-   # Now all paths are relative to workspace root
-```
-
----
-
-## **⚡ Quick Reference: Common Command Patterns**
-
-### **Git Operations (Copy-Paste Ready)**
-```powershell
-# Pattern: Quick commit
-cd "C:\Users\aitor\OneDrive\Escritorio\Vibe Coding"
-git add .
-git commit -m "your message"
-git push origin development
-
-# Pattern: Branch operations  
-cd "C:\Users\aitor\OneDrive\Escritorio\Vibe Coding"
-git checkout -b feature-branch
-git push -u origin feature-branch
-
-# Pattern: Status check
-cd "C:\Users\aitor\OneDrive\Escritorio\Vibe Coding"
-git status
-git log --oneline -5
-```
-
-### **Node.js Operations (Copy-Paste Ready)**
-```powershell
-# Pattern: Install and run
-cd "C:\Users\aitor\OneDrive\Escritorio\Vibe Coding"
-npm install
+# CORRECT - Separate commands
+cd frontend
 npm run dev
 
-# Pattern: Package management
-cd "C:\Users\aitor\OneDrive\Escritorio\Vibe Coding"  
-npm install package-name
-npm run build
-npm test
+# INCORRECT - Will cause parser error
+cd frontend && npm run dev
 ```
 
-### **File Operations (Copy-Paste Ready)**
+### Conditional Execution
 ```powershell
-# Pattern: File exploration
-cd "C:\Users\aitor\OneDrive\Escritorio\Vibe Coding"
+# CORRECT - PowerShell conditional operators
+if (Test-Path "frontend") { cd frontend; npm run dev }
+
+# CORRECT - Error handling
+try { cd frontend; npm run dev } catch { Write-Error "Failed to start frontend" }
+```
+
+### Background Processes
+```powershell
+# CORRECT - PowerShell background execution
+Start-Process powershell -ArgumentList "-Command", "cd frontend; npm run dev" -WindowStyle Hidden
+```
+
+## Common Commands That Need PowerShell Syntax
+
+### File Operations
+```powershell
+# CORRECT
+Get-ChildItem -Recurse -Name "*.py"
+Test-Path "package.json"
+
+# INCORRECT (bash syntax)
 ls -la
-tree /f
-
-# Pattern: File manipulation
-cd "C:\Users\aitor\OneDrive\Escritorio\Vibe Coding"
-mkdir "new-folder"
-copy "source.txt" "destination.txt"
-del "unwanted-file.txt"
 ```
 
----
-
-## **🚨 Auto-Error Prevention System**
-
-### **AI Assistant Validation Rules**
-
-#### **Pre-Command Validation**
-```yaml
-# AI must check BEFORE sending any run_terminal_cmd:
-contains_double_ampersand: false  # No && allowed
-starts_with_cd: true             # Always navigate first  
-paths_quoted: true               # All paths must be quoted
-single_operation: true           # One operation per command
-```
-
-#### **Auto-Correction Patterns**
-```yaml
-# AI should automatically transform:
-input: "cd path && git status"
-output: 
-  - command_1: 'cd "C:\Users\aitor\OneDrive\Escritorio\Vibe Coding"'
-  - command_2: "git status"
-
-input: "npm install && npm run dev"
-output:
-  - command_1: 'cd "C:\Users\aitor\OneDrive\Escritorio\Vibe Coding"'
-  - command_2: "npm install"  
-  - command_3: "npm run dev"
-```
-
-### **Error Recovery Templates**
+### Network Testing
 ```powershell
-# If you see: "The term '&&' is not recognized..."
-# Use this recovery pattern:
-cd "C:\Users\aitor\OneDrive\Escritorio\Vibe Coding"
-# Then run each command separately
+# CORRECT - Use Invoke-WebRequest instead of curl
+Invoke-WebRequest -Uri "http://localhost:8080" -Method GET
 
-# If you see path errors:
-# Always use fully quoted paths:
-cd "C:\Users\aitor\OneDrive\Escritorio\Vibe Coding"
-# Then use relative paths from workspace root
+# INCORRECT
+curl http://localhost:8080
 ```
 
----
+### Process Management
+```powershell
+# CORRECT
+Get-Process | Where-Object {$_.ProcessName -like "*node*"}
+netstat -ano | findstr ":8080"
 
-## **🎯 Integration with Smart Entry Points**
-
-### **Auto-Activation Rules**
-```yaml
-# This rule should auto-activate when:
-trigger_patterns:
-  - "run_terminal_cmd detected"
-  - "Windows PowerShell environment"  
-  - "Commands containing &&"
-  - "Path operations"
-
-auto_apply:
-  - Quote all paths automatically
-  - Split compound commands automatically
-  - Add workspace navigation automatically
-  - Validate PowerShell compatibility
+# CORRECT - Kill process by ID
+Stop-Process -Id 1234 -Force
 ```
 
-### **Cross-Rule Integration**
-```markdown
-# This rule enhances:
-- @debugging (PowerShell-safe debugging commands)
-- @feature-request (PowerShell-safe development workflow)
-- @sprint-planning (PowerShell-safe git operations)
-- @mcp-browser-tools-setup (PowerShell-safe server commands)
+## Environment-Specific Considerations
+
+### Windows Paths
+- Use backslashes or forward slashes (both work in PowerShell)
+- Be careful with spaces in paths - use quotes when needed
+
+### Environment Variables
+```powershell
+# CORRECT
+$env:NODE_ENV = "development"
+
+# CORRECT - Access environment variables
+echo $env:PATH
 ```
 
----
+## Error Prevention Checklist
 
-## **📊 Success Metrics**
+Before running any command in PowerShell:
+1. ✅ Check if command uses `&&` - replace with `;` or separate commands
+2. ✅ Verify file paths use correct syntax
+3. ✅ Use PowerShell cmdlets instead of Unix commands when available
+4. ✅ Test commands in small increments
+5. ✅ Use proper error handling with try/catch blocks
 
-### **Zero-Error Goals**
-- **No `&&` errors**: 100% prevention through single-command pattern
-- **No path errors**: 100% prevention through auto-quoting
-- **No directory errors**: 100% prevention through workspace navigation
-- **No syntax errors**: 100% prevention through templates
+## Quick Reference
 
-### **Efficiency Improvements** 
-- **Faster command execution**: No retry cycles due to syntax errors
-- **Less context switching**: Copy-paste ready templates
-- **Consistent patterns**: Same approach every time
-- **Automatic safety**: Can't get it wrong even when rushing
+| Bash/Unix | PowerShell Equivalent |
+|-----------|----------------------|
+| `&&` | `;` or separate commands |
+| `ls -la` | `Get-ChildItem` or `dir` |
+| `curl` | `Invoke-WebRequest` |
+| `grep` | `Select-String` or `findstr` |
+| `kill -9 PID` | `Stop-Process -Id PID -Force` |
+| `ps aux` | `Get-Process` |
 
----
-
-## **🔥 The "Impossible to Mess Up" System**
-
-### **For AI Assistants**
-1. **Always** start with workspace navigation: `cd "C:\Users\aitor\OneDrive\Escritorio\Vibe Coding"`
-2. **Never** use `&&` - always separate `run_terminal_cmd` calls
-3. **Always** quote paths, even if they don't have spaces
-4. **Always** use single operations per command
-
-### **For Developers**
-1. **Copy-paste** the templates above - they always work
-2. **Never type commands** with `&&` - use the templates instead
-3. **Bookmark** this file for quick template access
-4. **Trust the system** - the templates are bulletproof
-
----
-*This enhanced system makes PowerShell syntax errors **impossible** by providing foolproof patterns and automatic prevention. No more pain, just reliable commands that always work.*
+## Memory Note
+[[memory:8198111]] - The user prefers PowerShell's Invoke-WebRequest instead of curl for API requests, which aligns with these PowerShell syntax rules.

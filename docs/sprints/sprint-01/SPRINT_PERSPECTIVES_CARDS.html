@@ -1,0 +1,167 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>sprint-01 Perspectives</title>
+  <style>
+    @page { size: A4; margin: 24pt; }
+    :root {
+      /* Pixel Detective-ish: slate base + teal/cyan accents */
+      --bg: #0b0e13;
+      --bg-2: #0f141d;
+      --panel: rgba(20, 26, 36, 0.92);
+      --panel-2: rgba(14, 18, 26, 0.70);
+      --border: rgba(148, 163, 184, 0.18);
+      --border-2: rgba(148, 163, 184, 0.28);
+      --text: #e5e7eb;
+      --muted: rgba(229, 231, 235, 0.70);
+      --cyan: #22d3ee;
+      --teal: #2dd4bf;
+      --blue: #3182ce;
+      --shadow: 0 10pt 28pt rgba(0, 0, 0, 0.35);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      color: var(--text);
+      background:
+        radial-gradient(1100px 620px at 12% 0%, rgba(49,130,206,0.20) 0%, rgba(16,24,38,0.0) 55%),
+        radial-gradient(900px 520px at 92% 14%, rgba(45,212,191,0.18) 0%, rgba(16,24,38,0.0) 60%),
+        radial-gradient(900px 500px at 40% 110%, rgba(34,211,238,0.12) 0%, rgba(16,24,38,0.0) 55%),
+        linear-gradient(180deg, var(--bg) 0%, var(--bg-2) 100%);
+      font-family: Arial, Helvetica, sans-serif; /* keep consistent with repo PDF constraints */
+      -webkit-print-color-adjust: exact;
+    }
+    .page { min-height: 100vh; padding: 16pt; }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      gap: 12pt;
+      padding: 12pt 14pt;
+      background:
+        linear-gradient(135deg, rgba(20,26,36,0.92) 0%, rgba(14,18,26,0.78) 100%);
+      border: 1px solid var(--border);
+      border-radius: 12pt;
+      box-shadow: var(--shadow);
+      position: relative;
+      overflow: hidden;
+    }
+    .header::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(800px 240px at 20% 0%, rgba(34,211,238,0.14) 0%, rgba(34,211,238,0.0) 60%),
+        radial-gradient(800px 240px at 90% 30%, rgba(49,130,206,0.14) 0%, rgba(49,130,206,0.0) 60%);
+      pointer-events: none;
+    }
+    .title { font-size: 20pt; font-weight: 700; letter-spacing: 0.2pt; position: relative; }
+    .subtitle { font-size: 10pt; color: var(--muted); margin-top: 4pt; position: relative; }
+    .meta { text-align: right; font-size: 9pt; color: var(--muted); position: relative; }
+    .accent-line {
+      height: 2pt;
+      margin: 12pt 0 10pt 0;
+      background: linear-gradient(90deg, var(--cyan), var(--teal), var(--blue));
+      border-radius: 999pt;
+    }
+    .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12pt; }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12pt;
+      padding: 12pt;
+      box-shadow: var(--shadow);
+      position: relative;
+    }
+    .card.span2 { grid-column: 1 / -1; }
+    .card h3 {
+      margin: 0 0 8pt 0;
+      font-size: 11pt;
+      letter-spacing: 0.3pt;
+      color: var(--cyan);
+      text-transform: uppercase;
+    }
+    .card p { margin: 0 0 8pt 0; font-size: 9.5pt; color: var(--text); line-height: 1.35; }
+    .card ul { margin: 0; padding-left: 14pt; font-size: 9.5pt; color: var(--text); }
+    .card li { margin-bottom: 6pt; }
+    .tight { padding-left: 14pt; }
+    .tight li { margin-bottom: 5pt; }
+    .muted { color: var(--muted); }
+    .subline { margin-top: 2pt; font-size: 8.5pt; color: var(--muted); line-height: 1.3; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+    .num { text-align: right; white-space: nowrap; }
+    .section-title {
+      margin-top: 8pt;
+      font-size: 9pt;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.6pt;
+    }
+    .chips { display: flex; flex-wrap: wrap; gap: 6pt; margin-bottom: 10pt; }
+    .chip {
+      display: inline-flex;
+      gap: 6pt;
+      align-items: baseline;
+      padding: 4pt 8pt;
+      border-radius: 999pt;
+      border: 1px solid var(--border-2);
+      background: rgba(2, 6, 23, 0.35);
+    }
+    .chip-label { font-size: 8pt; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5pt; }
+    .chip-value { font-size: 10pt; font-weight: 700; color: var(--text); }
+    .chip-cyan { border-color: rgba(34,211,238,0.35); }
+    .chip-aqua { border-color: rgba(45,212,191,0.35); }
+    .chip-teal { border-color: rgba(49,130,206,0.35); }
+    .bars { margin-top: 6pt; display: grid; gap: 6pt; }
+    .bar-row { display: grid; grid-template-columns: 1fr 2.6fr 0.6fr; gap: 8pt; align-items: center; }
+    .bar-label { font-size: 9pt; color: var(--text); }
+    .bar-value { font-size: 9pt; color: var(--muted); text-align: right; }
+    .bar-track { height: 8pt; border-radius: 999pt; background: rgba(148,163,184,0.16); overflow: hidden; border: 1px solid rgba(148,163,184,0.18); }
+    .bar-fill { height: 100%; border-radius: 999pt; background: linear-gradient(90deg, rgba(34,211,238,0.95), rgba(45,212,191,0.9), rgba(49,130,206,0.9)); }
+    .cols { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10pt; }
+    .col { background: var(--panel-2); border: 1px solid var(--border); border-radius: 10pt; padding: 10pt; }
+    .col-title { font-size: 9pt; letter-spacing: 0.6pt; text-transform: uppercase; color: var(--muted); margin-bottom: 6pt; }
+    .table { width: 100%; border-collapse: collapse; font-size: 9pt; }
+    .table th, .table td { border-bottom: 1px solid rgba(148,163,184,0.18); padding: 6pt 4pt; vertical-align: top; }
+    .table th { text-align: left; color: var(--muted); font-weight: 700; font-size: 8.5pt; text-transform: uppercase; letter-spacing: 0.6pt; }
+    .footer {
+      margin-top: 12pt;
+      font-size: 8pt;
+      color: var(--muted);
+      display: flex;
+      justify-content: space-between;
+    }
+    .badge {
+      display: inline-block;
+      padding: 2pt 6pt;
+      border-radius: 999pt;
+      background: rgba(34, 211, 238, 0.18);
+      color: #c9fbff;
+      border: 1px solid rgba(34, 211, 238, 0.4);
+      font-size: 8pt;
+      text-transform: uppercase;
+      letter-spacing: 0.6pt;
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="header">
+      <div>
+        <div class="title">sprint-01 Perspectives</div>
+        <div class="subtitle">Sprint 01: UI/UX Architecture Integration</div>
+      </div>
+      <div class="meta">2026-01-15 14:23 | 2 commits | 12 evidence docs</div>
+    </div>
+    <div class="accent-line"></div>
+    <div class="grid">
+      <div class="card span2"><h3>The Story</h3><p>Sprint narrative and receipts.</p><ul><li>Sprint Duration: Next 2 weeks</li><li>Status: COMPLETED</li><li>Primary Objective: Integrate sophisticated UI components with new 3-screen architecture</li><li>Success Criteria: Unified user experience matching UX_FLOW_DESIGN.md vision</li><li>Priority: HIGH - Critical path for user experience</li></ul></div><div class="card span2"><h3>Shipped Map</h3><div class="cols"><div class="col"><div class="col-title">Explore</div><ul class="tight"></ul></div><div class="col"><div class="col-title">Curate</div><ul class="tight"></ul></div><div class="col"><div class="col-title">Accelerate</div><ul class="tight"></ul></div></div></div><div class="card"><h3>Receipts</h3><div class="chips"><span class="chip chip-cyan"><span class="chip-label">Commits</span><span class="chip-value">2</span></span><span class="chip chip-aqua"><span class="chip-label">Evidence Docs</span><span class="chip-value">12</span></span><span class="chip chip-teal"><span class="chip-label">Churn</span><span class="chip-value">+4940 / -1439</span></span></div><div class="section-title">Churn by language</div><div class="bars"><div class="bar-row"><div class="bar-label">Docs (Markdown)</div><div class="bar-track"><div class="bar-fill" style="width:100%"></div></div><div class="bar-value">3877</div></div><div class="bar-row"><div class="bar-label">Python</div><div class="bar-track"><div class="bar-fill" style="width:54%"></div></div><div class="bar-value">2095</div></div><div class="bar-row"><div class="bar-label">MDC</div><div class="bar-track"><div class="bar-fill" style="width:7%"></div></div><div class="bar-value">278</div></div><div class="bar-row"><div class="bar-label">TypeScript</div><div class="bar-track"><div class="bar-fill" style="width:3%"></div></div><div class="bar-value">129</div></div></div><div class="section-title">Performance receipts</div><ul class="tight"><li>Maintained &lt;1s startup time</li><li>Lazy loading of components</li><li>Background preparation systems intact</li></ul></div><div class="card"><h3>Evidence Pack</h3><ul class="tight"><li><span class="mono">docs/PROJECT_STATUS.md</span> <span class="muted">(2x)</span><span class="muted"></span><div class="subline">Pixel Detective - Project Status Dashboard</div></li><li><span class="mono">docs/README.md</span> <span class="muted">(2x)</span><span class="muted"></span><div class="subline">Pixel Detective: AI-Powered Media Search Engine</div></li><li><span class="mono">docs/sprints/sprint-02/SPRINT_02_MINDMAP.md</span> <span class="muted">(1x)</span><span class="muted"> - sprint</span><div class="subline">Sprint 02: Visual Design System - Comprehensive Mindmap</div></li><li><span class="mono">docs/sprints/sprint-03/mindmap.md</span> <span class="muted">(1x)</span><span class="muted"> - sprint</span><div class="subline">```mermaid</div></li><li><span class="mono">docs/sprints/sprint-04/mindmap.md</span> <span class="muted">(1x)</span><span class="muted"> - sprint</span><div class="subline">```mermaid</div></li><li><span class="mono">docs/sprints/sprint-06/mindmap.md</span> <span class="muted">(1x)</span><span class="muted"> - sprint</span><div class="subline">```mermaid</div></li><li><span class="mono">docs/sprints/sprint-07/mindmap.md</span> <span class="muted">(1x)</span><span class="muted"> - sprint</span><div class="subline">```mermaid</div></li><li><span class="mono">docs/sprints/sprint-08/mindmap.md</span> <span class="muted">(1x)</span><span class="muted"> - sprint</span><div class="subline">```mermaid</div></li><li><span class="mono">docs/sprints/sprint-09/mindmap.md</span> <span class="muted">(1x)</span><span class="muted"> - sprint</span><div class="subline">```mermaid</div></li><li><span class="mono">docs/sprints/sprint-11/PRD.md</span> <span class="muted">(1x)</span><span class="muted"> - sprint</span><div class="subline">Sprint 11 PRD: Latent Space Visualization Tab</div></li><li><span class="mono">docs/sprints/sprint-11/QUICK_REFERENCE.md</span> <span class="muted">(1x)</span><span class="muted"> - evidence, sprint</span><div class="subline">Sprint 11 Quick Reference: Latent Space Visualization Tab</div></li><li><span class="mono">docs/sprints/sprint-11/README.md</span> <span class="muted">(1x)</span><span class="muted"> - sprint</span><div class="subline">Sprint 11: Latent Space Visualization &amp; Curation Suite</div></li></ul></div><div class="card span2"><h3>Hotspots</h3><table class="table"><thead><tr><th>File</th><th>+Lines</th><th>-Lines</th><th>Churn</th></tr></thead><tbody><tr><td class="mono">screens/advanced_ui_screen.py</td><td class="num">+180</td><td class="num">-369</td><td class="num">549</td></tr><tr><td class="mono">screens/loading_screen.py</td><td class="num">+194</td><td class="num">-244</td><td class="num">438</td></tr><tr><td class="mono">docs/sprints/sprint-01/technical-implementation-plan.md</td><td class="num">+415</td><td class="num">-0</td><td class="num">415</td></tr><tr><td class="mono">screens/fast_ui_screen.py</td><td class="num">+97</td><td class="num">-235</td><td class="num">332</td></tr><tr><td class="mono">components/search/search_tabs.py</td><td class="num">+324</td><td class="num">-0</td><td class="num">324</td></tr><tr><td class="mono">docs/PROJECT_STATUS.md</td><td class="num">+259</td><td class="num">-62</td><td class="num">321</td></tr><tr><td class="mono">docs/roadmap.md</td><td class="num">+167</td><td class="num">-152</td><td class="num">319</td></tr><tr><td class="mono">components/sidebar/context_sidebar.py</td><td class="num">+288</td><td class="num">-0</td><td class="num">288</td></tr><tr><td class="mono">docs/architecture.md</td><td class="num">+149</td><td class="num">-118</td><td class="num">267</td></tr><tr><td class="mono">docs/sprints/templates/create-sprint.md</td><td class="num">+257</td><td class="num">-0</td><td class="num">257</td></tr></tbody></table></div><div class="card"><h3>Next Scene</h3><ul></ul></div>
+    </div>
+    <div class="footer">
+      <span>Pixel Detective - Sprint Perspectives</span>
+      <span class="badge">SPRINT PERSPECTIVES</span>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,2584 @@
+[
+  {
+    "path": ".gitignore",
+    "cochange_count": 1,
+    "last_commit": "0c638479e098276da5abb819ec6db505931cd4c5",
+    "last_commit_ts": 1749805276,
+    "statuses": [
+      "M"
+    ],
+    "language": "Other",
+    "is_doc": false
+  },
+  {
+    "path": "docs/CHANGELOG.md",
+    "cochange_count": 1,
+    "last_commit": "0c638479e098276da5abb819ec6db505931cd4c5",
+    "last_commit_ts": 1749805276,
+    "statuses": [
+      "M"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "0c638479e098276da5abb819ec6db505931cd4c5"
+    ],
+    "title": "CHANGELOG",
+    "tags": [],
+    "headings": [
+      "CHANGELOG",
+      "[3.0.0] - 2024-12-15 - Sprint 10: Complete System Transformation",
+      "MAJOR RELEASE - Production-Ready System",
+      "Added",
+      "Changed",
+      "Technical Achievements",
+      "Architecture Evolution",
+      "Documentation"
+    ]
+  },
+  {
+    "path": "docs/PROJECT_STATUS.md",
+    "cochange_count": 1,
+    "last_commit": "0c638479e098276da5abb819ec6db505931cd4c5",
+    "last_commit_ts": 1749805276,
+    "statuses": [
+      "M"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "0c638479e098276da5abb819ec6db505931cd4c5"
+    ],
+    "title": "Pixel Detective - Project Status Dashboard",
+    "tags": [],
+    "headings": [
+      "Pixel Detective - Project Status Dashboard",
+      "Current Status Overview",
+      "Overall Project Health: GOOD",
+      "Current Development Phase",
+      "Architecture Status",
+      "Current System Architecture (Post Sprint 11)",
+      "Architecture Health Metrics",
+      "Performance Metrics"
+    ]
+  },
+  {
+    "path": "frontend/.gitignore",
+    "cochange_count": 1,
+    "last_commit": "0c638479e098276da5abb819ec6db505931cd4c5",
+    "last_commit_ts": 1749805276,
+    "statuses": [
+      "A"
+    ],
+    "language": "Other",
+    "is_doc": false
+  },
+  {
+    "path": "frontend/README.md",
+    "cochange_count": 1,
+    "last_commit": "0c638479e098276da5abb819ec6db505931cd4c5",
+    "last_commit_ts": 1749805276,
+    "statuses": [
+      "A"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "0c638479e098276da5abb819ec6db505931cd4c5"
+    ],
+    "title": "Getting Started",
+    "tags": [],
+    "headings": [
+      "Getting Started",
+      "or",
+      "or",
+      "or",
+      "Learn More",
+      "Deploy on Vercel"
+    ]
+  },
+  {
+    "path": "frontend/eslint.config.mjs",
+    "cochange_count": 1,
+    "last_commit": "0c638479e098276da5abb819ec6db505931cd4c5",
+    "last_commit_ts": 1749805276,
+    "statuses": [
+      "A"
+    ],
+    "language": "MJS",
+    "is_doc": false
+  },
+  {
+    "path": "frontend/next.config.ts",
+    "cochange_count": 1,
+    "last_commit": "0c638479e098276da5abb819ec6db505931cd4c5",
+    "last_commit_ts": 1749805276,
+    "statuses": [
+      "A"
+    ],
+    "language": "TypeScript",
+    "is_doc": false
+  },
+  {
+    "path": "frontend/package-lock.json",
+    "cochange_count": 1,
+    "last_commit": "0c638479e098276da5abb819ec6db505931cd4c5",
+    "last_commit_ts": 1749805276,
+    "statuses": [
+      "A"
+    ],
+    "language": "JSON",
+    "is_doc": false
+  },
+  {
+    "path": "frontend/package.json",
+    "cochange_count": 1,
+    "last_commit": "0c638479e098276da5abb819ec6db505931cd4c5",
+    "last_commit_ts": 1749805276,
+    "statuses": [
+      "A"
+    ],
+    "language": "JSON",
+    "is_doc": false
+  },
+  {
+    "path": "frontend/src/app/globals.css",
+    "cochange_count": 1,
+    "last_commit": "0c638479e098276da5abb819ec6db505931cd4c5",
+    "last_commit_ts": 1749805276,
+    "statuses": [
+      "A"
+    ],
+    "language": "CSS",
+    "is_doc": false
+  },
+  {
+    "path": "frontend/src/app/layout.tsx",
+    "cochange_count": 1,
+    "last_commit": "0c638479e098276da5abb819ec6db505931cd4c5",
+    "last_commit_ts": 1749805276,
+    "statuses": [
+      "A"
+    ],
+    "language": "TypeScript",
+    "is_doc": false
+  },
+  {
+    "path": "frontend/src/app/page.module.css",
+    "cochange_count": 1,
+    "last_commit": "0c638479e098276da5abb819ec6db505931cd4c5",
+    "last_commit_ts": 1749805276,
+    "statuses": [
+      "A"
+    ],
+    "language": "CSS",
+    "is_doc": false
+  },
+  {
+    "path": "frontend/src/app/page.tsx",
+    "cochange_count": 1,
+    "last_commit": "0c638479e098276da5abb819ec6db505931cd4c5",
+    "last_commit_ts": 1749805276,
+    "statuses": [
+      "A"
+    ],
+    "language": "TypeScript",
+    "is_doc": false
+  },
+  {
+    "path": "frontend/src/store/useStore.ts",
+    "cochange_count": 1,
+    "last_commit": "0c638479e098276da5abb819ec6db505931cd4c5",
+    "last_commit_ts": 1749805276,
+    "statuses": [
+      "A"
+    ],
+    "language": "TypeScript",
+    "is_doc": false
+  },
+  {
+    "path": "frontend/tsconfig.json",
+    "cochange_count": 1,
+    "last_commit": "0c638479e098276da5abb819ec6db505931cd4c5",
+    "last_commit_ts": 1749805276,
+    "statuses": [
+      "A"
+    ],
+    "language": "JSON",
+    "is_doc": false
+  },
+  {
+    "path": ".diskcache/cache.db",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "M"
+    ],
+    "language": "DB",
+    "is_doc": false
+  },
+  {
+    "path": ".diskcache/cache.db-shm",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "R089"
+    ],
+    "language": "DB-SHM",
+    "is_doc": false
+  },
+  {
+    "path": ".diskcache/cache.db-wal",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "A"
+    ],
+    "language": "DB-WAL",
+    "is_doc": false
+  },
+  {
+    "path": ".diskcache/development_test/cache.db",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "M"
+    ],
+    "language": "DB",
+    "is_doc": false
+  },
+  {
+    "path": ".diskcache/optimization_test/cache.db",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "R082"
+    ],
+    "language": "DB",
+    "is_doc": false
+  },
+  {
+    "path": "backend/ingestion_orchestration_fastapi_app/main.py",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "M"
+    ],
+    "language": "Python",
+    "is_doc": false
+  },
+  {
+    "path": "backend/ml_inference_fastapi_app/main.py",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "M"
+    ],
+    "language": "Python",
+    "is_doc": false
+  },
+  {
+    "path": "backend/scripts/benchmark.py",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "A"
+    ],
+    "language": "Python",
+    "is_doc": false
+  },
+  {
+    "path": "backend/scripts/ingest_benchmark.py",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "A"
+    ],
+    "language": "Python",
+    "is_doc": false
+  },
+  {
+    "path": "docker-compose.demo.yml",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "YAML",
+    "is_doc": false
+  },
+  {
+    "path": "docs/reference_guides/ui.md",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "R100"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3"
+    ],
+    "title": "UI Service Documentation",
+    "tags": [
+      "evidence",
+      "reference"
+    ],
+    "headings": [
+      "UI Service Documentation",
+      "1. Overview",
+      "2. Directory Structure",
+      "3. Component Descriptions",
+      "`components/search/search_tabs.py`",
+      "`components/visualization/latent_space.py`",
+      "`components/sidebar/context_sidebar.py`",
+      "4. API Interactions"
+    ]
+  },
+  {
+    "path": "docs/sprints/sprint-09/PRD.md",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "M"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3"
+    ],
+    "title": "Sprint 09 Product Requirements Document (PRD)",
+    "tags": [
+      "sprint"
+    ],
+    "headings": [
+      "Sprint 09 Product Requirements Document (PRD)",
+      "1. Executive Summary",
+      "2. Context7 Research Summary",
+      "3. Requirements Matrix",
+      "4. Technical Architecture",
+      "5. Implementation Timeline",
+      "6. Testing Strategy",
+      "7. Risk Assessment"
+    ]
+  },
+  {
+    "path": "docs/sprints/sprint-09/README.md",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "M"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3"
+    ],
+    "title": "Sprint 09 README",
+    "tags": [
+      "sprint"
+    ],
+    "headings": [
+      "Sprint 09 README",
+      "1. Sprint Overview and Status",
+      "2. Key Deliverables",
+      "3. Sprint Timeline",
+      "4. Team & Roles"
+    ]
+  },
+  {
+    "path": "docs/sprints/sprint-09/Task_Breakdown.md",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3"
+    ],
+    "title": "",
+    "tags": [
+      "sprint"
+    ],
+    "headings": []
+  },
+  {
+    "path": "docs/sprints/sprint-09/transition-to-sprint-09.md",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "M"
+    ],
+    "language": "Docs (Markdown)",
+    "is_doc": true,
+    "commits": [
+      "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3"
+    ],
+    "title": "Transition to Sprint 09: Backend Validation & Streamlit Removal",
+    "tags": [
+      "sprint"
+    ],
+    "headings": [
+      "Transition to Sprint 09: Backend Validation & Streamlit Removal",
+      "1. Sprint Theme & Goals",
+      "2. Backlog Refinement",
+      "High Priority",
+      "Medium Priority",
+      "Low Priority",
+      "3. Key Action Items",
+      "4. Sprint Rituals & Standards"
+    ]
+  },
+  {
+    "path": "embedding_cache.sqlite",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "SQLITE",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/aliases/data.json",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "JSON",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/newest_clocks.json",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "JSON",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/replica_state.json",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "JSON",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/12e5899c-4665-4858-b6e5-c41411bb6f2d/mutable_id_tracker.mappings",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "MAPPINGS",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/12e5899c-4665-4858-b6e5-c41411bb6f2d/mutable_id_tracker.versions",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "VERSIONS",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/12e5899c-4665-4858-b6e5-c41411bb6f2d/payload_index/000004.log",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "LOG",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/12e5899c-4665-4858-b6e5-c41411bb6f2d/payload_index/CURRENT",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "Other",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/12e5899c-4665-4858-b6e5-c41411bb6f2d/payload_index/IDENTITY",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "Other",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/12e5899c-4665-4858-b6e5-c41411bb6f2d/payload_index/LOCK",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "Other",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/12e5899c-4665-4858-b6e5-c41411bb6f2d/payload_index/LOG",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "Other",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/12e5899c-4665-4858-b6e5-c41411bb6f2d/payload_index/MANIFEST-000005",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "Other",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/12e5899c-4665-4858-b6e5-c41411bb6f2d/payload_index/OPTIONS-000007",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "Other",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/12e5899c-4665-4858-b6e5-c41411bb6f2d/payload_index/config.json",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "JSON",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/12e5899c-4665-4858-b6e5-c41411bb6f2d/payload_storage/config.json",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "JSON",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/12e5899c-4665-4858-b6e5-c41411bb6f2d/payload_storage/gaps.dat",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "DAT",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/12e5899c-4665-4858-b6e5-c41411bb6f2d/payload_storage/page_0.dat",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "DAT",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/12e5899c-4665-4858-b6e5-c41411bb6f2d/payload_storage/tracker.dat",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "DAT",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/12e5899c-4665-4858-b6e5-c41411bb6f2d/segment.json",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "JSON",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/12e5899c-4665-4858-b6e5-c41411bb6f2d/vector_storage/deleted/flags_a.dat",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "DAT",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/12e5899c-4665-4858-b6e5-c41411bb6f2d/vector_storage/deleted/status.dat",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "DAT",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/12e5899c-4665-4858-b6e5-c41411bb6f2d/vector_storage/vectors/chunk_0.mmap",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "MMAP",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/12e5899c-4665-4858-b6e5-c41411bb6f2d/vector_storage/vectors/config.json",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "JSON",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/12e5899c-4665-4858-b6e5-c41411bb6f2d/vector_storage/vectors/status.dat",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "DAT",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/12e5899c-4665-4858-b6e5-c41411bb6f2d/version.info",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "INFO",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/54e1e992-bb76-408a-868b-f1a8482268ee/mutable_id_tracker.mappings",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "MAPPINGS",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/54e1e992-bb76-408a-868b-f1a8482268ee/mutable_id_tracker.versions",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "VERSIONS",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/54e1e992-bb76-408a-868b-f1a8482268ee/payload_index/000004.log",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "LOG",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/54e1e992-bb76-408a-868b-f1a8482268ee/payload_index/CURRENT",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "Other",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/54e1e992-bb76-408a-868b-f1a8482268ee/payload_index/IDENTITY",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "Other",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/54e1e992-bb76-408a-868b-f1a8482268ee/payload_index/LOCK",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "Other",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/54e1e992-bb76-408a-868b-f1a8482268ee/payload_index/LOG",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "Other",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/54e1e992-bb76-408a-868b-f1a8482268ee/payload_index/MANIFEST-000005",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "Other",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/54e1e992-bb76-408a-868b-f1a8482268ee/payload_index/OPTIONS-000007",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "Other",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/54e1e992-bb76-408a-868b-f1a8482268ee/payload_index/config.json",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "JSON",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/54e1e992-bb76-408a-868b-f1a8482268ee/payload_storage/bitmask.dat",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "DAT",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/54e1e992-bb76-408a-868b-f1a8482268ee/payload_storage/config.json",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "JSON",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/54e1e992-bb76-408a-868b-f1a8482268ee/payload_storage/gaps.dat",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "DAT",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/54e1e992-bb76-408a-868b-f1a8482268ee/payload_storage/page_0.dat",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "DAT",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/54e1e992-bb76-408a-868b-f1a8482268ee/payload_storage/tracker.dat",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "DAT",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/54e1e992-bb76-408a-868b-f1a8482268ee/segment.json",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "JSON",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/54e1e992-bb76-408a-868b-f1a8482268ee/vector_storage/deleted/flags_a.dat",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "DAT",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/54e1e992-bb76-408a-868b-f1a8482268ee/vector_storage/deleted/status.dat",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "DAT",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/54e1e992-bb76-408a-868b-f1a8482268ee/vector_storage/vectors/chunk_0.mmap",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "MMAP",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/54e1e992-bb76-408a-868b-f1a8482268ee/vector_storage/vectors/config.json",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "JSON",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/54e1e992-bb76-408a-868b-f1a8482268ee/vector_storage/vectors/status.dat",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "DAT",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/54e1e992-bb76-408a-868b-f1a8482268ee/version.info",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "INFO",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/76580e40-3458-4e5d-b92d-e5c8d5a265ff/mutable_id_tracker.mappings",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "MAPPINGS",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/76580e40-3458-4e5d-b92d-e5c8d5a265ff/mutable_id_tracker.versions",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "VERSIONS",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/76580e40-3458-4e5d-b92d-e5c8d5a265ff/payload_index/000004.log",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "LOG",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/76580e40-3458-4e5d-b92d-e5c8d5a265ff/payload_index/CURRENT",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "Other",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/76580e40-3458-4e5d-b92d-e5c8d5a265ff/payload_index/IDENTITY",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "Other",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/76580e40-3458-4e5d-b92d-e5c8d5a265ff/payload_index/LOCK",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "Other",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/76580e40-3458-4e5d-b92d-e5c8d5a265ff/payload_index/LOG",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "Other",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/76580e40-3458-4e5d-b92d-e5c8d5a265ff/payload_index/MANIFEST-000005",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "Other",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/76580e40-3458-4e5d-b92d-e5c8d5a265ff/payload_index/OPTIONS-000007",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "Other",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/76580e40-3458-4e5d-b92d-e5c8d5a265ff/payload_index/config.json",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "JSON",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/76580e40-3458-4e5d-b92d-e5c8d5a265ff/payload_storage/bitmask.dat",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "DAT",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/76580e40-3458-4e5d-b92d-e5c8d5a265ff/payload_storage/config.json",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "JSON",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/76580e40-3458-4e5d-b92d-e5c8d5a265ff/payload_storage/gaps.dat",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "DAT",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/76580e40-3458-4e5d-b92d-e5c8d5a265ff/payload_storage/page_0.dat",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "DAT",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/76580e40-3458-4e5d-b92d-e5c8d5a265ff/payload_storage/tracker.dat",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "DAT",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/76580e40-3458-4e5d-b92d-e5c8d5a265ff/segment.json",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "JSON",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/76580e40-3458-4e5d-b92d-e5c8d5a265ff/vector_storage/deleted/flags_a.dat",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "DAT",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/76580e40-3458-4e5d-b92d-e5c8d5a265ff/vector_storage/deleted/status.dat",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "DAT",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/76580e40-3458-4e5d-b92d-e5c8d5a265ff/vector_storage/vectors/chunk_0.mmap",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "MMAP",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/76580e40-3458-4e5d-b92d-e5c8d5a265ff/vector_storage/vectors/config.json",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "JSON",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/76580e40-3458-4e5d-b92d-e5c8d5a265ff/vector_storage/vectors/status.dat",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "DAT",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/76580e40-3458-4e5d-b92d-e5c8d5a265ff/version.info",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "INFO",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/8acac431-3d23-4d71-8c3a-bcc1afa35579/payload_index/000004.log",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "LOG",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/8acac431-3d23-4d71-8c3a-bcc1afa35579/payload_index/CURRENT",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "Other",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/8acac431-3d23-4d71-8c3a-bcc1afa35579/payload_index/IDENTITY",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "Other",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/8acac431-3d23-4d71-8c3a-bcc1afa35579/payload_index/LOCK",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "Other",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/8acac431-3d23-4d71-8c3a-bcc1afa35579/payload_index/LOG",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "Other",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/8acac431-3d23-4d71-8c3a-bcc1afa35579/payload_index/MANIFEST-000005",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "Other",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/8acac431-3d23-4d71-8c3a-bcc1afa35579/payload_index/OPTIONS-000007",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "Other",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/8acac431-3d23-4d71-8c3a-bcc1afa35579/payload_index/config.json",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "JSON",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/8acac431-3d23-4d71-8c3a-bcc1afa35579/payload_storage/bitmask.dat",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "DAT",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/8acac431-3d23-4d71-8c3a-bcc1afa35579/payload_storage/config.json",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "JSON",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/8acac431-3d23-4d71-8c3a-bcc1afa35579/payload_storage/gaps.dat",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "DAT",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/8acac431-3d23-4d71-8c3a-bcc1afa35579/payload_storage/page_0.dat",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "DAT",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/8acac431-3d23-4d71-8c3a-bcc1afa35579/payload_storage/tracker.dat",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "DAT",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/8acac431-3d23-4d71-8c3a-bcc1afa35579/segment.json",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "JSON",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/8acac431-3d23-4d71-8c3a-bcc1afa35579/vector_storage/deleted/flags_a.dat",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "DAT",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/8acac431-3d23-4d71-8c3a-bcc1afa35579/vector_storage/deleted/status.dat",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "DAT",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/8acac431-3d23-4d71-8c3a-bcc1afa35579/vector_storage/vectors/config.json",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "JSON",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/8acac431-3d23-4d71-8c3a-bcc1afa35579/vector_storage/vectors/status.dat",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "DAT",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/8acac431-3d23-4d71-8c3a-bcc1afa35579/version.info",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "INFO",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/9ed0be32-e6bc-42b2-ba8e-b6cdf9274f2f/mutable_id_tracker.mappings",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "MAPPINGS",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/9ed0be32-e6bc-42b2-ba8e-b6cdf9274f2f/mutable_id_tracker.versions",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "VERSIONS",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/9ed0be32-e6bc-42b2-ba8e-b6cdf9274f2f/payload_index/000004.log",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "LOG",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/9ed0be32-e6bc-42b2-ba8e-b6cdf9274f2f/payload_index/CURRENT",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "Other",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/9ed0be32-e6bc-42b2-ba8e-b6cdf9274f2f/payload_index/IDENTITY",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "Other",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/9ed0be32-e6bc-42b2-ba8e-b6cdf9274f2f/payload_index/LOCK",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "Other",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/9ed0be32-e6bc-42b2-ba8e-b6cdf9274f2f/payload_index/LOG",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "Other",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/9ed0be32-e6bc-42b2-ba8e-b6cdf9274f2f/payload_index/MANIFEST-000005",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "Other",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/9ed0be32-e6bc-42b2-ba8e-b6cdf9274f2f/payload_index/OPTIONS-000007",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "Other",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/9ed0be32-e6bc-42b2-ba8e-b6cdf9274f2f/payload_index/config.json",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "JSON",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/9ed0be32-e6bc-42b2-ba8e-b6cdf9274f2f/payload_storage/bitmask.dat",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "DAT",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/9ed0be32-e6bc-42b2-ba8e-b6cdf9274f2f/payload_storage/config.json",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "JSON",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/9ed0be32-e6bc-42b2-ba8e-b6cdf9274f2f/payload_storage/gaps.dat",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "DAT",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/9ed0be32-e6bc-42b2-ba8e-b6cdf9274f2f/payload_storage/page_0.dat",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "DAT",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/9ed0be32-e6bc-42b2-ba8e-b6cdf9274f2f/payload_storage/tracker.dat",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "DAT",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/9ed0be32-e6bc-42b2-ba8e-b6cdf9274f2f/segment.json",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "JSON",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/9ed0be32-e6bc-42b2-ba8e-b6cdf9274f2f/vector_storage/deleted/flags_a.dat",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "DAT",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/9ed0be32-e6bc-42b2-ba8e-b6cdf9274f2f/vector_storage/deleted/status.dat",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "DAT",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/9ed0be32-e6bc-42b2-ba8e-b6cdf9274f2f/vector_storage/vectors/chunk_0.mmap",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "MMAP",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/9ed0be32-e6bc-42b2-ba8e-b6cdf9274f2f/vector_storage/vectors/config.json",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "JSON",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/9ed0be32-e6bc-42b2-ba8e-b6cdf9274f2f/vector_storage/vectors/status.dat",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "DAT",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/9ed0be32-e6bc-42b2-ba8e-b6cdf9274f2f/version.info",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "INFO",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/cdf2c5ae-777a-4112-a7b5-755209ce9fd8/mutable_id_tracker.mappings",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "MAPPINGS",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/cdf2c5ae-777a-4112-a7b5-755209ce9fd8/mutable_id_tracker.versions",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "VERSIONS",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/cdf2c5ae-777a-4112-a7b5-755209ce9fd8/payload_index/000004.log",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "LOG",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/cdf2c5ae-777a-4112-a7b5-755209ce9fd8/payload_index/CURRENT",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "Other",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/cdf2c5ae-777a-4112-a7b5-755209ce9fd8/payload_index/IDENTITY",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "Other",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/cdf2c5ae-777a-4112-a7b5-755209ce9fd8/payload_index/LOCK",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "Other",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/cdf2c5ae-777a-4112-a7b5-755209ce9fd8/payload_index/LOG",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "Other",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/cdf2c5ae-777a-4112-a7b5-755209ce9fd8/payload_index/MANIFEST-000005",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "Other",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/cdf2c5ae-777a-4112-a7b5-755209ce9fd8/payload_index/OPTIONS-000007",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "Other",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/cdf2c5ae-777a-4112-a7b5-755209ce9fd8/payload_index/config.json",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "JSON",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/cdf2c5ae-777a-4112-a7b5-755209ce9fd8/payload_storage/bitmask.dat",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "DAT",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/cdf2c5ae-777a-4112-a7b5-755209ce9fd8/payload_storage/config.json",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "JSON",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/cdf2c5ae-777a-4112-a7b5-755209ce9fd8/payload_storage/gaps.dat",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "DAT",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/cdf2c5ae-777a-4112-a7b5-755209ce9fd8/payload_storage/page_0.dat",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "DAT",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/cdf2c5ae-777a-4112-a7b5-755209ce9fd8/payload_storage/tracker.dat",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "DAT",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/cdf2c5ae-777a-4112-a7b5-755209ce9fd8/segment.json",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "JSON",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/cdf2c5ae-777a-4112-a7b5-755209ce9fd8/vector_storage/deleted/flags_a.dat",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "DAT",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/cdf2c5ae-777a-4112-a7b5-755209ce9fd8/vector_storage/deleted/status.dat",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "DAT",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/cdf2c5ae-777a-4112-a7b5-755209ce9fd8/vector_storage/vectors/chunk_0.mmap",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "MMAP",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/cdf2c5ae-777a-4112-a7b5-755209ce9fd8/vector_storage/vectors/config.json",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "JSON",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/cdf2c5ae-777a-4112-a7b5-755209ce9fd8/vector_storage/vectors/status.dat",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "DAT",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/cdf2c5ae-777a-4112-a7b5-755209ce9fd8/version.info",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "INFO",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/e90c405a-769a-4e3e-8234-c23a6c69b0d5/mutable_id_tracker.mappings",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "MAPPINGS",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/e90c405a-769a-4e3e-8234-c23a6c69b0d5/mutable_id_tracker.versions",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "VERSIONS",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/e90c405a-769a-4e3e-8234-c23a6c69b0d5/payload_index/000004.log",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "LOG",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/e90c405a-769a-4e3e-8234-c23a6c69b0d5/payload_index/CURRENT",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "Other",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/e90c405a-769a-4e3e-8234-c23a6c69b0d5/payload_index/IDENTITY",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "Other",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/e90c405a-769a-4e3e-8234-c23a6c69b0d5/payload_index/LOCK",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "Other",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/e90c405a-769a-4e3e-8234-c23a6c69b0d5/payload_index/LOG",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "Other",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/e90c405a-769a-4e3e-8234-c23a6c69b0d5/payload_index/MANIFEST-000005",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "Other",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/e90c405a-769a-4e3e-8234-c23a6c69b0d5/payload_index/OPTIONS-000007",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "Other",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/e90c405a-769a-4e3e-8234-c23a6c69b0d5/payload_index/config.json",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "JSON",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/e90c405a-769a-4e3e-8234-c23a6c69b0d5/payload_storage/bitmask.dat",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "DAT",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/e90c405a-769a-4e3e-8234-c23a6c69b0d5/payload_storage/config.json",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "JSON",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/e90c405a-769a-4e3e-8234-c23a6c69b0d5/payload_storage/gaps.dat",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "DAT",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/e90c405a-769a-4e3e-8234-c23a6c69b0d5/payload_storage/page_0.dat",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "DAT",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/e90c405a-769a-4e3e-8234-c23a6c69b0d5/payload_storage/tracker.dat",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "DAT",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/e90c405a-769a-4e3e-8234-c23a6c69b0d5/segment.json",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "JSON",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/e90c405a-769a-4e3e-8234-c23a6c69b0d5/vector_storage/deleted/flags_a.dat",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "DAT",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/e90c405a-769a-4e3e-8234-c23a6c69b0d5/vector_storage/deleted/status.dat",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "DAT",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/e90c405a-769a-4e3e-8234-c23a6c69b0d5/vector_storage/vectors/chunk_0.mmap",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "MMAP",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/e90c405a-769a-4e3e-8234-c23a6c69b0d5/vector_storage/vectors/config.json",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "JSON",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/e90c405a-769a-4e3e-8234-c23a6c69b0d5/vector_storage/vectors/status.dat",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "DAT",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/e90c405a-769a-4e3e-8234-c23a6c69b0d5/version.info",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "INFO",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/f382780a-fded-4ab0-8922-84fa2648fd59/mutable_id_tracker.mappings",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "MAPPINGS",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/f382780a-fded-4ab0-8922-84fa2648fd59/mutable_id_tracker.versions",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "VERSIONS",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/f382780a-fded-4ab0-8922-84fa2648fd59/payload_index/000004.log",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "LOG",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/f382780a-fded-4ab0-8922-84fa2648fd59/payload_index/CURRENT",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "Other",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/f382780a-fded-4ab0-8922-84fa2648fd59/payload_index/IDENTITY",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "Other",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/f382780a-fded-4ab0-8922-84fa2648fd59/payload_index/LOCK",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "Other",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/f382780a-fded-4ab0-8922-84fa2648fd59/payload_index/LOG",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "Other",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/f382780a-fded-4ab0-8922-84fa2648fd59/payload_index/MANIFEST-000005",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "Other",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/f382780a-fded-4ab0-8922-84fa2648fd59/payload_index/OPTIONS-000007",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "Other",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/f382780a-fded-4ab0-8922-84fa2648fd59/payload_index/config.json",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "JSON",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/f382780a-fded-4ab0-8922-84fa2648fd59/payload_storage/bitmask.dat",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "DAT",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/f382780a-fded-4ab0-8922-84fa2648fd59/payload_storage/config.json",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "JSON",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/f382780a-fded-4ab0-8922-84fa2648fd59/payload_storage/gaps.dat",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "DAT",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/f382780a-fded-4ab0-8922-84fa2648fd59/payload_storage/page_0.dat",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "DAT",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/f382780a-fded-4ab0-8922-84fa2648fd59/payload_storage/tracker.dat",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "DAT",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/f382780a-fded-4ab0-8922-84fa2648fd59/segment.json",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "JSON",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/f382780a-fded-4ab0-8922-84fa2648fd59/vector_storage/deleted/flags_a.dat",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "DAT",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/f382780a-fded-4ab0-8922-84fa2648fd59/vector_storage/deleted/status.dat",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "DAT",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/f382780a-fded-4ab0-8922-84fa2648fd59/vector_storage/vectors/chunk_0.mmap",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "MMAP",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/f382780a-fded-4ab0-8922-84fa2648fd59/vector_storage/vectors/config.json",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "JSON",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/f382780a-fded-4ab0-8922-84fa2648fd59/vector_storage/vectors/status.dat",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "DAT",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/segments/f382780a-fded-4ab0-8922-84fa2648fd59/version.info",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "INFO",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/shard_config.json",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "JSON",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/wal/first-index",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "Other",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/wal/open-1",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "Other",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/0/wal/open-2",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "Other",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/config.json",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "JSON",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/shard_key_mapping.json",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "JSON",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/collections/image_vectors/version.info",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "INFO",
+    "is_doc": false
+  },
+  {
+    "path": "qdrant_storage/raft_state.json",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "JSON",
+    "is_doc": false
+  },
+  {
+    "path": "scripts/measure_ingest.ps1",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "A"
+    ],
+    "language": "PowerShell",
+    "is_doc": false
+  },
+  {
+    "path": "scripts/measure_mvp.ps1",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "A"
+    ],
+    "language": "PowerShell",
+    "is_doc": false
+  },
+  {
+    "path": "services/ingestion_orchestration_service/Dockerfile",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "Other",
+    "is_doc": false
+  },
+  {
+    "path": "services/ingestion_orchestration_service/database_utils/qdrant_connector.py",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "Python",
+    "is_doc": false
+  },
+  {
+    "path": "services/ingestion_orchestration_service/main.py",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "Python",
+    "is_doc": false
+  },
+  {
+    "path": "services/ingestion_orchestration_service/requirements.txt",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "Docs (Text)",
+    "is_doc": true,
+    "commits": [
+      "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3"
+    ],
+    "title": "",
+    "tags": [],
+    "headings": []
+  },
+  {
+    "path": "services/ml_inference_service/Dockerfile",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "Other",
+    "is_doc": false
+  },
+  {
+    "path": "services/ml_inference_service/main.py",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "Python",
+    "is_doc": false
+  },
+  {
+    "path": "services/ml_inference_service/requirements.txt",
+    "cochange_count": 1,
+    "last_commit": "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3",
+    "last_commit_ts": 1749386797,
+    "statuses": [
+      "D"
+    ],
+    "language": "Docs (Text)",
+    "is_doc": true,
+    "commits": [
+      "da3ef1b2c98c2a3af8bef97983b40dea0400f7a3"
+    ],
+    "title": "",
+    "tags": [],
+    "headings": []
+  }
+]
