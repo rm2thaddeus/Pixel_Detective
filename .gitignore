@@ -160,6 +160,10 @@ docs/_build/
 frontend/node_modules/
 frontend/.next/
 
+# Git worktrees
+.worktrees/
+
 # Generated exports (large artifacts)
 exports/
+
 

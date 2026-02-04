@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Pixel Detective | Frontpage</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600&family=IBM+Plex+Serif:wght@400;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <nav class="nav">
+    <div class="container nav-inner">
+      <div class="logo">
+        <span class="logo-dot"></span>
+        Pixel Detective
+      </div>
+      <div class="nav-links">
+        <a href="index.html">Home</a>
+        <a href="manifesto.html">Manifesto</a>
+        <a href="pixel-detective.html">Pixel Detective</a>
+        <a href="dev-graph.html">Dev Graph</a>
+      </div>
+    </div>
+  </nav>
+
+  <main class="container">
+    <section class="hero">
+      <div class="reveal">
+        <h1>AI-native media search, engineered for depth.</h1>
+        <p>
+          Pixel Detective transforms personal archives into a navigable intelligence layer: semantic search,
+          real-time clustering, and curated latent-space exploration across tens of thousands of images.
+        </p>
+        <div class="badges">
+          <span class="badge">Microservices + GPU UMAP</span>
+          <span class="badge">Next.js 15 + Chakra UI</span>
+          <span class="badge">Qdrant Vector DB</span>
+        </div>
+        <div class="hero-actions">
+          <a class="button primary" href="manifesto.html">Read the Manifesto</a>
+          <a class="button" href="pixel-detective.html">Explore the Platform</a>
+        </div>
+      </div>
+      <div class="hero-visual reveal">
+        <img src="assets/images/hero-umap.png" alt="Abstract UMAP visualization" />
+      </div>
+    </section>
+
+    <section class="section reveal">
+      <h2 class="section-title">How it queries</h2>
+      <p class="section-subtitle">
+        Pixel Detective turns text and images into embeddings, searches Qdrant for semantic neighbors,
+        and returns ranked results with metadata context.
+      </p>
+      <div class="hero-visual">
+        <img src="assets/images/query-flow.png" alt="Query flow diagram" />
+      </div>
+    </section>
+
+    <section class="section reveal">
+      <h2 class="section-title">Credibility, not hype</h2>
+      <div class="band">
+        <div class="metric">
+          <strong>GPU-accelerated UMAP</strong>
+          <span>10-300x speedups with CUDA and cuML.</span>
+        </div>
+        <div class="metric">
+          <strong>Production-grade microservices</strong>
+          <span>Ingestion, ML inference, and vector search decoupled by design.</span>
+        </div>
+        <div class="metric">
+          <strong>Interactive latent space</strong>
+          <span>Clustering, lasso selection, and curation workflows live.</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="section reveal">
+      <h2 class="section-title">Dive deeper</h2>
+      <p class="section-subtitle">Follow the story: why it exists, how it works, and how the code evolves.</p>
+      <div class="tile-grid">
+        <a class="tile" href="manifesto.html">
+          <img src="assets/images/manifesto-panel-1.png" alt="Manifesto preview" />
+          <div class="tile-content">
+            <h3>Manifesto</h3>
+            <p>From promptcraft to production systems. The narrative behind the build.</p>
+          </div>
+        </a>
+        <a class="tile" href="pixel-detective.html">
+          <img src="assets/images/pd-architecture-hero.png" alt="Pixel Detective architecture" />
+          <div class="tile-content">
+            <h3>Pixel Detective</h3>
+            <p>Architecture, core services, and the platform that powers the search.</p>
+          </div>
+        </a>
+        <a class="tile" href="dev-graph.html">
+          <img src="assets/images/dev-graph-hero.png" alt="Developer graph visualization" />
+          <div class="tile-content">
+            <h3>Dev Graph</h3>
+            <p>Temporal intelligence layer for code, docs, and sprint evolution.</p>
+          </div>
+        </a>
+      </div>
+    </section>
+
+    <section class="section reveal">
+      <h2 class="section-title">Planning DNA</h2>
+      <p class="section-subtitle">
+        Each milestone is grounded in PRDs, sprint plans, and architecture references. The system
+        evolves with documented intent, not folklore.
+      </p>
+      <div class="timeline">
+        <div class="timeline-item">
+          <strong>Sprint 09-11</strong> - Microservices refactor, GPU acceleration, latent space curation.
+        </div>
+        <div class="timeline-item">
+          <strong>Architecture specs</strong> - Frontend and backend blueprints kept current.
+        </div>
+        <div class="timeline-item">
+          <strong>Roadmap discipline</strong> - Features mapped to measurable performance goals.
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="container">
+      <div>Pixel Detective - AI-powered media search engine.</div>
+      <div class="footer-links">
+        <a href="pixel-detective.html">Platform</a>
+        <a href="dev-graph.html">Dev Graph</a>
+        <a href="manifesto.html">Manifesto</a>
+        <a href="../docs/README.md">Docs</a>
+      </div>
+    </div>
+  </footer>
+
+  <script src="site.js"></script>
+</body>
+</html>
